@@ -28,15 +28,29 @@ export default function Footer() {
             rel="noopener noreferrer"
             className="text-violet-400 hover:text-violet-300 transition-colors"
           >
-            discord.gg/AtGzKP7qnZ
+            My Personal Discord
           </a>{" "}
           (personal server)
         </p>
         <p>
           Contact: <span className="text-violet-300">@Ciet</span> in{" "}
-          <strong>The Genius Society</strong>
+          <strong>
+            <a
+              href="https://discord.gg/YqAeBjpbE4"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              The Genius Society {"(click to join)"}
+            </a>
+          </strong>
         </p>
       </div>
+      <footer className="text-center text-xs text-yellow-300 mt-6 pb-4">
+        ⚠️ <strong>Svarog Tracer</strong> is an independent observation and
+        analysis tool. It does not modify, interact with, or access any game
+        files or data — it is entirely safe and non-intrusive.
+      </footer>
     </footer>
   );
 }

@@ -1,5 +1,5 @@
 // src/components/TopBar.jsx
-import React from "react";
+import svarog from "/svarog.png"; // from public
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
 
@@ -105,7 +105,7 @@ export default function TopBar({
           {/* <span className="text-white text-sm font-bold tracking-tight">
             HSR
           </span> */}
-          <img src="/svarog.png" alt="svarog" />
+          <img src={svarog} alt="svarog" />
         </div>
         <div>
           <h1 className="text-sm sm:text-base font-semibold text-slate-100">
