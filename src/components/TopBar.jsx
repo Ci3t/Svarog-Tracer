@@ -101,17 +101,18 @@ export default function TopBar({
   return (
     <header className="w-full flex items-center justify-between gap-4 py-4 px-6 bg-slate-900/30 border-b border-slate-800/40 backdrop-blur">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-          <span className="text-white text-sm font-bold tracking-tight">
+        <div className="w-9 h-9 rounded-xl  flex items-center justify-center">
+          {/* <span className="text-white text-sm font-bold tracking-tight">
             HSR
-          </span>
+          </span> */}
+          <img src="/svarog.png" alt="svarog" />
         </div>
         <div>
           <h1 className="text-sm sm:text-base font-semibold text-slate-100">
-            HSR RNG Tracker
+            Svarog Tracer
           </h1>
-          <p className="text-[10px] text-slate-500">
-            Unity 5m pattern recorder
+          <p className="text-[12px] text-slate-500">
+            Relic RNG Observation Engine
           </p>
         </div>
       </div>
@@ -166,7 +167,7 @@ export default function TopBar({
         {/* export csv */}
         <button
           onClick={handleExportCSV}
-          className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500 to-purple-500 text-xs text-white font-semibold hover:from-violet-400 hover:to-purple-400 shadow-md shadow-violet-500/30 transition-all"
+          className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500 to-purple-500 text-xs text-white font-semibold hover:from-violet-400 hover:to-purple-400 shadow-md shadow-violet-500/30 transition-all cursor-pointer"
         >
           Export CSV
         </button>

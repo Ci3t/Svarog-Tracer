@@ -1,14 +1,31 @@
 // src/utils/predictNext.js
 
-// very small in-memory cache for phases we already saw this session
-// it will reset on refresh, which is fine for your use-case
+// tiny phase cache
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 5;
 
-export function predictNext(rolls) {
-  // rolls = array of strings like ["41","44","42", ...]
-  // oldest -> newest
-  if (!rolls || rolls.length === 0) {
+// helper: shift to 4x
+function translateTo4(str = "") {
+  if (!str) return "";
+  const digits = str.split("").map((d) => Number(d));
+  if (digits.some((d) => isNaN(d) || d < 1 || d > 4)) return "";
+  const shift = (4 - digits[0] + 4) % 4;
+  return digits
+    .map((d) => {
+      const z = d - 1;
+      const s = (z + shift) % 4;
+      return (s + 1).toString();
+    })
+    .join("");
+}
+
+/* ===================== 2-STR (unchanged) ===================== */
+export function predictNext(rawRolls) {
+  const rolls = (rawRolls || [])
+    .map((r) => translateTo4(String(r)).slice(0, 2))
+    .filter(Boolean);
+
+  if (!rolls.length) {
     return {
       prediction: null,
       confidence: 0,
@@ -18,7 +35,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 0) try to match a cached phase first
   const cached = matchCachedPhase(rolls);
   if (cached) {
     return {
@@ -33,7 +49,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 1) mono check
   const mono = detectMono(rolls, 4);
   if (mono) {
     maybeStorePhase(rolls);
@@ -46,13 +61,26 @@ export function predictNext(rolls) {
     };
   }
 
-  // 2) recency-weighted frequency
   const { sorted: freqSorted, rawCounts } = weightedFrequency(rolls);
   const dominant = freqSorted[0].value;
   const dominantPct = freqSorted[0].pct / 100;
   const last = rolls[rolls.length - 1];
 
-  // 3) branch: stream is mostly X, but last was a rare value
+  const wave = detectWave(rolls, freqSorted);
+  if (wave) {
+    maybeStorePhase(rolls);
+    return {
+      prediction: wave.primary,
+      confidence: 0.55,
+      alt: wave.alt || null,
+      mode: "wave",
+      candidates: [
+        { value: wave.primary, pct: 55 },
+        ...(wave.alt ? [{ value: wave.alt, pct: 35 }] : []),
+      ],
+    };
+  }
+
   if (dominantPct >= 0.5 && last !== dominant && rawCounts[last] === 1) {
     const succ = findMostCommonSuccessor(rolls, last);
     if (succ) {
@@ -67,7 +95,6 @@ export function predictNext(rolls) {
     }
   }
 
-  // 4) stable
   if (dominantPct >= 0.6) {
     maybeStorePhase(rolls);
     return {
@@ -79,7 +106,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 5) alternating
   if (
     Object.keys(rawCounts).length === 2 &&
     rolls.length >= 4 &&
@@ -96,7 +122,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 6) rotation
   if (detectRotation(rolls)) {
     const next = getRotationNext(rolls);
     maybeStorePhase(rolls);
@@ -109,7 +134,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 7) small recent cyclic
   const phaseNext = detectPhase(rolls);
   if (phaseNext) {
     maybeStorePhase(rolls);
@@ -122,7 +146,6 @@ export function predictNext(rolls) {
     };
   }
 
-  // 8) fallback: recency-weighted markov-2
   const markov = weightedMarkov2(rolls, dominant);
   maybeStorePhase(rolls);
   return {
@@ -134,17 +157,216 @@ export function predictNext(rolls) {
   };
 }
 
-/* ------------------ helpers ------------------ */
+/* ===================== 3-STR ===================== */
 
-// recency-weighted frequency
+// strip trailing 0s coming from padded session table
+function stripZeros(str = "") {
+  return str.replace(/0+$/, "");
+}
+
+export function predictNext3(rawRolls = []) {
+  // keep only real 3-digit rolls
+  const rolls = rawRolls
+    .map((r) => stripZeros(String(r)).slice(0, 3))
+    .filter((r) => r.length === 3);
+
+  if (!rolls.length) {
+    return {
+      prediction: null,
+      confidence: 0,
+      alt: null,
+      mode: "none-3str",
+      candidates: [],
+    };
+  }
+
+  // mono on last 3
+  if (rolls.length >= 3) {
+    const tail = rolls.slice(-3);
+    if (tail.every((v) => v === tail[0])) {
+      const p = translateTo4(tail[0]);
+      return {
+        prediction: p,
+        confidence: 0.85,
+        alt: null,
+        mode: "mono-3str",
+        candidates: [{ value: p, pct: 100 }],
+      };
+    }
+  }
+
+  // recency freq
+  const freq = {};
+  const decay = 0.85;
+  const n = rolls.length;
+  rolls.forEach((val, idx) => {
+    const dist = n - 1 - idx;
+    const w = Math.pow(decay, dist);
+    freq[val] = (freq[val] || 0) + w;
+  });
+  const sorted = Object.entries(freq)
+    .map(([value, w]) => ({ value, pct: Math.round((w / n) * 100) }))
+    .sort((a, b) => b.pct - a.pct);
+  const top = sorted[0];
+
+  // tiny successor table
+  const succ = mostCommonSuccessor(rolls);
+  if (succ) {
+    const main = translateTo4(succ.value);
+    const alt = top ? translateTo4(top.value) : null;
+    return {
+      prediction: main,
+      confidence: succ.conf,
+      alt,
+      mode: "markov-3str",
+      candidates: [
+        { value: main, pct: Math.round(succ.conf * 100) },
+        ...(alt ? [{ value: alt, pct: 40 }] : []),
+      ],
+    };
+  }
+
+  // fallback
+  const main = top ? translateTo4(top.value) : null;
+  const alt = sorted[1] ? translateTo4(sorted[1].value) : null;
+  return {
+    prediction: main,
+    confidence: 0.6,
+    alt,
+    mode: "stable-3str",
+    candidates: [
+      ...(main ? [{ value: main, pct: 60 }] : []),
+      ...(alt ? [{ value: alt, pct: 30 }] : []),
+    ],
+  };
+
+  function mostCommonSuccessor(seq) {
+    if (seq.length < 3) return null;
+    const table = {};
+    for (let i = 0; i < seq.length - 1; i++) {
+      const cur = seq[i];
+      const nxt = seq[i + 1];
+      table[cur] ??= {};
+      table[cur][nxt] = (table[cur][nxt] || 0) + 1;
+    }
+    const last = seq[seq.length - 1];
+    const opts = table[last];
+    if (!opts) return null;
+    const arr = Object.entries(opts).sort((a, b) => b[1] - a[1]);
+    const total = Object.values(opts).reduce((a, v) => a + v, 0);
+    return {
+      value: arr[0][0],
+      conf: arr[0][1] / total,
+    };
+  }
+}
+
+/* ===================== 4-STR ===================== */
+
+export function predictNext4(rawRolls = []) {
+  const rolls = rawRolls
+    .map((r) => stripZeros(String(r)).slice(0, 4))
+    .filter((r) => r.length === 4);
+
+  if (!rolls.length) {
+    return {
+      prediction: null,
+      confidence: 0,
+      alt: null,
+      mode: "none-4str",
+      candidates: [],
+    };
+  }
+
+  // mono on last 3
+  if (rolls.length >= 3) {
+    const tail = rolls.slice(-3);
+    if (tail.every((v) => v === tail[0])) {
+      const p = translateTo4(tail[0]);
+      return {
+        prediction: p,
+        confidence: 0.85,
+        alt: null,
+        mode: "mono-4str",
+        candidates: [{ value: p, pct: 100 }],
+      };
+    }
+  }
+
+  // freq
+  const freq = {};
+  const decay = 0.85;
+  const n = rolls.length;
+  rolls.forEach((val, idx) => {
+    const dist = n - 1 - idx;
+    const w = Math.pow(decay, dist);
+    freq[val] = (freq[val] || 0) + w;
+  });
+  const sorted = Object.entries(freq)
+    .map(([value, w]) => ({ value, pct: Math.round((w / n) * 100) }))
+    .sort((a, b) => b.pct - a.pct);
+  const top = sorted[0];
+
+  const succ = mostCommonSuccessor(rolls);
+  if (succ) {
+    const main = translateTo4(succ.value);
+    const alt = top ? translateTo4(top.value) : null;
+    return {
+      prediction: main,
+      confidence: succ.conf,
+      alt,
+      mode: "transition-4str",
+      candidates: [
+        { value: main, pct: Math.round(succ.conf * 100) },
+        ...(alt ? [{ value: alt, pct: 40 }] : []),
+      ],
+    };
+  }
+
+  const main = top ? translateTo4(top.value) : null;
+  const alt = sorted[1] ? translateTo4(sorted[1].value) : null;
+  return {
+    prediction: main,
+    confidence: 0.6,
+    alt,
+    mode: "stable-4str",
+    candidates: [
+      ...(main ? [{ value: main, pct: 60 }] : []),
+      ...(alt ? [{ value: alt, pct: 30 }] : []),
+    ],
+  };
+
+  function mostCommonSuccessor(seq) {
+    if (seq.length < 3) return null;
+    const table = {};
+    for (let i = 0; i < seq.length - 1; i++) {
+      const cur = seq[i];
+      const nxt = seq[i + 1];
+      table[cur] ??= {};
+      table[cur][nxt] = (table[cur][nxt] || 0) + 1;
+    }
+    const last = seq[seq.length - 1];
+    const opts = table[last];
+    if (!opts) return null;
+    const arr = Object.entries(opts).sort((a, b) => b[1] - a[1]);
+    const total = Object.values(opts).reduce((a, v) => a + v, 0);
+    return {
+      value: arr[0][0],
+      conf: arr[0][1] / total,
+    };
+  }
+}
+
+/* ===== shared helpers (same as before) ===== */
+
 function weightedFrequency(rolls) {
   const counts = {};
   const rawCounts = {};
   const decay = 0.85;
   const n = rolls.length;
   rolls.forEach((val, idx) => {
-    const distFromEnd = n - 1 - idx;
-    const w = Math.pow(decay, distFromEnd);
+    const dist = n - 1 - idx;
+    const w = Math.pow(decay, dist);
     counts[val] = (counts[val] || 0) + w;
     rawCounts[val] = (rawCounts[val] || 0) + 1;
   });
@@ -156,6 +378,20 @@ function weightedFrequency(rolls) {
     }))
     .sort((a, b) => b.pct - a.pct);
   return { sorted, rawCounts };
+}
+
+function detectWave(rolls, freqSorted) {
+  if (rolls.length < 4) return null;
+  const top2 = freqSorted.slice(0, 2).map((x) => x.value);
+  const tail = rolls.slice(-3);
+  const misses = tail.filter((v) => !top2.includes(v));
+  if (misses.length >= 2) {
+    return {
+      primary: top2[0],
+      alt: top2[1] || null,
+    };
+  }
+  return null;
 }
 
 function detectMono(seq, n) {
@@ -200,53 +436,36 @@ function getRotationNext(seq) {
   return uniq[(idx + 1) % uniq.length];
 }
 
-// detects small recent loop in the last 6
 function detectPhase(seq) {
   const tail = seq.slice(-6);
-  // try pattern sizes 2..4
   for (let size = 2; size <= 4; size++) {
     if (tail.length <= size) break;
     const lastChunk = tail.slice(-size).join("|");
     const before = tail.slice(0, -1).join("|");
     if (before.includes(lastChunk)) {
-      // continue the chunk
-      const next = tail[tail.length - size];
-      return next;
+      return tail[tail.length - size];
     }
   }
   return null;
 }
 
-// save phase if it's "stable-ish"
 function maybeStorePhase(seq) {
-  // look at last 8
   const tail = seq.slice(-8);
   if (tail.length < 5) return;
   const uniq = Array.from(new Set(tail));
   if (uniq.length <= 3) {
-    // store it
-    const phase = {
-      values: uniq.sort(), // normalized
-      last: tail[tail.length - 1],
-    };
+    const phase = { values: uniq.sort(), last: tail[tail.length - 1] };
     PHASE_CACHE.unshift(phase);
-    if (PHASE_CACHE.length > PHASE_CACHE_LIMIT) {
-      PHASE_CACHE.pop();
-    }
+    if (PHASE_CACHE.length > PHASE_CACHE_LIMIT) PHASE_CACHE.pop();
   }
 }
 
-// try to match current tail to a cached phase
 function matchCachedPhase(seq) {
-  if (PHASE_CACHE.length === 0) return null;
+  if (!PHASE_CACHE.length) return null;
   const tail = seq.slice(-5);
   const uniqTail = Array.from(new Set(tail)).sort();
   for (const phase of PHASE_CACHE) {
-    // same value set?
     if (arrayEq(phase.values, uniqTail)) {
-      // predict “what usually comes after the last seen”
-      const last = seq[seq.length - 1];
-      // simple rule: if last is in phase, pick the most frequent in tail
       const counts = {};
       tail.forEach((v) => (counts[v] = (counts[v] || 0) + 1));
       const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -260,21 +479,18 @@ function matchCachedPhase(seq) {
 
 function arrayEq(a, b) {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
 
-// recency-weighted Markov(2)
 function weightedMarkov2(seq, fallback) {
   const table = {};
   const decay = 0.85;
   for (let i = 2; i < seq.length; i++) {
     const key = seq[i - 2] + "|" + seq[i - 1];
     const nxt = seq[i];
-    const distFromEnd = seq.length - 1 - i;
-    const w = Math.pow(decay, distFromEnd);
+    const dist = seq.length - 1 - i;
+    const w = Math.pow(decay, dist);
     table[key] ??= {};
     table[key][nxt] = (table[key][nxt] || 0) + w;
   }

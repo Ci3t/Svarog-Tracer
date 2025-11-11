@@ -29,7 +29,7 @@ export default function SessionTable({
         <div className="flex gap-2 bg-slate-900/50 rounded-lg p-1 cursor-pointer">
           <button
             onClick={() => setSessionTab("current")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
               sessionTab === "current"
                 ? "bg-violet-500 text-white"
                 : "text-slate-400 hover:text-slate-300"
@@ -39,7 +39,7 @@ export default function SessionTable({
           </button>
           <button
             onClick={() => setSessionTab("previous")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
               sessionTab === "previous"
                 ? "bg-violet-500 text-white"
                 : "text-slate-400 hover:text-slate-300"
@@ -47,10 +47,21 @@ export default function SessionTable({
           >
             History
           </button>
+          <button
+            onClick={() => setSessionTab("all")}
+            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
+              sessionTab === "all"
+                ? "bg-violet-500 text-white"
+                : "text-slate-400 hover:text-slate-300"
+            }`}
+          >
+            All
+          </button>
         </div>
       </div>
 
       {sessionTab === "current" ? (
+        /* CURRENT SESSION TABLE */
         <div className="overflow-auto max-h-[500px]">
           <table className="w-full">
             <thead className="bg-slate-900/60 sticky top-0">
@@ -115,12 +126,21 @@ export default function SessionTable({
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : sessionTab === "previous" ? (
+        /* HISTORY VIEW */
         <div className="p-6 space-y-3 max-h-[500px] overflow-auto">
           {prevSessions.length === 0 && (
             <p className="text-sm text-slate-500">
               No previous sessions recorded.
             </p>
+          )}
+          {prevSessions.length > 0 && (
+            <button
+              onClick={() => onDeleteSession("ALL")}
+              className="text-xs cursor-pointer text-slate-400 hover:text-red-400"
+            >
+              Delete all history
+            </button>
           )}
           {prevSessions.map((sess, idx) => (
             <details
@@ -178,14 +198,55 @@ export default function SessionTable({
               </div>
             </details>
           ))}
-          {prevSessions.length > 0 && (
-            <button
-              onClick={() => onDeleteSession("ALL")}
-              className="text-xs text-slate-400 hover:text-red-400"
-            >
-              Delete all history
-            </button>
-          )}
+        </div>
+      ) : (
+        /* ALL VIEW (current + history flattened) */
+        <div className="overflow-auto max-h-[500px]">
+          <table className="w-full">
+            <thead className="bg-slate-900/60 sticky top-0">
+              <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="py-3 px-6">Raw</th>
+                <th className="py-3 px-4">Translated</th>
+                <th className="py-3 px-4">2-str</th>
+                <th className="py-3 px-4">3-str</th>
+                <th className="py-3 px-4">4-str</th>
+                <th className="py-3 px-4">5-str</th>
+                <th className="py-3 px-4">Time</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/30">
+              {[...entries, ...prevSessions.flatMap((s) => s.entries || [])]
+                .sort((a, b) => new Date(b.time) - new Date(a.time))
+                .map((e) => (
+                  <tr
+                    key={e.id}
+                    className="hover:bg-slate-800/20 transition-colors"
+                  >
+                    <td className="py-3 px-6 font-mono text-sm text-slate-200">
+                      {e.raw}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-sm text-violet-300">
+                      {e.translated}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-200">
+                      {toTranslatedPadded(e.s2)}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                      {toTranslatedPadded(e.s3)}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                      {toTranslatedPadded(e.s4)}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-500">
+                      {toTranslatedPadded(e.s5)}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-slate-500">
+                      {new Date(e.time).toLocaleTimeString()}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

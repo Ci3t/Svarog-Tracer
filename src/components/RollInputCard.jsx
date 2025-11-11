@@ -26,7 +26,7 @@ export default function RollInputCard({
         />
         <button
           onClick={onAdd}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400 text-white font-semibold shadow-lg shadow-violet-500/25 transition-all"
+          className="px-6 cursor-pointer py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400 text-white font-semibold shadow-lg shadow-violet-500/25 transition-all"
         >
           Add
         </button>

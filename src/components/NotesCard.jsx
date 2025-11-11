@@ -39,13 +39,13 @@ ${notes || "(none)"}
 `;
             navigator.clipboard.writeText(summary);
           }}
-          className="px-3 py-1 rounded-md bg-violet-500 hover:bg-violet-400 text-slate-100 text-xs"
+          className="px-3 py-1 rounded-md bg-violet-500 hover:bg-violet-400 text-slate-100 text-xs cursor-pointer"
         >
           Copy notes
         </button>
         <button
           onClick={() => setNotes("")}
-          className="px-3 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs"
+          className="px-3 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs cursor-pointer"
         >
           Clear
         </button>

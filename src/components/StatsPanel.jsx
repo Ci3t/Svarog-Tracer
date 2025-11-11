@@ -78,6 +78,10 @@ export default function StatsPanel({
           <span className="text-slate-200"> rotation</span>,
           <span className="text-slate-200"> phase-memory</span>.
         </p>
+        <p className="text-[11px] text-slate-400 pt-1">
+          Confidence = how strong this 5m window points to that number. If it’s{" "}
+          {"<"}60%, do 2–3 more tests.
+        </p>
       </div>
     </div>
   );

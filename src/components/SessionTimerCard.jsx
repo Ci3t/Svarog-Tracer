@@ -1,4 +1,12 @@
+import { useEffect, useState } from "react";
+
 export default function SessionTimerCard({ secondsLeft, onStart }) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
   const ending = secondsLeft <= 30;
@@ -24,9 +32,13 @@ export default function SessionTimerCard({ secondsLeft, onStart }) {
         Pattern changes every 5 minutes. Start a fresh session right before you
         roll.
       </p>
+      {/* realtime clock */}
+      <p className="text-lg text-slate-300 mb-3 ">
+        Local time: {now.toLocaleTimeString()}
+      </p>
       <button
         onClick={onStart}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400 text-white font-semibold transition-all duration-200"
+        className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400 text-white font-semibold transition-all duration-200 cursor-pointer"
       >
         Start New Session
       </button>

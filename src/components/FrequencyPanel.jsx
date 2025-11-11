@@ -26,7 +26,7 @@ export default function FrequencyPanel({
             <button
               key={tab}
               onClick={() => setFreqTab(tab)}
-              className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+              className={`px-2 cursor-pointer py-1 rounded-md text-[12px] font-medium transition-all ${
                 freqTab === tab
                   ? "bg-violet-500 text-white shadow-lg shadow-violet-500/30"
                   : "text-slate-400 hover:text-slate-300"
