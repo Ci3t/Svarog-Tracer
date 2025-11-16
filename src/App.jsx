@@ -30,7 +30,6 @@ export default function App() {
   const [patch, setPatch] = useState("3.7");
 
   const [debugLogs, setDebugLogs] = useState([]);
-
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
 
@@ -132,112 +131,101 @@ export default function App() {
       return;
     }
 
-    // split into s2..s5 first
     const { s2, s3, s4, s5 } = splitString(clean);
     const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    const newEntry = {
-      id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
-      raw: clean,
-      translated,
-      time: nowIso,
-      s2,
-      s3,
-      s4,
-      s5,
-      region,
-      patch,
-    };
+    // 🔥 CRITICAL: SNAPSHOT PREDICTIONS *BEFORE* adding new roll
+    const rolls2 = entries
+      .map((e) => (e.translated || "").slice(0, 2))
+      .filter(Boolean)
+      .reverse();
 
-    // we need the *new* list to run predictors on
-    setEntries((prev) => {
-      const newEntries = [newEntry, ...prev];
+    const rolls3 = entries
+      .map((e) => (e.s3 || "").replace(/0+$/, ""))
+      .filter((r) => r.length === 3)
+      .reverse();
 
-      // build ordered (oldest → newest) for predictors
-      const ordered = [...newEntries].sort(
-        (a, b) => new Date(a.time) - new Date(b.time)
-      );
+    const rolls4 = entries
+      .map((e) => (e.s4 || "").replace(/0+$/, ""))
+      .filter((r) => r.length === 4)
+      .reverse();
 
-      // 2-str stream
-      const rolls2 = ordered
-        .map((e) => (e.translated || "").slice(0, 2))
-        .filter(Boolean);
+    // GET PREDICTIONS FROM CURRENT STATE (what screen showed)
+    const p2 = predictNext(rolls2);
+    const p3 = predictNext3(rolls3);
+    const p4 = predictNext4(rolls4);
 
-      // 3-str stream (remove padding zeros)
-      const rolls3 = ordered
-        .map((e) => (e.s3 || "").replace(/0+$/, ""))
-        .filter((r) => r.length === 3);
+    const actual2 = translated.slice(0, 2);
+    const actual3 = translated.slice(0, 3);
+    const actual4 = translated.slice(0, 4);
 
-      // 4-str stream
-      const rolls4 = ordered
-        .map((e) => (e.s4 || "").replace(/0+$/, ""))
-        .filter((r) => r.length === 4);
+    const nowTs = Date.now();
+    const safeCandidates = (p) =>
+      Array.isArray(p?.candidates) ? p.candidates : [];
 
-      // run predictors
-      const p2 = predictNext(rolls2);
-      const p3 = predictNext3(rolls3);
-      const p4 = predictNext4(rolls4);
+    // 🔥 STORE PREDICTIONS THAT WERE ON SCREEN
+    const newLogsToAdd = [];
 
-      // actuals for logging (translated and sliced)
-      const actual2 = translated.slice(0, 2);
-      const actual3 = translated.slice(0, 3);
-      const actual4 = translated.slice(0, 4);
-
-      const nowTs = Date.now();
-      const newLogs = [];
-
-      // 2-str is always loggable
-      newLogs.push({
-        ts: nowTs,
-        kind: "2",
-        prediction: p2.prediction || "—",
-        confidence: p2.confidence || 0,
-        alt:
-          p2.alt ||
-          (p2.candidates && p2.candidates[1] ? p2.candidates[1].value : null),
-        mode: p2.mode || "—",
-        actual: actual2,
-        ctx: rolls2.slice(-8),
-      });
-
-      // 3-str only if user roll actually produced 3 digits
-      if (actual3.length === 3 && rolls3.length) {
-        newLogs.push({
-          ts: nowTs,
-          kind: "3",
-          prediction: p3.prediction || "—",
-          confidence: p3.confidence || 0,
-          alt:
-            p3.alt ||
-            (p3.candidates && p3.candidates[1] ? p3.candidates[1].value : null),
-          mode: p3.mode || "—",
-          actual: actual3,
-          ctx: rolls3.slice(-8),
-        });
-      }
-
-      // 4-str only if user roll actually produced 4 digits
-      if (actual4.length === 4 && rolls4.length) {
-        newLogs.push({
-          ts: nowTs,
-          kind: "4",
-          prediction: p4.prediction || "—",
-          confidence: p4.confidence || 0,
-          alt:
-            p4.alt ||
-            (p4.candidates && p4.candidates[1] ? p4.candidates[1].value : null),
-          mode: p4.mode || "—",
-          actual: actual4,
-          ctx: rolls4.slice(-8),
-        });
-      }
-
-      setDebugLogs((old) => [...newLogs, ...old].slice(0, 200));
-
-      return newEntries;
+    newLogsToAdd.push({
+      ts: nowTs,
+      kind: "2",
+      prediction: p2.prediction || "—",
+      confidence: p2.confidence || 0,
+      alt: p2.alt || safeCandidates(p2)[1]?.value || null,
+      mode: p2.mode || "—",
+      actual: actual2,
+      ctx: rolls2.slice(-8),
+      candidates: safeCandidates(p2),
     });
 
+    if (actual3.length === 3 && rolls3.length) {
+      newLogsToAdd.push({
+        ts: nowTs,
+        kind: "3",
+        prediction: p3.prediction || "—",
+        confidence: p3.confidence || 0,
+        alt: p3.alt || safeCandidates(p3)[1]?.value || null,
+        mode: p3.mode || "—",
+        actual: actual3,
+        ctx: rolls3.slice(-8),
+        candidates: safeCandidates(p3),
+      });
+    }
+
+    if (actual4.length === 4 && rolls4.length) {
+      newLogsToAdd.push({
+        ts: nowTs,
+        kind: "4",
+        prediction: p4.prediction || "—",
+        confidence: p4.confidence || 0,
+        alt: p4.alt || safeCandidates(p4)[1]?.value || null,
+        mode: p4.mode || "—",
+        actual: actual4,
+        ctx: rolls4.slice(-8),
+        candidates: safeCandidates(p4),
+      });
+    }
+
+    // NOW add the roll to entries
+    setEntries((prev) => {
+      const newEntry = {
+        id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
+        raw: clean,
+        translated,
+        time: nowIso,
+        s2,
+        s3,
+        s4,
+        s5,
+        region,
+        patch,
+      };
+      return [newEntry, ...prev];
+    });
+
+    // Add logs AFTER snapshots are captured
+    setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
 
@@ -258,6 +246,26 @@ export default function App() {
   const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
   const freq4 = buildPrefixFreq(entries, 4, { translateAll: true });
   const freq5 = buildPrefixFreq(entries, 5, { translateAll: true });
+
+  // 🔥 CALCULATE LIVE PREDICTIONS FOR STATSPANEL
+  const rolls2 = entries
+    .map((e) => (e.translated || "").slice(0, 2))
+    .filter(Boolean)
+    .reverse();
+
+  const rolls3 = entries
+    .map((e) => (e.s3 || "").replace(/0+$/, ""))
+    .filter((r) => r.length === 3)
+    .reverse();
+
+  const rolls4 = entries
+    .map((e) => (e.s4 || "").replace(/0+$/, ""))
+    .filter((r) => r.length === 4)
+    .reverse();
+
+  const livePrediction = predictNext(rolls2);
+  const livePrediction3 = predictNext3(rolls3);
+  const livePrediction4 = predictNext4(rolls4);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
@@ -325,6 +333,9 @@ export default function App() {
           />
           <StatsPanel
             entries={entries}
+            prediction2={livePrediction}
+            prediction3={livePrediction3}
+            prediction4={livePrediction4}
             currentRegion={region}
             currentPatch={patch}
           />

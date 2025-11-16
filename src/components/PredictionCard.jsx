@@ -33,6 +33,10 @@ export default function PredictionCard({
     wave: "bg-fuchsia-500/15 text-fuchsia-100 border-fuchsia-400/40",
     "wave-3str": "bg-fuchsia-500/15 text-fuchsia-100 border-fuchsia-400/40",
     "wave-4str": "bg-fuchsia-500/15 text-fuchsia-100 border-fuchsia-400/40",
+    "cyclic-enhanced": "bg-purple-500/15 text-purple-100 border-purple-400/40",
+    "lcg-cycle": "bg-orange-500/15 text-orange-100 border-orange-400/40",
+    "markov-3state": "bg-teal-500/15 text-teal-100 border-teal-400/40",
+    "insufficient-data": "bg-slate-500/10 text-slate-400 border-slate-600/30",
   };
 
   const mainValue = prediction?.prediction || prediction?.pred || null;

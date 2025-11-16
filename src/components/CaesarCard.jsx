@@ -3,7 +3,7 @@ import React from "react";
 import { translateTo4 } from "../utils/stringHelpers";
 
 export default function CaesarCard({ caesarInput, setCaesarInput }) {
-  const clean = caesarInput.replace(/[^1-4]/g, "");
+  const clean = (caesarInput || "").replace(/[^1-4]/g, "");
   const shifted = clean ? translateTo4(clean) : "";
 
   return (
