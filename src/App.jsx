@@ -21,6 +21,7 @@ import { predictNext, predictNext3, predictNext4 } from "./utils/predictNext";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
+const INACTIVITY_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 export default function App() {
   const [entries, setEntries] = useState([]);
@@ -47,7 +48,21 @@ export default function App() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
+
       const parsed = JSON.parse(raw);
+
+      // 🔥 3h inactivity check
+      const now = Date.now();
+      const lastActive = parsed.savedAt || 0;
+
+      if (lastActive && now - lastActive > INACTIVITY_MS) {
+        // Session is older than 3 hours of inactivity → clear it
+        console.log("[storage] session expired after 3h inactivity, clearing");
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+
+      // Still fresh → restore it
       setEntries(parsed.entries || []);
       setPrevSessions(parsed.prevSessions || []);
       setRegion(parsed.region || "America");
@@ -70,7 +85,7 @@ export default function App() {
       notes,
       caesarInput,
       debugLogs,
-      savedAt: Date.now(),
+      savedAt: Date.now(), // 👈 this is our "lastActiveAt"
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
