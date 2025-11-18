@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer className="mt-6 py-4 text-center text-[11px] text-slate-500 border-t border-slate-800/40">
+    <footer className="mt-6 py-4 sm:py-6 px-4 text-center text-[11px] sm:text-[12px] text-slate-500 border-t border-slate-800/40">
       <div className="space-y-1">
         <p>
           <strong>Svarog Tracer</strong> • Relic RNG Observation Engine{" "}
@@ -32,7 +32,7 @@ export default function Footer() {
           </a>{" "}
           (personal server)
         </p>
-        <p>
+        <p className="px-2">
           Contact: <span className="text-violet-300">@Ciet</span> in{" "}
           <strong>
             <a
@@ -46,7 +46,7 @@ export default function Footer() {
           </strong>
         </p>
       </div>
-      <footer className="text-center text-xs text-yellow-300 mt-6 pb-4">
+      <footer className="text-center text-[11px] sm:text-xs text-yellow-300 mt-6 pb-4 px-4">
         ⚠️ <strong>Svarog Tracer</strong> is an independent observation and
         analysis tool. It does not modify, interact with, or access any game
         files or data — it is entirely safe and non-intrusive.

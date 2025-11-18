@@ -87,7 +87,7 @@ export default function StatsPanel({
   return (
     <div className="bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 space-y-4">
       {/* Header with tabs */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
             Stats & Line Helper
@@ -98,7 +98,7 @@ export default function StatsPanel({
         </div>
 
         {/* Stream tabs */}
-        <div className="flex gap-1 bg-slate-900/40 rounded-lg p-1">
+        <div className="flex gap-1 bg-slate-900/40 rounded-lg p-1 w-fit">
           {["2", "3", "4"].map((tab) => (
             <button
               key={tab}
@@ -116,10 +116,10 @@ export default function StatsPanel({
       </div>
 
       {/* AUTO-SHIFTED STATS - Shows reverse Caesar automatically */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div className="space-y-1">
           <div className="text-xs text-slate-400">Main Prediction</div>
-          <div className="text-2xl font-mono font-bold text-violet-300">
+          <div className="text-2xl sm:text-3xl font-mono font-bold text-violet-300">
             {autoShiftedMain ?? "—"}
           </div>
           <div className="text-[11px] text-slate-400">
@@ -129,7 +129,7 @@ export default function StatsPanel({
 
         <div className="space-y-1">
           <div className="text-xs text-slate-400">Alternative</div>
-          <div className="text-2xl font-mono font-bold text-sky-300">
+          <div className="text-2xl sm:text-3xl font-mono font-bold text-sky-300">
             {autoShiftedAlt ?? "—"}
           </div>
           <div className="text-[11px] text-slate-400">
@@ -165,7 +165,7 @@ export default function StatsPanel({
           <label className="text-xs text-slate-400 w-20 shrink-0">
             Your line:
           </label>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {[1, 2, 3, 4].map((line) => (
               <button
                 key={line}

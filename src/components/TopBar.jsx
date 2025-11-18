@@ -1,5 +1,5 @@
-// src/components/TopBar.jsx
-import svarog from "/svarog.png"; // from public
+// src/components/TopBar.jsx - REPLACE YOUR EXISTING FILE
+import svarog from "/svarog.png";
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
 
@@ -13,9 +13,8 @@ export default function TopBar({
   entries = [],
   prevSessions = [],
 }) {
-  // --- helpers just for export ---
+  // --- helpers for export ---
 
-  // 1..4 only -> translate so it starts with 4
   function translateTo4(str = "") {
     if (!str) return "";
     const digits = str.split("").map((d) => Number(d));
@@ -30,58 +29,60 @@ export default function TopBar({
       .join("");
   }
 
-  // pad to 5
   function pad5(s = "") {
     return s.padEnd(5, "0").slice(0, 5);
   }
 
-  // weekday
   function toWeekday(dateStr) {
     const d = dateStr ? new Date(dateStr) : new Date();
     return d.toLocaleDateString(undefined, { weekday: "long" });
   }
 
-  // build flat rows like your screenshot
+  // 🔥 UPDATED: Build rows from ALL tab (current + history)
   function buildRows() {
-    // prefer current session
-    if (entries.length > 0) {
-      return entries.map((e) => {
-        const base = (e.s2 || e.translated || e.raw || "").toString();
-        const translated = translateTo4(base.replace(/0+$/, "")) || base;
-        return {
-          day: toWeekday(e.time),
-          string: pad5(translated),
-          region,
-          patch,
-        };
-      });
-    }
+    const allEntries = [];
 
-    // else flatten history
-    const rows = [];
+    // Add current session entries
+    entries.forEach((e) => {
+      const base = (e.s2 || e.translated || e.raw || "").toString();
+      const translated = translateTo4(base.replace(/0+$/, "")) || base;
+      allEntries.push({
+        day: toWeekday(e.time),
+        string: pad5(translated),
+        region: e.region || region,
+        patch: e.patch || patch,
+        time: e.time,
+      });
+    });
+
+    // Add all previous sessions entries
     prevSessions.forEach((sess) => {
       (sess.entries || []).forEach((e) => {
         const base = (e.s2 || e.translated || e.raw || "").toString();
         const translated = translateTo4(base.replace(/0+$/, "")) || base;
-        rows.push({
+        allEntries.push({
           day: toWeekday(e.time),
           string: pad5(translated),
           region: sess.region || region,
           patch: sess.patch || patch,
+          time: e.time,
         });
       });
     });
-    return rows;
+
+    // Sort by time (newest first)
+    allEntries.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    return allEntries;
   }
 
   function handleExportCSV() {
     const rows = buildRows();
 
-    // even if empty, export headers
     const headers = ["Day", "String", "Region", "Patch"];
 
     const csv = [
-      headers.join(","), // header line
+      headers.join(","),
       ...rows.map((r) =>
         [r.day, r.string, r.region, r.patch]
           .map((v) => `"${v ?? ""}"`)
@@ -93,19 +94,20 @@ export default function TopBar({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `HSR_RNG_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `HSR_RNG_All_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <header className="w-full flex items-center justify-between gap-4 py-4 px-6 bg-slate-900/30 border-b border-slate-800/40 backdrop-blur">
+    <header className="w-full flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-3 sm:py-4 px-4 sm:px-6 bg-slate-900/30 border-b border-slate-800/40 backdrop-blur">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl  flex items-center justify-center">
-          {/* <span className="text-white text-sm font-bold tracking-tight">
-            HSR
-          </span> */}
-          <img src={svarog} alt="svarog" />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden">
+          <img
+            src={svarog}
+            alt="svarog"
+            className="w-full h-full object-contain"
+          />
         </div>
         <div>
           <h1 className="text-sm sm:text-base font-semibold text-slate-100">
@@ -117,7 +119,7 @@ export default function TopBar({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 md:justify-end">
         {/* region */}
         <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-700/40 rounded-lg px-3 py-2">
           <span className="text-[11px] text-slate-400">Region</span>
@@ -167,7 +169,7 @@ export default function TopBar({
         {/* export csv */}
         <button
           onClick={handleExportCSV}
-          className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500 to-purple-500 text-xs text-white font-semibold hover:from-violet-400 hover:to-purple-400 shadow-md shadow-violet-500/30 transition-all cursor-pointer"
+          className="w-full xs:w-auto md:w-auto px-3 py-2 rounded-md bg-gradient-to-r from-violet-500 to-purple-500 text-xs text-white font-semibold hover:from-violet-400 hover:to-purple-400 shadow-md shadow-violet-500/30 transition-all cursor-pointer"
         >
           Export CSV
         </button>

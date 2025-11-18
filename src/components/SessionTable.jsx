@@ -1,4 +1,3 @@
-// src/components/SessionTable.jsx
 import React from "react";
 import { translateTo4 } from "../utils/stringHelpers"; // 👈 use the shared one
 
@@ -25,11 +24,11 @@ export default function SessionTable({
 
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl border border-slate-700/50 shadow-2xl overflow-hidden">
-      <div className="p-6 pb-4 flex items-center justify-between">
+      <div className="p-4 sm:p-6 pb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2 bg-slate-900/50 rounded-lg p-1 cursor-pointer">
           <button
             onClick={() => setSessionTab("current")}
-            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 cursor-pointer py-2 rounded-lg text-xs sm:text-sm font-medium ${
               sessionTab === "current"
                 ? "bg-violet-500 text-white"
                 : "text-slate-400 hover:text-slate-300"
@@ -39,7 +38,7 @@ export default function SessionTable({
           </button>
           <button
             onClick={() => setSessionTab("previous")}
-            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 cursor-pointer py-2 rounded-lg text-xs sm:text-sm font-medium ${
               sessionTab === "previous"
                 ? "bg-violet-500 text-white"
                 : "text-slate-400 hover:text-slate-300"
@@ -49,7 +48,7 @@ export default function SessionTable({
           </button>
           <button
             onClick={() => setSessionTab("all")}
-            className={`px-4 cursor-pointer py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 cursor-pointer py-2 rounded-lg text-xs sm:text-sm font-medium ${
               sessionTab === "all"
                 ? "bg-violet-500 text-white"
                 : "text-slate-400 hover:text-slate-300"
@@ -63,17 +62,17 @@ export default function SessionTable({
       {sessionTab === "current" ? (
         /* CURRENT SESSION TABLE */
         <div className="overflow-auto max-h-[500px]">
-          <table className="w-full">
+          <table className="w-full min-w-[600px] text-xs sm:text-sm">
             <thead className="bg-slate-900/60 sticky top-0">
-              <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-6">Raw</th>
+              <tr className="text-left text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="py-3 px-4 sm:px-6">Raw</th>
                 <th className="py-3 px-4">Translated</th>
                 <th className="py-3 px-4">2-str</th>
                 <th className="py-3 px-4">3-str</th>
                 <th className="py-3 px-4">4-str</th>
                 <th className="py-3 px-4">5-str</th>
                 <th className="py-3 px-4">Time</th>
-                <th className="py-3 px-6"></th>
+                <th className="py-3 px-4 sm:px-6"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/30">
@@ -82,31 +81,31 @@ export default function SessionTable({
                   key={e.id}
                   className="hover:bg-slate-800/20 transition-colors"
                 >
-                  <td className="py-3 px-6 font-mono text-sm text-slate-200">
+                  <td className="py-3 px-4 sm:px-6 font-mono text-xs sm:text-sm text-slate-200">
                     {e.raw}
                   </td>
-                  <td className="py-3 px-4 font-mono text-sm text-violet-300">
+                  <td className="py-3 px-4 font-mono text-xs sm:text-sm text-violet-300">
                     {e.translated}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-200">
+                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
                     {toTranslatedPadded(e.s2)}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
                     {toTranslatedPadded(e.s3)}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
                     {toTranslatedPadded(e.s4)}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-500">
+                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
                     {toTranslatedPadded(e.s5)}
                   </td>
-                  <td className="py-3 px-4 text-xs text-slate-500">
+                  <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
                     {new Date(e.time).toLocaleTimeString()}
                   </td>
-                  <td className="py-3 px-6 text-right">
+                  <td className="py-3 px-4 sm:px-6 text-right">
                     <button
                       onClick={() => onDeleteEntry(e.id)}
-                      className="text-xs text-slate-500 hover:text-red-400 cursor-pointer"
+                      className="text-[11px] sm:text-xs text-slate-500 hover:text-red-400 cursor-pointer"
                     >
                       ✕
                     </button>
@@ -128,7 +127,7 @@ export default function SessionTable({
         </div>
       ) : sessionTab === "previous" ? (
         /* HISTORY VIEW */
-        <div className="p-6 space-y-3 max-h-[500px] overflow-auto">
+        <div className="p-4 sm:p-6 space-y-3 max-h-[500px] overflow-auto">
           {prevSessions.length === 0 && (
             <p className="text-sm text-slate-500">
               No previous sessions recorded.
@@ -147,7 +146,7 @@ export default function SessionTable({
               key={sess.id}
               className="bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden"
             >
-              <summary className="px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-800/30">
+              <summary className="px-4 py-3 cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-slate-800/30">
                 <div>
                   <div className="text-sm font-medium text-slate-200">
                     5m Session #{prevSessions.length - idx} •{" "}
@@ -173,7 +172,7 @@ export default function SessionTable({
                 </div>
               </summary>
               <div className="px-4 py-3">
-                <table className="w-full text-xs">
+                <table className="w-full text-[11px] sm:text-xs">
                   <thead>
                     <tr className="text-slate-500">
                       <th className="text-left py-1 pr-2">Raw</th>
@@ -202,10 +201,10 @@ export default function SessionTable({
       ) : (
         /* ALL VIEW (current + history flattened) */
         <div className="overflow-auto max-h-[500px]">
-          <table className="w-full">
+          <table className="w-full min-w-[600px] text-xs sm:text-sm">
             <thead className="bg-slate-900/60 sticky top-0">
-              <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-6">Raw</th>
+              <tr className="text-left text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="py-3 px-4 sm:px-6">Raw</th>
                 <th className="py-3 px-4">Translated</th>
                 <th className="py-3 px-4">2-str</th>
                 <th className="py-3 px-4">3-str</th>
@@ -222,25 +221,25 @@ export default function SessionTable({
                     key={e.id}
                     className="hover:bg-slate-800/20 transition-colors"
                   >
-                    <td className="py-3 px-6 font-mono text-sm text-slate-200">
+                    <td className="py-3 px-4 sm:px-6 font-mono text-xs sm:text-sm text-slate-200">
                       {e.raw}
                     </td>
-                    <td className="py-3 px-4 font-mono text-sm text-violet-300">
+                    <td className="py-3 px-4 font-mono text-xs sm:text-sm text-violet-300">
                       {e.translated}
                     </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-200">
+                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
                       {toTranslatedPadded(e.s2)}
                     </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
                       {toTranslatedPadded(e.s3)}
                     </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
                       {toTranslatedPadded(e.s4)}
                     </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-500">
+                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
                       {toTranslatedPadded(e.s5)}
                     </td>
-                    <td className="py-3 px-4 text-xs text-slate-500">
+                    <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
                       {new Date(e.time).toLocaleTimeString()}
                     </td>
                   </tr>

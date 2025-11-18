@@ -15,7 +15,7 @@ export default function LeftColumn({
   entries,
 }) {
   return (
-    <div className="col-span-12 lg:col-span-3 space-y-6">
+    <div className="col-span-12 lg:col-span-3 space-y-5 lg:space-y-6">
       <SessionTimerCard secondsLeft={secondsLeft} onStart={onStart} />
       <NextPrediction
         entries={entries}

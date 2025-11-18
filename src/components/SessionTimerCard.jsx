@@ -12,7 +12,7 @@ export default function SessionTimerCard({ secondsLeft, onStart }) {
   const ending = secondsLeft <= 30;
 
   return (
-    <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl">
+    <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -20,7 +20,7 @@ export default function SessionTimerCard({ secondsLeft, onStart }) {
         </span>
       </div>
       <div
-        className={`text-6xl font-bold font-mono mb-4 ${
+        className={`text-5xl sm:text-6xl font-bold font-mono mb-4 ${
           ending ? "text-red-300" : "text-slate-100"
         }`}
       >
@@ -33,7 +33,7 @@ export default function SessionTimerCard({ secondsLeft, onStart }) {
         roll.
       </p>
       {/* realtime clock */}
-      <p className="text-lg text-slate-300 mb-3 ">
+      <p className="text-base sm:text-lg text-slate-300 mb-3 ">
         Local time: {now.toLocaleTimeString()}
       </p>
       <button

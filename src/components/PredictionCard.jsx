@@ -1,4 +1,3 @@
-// src/components/PredictionCard.jsx
 export default function PredictionCard({
   prediction,
   suggestTab,
@@ -57,12 +56,12 @@ export default function PredictionCard({
     MODE_COLORS[mode] || "bg-slate-700/30 text-slate-100 border-slate-500/20";
 
   return (
-    <div className="bg-gradient-to-br from-violet-900/20 to-purple-900/20 rounded-2xl p-6 border border-violet-500/20 shadow-2xl">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-gradient-to-br from-violet-900/20 to-purple-900/20 rounded-2xl p-4 sm:p-6 border border-violet-500/20 shadow-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
           Next prediction
         </h3>
-        <div className="flex gap-1 bg-slate-900/40 rounded-lg p-1">
+        <div className="flex gap-1 bg-slate-900/40 rounded-lg p-1 w-fit">
           {tabs.map((tab) => (
             <button
               key={tab}
@@ -85,7 +84,7 @@ export default function PredictionCard({
           <div className="bg-slate-950/30 rounded-xl p-4 border border-violet-500/10">
             <p className="text-xs text-slate-400 mb-1">Next roll</p>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-4xl font-mono bg-gradient-to-r from-violet-300 to-purple-300 bg-clip-text text-transparent">
+              <span className="text-3xl sm:text-4xl font-mono bg-gradient-to-r from-violet-300 to-purple-300 bg-clip-text text-transparent">
                 {mainValue}
               </span>
               <span className="text-xs font-medium text-violet-100">
@@ -115,7 +114,7 @@ export default function PredictionCard({
           )}
 
           {/* mode pill */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] border ${modeClass}`}
             >

@@ -7,7 +7,7 @@ export default function NotesCard({
   entries,
 }) {
   return (
-    <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50">
+    <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50">
       <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
         Test notes
       </h2>
@@ -15,9 +15,9 @@ export default function NotesCard({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Write observations here (e.g. suggested 44 | got 31)..."
-        className="w-full h-28 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+        className="w-full h-28 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
       />
-      <div className="flex justify-end gap-2 mt-3">
+      <div className="flex flex-wrap justify-between sm:justify-end gap-2 mt-3">
         <button
           onClick={() => {
             const summary = `

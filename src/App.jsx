@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.jsx - REPLACE YOUR EXISTING FILE
 import React, { useEffect, useState, useRef } from "react";
 
 import LeftColumn from "./components/LeftColumn";
@@ -10,6 +10,7 @@ import Footer from "./components/Footer";
 import StatsPanel from "./components/StatsPanel";
 import TopBar from "./components/TopBar";
 import DebugPanel from "./components/DebugPanel";
+import AccuracyPanel from "./components/AccuracyPanel"; // 🔥 NEW
 
 import {
   translateTo4,
@@ -51,18 +52,15 @@ export default function App() {
 
       const parsed = JSON.parse(raw);
 
-      // 🔥 3h inactivity check
       const now = Date.now();
       const lastActive = parsed.savedAt || 0;
 
       if (lastActive && now - lastActive > INACTIVITY_MS) {
-        // Session is older than 3 hours of inactivity → clear it
         console.log("[storage] session expired after 3h inactivity, clearing");
         localStorage.removeItem(STORAGE_KEY);
         return;
       }
 
-      // Still fresh → restore it
       setEntries(parsed.entries || []);
       setPrevSessions(parsed.prevSessions || []);
       setRegion(parsed.region || "America");
@@ -85,7 +83,7 @@ export default function App() {
       notes,
       caesarInput,
       debugLogs,
-      savedAt: Date.now(), // 👈 this is our "lastActiveAt"
+      savedAt: Date.now(),
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -135,7 +133,7 @@ export default function App() {
     setTimerRunning(true);
   }
 
-  /* ========= ADD ROLL (with 2/3/4 debug) ========= */
+  /* ========= ADD ROLL ========= */
   function handleAddRoll() {
     const value = rollInput.trim();
     if (!value) return;
@@ -150,7 +148,6 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    // 🔥 CRITICAL: SNAPSHOT PREDICTIONS *BEFORE* adding new roll
     const rolls2 = entries
       .map((e) => (e.translated || "").slice(0, 2))
       .filter(Boolean)
@@ -166,7 +163,6 @@ export default function App() {
       .filter((r) => r.length === 4)
       .reverse();
 
-    // GET PREDICTIONS FROM CURRENT STATE (what screen showed)
     const p2 = predictNext(rolls2);
     const p3 = predictNext3(rolls3);
     const p4 = predictNext4(rolls4);
@@ -179,7 +175,6 @@ export default function App() {
     const safeCandidates = (p) =>
       Array.isArray(p?.candidates) ? p.candidates : [];
 
-    // 🔥 STORE PREDICTIONS THAT WERE ON SCREEN
     const newLogsToAdd = [];
 
     newLogsToAdd.push({
@@ -222,7 +217,6 @@ export default function App() {
       });
     }
 
-    // NOW add the roll to entries
     setEntries((prev) => {
       const newEntry = {
         id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
@@ -239,13 +233,31 @@ export default function App() {
       return [newEntry, ...prev];
     });
 
-    // Add logs AFTER snapshots are captured
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
 
   function handleDeleteEntry(id) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    // Find the entry being deleted to get its timestamp
+    const entryToDelete = entries.find((e) => e.id === id);
+
+    if (entryToDelete) {
+      const entryTime = new Date(entryToDelete.time).getTime();
+
+      // Remove the entry
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+
+      // Remove corresponding debug logs (match by timestamp within 1 second)
+      setDebugLogs((prev) =>
+        prev.filter((log) => {
+          const logTime = log.ts;
+          const timeDiff = Math.abs(logTime - entryTime);
+          return timeDiff > 1000; // Keep logs that are NOT within 1 second
+        })
+      );
+    } else {
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+    }
   }
 
   function handleDeleteSession(id) {
@@ -256,13 +268,16 @@ export default function App() {
     }
   }
 
-  // frequencies for right panel
+  // 🔥 NEW: Clear debug logs handler
+  function handleClearDebugLogs() {
+    setDebugLogs([]);
+  }
+
   const freq2 = buildPrefixFreq(entries, 2, { translateAll: true });
   const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
   const freq4 = buildPrefixFreq(entries, 4, { translateAll: true });
   const freq5 = buildPrefixFreq(entries, 5, { translateAll: true });
 
-  // 🔥 CALCULATE LIVE PREDICTIONS FOR STATSPANEL
   const rolls2 = entries
     .map((e) => (e.translated || "").slice(0, 2))
     .filter(Boolean)
@@ -295,8 +310,8 @@ export default function App() {
         prevSessions={prevSessions}
       />
 
-      <div className="max-w-[1800px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
-        {/* left column with timer + prediction + caesar + modes */}
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6 xl:grid xl:grid-cols-12 xl:gap-6">
+        {/* left column */}
         <LeftColumn
           secondsLeft={secondsLeft}
           onStart={handleStartSession}
@@ -333,11 +348,18 @@ export default function App() {
             entries={entries}
           />
 
-          <DebugPanel debugLogs={debugLogs} />
+          {/* 🔥 UPDATED: Pass onClearLogs */}
+          <DebugPanel
+            debugLogs={debugLogs}
+            onClearLogs={handleClearDebugLogs}
+          />
         </div>
 
         {/* right */}
         <div className="col-span-12 lg:col-span-3 space-y-6">
+          {/* 🔥 NEW: Accuracy Panel */}
+          <AccuracyPanel debugLogs={debugLogs} />
+
           <FrequencyPanel
             freqTab={freqTab}
             setFreqTab={setFreqTab}
@@ -357,7 +379,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="max-w-[1800px] mx-auto px-6">
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 pb-6">
         <Footer />
       </div>
     </div>

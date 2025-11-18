@@ -1,4 +1,3 @@
-// src/components/NextPrediction.jsx
 import React, { useMemo } from "react";
 import PredictionCard from "./PredictionCard";
 import { predictNext, predictNext3, predictNext4 } from "../utils/predictNext";

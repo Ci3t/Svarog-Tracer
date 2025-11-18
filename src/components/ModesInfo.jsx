@@ -273,7 +273,7 @@ export default function ModesInfo() {
   ];
 
   return (
-    <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 space-y-2">
+    <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 sm:p-5 space-y-2">
       <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-1">
         Prediction modes
       </h3>
@@ -287,7 +287,7 @@ export default function ModesInfo() {
           <button
             key={m}
             onClick={() => setActive(m)}
-            className={`text-[12px] px-2 py-1 rounded-md border cursor-pointer ${
+            className={`text-[11px] sm:text-[12px] px-2 py-1 rounded-md border cursor-pointer ${
               active === m
                 ? "bg-violet-500/20 border-violet-400 text-slate-100"
                 : "bg-slate-900/20 border-slate-700/30 text-slate-300 hover:text-white"
@@ -300,10 +300,10 @@ export default function ModesInfo() {
 
       {active && MODE_EXAMPLES[active] && (
         <div className="mt-3 bg-slate-950/40 border border-slate-800/50 rounded-lg p-3">
-          <h4 className="text-[14px] font-semibold text-slate-100 mb-1">
+          <h4 className="text-[13px] sm:text-[14px] font-semibold text-slate-100 mb-1">
             {MODE_EXAMPLES[active].title}
           </h4>
-          <p className="text-[14px] text-slate-400 leading-relaxed">
+          <p className="text-[12px] sm:text-[14px] text-slate-400 leading-relaxed">
             {MODE_EXAMPLES[active].body}
           </p>
         </div>

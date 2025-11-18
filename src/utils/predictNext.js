@@ -1,9 +1,16 @@
-// src/utils/predictNext.js — Unity-aware predictor + enhanced modes
+// src/utils/predictNext.js — BEAST MODE: Adaptive, Defensive Unity RNG Predictor
+// Built to handle Unity's pattern-breaking chaos
 
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 5;
 
-// Map 41–44 <-> 0–3 space for LCG math
+// Track pattern reliability (resets each session)
+const PATTERN_TRUST = {
+  cyclic: { hits: 0, total: 0 },
+  phase: { hits: 0, total: 0 },
+  lcg: { hits: 0, total: 0 },
+};
+
 const VALS = ["41", "42", "43", "44"];
 const valToIdx = (v) => VALS.indexOf(v);
 const idxToVal = (i) => VALS[((i % 4) + 4) % 4];
@@ -22,7 +29,8 @@ function translateTo4(str = "") {
     .join("");
 }
 
-function clampTransitionConf(conf, min = 0.4, max = 0.7) {
+function clampTransitionConf(conf, min = 0.35, max = 0.65) {
+  // Further weakened fallback
   if (conf < min) return min;
   if (conf > max) return max;
   return conf;
@@ -39,25 +47,75 @@ function getAlt(prediction, freqSorted) {
   return freqSorted.find((c) => c.value !== prediction)?.value || null;
 }
 
-/* 🔥 Enhanced phase detection: deeper lookback, 2–6 chunk size */
-function detectPhaseEnhanced(seq) {
-  const tail = seq.slice(-12); // look further back
+/* 🔥 ADAPTIVE: Adjust confidence based on recent success rate */
+function getAdaptiveConfidence(baseConf, patternType) {
+  const trust = PATTERN_TRUST[patternType];
+  if (!trust || trust.total < 3) return baseConf; // not enough data yet
 
-  for (let size = 2; size <= 6; size++) {
+  const successRate = trust.hits / trust.total;
+
+  // Adjust confidence based on actual performance
+  if (successRate < 0.3) return baseConf * 0.7; // pattern failing, lower conf
+  if (successRate > 0.6) return Math.min(baseConf * 1.1, 0.85); // pattern working, boost
+  return baseConf;
+}
+
+/* 🔥 DEFENSIVE: Detect when Unity is actively breaking patterns */
+function detectPatternBreak(seq) {
+  if (seq.length < 5) return false;
+
+  const recent = seq.slice(-5);
+
+  // Check if same value trying to establish mono
+  const last3 = recent.slice(-3);
+  if (last3[0] === last3[1] && last3[1] !== last3[2]) {
+    return true; // Unity broke a potential mono
+  }
+
+  // Check if alternating pattern broke
+  if (recent.length >= 4) {
+    const alt = [recent[0], recent[1], recent[2], recent[3]];
+    if (alt[0] !== alt[1] && alt[1] !== alt[2] && alt[2] === alt[0]) {
+      // Was alternating, check if last roll broke it
+      if (recent[4] === recent[3]) return true;
+    }
+  }
+
+  return false;
+}
+
+/* 🔥 ENHANCED: Shorter, stricter phase detection with recency bias */
+function detectPhaseEnhanced(seq) {
+  const tail = seq.slice(-8); // REDUCED from 12 to 8
+
+  for (let size = 2; size <= 4; size++) {
+    // REDUCED from 6 to 4
     if (tail.length <= size) break;
 
     const lastChunk = tail.slice(-size);
     const pattern = lastChunk.join("|");
 
     let count = 0;
+    let recentCount = 0; // NEW: track recent matches
+
     for (let i = 0; i <= tail.length - size; i++) {
-      if (tail.slice(i, i + size).join("|") === pattern) count++;
+      if (tail.slice(i, i + size).join("|") === pattern) {
+        count++;
+        // Count as recent if within last 2 pattern-lengths
+        if (i >= tail.length - size * 2) {
+          recentCount++;
+        }
+      }
     }
 
-    if (count >= 2) {
+    // STRICTER: need 2+ total AND at least 1 recent
+    if (count >= 2 && recentCount >= 1) {
+      const baseConf = 0.64; // LOWERED from 0.78
+      const adaptiveConf = getAdaptiveConfidence(baseConf, "cyclic");
+
       return {
         next: lastChunk[0],
-        confidence: 0.78,
+        confidence: adaptiveConf,
         size,
       };
     }
@@ -65,13 +123,12 @@ function detectPhaseEnhanced(seq) {
   return null;
 }
 
-/* 🔥 LCG-style pattern detection, fixed for 41–44 space */
+/* 🔥 IMPROVED: LCG with shorter lookback */
 function detectLCGPattern(seq) {
-  if (seq.length < 8) return null;
+  if (seq.length < 7) return null; // LOWERED from 8
 
-  // Map 41–44 -> 0..3
   const idxs = seq.map((v) => valToIdx(v)).filter((i) => i >= 0);
-  if (idxs.length !== seq.length) return null; // if any value not in 41–44
+  if (idxs.length !== seq.length) return null;
 
   const diffs = [];
   for (let i = 1; i < idxs.length; i++) {
@@ -79,8 +136,9 @@ function detectLCGPattern(seq) {
     diffs.push(d);
   }
 
-  // try pattern lengths 2..4 on last 2*len steps
-  for (let len = 2; len <= 4; len++) {
+  // Only try short patterns (2-3) for more reliability
+  for (let len = 2; len <= 3; len++) {
+    // REDUCED from 4
     if (diffs.length < 2 * len) continue;
 
     const lastDiffs = diffs.slice(-len);
@@ -96,18 +154,20 @@ function detectLCGPattern(seq) {
     if (!same) continue;
 
     const lastIdx = idxs[idxs.length - 1];
-    const nextDiff = lastDiffs[lastDiffs.length - 1];
+    const nextDiff = lastDiffs[0]; // Use FIRST diff of pattern, not last
     const nextIdx = (lastIdx + nextDiff) % 4;
     const predVal = idxToVal(nextIdx);
-    const conf = 0.68 + (len - 2) * 0.02; // 0.68–0.72
 
-    return { pred: predVal, conf };
+    const baseConf = 0.58 + (len - 2) * 0.04; // LOWERED: 0.58-0.62
+    const adaptiveConf = getAdaptiveConfidence(baseConf, "lcg");
+
+    return { pred: predVal, conf: adaptiveConf };
   }
 
   return null;
 }
 
-/* 🔥 3-state Markov: loosened thresholds so it actually fires */
+/* 🔥 SMARTER: 3-state Markov with confidence scaling */
 function enhancedMarkov3(seq) {
   if (seq.length < 6) return null;
 
@@ -130,36 +190,44 @@ function enhancedMarkov3(seq) {
   const sorted = Object.entries(opts).sort((a, b) => b[1] - a[1]);
   const total = Object.values(opts).reduce((a, v) => a + v, 0);
   const conf = sorted[0][1] / total;
-  const rawTotal = Object.values(opts).reduce((a, v) => a + Math.round(v), 0);
 
-  // Relaxed: allow single occurrence if confidence is ok
-  if (rawTotal >= 1 && conf >= 0.5) {
-    return { pred: sorted[0][0], conf };
+  // More samples = more trust
+  const sampleCount = Object.values(opts).reduce(
+    (a, v) => a + Math.round(v),
+    0
+  );
+
+  if (sampleCount >= 2 && conf >= 0.55) {
+    // Scale confidence by sample size
+    const scaledConf = Math.min(conf * (0.8 + sampleCount * 0.1), 0.75);
+    return { pred: sorted[0][0], conf: scaledConf };
   }
+
   return null;
 }
 
-/* 🔥 Mono detection tuned for Unity’s “break after 3–4” behaviour */
-function detectMono(seq, n = 5) {
+/* 🔥 TUNED: Mono detection with break awareness */
+function detectMono(seq, n = 4) {
+  // REDUCED from 5 to 4
   if (seq.length < n) return null;
   const tail = seq.slice(-n);
   const monoVal = tail[0];
 
-  // if last 2 differ, Unity has already “broken” the mono
+  // Check if pattern is breaking
   const last2 = tail.slice(-2);
   if (last2[0] !== last2[1]) return null;
 
   return tail.every((v) => v === monoVal) ? monoVal : null;
 }
 
-/* ===================== 2-STR ===================== */
+/* ===================== 2-STR BEAST MODE ===================== */
 export function predictNext(rawRolls) {
   const rolls = (rawRolls || [])
     .map((r) => translateTo4(String(r)).slice(0, 2))
     .filter(Boolean);
 
-  // 🔥 lowered requirement: we start guessing after 3 rolls
-  if (rolls.length < 3) {
+  // 🔧 Your change: require at least 6 rolls before ANY prediction
+  if (rolls.length < 6) {
     return {
       prediction: null,
       confidence: 0,
@@ -174,9 +242,38 @@ export function predictNext(rawRolls) {
   const dominantPct = freqSorted[0].pct / 100;
   const last = rolls[rolls.length - 1];
 
-  // 1) 🔥 enhanced phase FIRST (strongest signal when it triggers)
+  // 🔥 Check if Unity is breaking patterns
+  const isBreaking = detectPatternBreak(rolls);
+
+  // 1) Mono (simplest, most reliable when it happens)
+  const mono = detectMono(rolls, 4);
+  if (mono && !isBreaking) {
+    maybeStorePhase(rolls);
+    return {
+      prediction: mono,
+      confidence: 0.88, // LOWERED from 0.9
+      alt: null,
+      mode: "mono",
+      candidates: [{ value: mono, pct: 100 }],
+    };
+  }
+
+  // 2) Stable dominance (solid baseline)
+  if (dominantPct >= 0.65 && !isBreaking) {
+    // INCREASED threshold from 0.6
+    maybeStorePhase(rolls);
+    return {
+      prediction: dominant,
+      confidence: Math.min(dominantPct, 0.78), // Cap at 78%
+      alt: freqSorted[1]?.value || null,
+      mode: "stable",
+      candidates: freqSorted.slice(0, 3),
+    };
+  }
+
+  // 3) Enhanced phase (adaptive confidence)
   const enhancedPhase = detectPhaseEnhanced(rolls);
-  if (enhancedPhase) {
+  if (enhancedPhase && !isBreaking) {
     maybeStorePhase(rolls);
     const pred = enhancedPhase.next;
     const conf = enhancedPhase.confidence;
@@ -189,41 +286,29 @@ export function predictNext(rawRolls) {
     };
   }
 
-  // 2) cached phase-memory (softer confidence now)
+  // 4) Cached phase-memory (adaptive)
   const cached = matchCachedPhase(rolls);
-  if (cached) {
+  if (cached && !isBreaking) {
+    const baseConf = 0.62; // LOWERED from 0.76
+    const adaptiveConf = getAdaptiveConfidence(baseConf, "phase");
     const pred = cached.next;
-    const conf = 0.76; // was 0.82
     return {
       prediction: pred,
-      confidence: conf,
+      confidence: adaptiveConf,
       alt: cached.alt || getAlt(pred, freqSorted),
       mode: "phase-memory",
       candidates: [
-        { value: pred, pct: Math.round(conf * 100) },
+        { value: pred, pct: Math.round(adaptiveConf * 100) },
         ...(cached.alt && cached.alt !== pred
-          ? [{ value: cached.alt, pct: 40 }]
+          ? [{ value: cached.alt, pct: 35 }]
           : []),
       ],
     };
   }
 
-  // 3) mono (rare but very strong)
-  const mono = detectMono(rolls, 5);
-  if (mono) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: mono,
-      confidence: 0.9,
-      alt: null,
-      mode: "mono",
-      candidates: [{ value: mono, pct: 100 }],
-    };
-  }
-
-  // 4) LCG cycle (Unity-style step loops)
+  // 5) LCG cycle (adaptive)
   const lcg = detectLCGPattern(rolls);
-  if (lcg && VALS.includes(lcg.pred)) {
+  if (lcg && VALS.includes(lcg.pred) && !isBreaking) {
     maybeStorePhase(rolls);
     const pred = lcg.pred;
     const conf = lcg.conf;
@@ -236,41 +321,28 @@ export function predictNext(rawRolls) {
     };
   }
 
-  // 5) Alternate pattern (41/44 bouncing etc.)
+  // 6) Alternate (simple pattern)
   if (Object.keys(rawCounts).length === 2 && rolls.length >= 4) {
     const last4 = rolls.slice(-4);
-    if (isAlternating(last4)) {
+    if (isAlternating(last4) && !isBreaking) {
       const other = Object.keys(rawCounts).find((v) => v !== last);
       const pred = other || dominant;
       maybeStorePhase(rolls);
-      const conf = 0.75;
       return {
         prediction: pred,
-        confidence: conf,
+        confidence: 0.68, // LOWERED from 0.75
         alt: getAlt(pred, freqSorted),
         mode: "alternate",
-        candidates: buildCandidates(pred, conf, freqSorted),
+        candidates: buildCandidates(pred, 0.68, freqSorted),
       };
     }
   }
 
-  // 6) Stable (one value dominates window)
-  if (dominantPct >= 0.6) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: dominant,
-      confidence: dominantPct,
-      alt: freqSorted[1]?.value || null,
-      mode: "stable",
-      candidates: freqSorted.slice(0, 3),
-    };
-  }
-
-  // 7) Wave (top commons missing from recent streak)
+  // 7) Wave
   const wave = detectWave(rolls, freqSorted);
   if (wave) {
     maybeStorePhase(rolls);
-    const conf = 0.58;
+    const conf = 0.52; // LOWERED from 0.58
     const pred = wave.primary;
     return {
       prediction: pred,
@@ -281,70 +353,65 @@ export function predictNext(rawRolls) {
     };
   }
 
-  // 8) Branch (rare one-off that usually goes somewhere)
+  // 8) Branch
   if (dominantPct >= 0.5 && last !== dominant && rawCounts[last] === 1) {
     const succ = findMostCommonSuccessor(rolls, last);
     if (succ) {
       maybeStorePhase(rolls);
-      const conf = 0.65;
-      const pred = succ;
+      const conf = 0.58; // LOWERED from 0.65
       return {
-        prediction: pred,
+        prediction: succ,
         confidence: conf,
-        alt: getAlt(pred, freqSorted),
+        alt: getAlt(succ, freqSorted),
         mode: "branch",
-        candidates: buildCandidates(pred, conf, freqSorted),
+        candidates: buildCandidates(succ, conf, freqSorted),
       };
     }
   }
 
-  // 9) Rotation loop
+  // 9) Rotation
   if (detectRotation(rolls)) {
     const next = getRotationNext(rolls);
     maybeStorePhase(rolls);
-    const conf = 0.7;
     return {
       prediction: next,
-      confidence: conf,
+      confidence: 0.64, // LOWERED from 0.7
       alt: getAlt(next, freqSorted),
       mode: "rotation",
-      candidates: buildCandidates(next, conf, freqSorted),
+      candidates: buildCandidates(next, 0.64, freqSorted),
     };
   }
 
-  // 10) Original short cyclic backup
+  // 10) Original cyclic
   const phaseNext = detectPhase(rolls);
   if (phaseNext) {
     maybeStorePhase(rolls);
-    const conf = 0.7;
-    const pred = phaseNext;
+    const conf = 0.62; // LOWERED from 0.7
     return {
-      prediction: pred,
+      prediction: phaseNext,
       confidence: conf,
-      alt: getAlt(pred, freqSorted),
+      alt: getAlt(phaseNext, freqSorted),
       mode: "cyclic",
-      candidates: buildCandidates(pred, conf, freqSorted),
+      candidates: buildCandidates(phaseNext, conf, freqSorted),
     };
   }
 
-  // 11) 3-state Markov before final fallback
+  // 11) 3-state Markov
   const markov3 = enhancedMarkov3(rolls);
   if (markov3) {
     maybeStorePhase(rolls);
-    const pred = markov3.pred;
-    const conf = markov3.conf;
     return {
-      prediction: pred,
-      confidence: conf,
-      alt: getAlt(pred, freqSorted),
+      prediction: markov3.pred,
+      confidence: markov3.conf,
+      alt: getAlt(markov3.pred, freqSorted),
       mode: "markov-3state",
-      candidates: buildCandidates(pred, conf, freqSorted),
+      candidates: buildCandidates(markov3.pred, markov3.conf, freqSorted),
     };
   }
 
-  // 12) Weak pair-Markov fallback
+  // 12) Weak fallback
   const markov = weightedMarkov2(rolls, dominant);
-  const markovConf = clampTransitionConf(markov.conf, 0.4, 0.7);
+  const markovConf = clampTransitionConf(markov.conf, 0.35, 0.65);
   maybeStorePhase(rolls);
   return {
     prediction: markov.pred,
@@ -355,7 +422,7 @@ export function predictNext(rawRolls) {
   };
 }
 
-/* ===================== 3-STR / 4-STR (unchanged behaviour, minor tweaks) ===================== */
+/* ===================== 3-STR / 4-STR (same min-roll idea) ===================== */
 
 function stripZeros(str = "") {
   return str.replace(/0+$/, "");
@@ -366,7 +433,8 @@ export function predictNext3(rawRolls = []) {
     .map((r) => stripZeros(String(r)).slice(0, 3))
     .filter((r) => r.length === 3);
 
-  if (rolls.length < 3) {
+  // 🔧 use >=6 rolls as bare minimum here too
+  if (rolls.length < 6) {
     return {
       prediction: null,
       confidence: 0,
@@ -382,7 +450,7 @@ export function predictNext3(rawRolls = []) {
       const p = translateTo4(tail[0]);
       return {
         prediction: p,
-        confidence: 0.85,
+        confidence: 0.82, // LOWERED from 0.85
         alt: null,
         mode: "mono-3str",
         candidates: [{ value: p, pct: 100 }],
@@ -405,7 +473,7 @@ export function predictNext3(rawRolls = []) {
   const wave3 = detectWaveGeneric(rolls, sorted);
   if (wave3) {
     const main = translateTo4(wave3.primary);
-    const conf = 0.58;
+    const conf = 0.52;
     const altRaw = getAlt(wave3.primary, sorted);
     return {
       prediction: main,
@@ -422,7 +490,7 @@ export function predictNext3(rawRolls = []) {
 
   const succ = mostCommonSuccessor3(rolls);
   if (succ) {
-    const safeConf = clampTransitionConf(succ.conf, 0.4, 0.7);
+    const safeConf = clampTransitionConf(succ.conf, 0.35, 0.65);
     const main = translateTo4(succ.value);
     const altRaw = getAlt(succ.value, sorted);
     return {
@@ -448,7 +516,7 @@ export function predictNext3(rawRolls = []) {
       mode: "stable-3str",
       candidates: [],
     };
-  const conf = 0.6;
+  const conf = 0.58;
   const transSorted = sorted.map((c) => ({
     ...c,
     value: translateTo4(c.value),
@@ -468,7 +536,8 @@ export function predictNext4(rawRolls = []) {
     .map((r) => stripZeros(String(r)).slice(0, 4))
     .filter((r) => r.length === 4);
 
-  if (rolls.length < 3) {
+  // 🔧 same idea: need 6+ for any 4-str prediction
+  if (rolls.length < 6) {
     return {
       prediction: null,
       confidence: 0,
@@ -484,7 +553,7 @@ export function predictNext4(rawRolls = []) {
       const p = translateTo4(tail[0]);
       return {
         prediction: p,
-        confidence: 0.85,
+        confidence: 0.82,
         alt: null,
         mode: "mono-4str",
         candidates: [{ value: p, pct: 100 }],
@@ -507,7 +576,7 @@ export function predictNext4(rawRolls = []) {
   const wave4 = detectWaveGeneric(rolls, sorted);
   if (wave4) {
     const main = translateTo4(wave4.primary);
-    const conf = 0.58;
+    const conf = 0.52;
     const altRaw = getAlt(wave4.primary, sorted);
     return {
       prediction: main,
@@ -524,7 +593,7 @@ export function predictNext4(rawRolls = []) {
 
   const succ = mostCommonSuccessor4(rolls);
   if (succ) {
-    const safeConf = clampTransitionConf(succ.conf, 0.4, 0.7);
+    const safeConf = clampTransitionConf(succ.conf, 0.35, 0.65);
     const main = translateTo4(succ.value);
     const altRaw = getAlt(succ.value, sorted);
     return {
@@ -550,7 +619,7 @@ export function predictNext4(rawRolls = []) {
       mode: "stable-4str",
       candidates: [],
     };
-  const conf = 0.6;
+  const conf = 0.58;
   const transSorted = sorted.map((c) => ({
     ...c,
     value: translateTo4(c.value),
@@ -565,7 +634,7 @@ export function predictNext4(rawRolls = []) {
   };
 }
 
-/* ===== shared helpers ===== */
+/* ===== HELPERS ===== */
 
 function weightedFrequency(rolls) {
   const counts = {};
@@ -703,7 +772,7 @@ function weightedMarkov2(seq, fallback) {
   const lastKey = seq.slice(-2).join("|");
   const options = table[lastKey];
   if (!options) {
-    return { pred: fallback, conf: 0.4 };
+    return { pred: fallback, conf: 0.35 };
   }
   const sorted = Object.entries(options).sort((a, b) => b[1] - a[1]);
   const total = Object.values(options).reduce((a, v) => a + v, 0);
