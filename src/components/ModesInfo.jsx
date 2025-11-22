@@ -1,293 +1,509 @@
-// src/components/ModesInfo.jsx
 import React, { useState } from "react";
 
 const MODE_EXAMPLES = {
   mono: {
-    title: "mono (stuck on one value)",
+    title: "Mono",
+    description: "Last 4 rolls are identical → predict repetition",
     body: (
       <>
-        The rolls are basically glued to one value. Example:{" "}
-        <span className="text-violet-300 font-mono">43, 43, 43, 43</span> →
-        Unity is &quot;stuck&quot; on the same outcome, so we just predict{" "}
-        <span className="text-cyan-300 font-mono">43</span> again with very high
-        confidence.
-      </>
-    ),
-  },
-
-  stable: {
-    title: "stable (one value dominates)",
-    body: (
-      <>
-        One value clearly dominates the recent window, even if it&apos;s not
-        every roll. Example:{" "}
-        <span className="text-violet-300 font-mono">
-          42, 43, 42, 42, 44, 42
-        </span>{" "}
-        → <span className="text-violet-300 font-mono">42</span> shows up the
-        most, so the predictor chooses{" "}
-        <span className="text-cyan-300 font-mono">42</span> as next, with a
-        solid but not insane confidence.
-      </>
-    ),
-  },
-
-  branch: {
-    title: "branch (rare detour that usually leads somewhere)",
-    body: (
-      <>
-        The window is mostly one value, but there&apos;s a rare
-        &quot;branch&quot; that tends to lead to a specific follow-up. Example:{" "}
-        <span className="text-violet-300 font-mono">42, 42, 42, 44</span> and in
-        history we often see{" "}
-        <span className="text-violet-300 font-mono">…42, 42, 42, 44, 41</span>
-        .
+        When the last 4 rolls are all the same value.
         <br />
-        That means when the branch{" "}
-        <span className="text-amber-300 font-mono">44</span> appears, it usually
-        flows into <span className="text-cyan-300 font-mono">41</span>, so we
-        predict <span className="text-cyan-300 font-mono">41</span> as the next
-        roll.
-      </>
-    ),
-  },
-
-  rotation: {
-    title: "rotation (short repeating loop)",
-    body: (
-      <>
-        Values loop in a repeating order. Example:{" "}
-        <span className="text-violet-300 font-mono">
-          41, 43, 44, 41, 43, 44
-        </span>{" "}
-        → once we detect the loop{" "}
-        <span className="text-violet-300 font-mono">41 → 43 → 44</span>, and the
-        last value is <span className="text-violet-300 font-mono">44</span>, the
-        natural next step in the loop is{" "}
-        <span className="text-cyan-300 font-mono">41</span>.
-      </>
-    ),
-  },
-
-  "phase-memory": {
-    title: "phase-memory (reusing a known mini-pattern)",
-    body: (
-      <>
-        The recent rolls match a mini-pattern that already happened earlier this
-        session. Example:
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">42, 42, 42, 42</span>
         <br />
-        Earlier:{" "}
-        <span className="text-violet-300 font-mono">
-          42, 43, 44, 42, 43, 44
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 85% | Uses decay-weighted frequency
         </span>
-        <br />
-        Now: <span className="text-violet-300 font-mono">42, 43, 44</span> pops
-        up again at the tail.
-        <br />
-        The predictor remembers what usually came after that phase last time and
-        reuses it, e.g. predicting{" "}
-        <span className="text-cyan-300 font-mono">42</span> if history shows{" "}
-        <span className="text-violet-300 font-mono">…42, 43, 44, 42</span>.
-      </>
-    ),
-  },
-
-  // 🔥 NEW MODES WITH IMPROVED EXAMPLES
-
-  "cyclic-enhanced": {
-    title: "cyclic-enhanced (longer repeating phase)",
-    body: (
-      <>
-        This mode looks deeper (up to the last 12 rolls) and tries to find a
-        repeating chunk, not just a tiny 2–3 roll loop.
-        <br />
-        Example:
-        <br />
-        <span className="text-violet-300 font-mono">
-          41, 42, 43, 41, 42, 43, 41, 42, 43
-        </span>
-        <br />
-        The tail <span className="text-violet-300 font-mono">
-          41, 42, 43
-        </span>{" "}
-        shows up more than once, so we treat that as a strong cycle.
-        <br />
-        If the current tail is{" "}
-        <span className="text-violet-300 font-mono">41, 42, 43</span>, and
-        historically that was followed by{" "}
-        <span className="text-violet-300 font-mono">41</span>, the mode predicts{" "}
-        <span className="text-cyan-300 font-mono">41</span> again (and may offer{" "}
-        <span className="text-cyan-300 font-mono">42</span> as an alt if it also
-        appears after that phase).
-      </>
-    ),
-  },
-
-  "lcg-cycle": {
-    title: "lcg-cycle (Unity RNG step pattern)",
-    body: (
-      <>
-        Instead of just the raw values, this mode watches the{" "}
-        <span className="font-mono text-amber-300">steps</span> between them on
-        the 41–44 ring (mod 4).
-        <br />
-        For example, look at:
-        <br />
-        Rolls:{" "}
-        <span className="text-violet-300 font-mono">
-          41, 42, 43, 41, 42, 43, 41, 42
-        </span>
-        <br />
-        If we convert to steps (mod 4), we see something like:{" "}
-        <span className="text-violet-300 font-mono">
-          +1, +1, +2, +1, +1, +2, +1…
-        </span>{" "}
-        — the same pattern of steps repeating.
-        <br />
-        That&apos;s exactly what a small Unity LCG cycle looks like on a 4-value
-        ring. When the predictor detects that the step pattern has repeated at
-        least once, it tries to continue the same step logic and suggests the
-        next value (for example from{" "}
-        <span className="text-violet-300 font-mono">42</span> to{" "}
-        <span className="text-cyan-300 font-mono">43</span> if the next step in
-        the pattern is <span className="font-mono">+1</span>).
-      </>
-    ),
-  },
-
-  "markov-3state": {
-    title: "markov-3state (3-roll memory state)",
-    body: (
-      <>
-        This mode treats the last{" "}
-        <span className="font-mono text-violet-300">3</span> rolls as a
-        &quot;state&quot; and checks what usually came after that exact triple
-        in this session.
-        <br />
-        Suppose we see these sequences in your history:
-        <br />
-        <span className="text-violet-300 font-mono">41, 42, 44, 43</span>
-        <br />
-        <span className="text-violet-300 font-mono">41, 42, 44, 43</span>
-        <br />
-        <span className="text-violet-300 font-mono">41, 42, 44, 41</span>
-        <br />
-        The 3-state{" "}
-        <span className="text-violet-300 font-mono">[41, 42, 44]</span> appears
-        3 times and is followed by{" "}
-        <span className="text-violet-300 font-mono">43</span> twice and{" "}
-        <span className="text-violet-300 font-mono">41</span> once.
-        <br />
-        That means ≈66% of the time this state leads to{" "}
-        <span className="text-cyan-300 font-mono">43</span>, so when your last 3
-        rolls are <span className="text-violet-300 font-mono">41, 42, 44</span>,
-        the mode predicts <span className="text-cyan-300 font-mono">43</span>{" "}
-        with decent confidence.
-      </>
-    ),
-  },
-
-  "insufficient-data": {
-    title: "insufficient-data (needs more rolls first)",
-    body: (
-      <>
-        Safety mode. If there aren&apos;t enough valid 2-str rolls, the
-        predictor refuses to hallucinate a pattern.
-        <br />
-        Example: you only have{" "}
-        <span className="text-violet-300 font-mono">41, 42, 43</span> so far.
-        That&apos;s only 3 valid 2-str entries, so the predictor returns{" "}
-        <span className="text-cyan-300 font-mono">insufficient-data</span> and
-        asks you to collect more rolls (usually 4+ for 2-str, 3+ for 3/4-str)
-        before trusting any mode.
-      </>
-    ),
-  },
-
-  transition: {
-    title: "transition (pair-based fallback)",
-    body: (
-      <>
-        When nothing else looks strong enough, this is the &quot;boring but
-        honest&quot; fallback. It just looks at what usually follows the last{" "}
-        <span className="font-mono">2</span> rolls.
-        <br />
-        Example: in your history, the pair{" "}
-        <span className="text-violet-300 font-mono">42, 43</span> is followed
-        by:
-        <br />
-        <span className="text-violet-300 font-mono">42, 43, 44</span>
-        <br />
-        <span className="text-violet-300 font-mono">42, 43, 44</span>
-        <br />
-        <span className="text-violet-300 font-mono">42, 43, 41</span>
-        <br />
-        Here <span className="text-violet-300 font-mono">44</span> appears more
-        often than <span className="text-violet-300 font-mono">41</span>, so the
-        mode predicts <span className="text-cyan-300 font-mono">44</span> — but
-        with lower confidence than phase / mono / cyclic modes.
       </>
     ),
   },
 
   wave: {
-    title: "wave (top values skipped in a streak)",
+    title: "Wave",
+    description: "Dominant number disappeared → expect it to return",
     body: (
       <>
-        The top 1–2 values are very common overall, but the most recent streak
-        avoided them — like the wave pulled away and now should swing back.
+        Top 2 most frequent rolls; if the #1 is missing from recent 5, it's
+        about to return.
         <br />
-        Example: in the full window,{" "}
-        <span className="text-violet-300 font-mono">42</span> and{" "}
-        <span className="text-violet-300 font-mono">43</span> are the most
-        frequent, but the latest streak is:
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">42, 42, 42, 41, 43</span>
         <br />
-        <span className="text-violet-300 font-mono">41, 44, 44, 41</span>
+        <span className="text-slate-400">→ Top 2:</span>{" "}
+        <span className="text-violet-300">42 (50%), 41 (20%)</span>
         <br />
-        This mode assumes the system will &quot;return&quot; to the usual
-        commons and suggests <span className="text-cyan-300 font-mono">
-          42
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 68% | Triggered when dominant disappears
+        </span>
+      </>
+    ),
+  },
+
+  "smart-transition": {
+    title: "Smart Transition",
+    description: "Learn what follows the last roll with decay weighting",
+    body: (
+      <>
+        Finds all past occurrences of the last roll, sees what came next,
+        weights by recency.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">42, 44, 42, 43, 42, 44, 42, 41</span>
+        <br />
+        <span className="text-slate-400">→ Times 42 appeared:</span>{" "}
+        <span className="text-violet-300">
+          pos 0→44, pos 2→43, pos 4→44, pos 6→41
+        </span>
+        <br />
+        <span className="text-slate-400">→ After 42 came:</span>{" "}
+        <span className="text-violet-300">
+          44 (2x recent), 43 (1x), 41 (1x)
+        </span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span> (weighted for
+        recency)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 45–72% | Requires confidence ≥ 0.5
+        </span>
+      </>
+    ),
+  },
+
+  "markov-3state": {
+    title: "Markov 3-State",
+    description: "Use last 3 rolls as a learned pattern key",
+    body: (
+      <>
+        Builds a table: for each sequence of 3 rolls, what came next? Looks up
+        the last 3.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">41, 42, 44, 43, 41, 42, 44</span>
+        <br />
+        <span className="text-slate-400">
+          → Pattern [41, 42, 44] seen before
+        </span>
+        <br />
+        <span className="text-slate-400">→ Next was:</span>{" "}
+        <span className="text-violet-300">43</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">43</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 50–76% | Requires ≥2 samples + 48% confidence
+        </span>
+      </>
+    ),
+  },
+
+  "cyclic-enhanced": {
+    title: "Cyclic Enhanced",
+    description: "Detect repeating loops of 2-4 rolls",
+    body: (
+      <>
+        Scans for repeating chunks (cycles). If last chunk matches a previous
+        one, predict the first element of that chunk.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">41, 42, 41, 42, 41, 42</span>
+        <br />
+        <span className="text-slate-400">→ Cycle detected:</span>{" "}
+        <span className="text-violet-300">[41, 42]</span>
+        <br />
+        <span className="text-slate-400">→ Last chunk:</span>{" "}
+        <span className="text-violet-300">[41, 42]</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 62–70%+ | Scales with cycle count
+        </span>
+      </>
+    ),
+  },
+
+  "opposite-pair": {
+    title: "Opposite Pair",
+    description: "Mirror logic: 41↔44, 42↔43",
+    body: (
+      <>
+        If the last roll repeated recently but its opposite hasn't, predict the
+        opposite.
+        <br />
+        <span className="text-slate-400">Opposites:</span>{" "}
+        <span className="text-violet-300">41 ↔ 44 | 42 ↔ 43</span>
+        <br />
+        <span className="text-slate-400">History (last 4):</span>{" "}
+        <span className="text-violet-300">41, 41, 43, 41</span>
+        <br />
+        <span className="text-slate-400">→ Last = 41 (appeared 3x)</span>
+        <br />
+        <span className="text-slate-400">→ Opposite 44 (appeared 0x)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 58–62% | Requires imbalance in recent 4
+        </span>
+      </>
+    ),
+  },
+
+  "phase-memory": {
+    title: "Phase Memory",
+    description: "Remember and repeat old roll 'phases'",
+    body: (
+      <>
+        Caches up to 4 unique 'phases' (sets of 2-3 distinct values). If current
+        phase matches a past one, predict based on that phase's history.
+        <br />
+        <span className="text-slate-400">Stored phase:</span>{" "}
+        <span className="text-violet-300">[41, 43, 42]</span>
+        <br />
+        <span className="text-slate-400">Current tail:</span>{" "}
+        <span className="text-violet-300">41, 43, 41, 42, 43</span>
+        <br />
+        <span className="text-slate-400">→ Matches phase!</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41 or 43</span> (most
+        common in tail)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 56% | Cache size: 4 phases
+        </span>
+      </>
+    ),
+  },
+
+  "transition-fallback": {
+    title: "Transition Fallback",
+    description: "Use smart-transition with lower confidence threshold",
+    body: (
+      <>
+        Weaker version of Smart Transition. Used when main patterns fail.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">42, 44, 42, 43, 42, 44, 42, 41</span>
+        <br />
+        <span className="text-slate-400">→ After 42 came:</span>{" "}
+        <span className="text-violet-300">44 (2x), 43 (1x), 41 (1x)</span>
+        <br />
+        <span className="text-slate-400">→ Main confidence was too low,</span>
+        <br />
+        <span className="text-slate-400">
+          → but fallback still predicts:
         </span>{" "}
-        or <span className="text-cyan-300 font-mono">43</span>, with medium
-        confidence.
+        <span className="text-emerald-300 font-bold">44</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 40–72% | Fallback layer (lower threshold)
+        </span>
+      </>
+    ),
+  },
+
+  "frequency-fallback": {
+    title: "Frequency Fallback",
+    description: "Predict the most common recent roll",
+    body: (
+      <>
+        When no pattern detected, fall back to frequency analysis with decay
+        weighting (recent rolls count more).
+        <br />
+        <span className="text-slate-400">Recent rolls:</span>{" "}
+        <span className="text-violet-300">41, 41, 42, 41, 44</span>
+        <br />
+        <span className="text-slate-400">→ Frequency (weighted):</span>{" "}
+        <span className="text-violet-300">41 (50%), 42 (20%), 44 (20%)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 42–66% | Decay factor: 0.9 (recent weighted higher)
+        </span>
+      </>
+    ),
+  },
+
+  "dominant-fallback": {
+    title: "Dominant Fallback",
+    description: "Absolute last resort → most common all-time",
+    body: (
+      <>
+        When absolutely nothing works, predict the most frequent value across
+        entire history.
+        <br />
+        <span className="text-slate-400">All history:</span>{" "}
+        <span className="text-violet-300">
+          42 (45%), 41 (30%), 43 (15%), 44 (10%)
+        </span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 42% | Final layer before giving up
+        </span>
+      </>
+    ),
+  },
+
+  "insufficient-data": {
+    title: "Insufficient Data",
+    description: "Not enough history to make a prediction",
+    body: (
+      <>
+        Requires ≥6 rolls before any pattern detection starts.
+        <br />
+        <span className="text-slate-400">Current history:</span>{" "}
+        <span className="text-violet-300">41, 42</span>
+        <br />
+        <span className="text-slate-400">→ Only 2 rolls, need 6+</span>
+        <br />
+        <span className="text-slate-400">→ Result:</span>{" "}
+        <span className="text-slate-400">No prediction</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 0% | Minimum threshold: 6 rolls
+        </span>
+      </>
+    ),
+  },
+
+  // 3-STR modes
+  "mono-3str": {
+    title: "Mono (3-str)",
+    description: "Last 4 rolls are identical 3-digit values",
+    body: (
+      <>
+        Same as 2-str mono but for 3-digit rolls.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">421, 421, 421, 421</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">421</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 85%
+        </span>
+      </>
+    ),
+  },
+
+  "transition-3str": {
+    title: "Transition (3-str)",
+    description: "What follows the last 3-digit roll?",
+    body: (
+      <>
+        Smart transition logic adapted for 3-digit rolls.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">421, 443, 421, 432, 421</span>
+        <br />
+        <span className="text-slate-400">→ After 421 came:</span>{" "}
+        <span className="text-violet-300">443, 432</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">443</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 45–72%
+        </span>
+      </>
+    ),
+  },
+
+  "frequency-3str": {
+    title: "Frequency (3-str)",
+    description: "Most common 3-digit roll",
+    body: (
+      <>
+        Fallback frequency analysis for 3-digit rolls.
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">421, 421, 432, 421, 443</span>
+        <br />
+        <span className="text-slate-400">→ Frequency:</span>{" "}
+        <span className="text-violet-300">421 (60%)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">421</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 45–68%
+        </span>
+      </>
+    ),
+  },
+
+  // 4-STR modes
+  "mono-4str": {
+    title: "Mono (4-str)",
+    description: "Last 4 rolls are identical 4-digit values",
+    body: (
+      <>
+        Same as 2-str mono but for 4-digit rolls.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">4213, 4213, 4213, 4213</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">4213</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 85%
+        </span>
+      </>
+    ),
+  },
+
+  "transition-4str": {
+    title: "Transition (4-str)",
+    description: "What follows the last 4-digit roll?",
+    body: (
+      <>
+        Smart transition logic for 4-digit rolls.
+        <br />
+        <span className="text-slate-400">History:</span>{" "}
+        <span className="text-violet-300">4213, 4432, 4213, 4321, 4213</span>
+        <br />
+        <span className="text-slate-400">→ After 4213 came:</span>{" "}
+        <span className="text-violet-300">4432, 4321</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">4432</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 45–72%
+        </span>
+      </>
+    ),
+  },
+
+  "frequency-4str": {
+    title: "Frequency (4-str)",
+    description: "Most common 4-digit roll",
+    body: (
+      <>
+        Fallback frequency for 4-digit rolls.
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">4213, 4213, 4321, 4213, 4432</span>
+        <br />
+        <span className="text-slate-400">→ Frequency:</span>{" "}
+        <span className="text-violet-300">4213 (60%)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">4213</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 45–68%
+        </span>
       </>
     ),
   },
 };
 
+const MODES = [
+  // 2-str (main)
+  "mono",
+  "wave",
+  "smart-transition",
+  "markov-3state",
+  "cyclic-enhanced",
+  "opposite-pair",
+  "phase-memory",
+  "transition-fallback",
+  "frequency-fallback",
+  "dominant-fallback",
+  "insufficient-data",
+  // 3-str
+  "mono-3str",
+  "transition-3str",
+  "frequency-3str",
+  // 4-str
+  "mono-4str",
+  "transition-4str",
+  "frequency-4str",
+];
+
+const MODE_GROUPS = {
+  "2-str": [
+    "mono",
+    "wave",
+    "smart-transition",
+    "markov-3state",
+    "cyclic-enhanced",
+    "opposite-pair",
+    "phase-memory",
+    "transition-fallback",
+    "frequency-fallback",
+    "dominant-fallback",
+    "insufficient-data",
+  ],
+  "3-str": ["mono-3str", "transition-3str", "frequency-3str"],
+  "4-str": ["mono-4str", "transition-4str", "frequency-4str"],
+};
+
 export default function ModesInfo() {
   const [active, setActive] = useState(null);
+  const [group, setGroup] = useState("2-str");
 
-  const MODES = [
-    "mono",
-    "stable",
-    "branch",
-    "rotation",
-    "phase-memory",
-    "cyclic-enhanced",
-    "lcg-cycle",
-    "markov-3state",
-    "transition",
-    "wave",
-    "insufficient-data",
-  ];
+  const currentModes = MODE_GROUPS[group] || MODE_GROUPS["2-str"];
 
   return (
-    <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 sm:p-5 space-y-2">
-      <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-1">
-        Prediction modes
-      </h3>
-      <p className="text-[11px] text-slate-500 mb-2">
-        Click a mode to see how the predictor thinks in that scenario, with real
-        41–44 style examples.
-      </p>
+    <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 sm:p-5 space-y-3">
+      <div>
+        <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-1">
+          Prediction Modes
+        </h3>
+        <p className="text-[11px] text-slate-500 mb-2">
+          Click a mode to see how the predictor works. Modes are organized by
+          roll type (2-str / 3-str / 4-str).
+        </p>
+      </div>
 
+      {/* Group selector */}
+      <div className="flex gap-2">
+        {Object.keys(MODE_GROUPS).map((g) => (
+          <button
+            key={g}
+            onClick={() => {
+              setGroup(g);
+              setActive(null);
+            }}
+            className={`text-[11px] px-3 py-1.5 rounded-lg border transition ${
+              group === g
+                ? "bg-violet-600/30 border-violet-500 text-violet-200"
+                : "bg-slate-900/30 border-slate-700 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+
+      {/* Mode buttons */}
       <div className="flex flex-wrap gap-2">
-        {MODES.map((m) => (
+        {currentModes.map((m) => (
           <button
             key={m}
             onClick={() => setActive(m)}
-            className={`text-[11px] sm:text-[12px] px-2 py-1 rounded-md border cursor-pointer ${
+            className={`text-[10px] sm:text-[11px] px-2 py-1 rounded-md border cursor-pointer transition ${
               active === m
                 ? "bg-violet-500/20 border-violet-400 text-slate-100"
                 : "bg-slate-900/20 border-slate-700/30 text-slate-300 hover:text-white"
@@ -298,12 +514,18 @@ export default function ModesInfo() {
         ))}
       </div>
 
+      {/* Detail view */}
       {active && MODE_EXAMPLES[active] && (
-        <div className="mt-3 bg-slate-950/40 border border-slate-800/50 rounded-lg p-3">
-          <h4 className="text-[13px] sm:text-[14px] font-semibold text-slate-100 mb-1">
-            {MODE_EXAMPLES[active].title}
-          </h4>
-          <p className="text-[12px] sm:text-[14px] text-slate-400 leading-relaxed">
+        <div className="mt-3 bg-slate-950/40 border border-slate-800/50 rounded-lg p-3 space-y-2">
+          <div>
+            <h4 className="text-[13px] sm:text-[14px] font-semibold text-slate-100">
+              {MODE_EXAMPLES[active].title}
+            </h4>
+            <p className="text-[11px] text-slate-500 italic">
+              {MODE_EXAMPLES[active].description}
+            </p>
+          </div>
+          <p className="text-[12px] sm:text-[13px] text-slate-300 leading-relaxed font-mono bg-slate-950/60 p-2 rounded border border-slate-800/30">
             {MODE_EXAMPLES[active].body}
           </p>
         </div>

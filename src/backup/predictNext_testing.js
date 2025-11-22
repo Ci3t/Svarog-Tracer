@@ -1,5 +1,6 @@
-// BASED ON DOCUMENT 31 (69% SUCCESS) - Minor tuning only
-// Strategy: Keep what worked, minimal changes
+// OPTIMIZED LEARNING VERSION (Option B)
+// Focus: stable main/alt ordering, cautious alt promotion,
+// better pattern detectors, keeps 3-str / 4-str support.
 
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 4;
@@ -37,13 +38,53 @@ function getAlt(prediction, freqSorted) {
   return freqSorted.find((c) => c.value !== prediction)?.value || null;
 }
 
-/* 🎯 Smart transition (from doc 31) */
+// ✅ LEARNING-STYLE finalizer: keep main stable, only rare alt promotion
+function finalizePrediction(base, freqSorted) {
+  if (!base || !base.prediction) return base;
+
+  const candidates =
+    base.candidates && base.candidates.length
+      ? base.candidates
+      : buildCandidates(base.prediction, base.confidence || 0.5, freqSorted);
+
+  let alt = base.alt || getAlt(base.prediction, freqSorted);
+
+  const mainCand = candidates.find((c) => c.value === base.prediction);
+  const altCand = alt && candidates.find((c) => c.value === alt);
+
+  const mainPct =
+    mainCand && typeof mainCand.pct === "number"
+      ? mainCand.pct
+      : Math.round((base.confidence || 0.42) * 100);
+
+  const altPct = altCand && typeof altCand.pct === "number" ? altCand.pct : 0;
+
+  // VERY conservative promotion: only if alt clearly dominates
+  if (alt && altPct >= mainPct + 12 && altPct >= 40) {
+    return {
+      ...base,
+      prediction: alt,
+      alt: base.prediction,
+      mode: (base.mode || "unknown") + "-alt-promoted",
+      candidates,
+    };
+  }
+
+  return {
+    ...base,
+    prediction: base.prediction,
+    alt,
+    candidates,
+  };
+}
+
+/* 🎯 IMPROVED: Weighted transition with recency + confidence scaling */
 function smartTransition(rolls, freqSorted) {
   if (rolls.length < 4) return null;
 
   const last = rolls[rolls.length - 1];
   const succCounts = {};
-  const decay = 0.92;
+  const decay = 0.92; // strong recency
 
   for (let i = 0; i < rolls.length - 1; i++) {
     if (rolls[i] === last) {
@@ -66,9 +107,9 @@ function smartTransition(rolls, freqSorted) {
     let mainConf = topConf;
 
     if (confidenceGap < 0.2) {
-      mainConf = topConf * 0.9;
+      mainConf = topConf * 0.9; // cautious if alt is close
     } else {
-      mainConf = topConf * 1.05;
+      mainConf = topConf * 1.05; // boost if clear winner
     }
 
     return {
@@ -82,7 +123,7 @@ function smartTransition(rolls, freqSorted) {
   return null;
 }
 
-/* 🎯 Opposite-pair (from doc 31) */
+/* 🎯 Opposite-pair detection (41↔44, 42↔43) */
 function detectOppositePair(rolls, freqSorted) {
   if (rolls.length < 6) return null;
 
@@ -109,7 +150,7 @@ function detectOppositePair(rolls, freqSorted) {
   return null;
 }
 
-/* 🎯 Wave (from doc 31) */
+/* 🎯 Wave detection */
 function detectWave(rolls, freqSorted) {
   if (rolls.length < 6 || freqSorted.length < 2) return null;
 
@@ -130,7 +171,7 @@ function detectWave(rolls, freqSorted) {
   return null;
 }
 
-/* 🎯 Mono (from doc 31) */
+/* 🎯 Mono detection */
 function detectMono(seq, n = 4) {
   if (seq.length < n) return null;
   const tail = seq.slice(-n);
@@ -145,7 +186,7 @@ function detectMono(seq, n = 4) {
   return null;
 }
 
-/* 🎯 Cyclic (from doc 31) */
+/* 🎯 Cyclic pattern */
 function detectCyclic(rolls) {
   if (rolls.length < 8) return null;
 
@@ -181,7 +222,7 @@ function detectCyclic(rolls) {
   return null;
 }
 
-/* 🎯 Markov-3 (from doc 31) */
+/* 🎯 Markov-3 */
 function enhancedMarkov3(seq) {
   if (seq.length < 6) return null;
 
@@ -222,7 +263,7 @@ function enhancedMarkov3(seq) {
   return null;
 }
 
-/* 🎯 Frequency (from doc 31) */
+/* 🎯 Frequency-based (fallback) */
 function frequencyPredictor(freqSorted) {
   if (!freqSorted || freqSorted.length === 0) return null;
 
@@ -252,7 +293,7 @@ function frequencyPredictor(freqSorted) {
   };
 }
 
-/* ===================== MAIN PREDICTOR (FROM DOC 31) ===================== */
+/* ===================== MAIN 2-STR PREDICTOR ===================== */
 export function predictNext(rawRolls) {
   const rolls = (rawRolls || [])
     .map((r) => translateTo4(String(r)).slice(0, 2))
@@ -274,103 +315,127 @@ export function predictNext(rawRolls) {
   const mono = detectMono(rolls, 4);
   if (mono) {
     maybeStorePhase(rolls);
-    return {
-      prediction: mono,
-      confidence: 0.85,
-      alt: getAlt(mono, freqSorted),
-      mode: "mono",
-      candidates: [{ value: mono, pct: 100 }],
-    };
+    return finalizePrediction(
+      {
+        prediction: mono,
+        confidence: 0.85,
+        alt: getAlt(mono, freqSorted),
+        mode: "mono",
+        candidates: [{ value: mono, pct: 100 }],
+      },
+      freqSorted
+    );
   }
 
   // 2) Wave
   const wave = detectWave(rolls, freqSorted);
   if (wave) {
     maybeStorePhase(rolls);
-    return {
-      prediction: wave.pred,
-      confidence: wave.conf,
-      alt: wave.alt,
-      mode: "wave",
-      candidates: buildCandidates(wave.pred, wave.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: wave.pred,
+        confidence: wave.conf,
+        alt: wave.alt,
+        mode: "wave",
+        candidates: buildCandidates(wave.pred, wave.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 3) Smart transition
   const trans = smartTransition(rolls, freqSorted);
   if (trans && trans.conf >= 0.5) {
     maybeStorePhase(rolls);
-    return {
-      prediction: trans.pred,
-      confidence: trans.conf,
-      alt: trans.alt,
-      mode: "smart-transition",
-      candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: trans.pred,
+        confidence: trans.conf,
+        alt: trans.alt,
+        mode: "smart-transition",
+        candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 4) Markov-3
   const markov3 = enhancedMarkov3(rolls);
   if (markov3 && markov3.conf >= 0.52) {
     maybeStorePhase(rolls);
-    return {
-      prediction: markov3.pred,
-      confidence: markov3.conf,
-      alt: markov3.alt || getAlt(markov3.pred, freqSorted),
-      mode: "markov-3state",
-      candidates: buildCandidates(markov3.pred, markov3.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: markov3.pred,
+        confidence: markov3.conf,
+        alt: markov3.alt || getAlt(markov3.pred, freqSorted),
+        mode: "markov-3state",
+        candidates: buildCandidates(markov3.pred, markov3.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 5) Cyclic
   const cyclic = detectCyclic(rolls);
   if (cyclic) {
     maybeStorePhase(rolls);
-    return {
-      prediction: cyclic.pred,
-      confidence: cyclic.conf,
-      alt: getAlt(cyclic.pred, freqSorted),
-      mode: "cyclic-enhanced",
-      candidates: buildCandidates(cyclic.pred, cyclic.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: cyclic.pred,
+        confidence: cyclic.conf,
+        alt: getAlt(cyclic.pred, freqSorted),
+        mode: "cyclic-enhanced",
+        candidates: buildCandidates(cyclic.pred, cyclic.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 6) Opposite pair
   const oppPair = detectOppositePair(rolls, freqSorted);
   if (oppPair) {
     maybeStorePhase(rolls);
-    return {
-      prediction: oppPair.pred,
-      confidence: oppPair.conf,
-      alt: getAlt(oppPair.pred, freqSorted),
-      mode: "opposite-pair",
-      candidates: buildCandidates(oppPair.pred, oppPair.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: oppPair.pred,
+        confidence: oppPair.conf,
+        alt: getAlt(oppPair.pred, freqSorted),
+        mode: "opposite-pair",
+        candidates: buildCandidates(oppPair.pred, oppPair.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 7) Phase memory
   const cached = matchCachedPhase(rolls);
   if (cached) {
     maybeStorePhase(rolls);
-    return {
-      prediction: cached.next,
-      confidence: 0.56,
-      alt: cached.alt || getAlt(cached.next, freqSorted),
-      mode: "phase-memory",
-      candidates: buildCandidates(cached.next, 0.56, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: cached.next,
+        confidence: 0.56,
+        alt: cached.alt || getAlt(cached.next, freqSorted),
+        mode: "phase-memory",
+        candidates: buildCandidates(cached.next, 0.56, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 8) Weaker transition as fallback
   if (trans) {
     maybeStorePhase(rolls);
-    return {
-      prediction: trans.pred,
-      confidence: trans.conf,
-      alt: trans.alt,
-      mode: "transition-fallback",
-      candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: trans.pred,
+        confidence: trans.conf,
+        alt: trans.alt,
+        mode: "transition-fallback",
+        candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // 9) Frequency fallback
@@ -378,23 +443,29 @@ export function predictNext(rawRolls) {
   maybeStorePhase(rolls);
 
   if (freq) {
-    return {
-      prediction: freq.pred,
-      confidence: freq.conf,
-      alt: freq.alt,
-      mode: "frequency-fallback",
-      candidates: buildCandidates(freq.pred, freq.conf, freqSorted),
-    };
+    return finalizePrediction(
+      {
+        prediction: freq.pred,
+        confidence: freq.conf,
+        alt: freq.alt,
+        mode: "frequency-fallback",
+        candidates: buildCandidates(freq.pred, freq.conf, freqSorted),
+      },
+      freqSorted
+    );
   }
 
   // Absolute fallback
-  return {
-    prediction: freqSorted[0].value,
-    confidence: 0.42,
-    alt: freqSorted[1]?.value || null,
-    mode: "dominant-fallback",
-    candidates: freqSorted.slice(0, 3),
-  };
+  return finalizePrediction(
+    {
+      prediction: freqSorted[0].value,
+      confidence: 0.42,
+      alt: freqSorted[1]?.value || null,
+      mode: "dominant-fallback",
+      candidates: freqSorted.slice(0, 3),
+    },
+    freqSorted
+  );
 }
 
 /* ===================== 3-STR / 4-STR ===================== */
@@ -418,6 +489,7 @@ export function predictNext3(rawRolls = []) {
     };
   }
 
+  // Mono
   if (rolls.length >= 4) {
     const tail = rolls.slice(-4);
     if (tail.every((v) => v === tail[0])) {
@@ -503,6 +575,7 @@ export function predictNext4(rawRolls = []) {
     };
   }
 
+  // Mono
   if (rolls.length >= 4) {
     const tail = rolls.slice(-4);
     if (tail.every((v) => v === tail[0])) {
@@ -573,7 +646,7 @@ export function predictNext4(rawRolls = []) {
   };
 }
 
-/* ===== HELPERS ===== */
+/* ===== SHARED HELPERS ===== */
 
 function weightedFrequency(rolls) {
   const counts = {};

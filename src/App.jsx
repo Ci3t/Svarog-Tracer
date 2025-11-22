@@ -19,10 +19,15 @@ import {
   sanitizeRollInput,
 } from "./utils/stringHelpers";
 import { predictNext, predictNext3, predictNext4 } from "./utils/predictNext";
+import RelicPositionCard from "./components/RelicPositionCard";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
-const INACTIVITY_MS = 3 * 60 * 60 * 1000; // 3 hours
+const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+// 🔥 DEBUG MODE: ?debug=true in URL
+const urlParams = new URLSearchParams(window.location.search);
+const isDebugMode = urlParams.get("debug") === "true";
 
 export default function App() {
   const [entries, setEntries] = useState([]);
@@ -273,6 +278,12 @@ export default function App() {
     setDebugLogs([]);
   }
 
+  // Import debug logs from a file (Backtest tab)
+  function handleImportDebugLogs(newLogs) {
+    // Put imported logs on top, keep at most 200
+    setDebugLogs((old) => [...newLogs, ...old].slice(0, 200));
+  }
+
   const freq2 = buildPrefixFreq(entries, 2, { translateAll: true });
   const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
   const freq4 = buildPrefixFreq(entries, 4, { translateAll: true });
@@ -352,6 +363,8 @@ export default function App() {
           <DebugPanel
             debugLogs={debugLogs}
             onClearLogs={handleClearDebugLogs}
+            isDebugMode={isDebugMode}
+            onImportLogs={handleImportDebugLogs}
           />
         </div>
 
@@ -376,6 +389,7 @@ export default function App() {
             currentRegion={region}
             currentPatch={patch}
           />
+          <RelicPositionCard />
         </div>
       </div>
 
