@@ -18,6 +18,48 @@ function formatTime(ts) {
   }
 }
 
+// Manual long-string decoder helpers (1–4 digits -> 2-str rolls)
+const CAESAR_GROUPS = {
+  41: ["41", "34", "23", "12"],
+  42: ["42", "31", "24", "13"],
+  43: ["43", "32", "21", "14"],
+  44: ["44", "33", "22", "11"],
+};
+
+const CAESAR_TO_BASE = Object.fromEntries(
+  Object.entries(CAESAR_GROUPS).flatMap(([base, forms]) =>
+    forms.map((code) => [code, base])
+  )
+);
+
+/**
+ * Expand a long-string of digits (1–4) into:
+ *  - pairs: Caesar line codes, e.g. "41 12 24 …"
+ *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
+ *
+ * Example:
+ *   expandManualLongString("41242323")
+ *   => {
+ *        cleaned: "41242323",
+ *        pairs: ["41","12","24","42","23","32","23"],
+ *        rolls: ["41","41","42","42","41","43","41"]
+ *      }
+ */
+function expandManualLongString(longStr) {
+  const cleaned = (longStr || "").replace(/[^1-4]/g, "");
+  if (cleaned.length < 2) {
+    return { cleaned, pairs: [], rolls: [] };
+  }
+
+  const digits = cleaned.split("");
+  const pairs = [];
+  for (let i = 0; i < digits.length - 1; i++) {
+    pairs.push(digits[i] + digits[i + 1]);
+  }
+
+  const rolls = pairs.map((p) => CAESAR_TO_BASE[p] || null).filter(Boolean);
+  return { cleaned, pairs, rolls };
+}
 export default function DebugPanel({
   debugLogs,
   onClearLogs,
@@ -28,6 +70,12 @@ export default function DebugPanel({
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [sessionId, setSessionId] = useState(0); // Track session changes
+  const [manualLongInput, setManualLongInput] = useState("");
+
+  const manualLong = useMemo(
+    () => expandManualLongString(manualLongInput),
+    [manualLongInput]
+  );
 
   // Dynamically build tabs — insert Backtest after "logs" only in debug mode
   const TABS = useMemo(() => {
@@ -717,8 +765,10 @@ export default function DebugPanel({
       )}
 
       {/* ═══ LONG STRING TAB ═══ */}
+      {/* ═══ LONG STRING TAB ═══ */}
       {activeTab === "long" && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* auto-built long string from live debug logs */}
           <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-40 overflow-y-auto">
             {longString && longString !== "—" ? (
               <div className="flex items-start justify-between gap-2">
@@ -741,7 +791,7 @@ export default function DebugPanel({
 
           {longString && longString !== "—" && (
             <>
-              {/* hint about what the digits mean */}
+              {/* what the digits mean */}
               <p className="text-[11px] text-slate-400">
                 <span className="font-semibold text-violet-300">Hint:</span>{" "}
                 digits <span className="text-violet-300">1–4</span> mark the
@@ -783,6 +833,61 @@ export default function DebugPanel({
               </div>
             </>
           )}
+
+          {/* Manual decoder */}
+          <div className="mt-4 border-t border-slate-800/70 pt-3">
+            <h4 className="text-xs font-semibold text-slate-200 mb-2 uppercase tracking-wide">
+              Manual Long String Decoder
+            </h4>
+            <p className="text-[11px] text-slate-500 mb-2">
+              Type a long string like{" "}
+              <span className="font-mono text-violet-300">41242323</span> and
+              we&apos;ll expand it to 2-str lines using the Caesar card.
+            </p>
+
+            <div className="flex gap-2 items-center mb-3">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={64}
+                value={manualLongInput}
+                onChange={(e) => setManualLongInput(e.target.value)}
+                placeholder="Digits 1–4 only, e.g. 41242323"
+                className="flex-1 bg-slate-950/70 border border-slate-700/70 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500"
+              />
+              {manualLongInput && (
+                <button
+                  onClick={() => setManualLongInput("")}
+                  className="px-2 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {manualLong.cleaned.length > 1 ? (
+              <div className="space-y-2 text-[11px]">
+                <div>
+                  <div className="text-slate-400 mb-1">Caesar pairs</div>
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 font-mono text-xs text-violet-200 break-all">
+                    {manualLong.pairs.join(" ")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 mb-1">Decoded 2-str rolls</div>
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 font-mono text-xs text-emerald-200 break-all">
+                    {manualLong.rolls.join(" ")}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500">
+                Enter at least{" "}
+                <span className="font-mono text-violet-300">2</span> digits to
+                decode.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

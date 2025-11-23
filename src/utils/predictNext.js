@@ -1,8 +1,21 @@
-// BASED ON DOCUMENT 31 (69% SUCCESS) - Minor tuning only
-// Strategy: Keep what worked, minimal changes
+// ADAPTIVE: Learns which patterns work best THIS SESSION and reorders priority
+// Strategy: Start with default order, track hits/misses, promote winners
 
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 4;
+
+// ðŸ”¥ NEW: Session-level mode performance tracking
+const MODE_STATS = {
+  "opposite-pair": { hits: 0, attempts: 0 },
+  "cyclic-enhanced": { hits: 0, attempts: 0 },
+  "smart-transition": { hits: 0, attempts: 0 },
+  wave: { hits: 0, attempts: 0 },
+  "markov-3state": { hits: 0, attempts: 0 },
+  "phase-memory": { hits: 0, attempts: 0 },
+};
+
+// ðŸ”¥ NEW: Store last prediction to update stats when next roll comes
+let LAST_PREDICTION = null;
 
 const VALS = ["41", "42", "43", "44"];
 const valToIdx = (v) => VALS.indexOf(v);
@@ -37,7 +50,73 @@ function getAlt(prediction, freqSorted) {
   return freqSorted.find((c) => c.value !== prediction)?.value || null;
 }
 
-/* 🎯 Smart transition (from doc 31) */
+/* ðŸ”¥ NEW: Update mode stats based on last prediction */
+function updateModeStats(rolls) {
+  if (!LAST_PREDICTION || rolls.length < 2) return;
+
+  const actual = rolls[rolls.length - 1]; // Most recent roll
+  const { mode, prediction, alt } = LAST_PREDICTION;
+
+  // Check if it was a hit (pred or alt)
+  const isHit = actual === prediction || actual === alt;
+
+  if (MODE_STATS[mode]) {
+    if (isHit) MODE_STATS[mode].hits++;
+    MODE_STATS[mode].attempts++;
+  }
+}
+
+/* ðŸ”¥ NEW: Get adaptive mode priority based on session performance */
+function getAdaptivePriority() {
+  // Calculate success rates (only for modes with 3+ attempts)
+  const modePerformance = Object.entries(MODE_STATS)
+    .filter(([mode, stats]) => stats.attempts >= 3)
+    .map(([mode, stats]) => ({
+      mode,
+      successRate: stats.hits / stats.attempts,
+      attempts: stats.attempts,
+    }))
+    .sort((a, b) => b.successRate - a.successRate);
+
+  // If we have enough data, return adaptive order
+  if (modePerformance.length >= 3) {
+    return modePerformance.map((m) => m.mode);
+  }
+
+  // Default priority (fallback for early session)
+  return [
+    "opposite-pair",
+    "cyclic-enhanced",
+    "smart-transition",
+    "markov-3state",
+    "wave",
+    "phase-memory",
+  ];
+}
+
+/* ðŸ”¥ NEW: Reset stats for new session (call this when starting fresh) */
+export function resetSessionStats() {
+  Object.keys(MODE_STATS).forEach((mode) => {
+    MODE_STATS[mode].hits = 0;
+    MODE_STATS[mode].attempts = 0;
+  });
+  LAST_PREDICTION = null;
+  PHASE_CACHE.length = 0;
+}
+
+/* ðŸ”¥ NEW: Get current session stats (for debugging/UI) */
+export function getSessionStats() {
+  return {
+    modes: { ...MODE_STATS },
+    adaptivePriority: getAdaptivePriority(),
+    totalAttempts: Object.values(MODE_STATS).reduce(
+      (sum, s) => sum + s.attempts,
+      0
+    ),
+  };
+}
+
+/* ðŸŽ¯ Smart transition (ORIGINAL) */
 function smartTransition(rolls, freqSorted) {
   if (rolls.length < 4) return null;
 
@@ -73,7 +152,7 @@ function smartTransition(rolls, freqSorted) {
 
     return {
       pred: sorted[0][0],
-      conf: clampConf(mainConf, 0.45, 0.72),
+      conf: clampConf(mainConf, 0.45, 0.7),
       alt: sorted[1][0],
       altConf: secondConf,
     };
@@ -82,7 +161,7 @@ function smartTransition(rolls, freqSorted) {
   return null;
 }
 
-/* 🎯 Opposite-pair (from doc 31) */
+/* ðŸŽ¯ Opposite-pair (ORIGINAL) */
 function detectOppositePair(rolls, freqSorted) {
   if (rolls.length < 6) return null;
 
@@ -109,7 +188,7 @@ function detectOppositePair(rolls, freqSorted) {
   return null;
 }
 
-/* 🎯 Wave (from doc 31) */
+/* ðŸŽ¯ Wave (ORIGINAL) */
 function detectWave(rolls, freqSorted) {
   if (rolls.length < 6 || freqSorted.length < 2) return null;
 
@@ -124,13 +203,13 @@ function detectWave(rolls, freqSorted) {
   const domInRecent4 = recent4.filter((v) => v === dominant).length;
 
   if (domInRecent5 <= 1 || domInRecent4 === 0) {
-    return { pred: dominant, conf: 0.68, alt: secondary };
+    return { pred: dominant, conf: 0.65, alt: secondary };
   }
 
   return null;
 }
 
-/* 🎯 Mono (from doc 31) */
+/* ðŸŽ¯ Mono (ORIGINAL) */
 function detectMono(seq, n = 4) {
   if (seq.length < n) return null;
   const tail = seq.slice(-n);
@@ -145,7 +224,7 @@ function detectMono(seq, n = 4) {
   return null;
 }
 
-/* 🎯 Cyclic (from doc 31) */
+/* ðŸŽ¯ Cyclic (ORIGINAL) */
 function detectCyclic(rolls) {
   if (rolls.length < 8) return null;
 
@@ -172,7 +251,7 @@ function detectCyclic(rolls) {
       if (tail.length - lastPos <= size + 2) {
         return {
           pred: lastChunk[0],
-          conf: clampConf(0.62 + (count - 2) * 0.04, 0.7),
+          conf: clampConf(0.62 + (count - 2) * 0.04, 0.68),
         };
       }
     }
@@ -181,7 +260,7 @@ function detectCyclic(rolls) {
   return null;
 }
 
-/* 🎯 Markov-3 (from doc 31) */
+/* ðŸŽ¯ Markov-3 (ORIGINAL) */
 function enhancedMarkov3(seq) {
   if (seq.length < 6) return null;
 
@@ -222,7 +301,7 @@ function enhancedMarkov3(seq) {
   return null;
 }
 
-/* 🎯 Frequency (from doc 31) */
+/* ðŸŽ¯ Frequency (ORIGINAL) */
 function frequencyPredictor(freqSorted) {
   if (!freqSorted || freqSorted.length === 0) return null;
 
@@ -252,11 +331,14 @@ function frequencyPredictor(freqSorted) {
   };
 }
 
-/* ===================== MAIN PREDICTOR (FROM DOC 31) ===================== */
+/* ===================== MAIN PREDICTOR (ADAPTIVE) ===================== */
 export function predictNext(rawRolls) {
   const rolls = (rawRolls || [])
     .map((r) => translateTo4(String(r)).slice(0, 2))
     .filter(Boolean);
+
+  // ðŸ”¥ NEW: Update stats based on last prediction
+  updateModeStats(rolls);
 
   if (rolls.length < 6) {
     return {
@@ -270,134 +352,125 @@ export function predictNext(rawRolls) {
 
   const { sorted: freqSorted } = weightedFrequency(rolls);
 
-  // 1) Mono
+  // ðŸ”¥ NEW: Get adaptive priority order
+  const adaptivePriority = getAdaptivePriority();
+
+  // 1) Mono (ALWAYS first - absolute priority)
   const mono = detectMono(rolls, 4);
   if (mono) {
     maybeStorePhase(rolls);
-    return {
+    const result = {
       prediction: mono,
       confidence: 0.85,
       alt: getAlt(mono, freqSorted),
       mode: "mono",
       candidates: [{ value: mono, pct: 100 }],
     };
+    LAST_PREDICTION = result;
+    return result;
   }
 
-  // 2) Wave
-  const wave = detectWave(rolls, freqSorted);
-  if (wave) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: wave.pred,
-      confidence: wave.conf,
-      alt: wave.alt,
-      mode: "wave",
-      candidates: buildCandidates(wave.pred, wave.conf, freqSorted),
-    };
+  // 2-7) ðŸ”¥ ADAPTIVE: Try modes in learned priority order
+  const modeDetectors = {
+    "opposite-pair": () => detectOppositePair(rolls, freqSorted),
+    "cyclic-enhanced": () => detectCyclic(rolls),
+    "smart-transition": () => smartTransition(rolls, freqSorted),
+    wave: () => detectWave(rolls, freqSorted),
+    "markov-3state": () => enhancedMarkov3(rolls),
+    "phase-memory": () => matchCachedPhase(rolls),
+  };
+
+  // Try each mode in adaptive order
+  for (const modeName of adaptivePriority) {
+    const detector = modeDetectors[modeName];
+    if (!detector) continue;
+
+    const detection = detector();
+
+    // Apply mode-specific thresholds
+    let shouldFire = false;
+    if (modeName === "smart-transition" && detection?.conf >= 0.5)
+      shouldFire = true;
+    else if (modeName === "markov-3state" && detection?.conf >= 0.52)
+      shouldFire = true;
+    else if (modeName === "phase-memory" && detection) shouldFire = true;
+    else if (detection) shouldFire = true;
+
+    if (shouldFire && detection) {
+      maybeStorePhase(rolls);
+
+      let result;
+      if (modeName === "phase-memory") {
+        result = {
+          prediction: detection.next,
+          confidence: 0.56,
+          alt: detection.alt || getAlt(detection.next, freqSorted),
+          mode: modeName,
+          candidates: buildCandidates(detection.next, 0.56, freqSorted),
+        };
+      } else {
+        result = {
+          prediction: detection.pred,
+          confidence: detection.conf,
+          alt: detection.alt || getAlt(detection.pred, freqSorted),
+          mode: modeName,
+          candidates: buildCandidates(
+            detection.pred,
+            detection.conf,
+            freqSorted
+          ),
+        };
+      }
+
+      LAST_PREDICTION = result;
+      return result;
+    }
   }
 
-  // 3) Smart transition
+  // Fallback: try weaker transition
   const trans = smartTransition(rolls, freqSorted);
-  if (trans && trans.conf >= 0.5) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: trans.pred,
-      confidence: trans.conf,
-      alt: trans.alt,
-      mode: "smart-transition",
-      candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
-    };
-  }
-
-  // 4) Markov-3
-  const markov3 = enhancedMarkov3(rolls);
-  if (markov3 && markov3.conf >= 0.52) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: markov3.pred,
-      confidence: markov3.conf,
-      alt: markov3.alt || getAlt(markov3.pred, freqSorted),
-      mode: "markov-3state",
-      candidates: buildCandidates(markov3.pred, markov3.conf, freqSorted),
-    };
-  }
-
-  // 5) Cyclic
-  const cyclic = detectCyclic(rolls);
-  if (cyclic) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: cyclic.pred,
-      confidence: cyclic.conf,
-      alt: getAlt(cyclic.pred, freqSorted),
-      mode: "cyclic-enhanced",
-      candidates: buildCandidates(cyclic.pred, cyclic.conf, freqSorted),
-    };
-  }
-
-  // 6) Opposite pair
-  const oppPair = detectOppositePair(rolls, freqSorted);
-  if (oppPair) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: oppPair.pred,
-      confidence: oppPair.conf,
-      alt: getAlt(oppPair.pred, freqSorted),
-      mode: "opposite-pair",
-      candidates: buildCandidates(oppPair.pred, oppPair.conf, freqSorted),
-    };
-  }
-
-  // 7) Phase memory
-  const cached = matchCachedPhase(rolls);
-  if (cached) {
-    maybeStorePhase(rolls);
-    return {
-      prediction: cached.next,
-      confidence: 0.56,
-      alt: cached.alt || getAlt(cached.next, freqSorted),
-      mode: "phase-memory",
-      candidates: buildCandidates(cached.next, 0.56, freqSorted),
-    };
-  }
-
-  // 8) Weaker transition as fallback
   if (trans) {
     maybeStorePhase(rolls);
-    return {
+    const result = {
       prediction: trans.pred,
       confidence: trans.conf,
       alt: trans.alt,
       mode: "transition-fallback",
       candidates: buildCandidates(trans.pred, trans.conf, freqSorted),
     };
+    LAST_PREDICTION = result;
+    return result;
   }
 
-  // 9) Frequency fallback
+  // Frequency fallback
   const freq = frequencyPredictor(freqSorted);
   maybeStorePhase(rolls);
 
   if (freq) {
-    return {
+    const result = {
       prediction: freq.pred,
       confidence: freq.conf,
       alt: freq.alt,
       mode: "frequency-fallback",
       candidates: buildCandidates(freq.pred, freq.conf, freqSorted),
     };
+    LAST_PREDICTION = result;
+    return result;
   }
 
   // Absolute fallback
-  return {
+  const result = {
     prediction: freqSorted[0].value,
     confidence: 0.42,
     alt: freqSorted[1]?.value || null,
     mode: "dominant-fallback",
     candidates: freqSorted.slice(0, 3),
   };
+  LAST_PREDICTION = result;
+  return result;
 }
 
-/* ===================== 3-STR / 4-STR ===================== */
+/* ===================== 3-STR / 4-STR (unchanged) ===================== */
 
 function stripZeros(str = "") {
   return str.replace(/0+$/, "");
@@ -573,7 +646,7 @@ export function predictNext4(rawRolls = []) {
   };
 }
 
-/* ===== HELPERS ===== */
+/* ===== HELPERS (unchanged) ===== */
 
 function weightedFrequency(rolls) {
   const counts = {};
