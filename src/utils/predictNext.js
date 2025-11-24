@@ -115,6 +115,49 @@ export function getSessionStats() {
     ),
   };
 }
+/* 🔍 NEW: Get per-mode predictions for the current context (sandbox use only) */
+export function getModeBreakdown(rawRolls = []) {
+  const rolls = (rawRolls || [])
+    .map((r) => translateTo4(String(r)).slice(0, 2))
+    .filter(Boolean);
+
+  if (rolls.length < 6) return {};
+
+  const { sorted: freqSorted } = weightedFrequency(rolls);
+  const breakdown = {};
+
+  const modeDetectors = {
+    "opposite-pair": () => detectOppositePair(rolls, freqSorted),
+    "cyclic-enhanced": () => detectCyclic(rolls),
+    "smart-transition": () => smartTransition(rolls, freqSorted),
+    wave: () => detectWave(rolls, freqSorted),
+    "markov-3state": () => enhancedMarkov3(rolls),
+    "phase-memory": () => matchCachedPhase(rolls),
+  };
+
+  for (const [modeName, detector] of Object.entries(modeDetectors)) {
+    const detection = detector();
+    if (!detection) continue;
+
+    if (modeName === "phase-memory") {
+      const main = detection.next;
+      breakdown[modeName] = {
+        prediction: main,
+        confidence: 0.56, // same default as in predictNext()
+        alt: detection.alt || getAlt(main, freqSorted),
+      };
+    } else {
+      const main = detection.pred;
+      breakdown[modeName] = {
+        prediction: main,
+        confidence: detection.conf,
+        alt: detection.alt || getAlt(main, freqSorted),
+      };
+    }
+  }
+
+  return breakdown;
+}
 
 /* ðŸŽ¯ Smart transition (ORIGINAL) */
 function smartTransition(rolls, freqSorted) {

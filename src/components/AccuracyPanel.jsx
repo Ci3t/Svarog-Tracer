@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { getModeBreakdown } from "../utils/predictNext.js";
 
 export default function AccuracyPanel({ debugLogs }) {
   const accuracy = useMemo(() => {
@@ -15,26 +16,40 @@ export default function AccuracyPanel({ debugLogs }) {
       };
     }
 
-    // ✅ ONLY count real 2-str predictions from TXT
-    const validRows = debugLogs.filter(
-      (l) => l.kind === "2" && l.prediction && l.prediction !== "—" && l.actual
-    );
-
+    let total = 0;
     let mainHits = 0;
     let altHits = 0;
     let misses = 0;
+    const rawTotal = debugLogs.length;
 
-    validRows.forEach((row) => {
-      const pred = String(row.prediction);
-      const alt = row.alt ? String(row.alt) : null;
-      const actual = String(row.actual);
+    debugLogs.forEach((log) => {
+      if (!log || !log.actual || log.prediction == null) return;
 
-      if (actual === pred) mainHits += 1;
-      else if (alt && actual === alt) altHits += 1;
-      else misses += 1;
+      const actualStr = String(log.actual);
+      const predStr = String(log.prediction);
+      const altStr =
+        log.alt !== undefined && log.alt !== null ? String(log.alt) : null;
+
+      // skip non-real predictions
+      if (
+        !predStr ||
+        predStr === "—" ||
+        predStr.toLowerCase().startsWith("insufficient")
+      ) {
+        return;
+      }
+
+      total += 1;
+
+      if (actualStr === predStr) {
+        mainHits += 1;
+      } else if (altStr && actualStr === altStr) {
+        altHits += 1;
+      } else {
+        misses += 1;
+      }
     });
 
-    const total = validRows.length;
     const mainPct = total ? Math.round((mainHits / total) * 100) : 0;
     const altPct = total ? Math.round((altHits / total) * 100) : 0;
     const top2Pct = total
@@ -49,48 +64,28 @@ export default function AccuracyPanel({ debugLogs }) {
       mainPct,
       altPct,
       top2Pct,
-      rawTotal: debugLogs.length,
+      rawTotal,
     };
   }, [debugLogs]);
 
-  // 📊 Top modes by accuracy
-  const topModes = useMemo(() => {
-    if (!debugLogs?.length) return [];
+  const liveModeBreakdown = useMemo(() => {
+    if (!debugLogs?.length) return null;
 
-    const modeStats = {};
+    // Take only 2-str logs from live input (ignore longString, backtest, etc.)
+    const seq = debugLogs
+      .filter(
+        (log) =>
+          log.kind === "2" &&
+          log.actual &&
+          (!log.source || log.source === "live")
+      )
+      .sort((a, b) => a.ts - b.ts) // oldest -> newest
+      .map((log) => String(log.actual).slice(0, 2))
+      .filter((v) => v.length === 2);
 
-    debugLogs.forEach((log) => {
-      if (!log.mode || !log.actual || !log.prediction) return;
+    if (seq.length < 6) return null; // not enough history to say anything
 
-      const mode = log.mode;
-      if (!modeStats[mode]) {
-        modeStats[mode] = { hits: 0, total: 0 };
-      }
-
-      modeStats[mode].total += 1;
-
-      const hit =
-        String(log.actual) === String(log.prediction) ||
-        (log.alt && String(log.actual) === String(log.alt));
-
-      if (hit) modeStats[mode].hits += 1;
-    });
-
-    const rows = Object.entries(modeStats).map(([mode, s]) => ({
-      mode,
-      hits: s.hits,
-      total: s.total,
-      pct: s.total ? Math.round((s.hits / s.total) * 100) : 0,
-    }));
-
-    // Sort by hits (descending), then by percentage
-    rows.sort((a, b) => {
-      if (b.hits !== a.hits) return b.hits - a.hits;
-      return b.pct - a.pct;
-    });
-
-    // Return top 4 modes
-    return rows.slice(0, 4);
+    return getModeBreakdown(seq);
   }, [debugLogs]);
 
   return (
@@ -113,9 +108,6 @@ export default function AccuracyPanel({ debugLogs }) {
           <div className="text-[10px] font-semibold text-slate-400 uppercase">
             TOP-2 ACCURACY (TXT TRUTH)
           </div>
-          <div className="text-[10px] text-slate-400">
-            {accuracy.mainHits + accuracy.altHits} / {accuracy.total} hits
-          </div>
         </div>
 
         <div className="flex items-end gap-3">
@@ -129,6 +121,11 @@ export default function AccuracyPanel({ debugLogs }) {
             className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-500"
             style={{ width: `${accuracy.top2Pct}%` }}
           />
+        </div>
+
+        <div className="mt-1 text-[10px] text-slate-400">
+          {accuracy.mainHits + accuracy.altHits} hits out of {accuracy.total}{" "}
+          predictions
         </div>
       </div>
 
@@ -168,29 +165,60 @@ export default function AccuracyPanel({ debugLogs }) {
         </div>
       </div>
 
-      {/* Top Modes */}
-      {topModes.length > 0 && (
+      {/* Live mode breakdown – same style as sandbox */}
+      {liveModeBreakdown && Object.keys(liveModeBreakdown).length > 0 && (
         <div className="space-y-2 pt-3 border-t border-slate-700/30">
           <div className="text-[10px] font-semibold text-slate-400 uppercase">
-            Top Modes by Hits
+            Live modes (current 2-str context)
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {topModes.map((mode, idx) => (
-              <div
-                key={mode.mode}
-                className="bg-slate-950/60 rounded-lg p-2 border border-violet-500/30"
-              >
-                <div className="text-[10px] font-semibold text-violet-300 truncate">
-                  {mode.mode}
-                </div>
-                <div className="text-lg font-bold text-slate-100 mt-1">
-                  {mode.pct}%
-                </div>
-                <div className="text-[9px] text-slate-400">
-                  {mode.hits}/{mode.total}
-                </div>
-              </div>
-            ))}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+            {Object.entries(liveModeBreakdown)
+              .map(([mode, info]) => ({
+                mode,
+                prediction: info.prediction,
+                alt: info.alt || null,
+                confidence: info.confidence || 0,
+              }))
+              .sort((a, b) => b.confidence - a.confidence) // highest first
+              .map((m, index) => {
+                const pct = Math.round(m.confidence * 100);
+                const strong = pct >= 60;
+
+                return (
+                  <div
+                    key={m.mode}
+                    className={`p-2 rounded-lg border ${
+                      strong
+                        ? "bg-emerald-900/30 border-emerald-600/60"
+                        : "bg-slate-950/60 border-slate-700/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-mono text-slate-200 truncate">
+                        {m.mode}
+                      </div>
+                      <div className="text-[10px] text-slate-400 ml-2">
+                        #{index + 1}
+                      </div>
+                    </div>
+
+                    <div className="text-violet-300">
+                      pred: <span className="font-mono">{m.prediction}</span>
+                    </div>
+
+                    {m.alt && (
+                      <div className="text-sky-300">
+                        alt: <span className="font-mono">{m.alt}</span>
+                      </div>
+                    )}
+
+                    <div className="text-amber-300">
+                      conf: <span className="font-mono">{pct}%</span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

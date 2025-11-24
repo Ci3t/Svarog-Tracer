@@ -18,7 +18,12 @@ import {
   buildPrefixFreq,
   sanitizeRollInput,
 } from "./utils/stringHelpers";
-import { predictNext, predictNext3, predictNext4 } from "./utils/predictNext";
+import {
+  predictNext,
+  predictNext3,
+  predictNext4,
+  resetSessionStats,
+} from "./utils/predictNext";
 import RelicPositionCard from "./components/RelicPositionCard";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
@@ -48,7 +53,7 @@ export default function App() {
 
   const [isCustomPatch, setIsCustomPatch] = useState(false);
   const timerRef = useRef(null);
-
+  const longStringCtxRef = useRef([]);
   /* ========= LOAD ========= */
   useEffect(() => {
     try {
@@ -241,6 +246,70 @@ export default function App() {
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
+  // 🔬 Long String sandbox → 2-str debug only (does NOT touch Current Session)
+  // 🔬 Long String sandbox → stream to 2-str debug (does NOT touch Current Session)
+  function handleLongStringToDebug(newRolls = []) {
+    if (!newRolls.length) return;
+
+    // Use the same newest-first context style as live logs
+    let ctx2 = [...longStringCtxRef.current];
+
+    // If this is the first time we stream a long string, start from a clean session
+    if (ctx2.length === 0) {
+      resetSessionStats();
+    }
+
+    const baseTs = Date.now();
+
+    const safeCandidates = (p) =>
+      Array.isArray(p?.candidates) ? p.candidates : [];
+
+    const logsToAdd = [];
+
+    newRolls.forEach((raw, idx) => {
+      const actual2 = String(raw).slice(0, 2);
+      if (actual2.length !== 2) return;
+
+      // Context the predictor “sees” BEFORE this roll
+      const predictorCtx = [...ctx2];
+
+      const p = predictNext(predictorCtx);
+      const candidates = safeCandidates(p);
+      const alt = p.alt || (candidates[1]?.value ?? null);
+
+      // Only log real predictions (skip “insufficient data” / empty)
+      if (
+        p.prediction &&
+        p.prediction !== "—" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
+        logsToAdd.push({
+          ts: baseTs + idx,
+          kind: "2",
+          prediction: p.prediction,
+          confidence: p.confidence || 0,
+          alt,
+          mode: p.mode || "—",
+          actual: actual2,
+          // newest-first context snippet (like live)
+          ctx: predictorCtx.slice(0, 8),
+          candidates,
+          source: "longString",
+        });
+      }
+
+      // After we “observe” this roll, add it to context
+      ctx2.unshift(actual2);
+    });
+
+    // Save updated context for the next keystrokes in the lab
+    longStringCtxRef.current = ctx2;
+
+    // Prepend new long-string logs; keep everything else (live + imports)
+    if (logsToAdd.length) {
+      setDebugLogs((prev) => [...logsToAdd, ...prev].slice(0, 300));
+    }
+  }
 
   function handleDeleteEntry(id) {
     // Find the entry being deleted to get its timestamp
@@ -340,7 +409,9 @@ export default function App() {
             setRollInput={setRollInput}
             onAdd={handleAddRoll}
             entriesCount={entries.length}
+            onSendLongStringToDebug={handleLongStringToDebug}
           />
+          {/* 🔮 New Long String Lab */}
 
           <SessionTable
             sessionTab={sessionTab}

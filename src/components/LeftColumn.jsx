@@ -3,6 +3,7 @@ import PredictionCard from "./PredictionCard";
 import CaesarCard from "./CaesarCard";
 import ModesInfo from "./ModesInfo";
 import NextPrediction from "./NextPrediction";
+import LongStringLabCard from "./LongStringLabCard.jsx";
 
 export default function LeftColumn({
   secondsLeft,
@@ -22,6 +23,8 @@ export default function LeftColumn({
         suggestTab={suggestTab}
         setSuggestTab={setSuggestTab}
       />
+      {/* 🔮 New Long String Lab */}
+      {/* <LongStringLabCard /> */}
       <CaesarCard caesarInput={caesarInput} setCaesarInput={setCaesarInput} />
 
       <ModesInfo />

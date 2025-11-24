@@ -77,3 +77,62 @@ export function buildPrefixFreq(
     }))
     .sort((a, b) => b.count - a.count);
 }
+// Caesar decode table: "rowcol" -> actual 2-str roll ("41".."44")
+// This inverts the same grid used in DebugPanel long-string builder.
+const LONG_CAESAR_DECODE = {
+  // Row 1
+  11: "44",
+  12: "41",
+  13: "42",
+  14: "43",
+  // Row 2
+  21: "43",
+  22: "44",
+  23: "41",
+  24: "42",
+  // Row 3
+  31: "42",
+  32: "43",
+  33: "44",
+  34: "41",
+  // Row 4 (pure row – no Caesar shift)
+  41: "41",
+  42: "42",
+  43: "43",
+  44: "44",
+};
+
+/**
+ * Decode a long string like "41242323" into:
+ *  - cleaned: only digits 1–4
+ *  - pairs: sliding Caesar pairs: ["41","12","24","42","23","32","23"]
+ *  - rolls: decoded 2-str rolls: ["41","41","42","42","41","43","41"]
+ *
+ * Example:
+ *   decodeLongString("41242323")
+ *   => { cleaned: "41242323",
+ *        pairs: ["41","12","24","42","23","32","23"],
+ *        rolls: ["41","41","42","42","41","43","41"] }
+ */
+export function decodeLongString(longStrRaw = "") {
+  const cleaned = String(longStrRaw).replace(/[^1-4]/g, ""); // keep only 1–4
+
+  if (cleaned.length < 2) {
+    return { cleaned, pairs: [], rolls: [] };
+  }
+
+  const pairs = [];
+  const rolls = [];
+
+  for (let i = 0; i < cleaned.length - 1; i++) {
+    const pair = cleaned.slice(i, i + 2); // sliding window
+    pairs.push(pair);
+
+    const roll = LONG_CAESAR_DECODE[pair];
+    if (roll) {
+      rolls.push(roll);
+    }
+  }
+
+  return { cleaned, pairs, rolls };
+}
