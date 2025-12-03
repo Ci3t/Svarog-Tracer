@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { sanitizeRollInput } from "../utils/stringHelpers";
 import LongStringLabCard from "./LongStringLabCard";
+import KiyoModeCard from "./KiyoModeCard"; // 🔥 NEW
 
 export default function RollInputCard({
   rollInput,
@@ -8,8 +9,9 @@ export default function RollInputCard({
   onAdd,
   entriesCount,
   onSendLongStringToDebug,
+  entries, // 🔥 NEW: pass entries for Kiyo Mode
 }) {
-  const [activeTab, setActiveTab] = useState("live"); // live | long
+  const [activeTab, setActiveTab] = useState("live"); // live | long | kiyo
 
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
@@ -17,7 +19,11 @@ export default function RollInputCard({
       <div className="flex items-center justify-between gap-2 mb-4">
         <div>
           <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            {activeTab === "live" ? "Live roll input" : "Long string lab"}
+            {activeTab === "live"
+              ? "Live roll input"
+              : activeTab === "long"
+              ? "Long string lab"
+              : "Kiyo Mode (EU)"}
           </h2>
         </div>
         <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 cursor-default whitespace-nowrap">
@@ -47,6 +53,18 @@ export default function RollInputCard({
           }`}
         >
           Long string
+        </button>
+
+        {/* 🔥 NEW: Kiyo Mode Tab */}
+        <button
+          onClick={() => setActiveTab("kiyo")}
+          className={`px-3 py-1.5 rounded-full text-xs border cursor-pointer transition ${
+            activeTab === "kiyo"
+              ? "bg-emerald-600 text-white border-emerald-400 shadow"
+              : "bg-slate-900/50 text-slate-300 border-slate-700 hover:text-white"
+          }`}
+        >
+          🌊 Kiyo Mode
         </button>
       </div>
 
@@ -80,6 +98,17 @@ export default function RollInputCard({
       {activeTab === "long" && (
         <div className="mt-2">
           <LongStringLabCard onSendToDebug={onSendLongStringToDebug} />
+        </div>
+      )}
+
+      {/* 🔥 NEW: KIYO MODE TAB */}
+      {activeTab === "kiyo" && (
+        <div className="mt-2">
+          <KiyoModeCard
+            key={`kiyo-${entries.length}`}
+            entries={entries}
+            onSendToDebug={onSendLongStringToDebug}
+          />
         </div>
       )}
     </div>

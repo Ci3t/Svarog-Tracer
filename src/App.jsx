@@ -21,6 +21,7 @@ import {
 import {
   predictNext,
   predictNext3,
+  predictNext3EU,
   predictNext4,
   resetSessionStats,
 } from "./utils/predictNext";
@@ -246,68 +247,54 @@ export default function App() {
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
-  // 🔬 Long String sandbox → 2-str debug only (does NOT touch Current Session)
-  // 🔬 Long String sandbox → stream to 2-str debug (does NOT touch Current Session)
-  function handleLongStringToDebug(newRolls = []) {
+  // 🔬 Long String sandbox → stream to debug (supports both 2-str and 3-str)
+  function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
     if (!newRolls.length) return;
 
-    // Use the same newest-first context style as live logs
-    let ctx2 = [...longStringCtxRef.current];
+    const is3Str = targetStream === "3-str";
 
-    // If this is the first time we stream a long string, start from a clean session
-    if (ctx2.length === 0) {
-      resetSessionStats();
+    // 🔥 FIX: Don't send ALL rolls, only send the LAST roll as a single prediction
+    // This prevents sending 19 duplicate entries for 19 rolls
+
+    const lastRoll = newRolls[newRolls.length - 1];
+    const contextRolls = newRolls.slice(0, -1); // All except last
+
+    if (contextRolls.length < 6) {
+      // Not enough context to make a prediction
+      return;
     }
 
-    const baseTs = Date.now();
+    const actualStr = String(lastRoll).slice(0, is3Str ? 3 : 2);
+    if (actualStr.length !== (is3Str ? 3 : 2)) return;
 
+    const baseTs = Date.now();
     const safeCandidates = (p) =>
       Array.isArray(p?.candidates) ? p.candidates : [];
 
-    const logsToAdd = [];
+    const p = is3Str ? predictNext3EU(contextRolls) : predictNext(contextRolls);
+    const candidates = safeCandidates(p);
+    const alt = p.alt || (candidates[1]?.value ?? null);
 
-    newRolls.forEach((raw, idx) => {
-      const actual2 = String(raw).slice(0, 2);
-      if (actual2.length !== 2) return;
+    // Only log if we have a real prediction
+    if (
+      p.prediction &&
+      p.prediction !== "—" &&
+      !String(p.prediction).toLowerCase().startsWith("insufficient")
+    ) {
+      const newLog = {
+        ts: baseTs,
+        kind: is3Str ? "3" : "2",
+        prediction: p.prediction,
+        confidence: p.confidence || 0,
+        alt,
+        mode: p.mode || "—",
+        actual: actualStr,
+        ctx: contextRolls.slice(-8).reverse(), // Last 8 in reverse (newest first)
+        candidates,
+        source: is3Str ? "kiyoMode" : "longString",
+      };
 
-      // Context the predictor “sees” BEFORE this roll
-      const predictorCtx = [...ctx2];
-
-      const p = predictNext(predictorCtx);
-      const candidates = safeCandidates(p);
-      const alt = p.alt || (candidates[1]?.value ?? null);
-
-      // Only log real predictions (skip “insufficient data” / empty)
-      if (
-        p.prediction &&
-        p.prediction !== "—" &&
-        !String(p.prediction).toLowerCase().startsWith("insufficient")
-      ) {
-        logsToAdd.push({
-          ts: baseTs + idx,
-          kind: "2",
-          prediction: p.prediction,
-          confidence: p.confidence || 0,
-          alt,
-          mode: p.mode || "—",
-          actual: actual2,
-          // newest-first context snippet (like live)
-          ctx: predictorCtx.slice(0, 8),
-          candidates,
-          source: "longString",
-        });
-      }
-
-      // After we “observe” this roll, add it to context
-      ctx2.unshift(actual2);
-    });
-
-    // Save updated context for the next keystrokes in the lab
-    longStringCtxRef.current = ctx2;
-
-    // Prepend new long-string logs; keep everything else (live + imports)
-    if (logsToAdd.length) {
-      setDebugLogs((prev) => [...logsToAdd, ...prev].slice(0, 300));
+      setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
     }
   }
 
@@ -410,6 +397,7 @@ export default function App() {
             onAdd={handleAddRoll}
             entriesCount={entries.length}
             onSendLongStringToDebug={handleLongStringToDebug}
+            entries={entries}
           />
           {/* 🔮 New Long String Lab */}
 

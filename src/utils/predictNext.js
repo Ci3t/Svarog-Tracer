@@ -4,7 +4,7 @@
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 4;
 
-// ðŸ”¥ NEW: Session-level mode performance tracking
+// 🔥 NEW: Session-level mode performance tracking
 const MODE_STATS = {
   "opposite-pair": { hits: 0, attempts: 0 },
   "cyclic-enhanced": { hits: 0, attempts: 0 },
@@ -12,9 +12,10 @@ const MODE_STATS = {
   wave: { hits: 0, attempts: 0 },
   "markov-3state": { hits: 0, attempts: 0 },
   "phase-memory": { hits: 0, attempts: 0 },
+  "wave-theory-3str": { hits: 0, attempts: 0 },
+  "anti-repeat": { hits: 0, attempts: 0 },
 };
 
-// ðŸ”¥ NEW: Store last prediction to update stats when next roll comes
 let LAST_PREDICTION = null;
 
 const VALS = ["41", "42", "43", "44"];
@@ -35,6 +36,10 @@ function translateTo4(str = "") {
     .join("");
 }
 
+function stripZeros(str = "") {
+  return str.replace(/0+$/, "");
+}
+
 function clampConf(conf, min = 0.42, max = 0.75) {
   return Math.max(min, Math.min(conf, max));
 }
@@ -50,25 +55,18 @@ function getAlt(prediction, freqSorted) {
   return freqSorted.find((c) => c.value !== prediction)?.value || null;
 }
 
-/* ðŸ”¥ NEW: Update mode stats based on last prediction */
 function updateModeStats(rolls) {
   if (!LAST_PREDICTION || rolls.length < 2) return;
-
-  const actual = rolls[rolls.length - 1]; // Most recent roll
+  const actual = rolls[rolls.length - 1];
   const { mode, prediction, alt } = LAST_PREDICTION;
-
-  // Check if it was a hit (pred or alt)
   const isHit = actual === prediction || actual === alt;
-
   if (MODE_STATS[mode]) {
     if (isHit) MODE_STATS[mode].hits++;
     MODE_STATS[mode].attempts++;
   }
 }
 
-/* ðŸ”¥ NEW: Get adaptive mode priority based on session performance */
 function getAdaptivePriority() {
-  // Calculate success rates (only for modes with 3+ attempts)
   const modePerformance = Object.entries(MODE_STATS)
     .filter(([mode, stats]) => stats.attempts >= 3)
     .map(([mode, stats]) => ({
@@ -78,13 +76,12 @@ function getAdaptivePriority() {
     }))
     .sort((a, b) => b.successRate - a.successRate);
 
-  // If we have enough data, return adaptive order
   if (modePerformance.length >= 3) {
     return modePerformance.map((m) => m.mode);
   }
 
-  // Default priority (fallback for early session)
   return [
+    "anti-repeat",
     "opposite-pair",
     "cyclic-enhanced",
     "smart-transition",
@@ -94,7 +91,6 @@ function getAdaptivePriority() {
   ];
 }
 
-/* ðŸ”¥ NEW: Reset stats for new session (call this when starting fresh) */
 export function resetSessionStats() {
   Object.keys(MODE_STATS).forEach((mode) => {
     MODE_STATS[mode].hits = 0;
@@ -104,7 +100,6 @@ export function resetSessionStats() {
   PHASE_CACHE.length = 0;
 }
 
-/* ðŸ”¥ NEW: Get current session stats (for debugging/UI) */
 export function getSessionStats() {
   return {
     modes: { ...MODE_STATS },
@@ -115,7 +110,7 @@ export function getSessionStats() {
     ),
   };
 }
-/* 🔍 NEW: Get per-mode predictions for the current context (sandbox use only) */
+
 export function getModeBreakdown(rawRolls = []) {
   const rolls = (rawRolls || [])
     .map((r) => translateTo4(String(r)).slice(0, 2))
@@ -133,6 +128,7 @@ export function getModeBreakdown(rawRolls = []) {
     wave: () => detectWave(rolls, freqSorted),
     "markov-3state": () => enhancedMarkov3(rolls),
     "phase-memory": () => matchCachedPhase(rolls),
+    "anti-repeat": () => detectAntiRepeat(rolls),
   };
 
   for (const [modeName, detector] of Object.entries(modeDetectors)) {
@@ -143,7 +139,7 @@ export function getModeBreakdown(rawRolls = []) {
       const main = detection.next;
       breakdown[modeName] = {
         prediction: main,
-        confidence: 0.56, // same default as in predictNext()
+        confidence: 0.56,
         alt: detection.alt || getAlt(main, freqSorted),
       };
     } else {
@@ -159,7 +155,224 @@ export function getModeBreakdown(rawRolls = []) {
   return breakdown;
 }
 
-/* ðŸŽ¯ Smart transition (ORIGINAL) */
+/* ========================================================================
+   🌊 WAVE THEORY - EU SERVER 3-STRING PREDICTOR
+   ======================================================================== */
+
+function analyzeWaveColumn(recentRolls, pairScheme) {
+  const LOOKBACK = Math.min(6, recentRolls.length);
+  const recent = recentRolls.slice(-LOOKBACK);
+
+  let runs = [];
+  let currentPair = null;
+  let currentRunLength = 0;
+
+  recent.forEach((roll) => {
+    const lastDigit = roll[2];
+    const isPairA = pairScheme.pairA.includes(lastDigit);
+    const thisPair = isPairA ? "A" : "B";
+
+    if (thisPair === currentPair) {
+      currentRunLength++;
+    } else {
+      if (currentPair !== null) {
+        runs.push({ pair: currentPair, length: currentRunLength });
+      }
+      currentPair = thisPair;
+      currentRunLength = 1;
+    }
+  });
+
+  if (currentPair !== null) {
+    runs.push({ pair: currentPair, length: currentRunLength });
+  }
+
+  if (runs.length === 0) {
+    return { prediction: "A", confidence: 0.5, runs: [], avgRunLength: 0 };
+  }
+
+  const lastRun = runs[runs.length - 1];
+  const avgRunLength = runs.reduce((sum, r) => sum + r.length, 0) / runs.length;
+
+  let prediction;
+  let confidence;
+
+  if (lastRun.length >= Math.ceil(avgRunLength * 1.2)) {
+    prediction = lastRun.pair === "A" ? "B" : "A";
+    confidence = 0.7;
+  } else if (lastRun.length >= avgRunLength) {
+    prediction = lastRun.pair === "A" ? "B" : "A";
+    confidence = 0.62;
+  } else if (lastRun.length >= avgRunLength * 0.7) {
+    prediction = lastRun.pair === "A" ? "B" : "A";
+    confidence = 0.54;
+  } else {
+    prediction = lastRun.pair;
+    confidence = 0.52;
+  }
+
+  const flipProbability = calculateFlipProbability(
+    lastRun.length,
+    avgRunLength
+  );
+
+  return {
+    prediction,
+    confidence,
+    lastRun,
+    avgRunLength: avgRunLength.toFixed(1),
+    runs,
+    flipProbability: (flipProbability * 100).toFixed(0) + "%",
+  };
+}
+
+function calculateFlipProbability(run, avgRunLength) {
+  if (run < avgRunLength) {
+    return 0.3;
+  }
+
+  if (run === Math.round(avgRunLength)) {
+    return 0.5;
+  }
+
+  if (run < avgRunLength * 1.2) {
+    return 0.65;
+  }
+
+  if (run >= avgRunLength * 1.2) {
+    return 0.8;
+  }
+}
+
+export function detectWaveTheory3(rolls3str) {
+  if (rolls3str.length < 6) return null;
+
+  const WINDOW = Math.min(12, rolls3str.length);
+  const recent = rolls3str.slice(-WINDOW);
+  const lastRoll = recent[recent.length - 1];
+  const lastPrefix = lastRoll.slice(0, 2);
+
+  const schemes = [
+    {
+      name: "Column 1",
+      pairA: ["1", "3"],
+      pairB: ["2", "4"],
+      label: "Odds vs Evens",
+    },
+    {
+      name: "Column 2",
+      pairA: ["1", "4"],
+      pairB: ["2", "3"],
+      label: "Outer vs Inner",
+    },
+    {
+      name: "Column 3",
+      pairA: ["1", "2"],
+      pairB: ["3", "4"],
+      label: "Low vs High",
+    },
+  ];
+
+  const columnResults = [];
+  let totalConfidence = 0;
+
+  schemes.forEach((scheme, idx) => {
+    const analysis = analyzeWaveColumn(recent, scheme);
+    const predictedPair =
+      analysis.prediction === "A" ? scheme.pairA : scheme.pairB;
+
+    columnResults.push({
+      column: idx + 1,
+      name: scheme.name,
+      predictedPair: analysis.prediction,
+      predictedDigits: predictedPair,
+      confidence: analysis.confidence,
+      lastRunPair: analysis.lastRun?.pair || "?",
+      lastRunLength: analysis.lastRun?.length || 0,
+      avgRunLength: analysis.avgRunLength,
+    });
+
+    totalConfidence += analysis.confidence;
+  });
+
+  const digitVotes = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
+  columnResults.forEach((col) => {
+    col.predictedDigits.forEach((digit) => {
+      digitVotes[digit] += col.confidence;
+    });
+  });
+
+  const sorted = Object.entries(digitVotes)
+    .sort((a, b) => b[1] - a[1])
+    .map(([digit, score]) => ({ digit, score: score.toFixed(2) }));
+
+  const winner = sorted[0];
+  const runnerUp = sorted[1];
+
+  const totalVotes = sorted.reduce((sum, d) => sum + parseFloat(d.score), 0);
+  const voteStrength = parseFloat(winner.score) / totalVotes;
+
+  let overallConfidence;
+  if (voteStrength >= 0.7) {
+    overallConfidence = 0.72;
+  } else if (voteStrength >= 0.6) {
+    overallConfidence = 0.62;
+  } else if (voteStrength >= 0.5) {
+    overallConfidence = 0.54;
+  } else {
+    overallConfidence = 0.48;
+  }
+
+  if (overallConfidence < 0.48) return null;
+
+  return {
+    pred: lastPrefix + winner.digit,
+    conf: overallConfidence,
+    alt: lastPrefix + runnerUp.digit,
+    mode: "wave-theory-3str",
+    debug: {
+      columnResults,
+      digitVotes: sorted,
+      voteStrength: voteStrength.toFixed(2),
+      recentRolls: recent.slice(-6),
+    },
+  };
+}
+
+function predictPrefix(rolls3str) {
+  if (rolls3str.length < 6) return null;
+
+  const last12 = rolls3str.slice(-12);
+  const prefixes = last12.map((r) => r.slice(0, 2));
+  const last = prefixes[prefixes.length - 1];
+  const transitions = {};
+
+  for (let i = 0; i < prefixes.length - 1; i++) {
+    if (prefixes[i] === last) {
+      const next = prefixes[i + 1];
+      transitions[next] = (transitions[next] || 0) + 1;
+    }
+  }
+
+  if (Object.keys(transitions).length === 0) return null;
+
+  const sorted = Object.entries(transitions).sort((a, b) => b[1] - a[1]);
+  const nextPrefix = sorted[0][0];
+  const confidence =
+    sorted[0][1] / Object.values(transitions).reduce((a, b) => a + b, 0);
+
+  return {
+    prefix: nextPrefix,
+    confidence,
+    alternatives: sorted.slice(1, 3).map((s) => s[0]),
+  };
+}
+
+/* ========================================================================
+   END WAVE THEORY SECTION
+   ======================================================================== */
+
 function smartTransition(rolls, freqSorted) {
   if (rolls.length < 4) return null;
 
@@ -204,12 +417,12 @@ function smartTransition(rolls, freqSorted) {
   return null;
 }
 
-/* ðŸŽ¯ Opposite-pair (ORIGINAL) */
 function detectOppositePair(rolls, freqSorted) {
   if (rolls.length < 6) return null;
 
   const last = rolls[rolls.length - 1];
   const recent4 = rolls.slice(-4);
+  const recent6 = rolls.slice(-6);
 
   const opposites = { 41: "44", 44: "41", 42: "43", 43: "42" };
   const opposite = opposites[last];
@@ -219,19 +432,20 @@ function detectOppositePair(rolls, freqSorted) {
   const oppCount = recent4.filter((v) => v === opposite).length;
   const lastCount = recent4.filter((v) => v === last).length;
 
-  if (lastCount >= 2 && oppCount <= 1) {
-    return { pred: opposite, conf: 0.62 };
+  if (lastCount >= 3 && oppCount === 0) {
+    return { pred: opposite, conf: 0.68 };
   }
 
-  const top2 = freqSorted.slice(0, 2).map((c) => c.value);
-  if (top2.includes(opposite) && top2.includes(last)) {
-    return { pred: opposite, conf: 0.58 };
+  if (lastCount >= 2 && oppCount <= 1) {
+    const last2 = rolls.slice(-2);
+    if (last2.filter((v) => v === last).length >= 1) {
+      return { pred: opposite, conf: 0.58 };
+    }
   }
 
   return null;
 }
 
-/* ðŸŽ¯ Wave (ORIGINAL) */
 function detectWave(rolls, freqSorted) {
   if (rolls.length < 6 || freqSorted.length < 2) return null;
 
@@ -252,22 +466,35 @@ function detectWave(rolls, freqSorted) {
   return null;
 }
 
-/* ðŸŽ¯ Mono (ORIGINAL) */
-function detectMono(seq, n = 4) {
-  if (seq.length < n) return null;
-  const tail = seq.slice(-n);
-  const monoVal = tail[0];
+function detectAntiRepeat(rolls) {
+  if (rolls.length < 6) return null;
 
-  const last2 = tail.slice(-2);
-  if (last2[0] !== last2[1]) return null;
+  const last = rolls[rolls.length - 1];
+  const recent3 = rolls.slice(-3);
+  const lastCount = recent3.filter((v) => v === last).length;
 
-  if (tail.every((v) => v === monoVal)) {
-    return monoVal;
+  if (lastCount >= 2) {
+    const freq = { 41: 0, 42: 0, 43: 0, 44: 0 };
+    const recent6 = rolls.slice(-6);
+
+    recent6.forEach((v) => freq[v]++);
+
+    const sorted = Object.entries(freq)
+      .filter(([val]) => val !== last)
+      .sort((a, b) => a[1] - b[1]);
+
+    if (sorted.length > 0) {
+      return {
+        pred: sorted[0][0],
+        conf: 0.58,
+        alt: sorted[1]?.[0] || null,
+      };
+    }
   }
+
   return null;
 }
 
-/* ðŸŽ¯ Cyclic (ORIGINAL) */
 function detectCyclic(rolls) {
   if (rolls.length < 8) return null;
 
@@ -291,10 +518,12 @@ function detectCyclic(rolls) {
 
     if (count >= 2) {
       const lastPos = positions[positions.length - 1];
-      if (tail.length - lastPos <= size + 2) {
+      const proximity = tail.length - lastPos;
+
+      if (proximity <= size + 3) {
         return {
           pred: lastChunk[0],
-          conf: clampConf(0.62 + (count - 2) * 0.04, 0.68),
+          conf: clampConf(0.6 + (count - 2) * 0.05, 0.68),
         };
       }
     }
@@ -303,7 +532,6 @@ function detectCyclic(rolls) {
   return null;
 }
 
-/* ðŸŽ¯ Markov-3 (ORIGINAL) */
 function enhancedMarkov3(seq) {
   if (seq.length < 6) return null;
 
@@ -344,7 +572,6 @@ function enhancedMarkov3(seq) {
   return null;
 }
 
-/* ðŸŽ¯ Frequency (ORIGINAL) */
 function frequencyPredictor(freqSorted) {
   if (!freqSorted || freqSorted.length === 0) return null;
 
@@ -374,13 +601,11 @@ function frequencyPredictor(freqSorted) {
   };
 }
 
-/* ===================== MAIN PREDICTOR (ADAPTIVE) ===================== */
 export function predictNext(rawRolls) {
   const rolls = (rawRolls || [])
     .map((r) => translateTo4(String(r)).slice(0, 2))
     .filter(Boolean);
 
-  // ðŸ”¥ NEW: Update stats based on last prediction
   updateModeStats(rolls);
 
   if (rolls.length < 6) {
@@ -394,11 +619,8 @@ export function predictNext(rawRolls) {
   }
 
   const { sorted: freqSorted } = weightedFrequency(rolls);
-
-  // ðŸ”¥ NEW: Get adaptive priority order
   const adaptivePriority = getAdaptivePriority();
 
-  // 1) Mono (ALWAYS first - absolute priority)
   const mono = detectMono(rolls, 4);
   if (mono) {
     maybeStorePhase(rolls);
@@ -413,7 +635,6 @@ export function predictNext(rawRolls) {
     return result;
   }
 
-  // 2-7) ðŸ”¥ ADAPTIVE: Try modes in learned priority order
   const modeDetectors = {
     "opposite-pair": () => detectOppositePair(rolls, freqSorted),
     "cyclic-enhanced": () => detectCyclic(rolls),
@@ -421,16 +642,15 @@ export function predictNext(rawRolls) {
     wave: () => detectWave(rolls, freqSorted),
     "markov-3state": () => enhancedMarkov3(rolls),
     "phase-memory": () => matchCachedPhase(rolls),
+    "anti-repeat": () => detectAntiRepeat(rolls),
   };
 
-  // Try each mode in adaptive order
   for (const modeName of adaptivePriority) {
     const detector = modeDetectors[modeName];
     if (!detector) continue;
 
     const detection = detector();
 
-    // Apply mode-specific thresholds
     let shouldFire = false;
     if (modeName === "smart-transition" && detection?.conf >= 0.5)
       shouldFire = true;
@@ -470,7 +690,6 @@ export function predictNext(rawRolls) {
     }
   }
 
-  // Fallback: try weaker transition
   const trans = smartTransition(rolls, freqSorted);
   if (trans) {
     maybeStorePhase(rolls);
@@ -485,7 +704,6 @@ export function predictNext(rawRolls) {
     return result;
   }
 
-  // Frequency fallback
   const freq = frequencyPredictor(freqSorted);
   maybeStorePhase(rolls);
 
@@ -501,7 +719,6 @@ export function predictNext(rawRolls) {
     return result;
   }
 
-  // Absolute fallback
   const result = {
     prediction: freqSorted[0].value,
     confidence: 0.42,
@@ -513,10 +730,92 @@ export function predictNext(rawRolls) {
   return result;
 }
 
-/* ===================== 3-STR / 4-STR (unchanged) ===================== */
+export function predictNext3EU(rawRolls = []) {
+  const rolls = rawRolls
+    .map((r) => stripZeros(String(r)).slice(0, 3))
+    .filter((r) => r.length === 3);
 
-function stripZeros(str = "") {
-  return str.replace(/0+$/, "");
+  if (rolls.length < 6) {
+    return {
+      prediction: null,
+      confidence: 0,
+      alt: null,
+      mode: "insufficient-data-3str-eu",
+      candidates: [],
+    };
+  }
+
+  const mono = detectMono3(rolls, 4);
+  if (mono) {
+    const p = translateTo4(mono);
+    return {
+      prediction: p,
+      confidence: 0.85,
+      alt: null,
+      mode: "mono-3str-eu",
+      candidates: [{ value: p, pct: 100 }],
+    };
+  }
+
+  const freq = {};
+  const decay = 0.9;
+  const n = rolls.length;
+  rolls.forEach((val, idx) => {
+    const dist = n - 1 - idx;
+    const w = Math.pow(decay, dist);
+    freq[val] = (freq[val] || 0) + w;
+  });
+  const freqSorted = Object.entries(freq)
+    .map(([value, w]) => ({ value, pct: Math.round((w / n) * 100) }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const wave = detectWaveTheory3(rolls);
+  if (wave && wave.conf >= 0.48) {
+    const transSorted = freqSorted.map((c) => ({
+      ...c,
+      value: translateTo4(c.value),
+    }));
+
+    const mainPred = wave.pred;
+    const altOption = transSorted.find((c) => c.value !== mainPred);
+
+    return {
+      prediction: mainPred,
+      confidence: wave.conf,
+      alt: altOption?.value || wave.alt,
+      mode: wave.mode,
+      candidates: buildCandidates(mainPred, wave.conf, transSorted),
+      debug: wave.debug,
+    };
+  }
+
+  const top = freqSorted[0];
+  const second = freqSorted[1];
+  const main = top ? translateTo4(top.value) : null;
+
+  if (!main) {
+    return {
+      prediction: null,
+      confidence: 0,
+      alt: null,
+      mode: "no-data-3str-eu",
+      candidates: [],
+    };
+  }
+
+  const conf = clampConf(top.pct / 100 + 0.08, 0.45, 0.68);
+  const transSorted = freqSorted.map((c) => ({
+    ...c,
+    value: translateTo4(c.value),
+  }));
+
+  return {
+    prediction: main,
+    confidence: conf,
+    alt: second ? translateTo4(second.value) : null,
+    mode: "frequency-3str-eu",
+    candidates: buildCandidates(main, conf, transSorted),
+  };
 }
 
 export function predictNext3(rawRolls = []) {
@@ -689,8 +988,6 @@ export function predictNext4(rawRolls = []) {
   };
 }
 
-/* ===== HELPERS (unchanged) ===== */
-
 function weightedFrequency(rolls) {
   const counts = {};
   const decay = 0.9;
@@ -775,4 +1072,36 @@ function matchCachedPhase(seq) {
   }
 
   return null;
+}
+
+function detectMono(seq, n = 4) {
+  if (seq.length < n) return null;
+
+  const tail = seq.slice(-n);
+  const monoVal = tail[0];
+
+  if (!tail.every((v) => v === monoVal)) return null;
+
+  const lastValue = seq[seq.length - 1];
+  if (lastValue !== monoVal) return null;
+
+  const last4 = seq.slice(-4);
+  const monoCount = last4.filter((v) => v === monoVal).length;
+  if (monoCount < 3) return null;
+
+  return monoVal;
+}
+
+function detectMono3(seq, n = 4) {
+  if (seq.length < n) return null;
+
+  const tail = seq.slice(-n);
+  const monoVal = tail[0];
+
+  if (!tail.every((v) => v === monoVal)) return null;
+
+  const lastValue = seq[seq.length - 1];
+  if (lastValue !== monoVal) return null;
+
+  return monoVal;
 }

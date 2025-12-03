@@ -531,7 +531,7 @@ export default function DebugPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1 mb-3 text-[11px]">
+      <div className="flex flex-wrap gap-1 mb-3 text-[12px]">
         {TABS.map((tab) => (
           <button
             key={tab.id}
