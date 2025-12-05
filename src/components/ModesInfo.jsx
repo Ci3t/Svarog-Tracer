@@ -237,6 +237,66 @@ const MODE_EXAMPLES = {
       </>
     ),
   },
+  // ADD AFTER "frequency-fallback" mode
+
+  "anti-repeat": {
+    title: "Anti-Repeat (EU)",
+    description: "EU servers avoid repeating recent values",
+    body: (
+      <>
+        EU RNG tends to avoid values that appeared recently. Predicts the LEAST
+        recent value when last value repeated 2+ times.
+        <br />
+        <span className="text-slate-400">History (last 6):</span>{" "}
+        <span className="text-violet-300">41, 43, 41, 42, 41, 41</span>
+        <br />
+        <span className="text-slate-400">→ Last value (41) appeared 4x</span>
+        <br />
+        <span className="text-slate-400">→ Least recent:</span>{" "}
+        <span className="text-violet-300">44 (not seen)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 58% | EU-specific pattern (chaos resistance)
+        </span>
+      </>
+    ),
+  },
+
+  "wave-theory-3str-eu": {
+    title: "Wave Theory (EU 3-str)",
+    description: "Paired alternation analysis across 3 columns",
+    body: (
+      <>
+        Analyzes 3 pairing schemes to predict which digit comes next based on
+        alternation rhythm.
+        <br />
+        <span className="text-slate-400">Recent rolls:</span>{" "}
+        <span className="text-violet-300">421, 423, 422, 421, 424</span>
+        <br />
+        <span className="text-slate-400">Column 1 (Odds vs Evens):</span>{" "}
+        <span className="text-violet-300">[1,3] appeared 3x → flip to [2,4]</span>
+        <br />
+        <span className="text-slate-400">Column 2 (Outer vs Inner):</span>{" "}
+        <span className="text-violet-300">[1,4] appeared 2x → flip to [2,3]</span>
+        <br />
+        <span className="text-slate-400">Column 3 (Low vs High):</span>{" "}
+        <span className="text-violet-300">[1,2] appeared 3x → flip to [3,4]</span>
+        <br />
+        <span className="text-slate-400">→ Consensus votes:</span>{" "}
+        <span className="text-violet-300">digit 3 (2 columns), digit 2 (2 columns)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">423</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 50–72% | EU-specific | Analyzes pair flip timing
+        </span>
+      </>
+    ),
+  },
 
   "dominant-fallback": {
     title: "Dominant Fallback",
@@ -423,6 +483,7 @@ const MODES = [
   "mono",
   "wave",
   "smart-transition",
+  "anti-repeat",
   "markov-3state",
   "cyclic-enhanced",
   "opposite-pair",
@@ -433,6 +494,7 @@ const MODES = [
   "insufficient-data",
   // 3-str
   "mono-3str",
+  "wave-theory-3str-eu",
   "transition-3str",
   "frequency-3str",
   // 4-str
@@ -445,6 +507,7 @@ const MODE_GROUPS = {
   "2-str": [
     "mono",
     "wave",
+    "anti-repeat",
     "smart-transition",
     "markov-3state",
     "cyclic-enhanced",
@@ -455,7 +518,7 @@ const MODE_GROUPS = {
     "dominant-fallback",
     "insufficient-data",
   ],
-  "3-str": ["mono-3str", "transition-3str", "frequency-3str"],
+  "3-str": ["mono-3str",  "wave-theory-3str-eu",  "transition-3str", "frequency-3str"],
   "4-str": ["mono-4str", "transition-4str", "frequency-4str"],
 };
 

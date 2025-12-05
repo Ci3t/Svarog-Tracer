@@ -163,6 +163,42 @@ function analyzeWaveColumn(recentRolls, pairScheme) {
   const LOOKBACK = Math.min(6, recentRolls.length);
   const recent = recentRolls.slice(-LOOKBACK);
 
+  // 🔥 FIX 2: Increased decay from 0.9 to 0.85 for more recency bias
+  const weights = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
+  let weightedA = 0,
+    weightedB = 0,
+    totalWeight = 0;
+  let aCount = 0,
+    bCount = 0;
+
+  recent.forEach((roll, idx) => {
+    const lastDigit = roll[2];
+    const weight = weights[idx];
+
+    if (pairScheme.pairA.includes(lastDigit)) {
+      aCount++;
+      weightedA += weight;
+    } else if (pairScheme.pairB.includes(lastDigit)) {
+      bCount++;
+      weightedB += weight;
+    }
+    totalWeight += weight;
+  });
+
+  // 🔥 Consecutive streak detection
+  const dominantPair = aCount > bCount ? pairScheme.pairA : pairScheme.pairB;
+  let consecutiveCount = 0;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const digit = recent[i][2];
+    if (dominantPair.includes(digit)) {
+      consecutiveCount++;
+    } else {
+      break;
+    }
+  }
+  const isConsecutive = consecutiveCount >= 3;
+
+  // Build runs for analysis
   let runs = [];
   let currentPair = null;
   let currentRunLength = 0;
@@ -188,22 +224,43 @@ function analyzeWaveColumn(recentRolls, pairScheme) {
   }
 
   if (runs.length === 0) {
-    return { prediction: "A", confidence: 0.5, runs: [], avgRunLength: 0 };
+    return {
+      prediction: "A",
+      confidence: 0.5,
+      runs: [],
+      avgRunLength: 0,
+      consecutiveCount: 0,
+      isConsecutive: false,
+    };
   }
 
   const lastRun = runs[runs.length - 1];
   const avgRunLength = runs.reduce((sum, r) => sum + r.length, 0) / runs.length;
 
+  const weightedDominance =
+    totalWeight > 0 ? Math.max(weightedA, weightedB) / totalWeight : 0;
+  const maxDominance = Math.max(aCount, bCount) / LOOKBACK;
+
   let prediction;
   let confidence;
 
-  if (lastRun.length >= Math.ceil(avgRunLength * 1.2)) {
+  // 🔥 FIX 1: Adjusted thresholds - 83%+ always triggers, 75%+ with consecutive
+  if (maxDominance >= 0.83) {
+    // 5/6 or 6/6 always triggers, regardless of consecutive
     prediction = lastRun.pair === "A" ? "B" : "A";
-    confidence = 0.7;
-  } else if (lastRun.length >= avgRunLength) {
+    confidence = weightedDominance;
+  } else if (maxDominance >= 0.75 && isConsecutive) {
+    // 4.5/6 (75%) requires consecutive
+    prediction = lastRun.pair === "A" ? "B" : "A";
+    confidence = weightedDominance * 0.9;
+  } else if (maxDominance >= 0.67 && isConsecutive) {
+    // 4/6 (67%) requires consecutive
+    prediction = lastRun.pair === "A" ? "B" : "A";
+    confidence = weightedDominance * 0.85;
+  } else if (lastRun.length >= Math.ceil(avgRunLength * 1.2)) {
     prediction = lastRun.pair === "A" ? "B" : "A";
     confidence = 0.62;
-  } else if (lastRun.length >= avgRunLength * 0.7) {
+  } else if (lastRun.length >= avgRunLength) {
     prediction = lastRun.pair === "A" ? "B" : "A";
     confidence = 0.54;
   } else {
@@ -211,10 +268,8 @@ function analyzeWaveColumn(recentRolls, pairScheme) {
     confidence = 0.52;
   }
 
-  const flipProbability = calculateFlipProbability(
-    lastRun.length,
-    avgRunLength
-  );
+  // 🔥 Calculate swap rate for this column
+  const swapRate = calculateSwapRate(recent, pairScheme);
 
   return {
     prediction,
@@ -222,7 +277,9 @@ function analyzeWaveColumn(recentRolls, pairScheme) {
     lastRun,
     avgRunLength: avgRunLength.toFixed(1),
     runs,
-    flipProbability: (flipProbability * 100).toFixed(0) + "%",
+    consecutiveCount,
+    isConsecutive,
+    swapRate, // 🔥 NEW: Swap rate for compound confidence
   };
 }
 
@@ -275,6 +332,7 @@ export function detectWaveTheory3(rolls3str) {
 
   const columnResults = [];
   let totalConfidence = 0;
+  let totalSwapRate = 0;
 
   schemes.forEach((scheme, idx) => {
     const analysis = analyzeWaveColumn(recent, scheme);
@@ -290,18 +348,60 @@ export function detectWaveTheory3(rolls3str) {
       lastRunPair: analysis.lastRun?.pair || "?",
       lastRunLength: analysis.lastRun?.length || 0,
       avgRunLength: analysis.avgRunLength,
+      consecutiveCount: analysis.consecutiveCount,
+      isConsecutive: analysis.isConsecutive,
+      swapRate: analysis.swapRate, // 🔥 NEW
     });
 
     totalConfidence += analysis.confidence;
+    totalSwapRate += analysis.swapRate;
   });
+
+  const avgSwapRate = totalSwapRate / schemes.length;
+
+  // 🔥 NEW: Detect columns that want to flip (high run length or consecutive)
+  const flipColumns = columnResults.filter(
+    (col) => col.lastRunLength >= 3 || col.isConsecutive
+  );
+
+  // 🔥 NEW: Detect sticky columns (low swap rate = reliable constraint)
+  const stickyColumns = columnResults.filter((col) => col.swapRate < 0.4);
 
   const digitVotes = { 1: 0, 2: 0, 3: 0, 4: 0 };
 
   columnResults.forEach((col) => {
+    // 🔥 Weight votes by swap rate (high swap = more predictable)
+    const swapWeight = col.swapRate > 0.6 ? 1.3 : 1.0;
     col.predictedDigits.forEach((digit) => {
-      digitVotes[digit] += col.confidence;
+      digitVotes[digit] += col.confidence * swapWeight;
     });
   });
+
+  // 🔥 Multi-column agreement detection (enhanced)
+  const targetDigitCounts = {};
+  const highConfidenceCols = columnResults.filter(
+    (col) => col.confidence >= 0.67
+  );
+
+  highConfidenceCols.forEach((col) => {
+    col.predictedDigits.forEach((digit) => {
+      targetDigitCounts[digit] = (targetDigitCounts[digit] || 0) + 1;
+    });
+  });
+
+  const maxAgreement = Math.max(...Object.values(targetDigitCounts), 0);
+  const multiColumnAgreement = maxAgreement >= 2;
+
+  // 🔥 Find the agreed-upon digit if it exists
+  let agreedDigit = null;
+  if (multiColumnAgreement) {
+    for (const [digit, count] of Object.entries(targetDigitCounts)) {
+      if (count === maxAgreement) {
+        agreedDigit = digit;
+        break;
+      }
+    }
+  }
 
   const sorted = Object.entries(digitVotes)
     .sort((a, b) => b[1] - a[1])
@@ -314,6 +414,8 @@ export function detectWaveTheory3(rolls3str) {
   const voteStrength = parseFloat(winner.score) / totalVotes;
 
   let overallConfidence;
+
+  // 🔥 Base confidence calculation
   if (voteStrength >= 0.7) {
     overallConfidence = 0.72;
   } else if (voteStrength >= 0.6) {
@@ -324,18 +426,58 @@ export function detectWaveTheory3(rolls3str) {
     overallConfidence = 0.48;
   }
 
-  if (overallConfidence < 0.48) return null;
+  // 🔥 COMPOUND CONFIDENCE BOOST - Multi-column agreement
+  if (multiColumnAgreement && flipColumns.length >= 2) {
+    // Multiple columns agree on flip direction = exponential confidence
+    const compoundBoost = Math.min(flipColumns.length * 0.08, 0.2);
+    overallConfidence = Math.min(
+      overallConfidence * 1.15 + compoundBoost,
+      0.92
+    );
+  } else if (multiColumnAgreement) {
+    // Standard multi-column agreement
+    overallConfidence = Math.min(overallConfidence * 1.1, 0.8);
+  }
+
+  // 🔥 High swap rate boost (alternating patterns are very predictable)
+  if (avgSwapRate >= 0.7) {
+    overallConfidence = Math.min(overallConfidence * 1.12, 0.95);
+  }
+
+  // 🔥 Sticky column constraint boost (low swap = reliable direction)
+  if (stickyColumns.length >= 2 && agreedDigit) {
+    overallConfidence = Math.min(overallConfidence * 1.08, 0.95);
+  }
+
+  if (overallConfidence < 0.45) return null;
 
   return {
     pred: lastPrefix + winner.digit,
     conf: overallConfidence,
     alt: lastPrefix + runnerUp.digit,
     mode: "wave-theory-3str",
+    multiColumnAgreement,
+    flipColumns: flipColumns.length, // 🔥 NEW
+    avgSwapRate: avgSwapRate.toFixed(2), // 🔥 NEW
+    stickyColumns: stickyColumns.length, // 🔥 NEW
+    agreedDigit, // 🔥 NEW
     debug: {
       columnResults,
       digitVotes: sorted,
       voteStrength: voteStrength.toFixed(2),
       recentRolls: recent.slice(-6),
+      multiColumnAgreement,
+      flipColumns: flipColumns.map((c) => ({
+        col: c.column,
+        runLength: c.lastRunLength,
+        swapRate: c.swapRate.toFixed(2),
+      })),
+      stickyColumns: stickyColumns.map((c) => ({
+        col: c.column,
+        swapRate: c.swapRate.toFixed(2),
+      })),
+      avgSwapRate: avgSwapRate.toFixed(2),
+      agreedDigit,
     },
   };
 }
@@ -373,12 +515,13 @@ function predictPrefix(rolls3str) {
    END WAVE THEORY SECTION
    ======================================================================== */
 
+// 🔥 IMPROVED: smartTransition with better confidence scaling and sample validation
 function smartTransition(rolls, freqSorted) {
   if (rolls.length < 4) return null;
 
   const last = rolls[rolls.length - 1];
   const succCounts = {};
-  const decay = 0.92;
+  const decay = 0.85;
 
   for (let i = 0; i < rolls.length - 1; i++) {
     if (rolls[i] === last) {
@@ -397,18 +540,30 @@ function smartTransition(rolls, freqSorted) {
   const secondConf = sorted[1][1] / total;
   const confidenceGap = topConf - secondConf;
 
-  if (topConf >= 0.4) {
+  // 🔥 NEW: Require minimum sample count
+  const sampleCount = Object.values(succCounts).reduce(
+    (a, v) => a + Math.round(v),
+    0
+  );
+
+  if (topConf >= 0.4 && sampleCount >= 3) {
     let mainConf = topConf;
 
-    if (confidenceGap < 0.2) {
-      mainConf = topConf * 0.9;
+    // 🔥 IMPROVED: Better gap threshold logic
+    if (confidenceGap >= 0.25) {
+      // Strong dominance - boost confidence
+      mainConf = topConf * 1.1;
+    } else if (confidenceGap >= 0.15) {
+      // Moderate dominance - keep as is
+      mainConf = topConf;
     } else {
-      mainConf = topConf * 1.05;
+      // Weak dominance - penalize heavily
+      mainConf = topConf * 0.75;
     }
 
     return {
       pred: sorted[0][0],
-      conf: clampConf(mainConf, 0.45, 0.7),
+      conf: clampConf(mainConf, 0.42, 0.7),
       alt: sorted[1][0],
       altConf: secondConf,
     };
@@ -417,12 +572,13 @@ function smartTransition(rolls, freqSorted) {
   return null;
 }
 
+// 🔥 IMPROVED: detectOppositePair with volatility check and historical validation
 function detectOppositePair(rolls, freqSorted) {
   if (rolls.length < 6) return null;
 
   const last = rolls[rolls.length - 1];
-  const recent4 = rolls.slice(-4);
   const recent6 = rolls.slice(-6);
+  const recent4 = rolls.slice(-4);
 
   const opposites = { 41: "44", 44: "41", 42: "43", 43: "42" };
   const opposite = opposites[last];
@@ -432,14 +588,33 @@ function detectOppositePair(rolls, freqSorted) {
   const oppCount = recent4.filter((v) => v === opposite).length;
   const lastCount = recent4.filter((v) => v === last).length;
 
-  if (lastCount >= 3 && oppCount === 0) {
-    return { pred: opposite, conf: 0.68 };
+  // 🔥 NEW: Calculate volatility (how often values change)
+  let changes = 0;
+  for (let i = 1; i < recent6.length; i++) {
+    if (recent6[i] !== recent6[i - 1]) changes++;
+  }
+  const volatility = changes / (recent6.length - 1);
+
+  // 🔥 NEW: Verify opposite-pair pattern actually exists in history
+  let oppPairCount = 0;
+  for (let i = 0; i < rolls.length - 1; i++) {
+    if (rolls[i] === last && rolls[i + 1] === opposite) oppPairCount++;
+  }
+  const hasOppPattern = oppPairCount >= 2;
+
+  if (lastCount >= 3 && oppCount === 0 && hasOppPattern) {
+    // Reduce confidence if volatile
+    const baseConf = 0.68;
+    const conf = volatility > 0.6 ? baseConf * 0.85 : baseConf;
+    return { pred: opposite, conf };
   }
 
-  if (lastCount >= 2 && oppCount <= 1) {
+  if (lastCount >= 2 && oppCount <= 1 && hasOppPattern) {
     const last2 = rolls.slice(-2);
     if (last2.filter((v) => v === last).length >= 1) {
-      return { pred: opposite, conf: 0.58 };
+      const baseConf = 0.58;
+      const conf = volatility > 0.6 ? baseConf * 0.85 : baseConf;
+      return { pred: opposite, conf };
     }
   }
 
@@ -495,6 +670,7 @@ function detectAntiRepeat(rolls) {
   return null;
 }
 
+// 🔥 IMPROVED: detectCyclic with spacing regularity validation
 function detectCyclic(rolls) {
   if (rolls.length < 8) return null;
 
@@ -520,18 +696,32 @@ function detectCyclic(rolls) {
       const lastPos = positions[positions.length - 1];
       const proximity = tail.length - lastPos;
 
-      if (proximity <= size + 3) {
-        return {
-          pred: lastChunk[0],
-          conf: clampConf(0.6 + (count - 2) * 0.05, 0.68),
-        };
+      // 🔥 NEW: Check if last occurrence was recent AND regular
+      if (proximity <= size + 2) {
+        // Calculate spacing regularity
+        let spacings = [];
+        for (let i = 1; i < positions.length; i++) {
+          spacings.push(positions[i] - positions[i - 1]);
+        }
+        const avgSpacing =
+          spacings.reduce((a, b) => a + b, 0) / spacings.length;
+        const spacingVariance =
+          spacings.reduce((sum, s) => sum + Math.abs(s - avgSpacing), 0) /
+          spacings.length;
+
+        // Only fire if spacing is regular (low variance)
+        if (spacingVariance <= size * 0.5) {
+          return {
+            pred: lastChunk[0],
+            conf: clampConf(0.55 + (count - 2) * 0.05, 0.65),
+          };
+        }
       }
     }
   }
 
   return null;
 }
-
 function enhancedMarkov3(seq) {
   if (seq.length < 6) return null;
 
@@ -758,7 +948,7 @@ export function predictNext3EU(rawRolls = []) {
   }
 
   const freq = {};
-  const decay = 0.9;
+  const decay = 0.85; // 🔥 FIX 2: Changed from 0.9 to 0.85
   const n = rolls.length;
   rolls.forEach((val, idx) => {
     const dist = n - 1 - idx;
@@ -770,7 +960,8 @@ export function predictNext3EU(rawRolls = []) {
     .sort((a, b) => b.pct - a.pct);
 
   const wave = detectWaveTheory3(rolls);
-  if (wave && wave.conf >= 0.48) {
+  // 🔥 FIX 3: Lowered threshold from 0.48 to 0.45
+  if (wave && wave.conf >= 0.45) {
     const transSorted = freqSorted.map((c) => ({
       ...c,
       value: translateTo4(c.value),
@@ -786,6 +977,7 @@ export function predictNext3EU(rawRolls = []) {
       mode: wave.mode,
       candidates: buildCandidates(mainPred, wave.conf, transSorted),
       debug: wave.debug,
+      multiColumnAgreement: wave.multiColumnAgreement, // 🔥 NEW
     };
   }
 
@@ -848,7 +1040,7 @@ export function predictNext3(rawRolls = []) {
   }
 
   const freq = {};
-  const decay = 0.9;
+  const decay = 0.85;
   const n = rolls.length;
   rolls.forEach((val, idx) => {
     const dist = n - 1 - idx;
@@ -990,7 +1182,7 @@ export function predictNext4(rawRolls = []) {
 
 function weightedFrequency(rolls) {
   const counts = {};
-  const decay = 0.9;
+  const decay = 0.85; // 🔥 FIX 2: Changed from 0.9 to 0.85
   const n = rolls.length;
 
   rolls.forEach((val, idx) => {
@@ -1050,8 +1242,9 @@ function maybeStorePhase(seq) {
   }
 }
 
+// 🔥 IMPROVED: matchCachedPhase with pattern frequency validation
 function matchCachedPhase(seq) {
-  if (!PHASE_CACHE.length) return null;
+  if (seq.length < 5 || PHASE_CACHE.length === 0) return null;
 
   const tail = seq.slice(-6);
   const uniqTail = Array.from(new Set(tail)).sort();
@@ -1061,13 +1254,32 @@ function matchCachedPhase(seq) {
       phase.values.length === uniqTail.length &&
       phase.values.every((v, i) => v === uniqTail[i])
     ) {
-      const counts = {};
-      tail.forEach((v) => (counts[v] = (counts[v] || 0) + 1));
-      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-      return {
-        next: sorted[0][0],
-        alt: sorted[1]?.[0] || null,
-      };
+      // 🔥 NEW: Verify pattern appears multiple times
+      let patternCount = 0;
+      const tailPattern = tail.join("|");
+
+      for (let i = 0; i <= seq.length - 6; i++) {
+        const testPattern = seq.slice(i, i + 6).join("|");
+        const testUniq = Array.from(new Set(seq.slice(i, i + 6))).sort();
+
+        if (
+          testUniq.length === uniqTail.length &&
+          testUniq.every((v, idx) => v === uniqTail[idx])
+        ) {
+          patternCount++;
+        }
+      }
+
+      // Only fire if pattern is established (appears 2+ times)
+      if (patternCount >= 2) {
+        const counts = {};
+        tail.forEach((v) => (counts[v] = (counts[v] || 0) + 1));
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        return {
+          next: sorted[0][0],
+          alt: sorted[1]?.[0] || null,
+        };
+      }
     }
   }
 
@@ -1104,4 +1316,170 @@ function detectMono3(seq, n = 4) {
   if (lastValue !== monoVal) return null;
 
   return monoVal;
+}
+
+/**
+ * 🎯 PREFIX-CONSTRAINED PREDICTION
+ * Given a 2-digit prefix (e.g., "41"), predict the best 3rd digit
+ * based on historical patterns in the dataset.
+ */
+export function predictWithPrefix(rolls3str, prefix) {
+  if (!prefix || prefix.length !== 2) {
+    return {
+      prediction: null,
+      confidence: 0,
+      candidates: [],
+      mode: "invalid-prefix",
+    };
+  }
+
+  // Filter rolls that start with this prefix
+  const matchingRolls = rolls3str.filter((r) => r.startsWith(prefix));
+
+  if (matchingRolls.length < 3) {
+    return {
+      prediction: null,
+      confidence: 0,
+      candidates: [],
+      mode: "insufficient-prefix-data",
+      message: `Only ${matchingRolls.length} rolls found with prefix ${prefix}`,
+    };
+  }
+
+  // Extract 3rd digits with weighted frequency
+  const decay = 0.85;
+  const freq = {};
+
+  matchingRolls.forEach((roll, idx) => {
+    const thirdDigit = roll[2];
+    const dist = matchingRolls.length - 1 - idx;
+    const weight = Math.pow(decay, dist);
+    freq[thirdDigit] = (freq[thirdDigit] || 0) + weight;
+  });
+
+  const totalWeight = Object.values(freq).reduce((a, b) => a + b, 0);
+
+  const candidates = Object.entries(freq)
+    .map(([digit, weight]) => ({
+      value: prefix + digit,
+      pct: Math.round((weight / totalWeight) * 100),
+      weight,
+    }))
+    .sort((a, b) => b.pct - a.pct);
+
+  if (candidates.length === 0) {
+    return {
+      prediction: null,
+      confidence: 0,
+      candidates: [],
+      mode: "no-candidates",
+    };
+  }
+
+  const top = candidates[0];
+  const confidence = clampConf(top.pct / 100, 0.45, 0.75);
+
+  // Check for successor patterns (what came after this roll before?)
+  let successorBoost = 0;
+  const allRolls = rolls3str;
+  for (let i = 0; i < allRolls.length - 1; i++) {
+    if (allRolls[i] === top.value) {
+      successorBoost += 0.02;
+    }
+  }
+
+  const adjustedConfidence = Math.min(confidence + successorBoost, 0.78);
+
+  return {
+    prediction: top.value,
+    confidence: adjustedConfidence,
+    alt: candidates[1]?.value || null,
+    candidates: candidates.slice(0, 4),
+    mode: "prefix-constrained",
+    matchCount: matchingRolls.length,
+    prefix,
+  };
+}
+
+// Calculate how well live data matches training patterns for a prefix
+export function calculatePrefixConfidenceBoost(
+  trainingRolls,
+  liveRolls,
+  prefix
+) {
+  // Filter both datasets by prefix
+  const trainingMatches = trainingRolls.filter((r) => r.startsWith(prefix));
+  const liveMatches = liveRolls.filter((r) => r.startsWith(prefix));
+
+  if (trainingMatches.length < 3 || liveMatches.length < 3) {
+    return 0; // No boost if insufficient data
+  }
+
+  // Calculate frequency distributions
+  const trainingFreq = {};
+  const liveFreq = {};
+
+  trainingMatches.forEach((roll) => {
+    const digit = roll[2];
+    trainingFreq[digit] = (trainingFreq[digit] || 0) + 1;
+  });
+
+  liveMatches.forEach((roll) => {
+    const digit = roll[2];
+    liveFreq[digit] = (liveFreq[digit] || 0) + 1;
+  });
+
+  // Normalize to percentages
+  const trainingTotal = trainingMatches.length;
+  const liveTotal = liveMatches.length;
+
+  const trainingPct = {};
+  const livePct = {};
+
+  Object.keys(trainingFreq).forEach((digit) => {
+    trainingPct[digit] = trainingFreq[digit] / trainingTotal;
+  });
+
+  Object.keys(liveFreq).forEach((digit) => {
+    livePct[digit] = liveFreq[digit] / liveTotal;
+  });
+
+  // Calculate similarity (inverse of sum of squared differences)
+  let similarity = 0;
+  const allDigits = ["1", "2", "3", "4"];
+
+  allDigits.forEach((digit) => {
+    const tPct = trainingPct[digit] || 0;
+    const lPct = livePct[digit] || 0;
+    const diff = Math.abs(tPct - lPct);
+    similarity += 1 - diff; // Higher when distributions match
+  });
+
+  similarity = similarity / 4; // Average across 4 digits
+
+  // Convert to confidence boost: 0 to +0.15
+  const boost = (similarity - 0.5) * 0.3; // Range: -0.15 to +0.15
+
+  return Math.max(-0.1, Math.min(boost, 0.15)); // Clamp
+}
+
+// 🔥 NEW: Calculate swap rate (frequency of column changes)
+function calculateSwapRate(recentRolls, pairScheme) {
+  if (recentRolls.length < 2) return 0;
+
+  let swaps = 0;
+  let lastPair = null;
+
+  recentRolls.forEach((roll) => {
+    const lastDigit = roll[2];
+    const isPairA = pairScheme.pairA.includes(lastDigit);
+    const thisPair = isPairA ? "A" : "B";
+
+    if (lastPair !== null && thisPair !== lastPair) {
+      swaps++;
+    }
+    lastPair = thisPair;
+  });
+
+  return swaps / (recentRolls.length - 1); // Returns 0.0 to 1.0
 }

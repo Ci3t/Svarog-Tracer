@@ -1,5 +1,5 @@
 // src/App.jsx - REPLACE YOUR EXISTING FILE
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 
 import LeftColumn from "./components/LeftColumn";
 import RollInputCard from "./components/RollInputCard";
@@ -26,6 +26,7 @@ import {
   resetSessionStats,
 } from "./utils/predictNext";
 import RelicPositionCard from "./components/RelicPositionCard";
+import KiyoModeCard from "./components/KiyoModeCard";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
@@ -53,8 +54,69 @@ export default function App() {
   const [notes, setNotes] = useState("");
 
   const [isCustomPatch, setIsCustomPatch] = useState(false);
+  const [kiyoDebugData, setKiyoDebugData] = useState(null);
   const timerRef = useRef(null);
   const longStringCtxRef = useRef([]);
+
+  const handleKiyoDebugData = useCallback((data) => {
+    setKiyoDebugData(data);
+  }, []);
+  // 🔬 Kiyo Mode: Send predictions to debug
+  function handleKiyoToDebug(newRolls = [], kind = "3-str") {
+    if (!newRolls.length) return;
+
+    let ctx3 = kiyoCtxRef.current || [];
+
+    if (ctx3.length === 0) {
+      // Fresh session
+    }
+
+    const baseTs = Date.now();
+    const safeCandidates = (p) =>
+      Array.isArray(p?.candidates) ? p.candidates : [];
+
+    const logsToAdd = [];
+
+    newRolls.forEach((raw, idx) => {
+      const actual3 = String(raw).slice(0, 3);
+      if (actual3.length !== 3) return;
+
+      const predictorCtx = [...ctx3];
+
+      const p = predictNext3(predictorCtx);
+      const candidates = safeCandidates(p);
+      const alt = p.alt || (candidates[1]?.value ?? null);
+
+      if (
+        p.prediction &&
+        p.prediction !== "—" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
+        logsToAdd.push({
+          ts: baseTs + idx,
+          kind: "3",
+          prediction: p.prediction,
+          confidence: p.confidence || 0,
+          alt,
+          mode: p.mode || "—",
+          actual: actual3,
+          ctx: predictorCtx.slice(-8),
+          candidates,
+          source: "kiyo", // 🔥 Mark as Kiyo source
+        });
+      }
+
+      ctx3.unshift(actual3);
+    });
+
+    kiyoCtxRef.current = ctx3;
+
+    if (logsToAdd.length) {
+      setDebugLogs((prev) => [...logsToAdd, ...prev].slice(0, 300));
+    }
+  }
+
+  const kiyoCtxRef = useRef([]);
   /* ========= LOAD ========= */
   useEffect(() => {
     try {
@@ -76,6 +138,7 @@ export default function App() {
       setPrevSessions(parsed.prevSessions || []);
       setRegion(parsed.region || "America");
       setPatch(parsed.patch || "3.7");
+      setIsCustomPatch(parsed.isCustomPatch || false);
       setNotes(parsed.notes || "");
       setCaesarInput(parsed.caesarInput || "");
       setDebugLogs(parsed.debugLogs || []);
@@ -91,6 +154,7 @@ export default function App() {
       prevSessions,
       region,
       patch,
+      isCustomPatch,
       notes,
       caesarInput,
       debugLogs,
@@ -101,7 +165,16 @@ export default function App() {
     } catch (err) {
       console.warn("storage save error", err);
     }
-  }, [entries, prevSessions, region, patch, notes, caesarInput, debugLogs]);
+  }, [
+    entries,
+    prevSessions,
+    region,
+    patch,
+    isCustomPatch,
+    notes,
+    caesarInput,
+    debugLogs,
+  ]);
 
   /* ========= TIMER ========= */
   useEffect(() => {
@@ -398,6 +471,8 @@ export default function App() {
             entriesCount={entries.length}
             onSendLongStringToDebug={handleLongStringToDebug}
             entries={entries}
+            debugLogs={debugLogs}
+            onSendKiyoDebugData={handleKiyoDebugData}
           />
           {/* 🔮 New Long String Lab */}
 
@@ -424,6 +499,7 @@ export default function App() {
             onClearLogs={handleClearDebugLogs}
             isDebugMode={isDebugMode}
             onImportLogs={handleImportDebugLogs}
+            kiyoWaveData={kiyoDebugData}
           />
         </div>
 

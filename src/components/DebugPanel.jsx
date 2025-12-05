@@ -8,6 +8,7 @@ const BASE_TABS = [
   { id: "all", label: "Merged" },
   { id: "long", label: "Long String" },
   { id: "logs", label: "Live Logs" },
+  { id: "kiyo-debug", label: "KiyoDebug" }, // 🔥 NEW TAB
 ];
 
 function formatTime(ts) {
@@ -36,14 +37,6 @@ const CAESAR_TO_BASE = Object.fromEntries(
  * Expand a long-string of digits (1–4) into:
  *  - pairs: Caesar line codes, e.g. "41 12 24 …"
  *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
- *
- * Example:
- *   expandManualLongString("41242323")
- *   => {
- *        cleaned: "41242323",
- *        pairs: ["41","12","24","42","23","32","23"],
- *        rolls: ["41","41","42","42","41","43","41"]
- *      }
  */
 function expandManualLongString(longStr) {
   const cleaned = (longStr || "").replace(/[^1-4]/g, "");
@@ -60,16 +53,18 @@ function expandManualLongString(longStr) {
   const rolls = pairs.map((p) => CAESAR_TO_BASE[p] || null).filter(Boolean);
   return { cleaned, pairs, rolls };
 }
+
 export default function DebugPanel({
   debugLogs,
   onClearLogs,
   onImportLogs,
   isDebugMode = false,
+  kiyoWaveData = null, // 🔥 NEW: Accept Kiyo wave analysis data
 }) {
   const [activeTab, setActiveTab] = useState("logs");
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [sessionId, setSessionId] = useState(0); // Track session changes
+  const [sessionId, setSessionId] = useState(0);
   const [manualLongInput, setManualLongInput] = useState("");
 
   const manualLong = useMemo(
@@ -77,7 +72,6 @@ export default function DebugPanel({
     [manualLongInput]
   );
 
-  // Dynamically build tabs — insert Backtest after "logs" only in debug mode
   const TABS = useMemo(() => {
     const tabs = [...BASE_TABS];
     if (isDebugMode) {
@@ -87,14 +81,12 @@ export default function DebugPanel({
     return tabs;
   }, [isDebugMode]);
 
-  // 📊 Per-session mode accuracy stats (resets on new session)
   const modeStats = useMemo(() => {
     if (!debugLogs?.length) return [];
 
-    // Detect session boundaries (big time gaps > 30 seconds)
     const sessions = [];
     let currentSession = [];
-    const SESSION_THRESHOLD = 30000; // 30 seconds
+    const SESSION_THRESHOLD = 30000;
 
     debugLogs.forEach((log, idx) => {
       if (idx === 0) {
@@ -115,9 +107,7 @@ export default function DebugPanel({
       sessions.push(currentSession);
     }
 
-    // Calculate accuracy for CURRENT (last) session only
     const currentSessionLogs = sessions[sessions.length - 1] || [];
-
     const stats = {};
 
     currentSessionLogs.forEach((log) => {
@@ -144,13 +134,11 @@ export default function DebugPanel({
       pct: s.total ? Math.round((s.hits / s.total) * 100) : 0,
     }));
 
-    // highest accuracy first
     rows.sort((a, b) => b.pct - a.pct);
 
     return rows;
   }, [debugLogs, sessionId]);
 
-  // Format a single log line with mode accuracy
   const formatLine = (log) => {
     const mainPct = Math.round((log.confidence || 0) * 100);
     let altPart = "";
@@ -181,13 +169,11 @@ export default function DebugPanel({
     } | ctx: ${(log.ctx || []).join(", ")}`;
   };
 
-  // BACKTEST: Only compute when debug mode + tab is active
   const backtestResults = useMemo(() => {
     if (!isDebugMode || activeTab !== "backtest") return null;
     return runBacktest(debugLogs);
   }, [debugLogs, activeTab, isDebugMode]);
 
-  // Latest session + per-roll stats
   const latestSessionStats = useMemo(() => {
     if (!backtestResults || !backtestResults.sessions?.length) return null;
 
@@ -206,11 +192,15 @@ export default function DebugPanel({
   const filtered = useMemo(() => {
     if (!debugLogs || !debugLogs.length) return [];
     if (activeTab === "all") return debugLogs;
-    if (activeTab === "long" || activeTab === "backtest") return [];
+    if (
+      activeTab === "long" ||
+      activeTab === "backtest" ||
+      activeTab === "kiyo-debug"
+    )
+      return [];
     return debugLogs.filter((l) => l.kind === activeTab);
   }, [debugLogs, activeTab]);
 
-  // 🔢 Long string builder
   const LONG_VALS = ["41", "42", "43", "44"];
   const DIFF_TO_DIGIT = {
     0: 1,
@@ -266,7 +256,6 @@ export default function DebugPanel({
     return counts;
   }, [longString]);
 
-  // Parse Svarog export format
   function parseSvarogExport(text) {
     const rawLines = text.split(/\r?\n/);
 
@@ -299,9 +288,9 @@ export default function DebugPanel({
 
       const first = parts[0];
 
-      // Parse timestamp
       let ts = Date.now();
-      const timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\]/);
+      // Try multiple time formats
+      let timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\]/);
       if (timeMatch) {
         let [, hh, mm, ss, ampm] = timeMatch;
         let h = parseInt(hh, 10);
@@ -314,29 +303,34 @@ export default function DebugPanel({
         const d = new Date();
         d.setHours(h, m, s, 0);
         ts = d.getTime();
+      } else {
+        // Try 24-hour format [HH:MM:SS]
+        timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\]/);
+        if (timeMatch) {
+          const [, hh, mm, ss] = timeMatch;
+          const d = new Date();
+          d.setHours(parseInt(hh, 10), parseInt(mm, 10), parseInt(ss, 10), 0);
+          ts = d.getTime();
+        }
       }
 
-      // Parse prediction & confidence
       const predMatch = first.match(/pred:\s*(\d{2}|—)\s*\((\d+)%\)/);
       if (!predMatch) continue;
       const predRaw = predMatch[1];
       const confPct = parseInt(predMatch[2], 10) || 0;
       const pred = predRaw === "—" ? "—" : predRaw;
 
-      // Parse alt
       const altPart = parts.find((p) => p.startsWith("alt:"));
       const altMatch = altPart
         ? altPart.match(/alt:\s*(\d{2})\s*\((\d+)%\)/)
         : null;
       const alt = altMatch ? altMatch[1] : null;
 
-      // Parse mode
       const modePart = parts.find((p) => p.startsWith("mode:"));
       const mode = modePart
         ? modePart.replace(/^mode:\s*/, "").trim()
         : "imported";
 
-      // Parse actual
       const actualPart = parts.find((p) => p.startsWith("actual:"));
       const actualMatch = actualPart
         ? actualPart.match(/actual:\s*(\d{2})/)
@@ -344,7 +338,6 @@ export default function DebugPanel({
       const actual = actualMatch ? actualMatch[1] : null;
       if (!actual) continue;
 
-      // Parse context
       const ctxPart = parts.find((p) => p.startsWith("ctx:"));
       let ctx = [];
       if (ctxPart) {
@@ -354,6 +347,12 @@ export default function DebugPanel({
           .map((x) => x.trim())
           .filter(Boolean);
       }
+
+      // 🔥 FIX: Check for source in the line (added by newer exports)
+      const sourcePart = parts.find((p) => p.startsWith("source:"));
+      const source = sourcePart
+        ? sourcePart.replace(/^source:\s*/, "").trim()
+        : "imported";
 
       logs.push({
         ts,
@@ -365,13 +364,12 @@ export default function DebugPanel({
         actual,
         ctx,
         candidates: [],
+        source, // 🔥 FIX: Preserve source
       });
     }
 
     return logs;
   }
-
-  // Parse simple roll list
   function parseSimpleRollList(lines) {
     const rolls = [];
     for (const raw of lines) {
@@ -402,7 +400,6 @@ export default function DebugPanel({
     return logs;
   }
 
-  // Try Svarog export first, then simple list
   function parseDebugFile(text) {
     const logsFromExport = parseSvarogExport(text);
     if (logsFromExport.length) return logsFromExport;
@@ -487,6 +484,433 @@ export default function DebugPanel({
     }
   };
 
+  // Add this function before the return statement (around line 680):
+
+  // Replace the handleDownloadKiyoDebug function (around line 680):
+
+  const handleDownloadKiyoDebug = () => {
+    if (!kiyoWaveData) return;
+
+    const lines = [
+      "═══════════════════════════════════════════════════════════",
+      "KIYO MODE DEBUG ANALYSIS EXPORT v2.0",
+      "═══════════════════════════════════════════════════════════\n",
+      `Generated: ${new Date().toLocaleString()}\n`,
+    ];
+
+    // 🔥 ENHANCED: WAVE ANALYSIS WITH URGENCY LEVELS
+    if (kiyoWaveData.waveAnalysis) {
+      lines.push("📊 WAVE PATTERN ANALYSIS (Enhanced)");
+      lines.push("═══════════════════════════════════════════\n");
+
+      const wa = kiyoWaveData.waveAnalysis;
+
+      // Summary stats with new fields
+      lines.push(
+        `Average Swap Rate: ${(parseFloat(wa.avgSwapRate) * 100).toFixed(0)}%`
+      );
+      lines.push(`Flip Columns: ${wa.flipColumns}/3`);
+      lines.push(`Sticky Columns: ${wa.stickyColumns}/3`);
+      lines.push(`Compound Confidence: ${wa.compoundConfidence}`);
+
+      // 🔥 NEW: Lookback window used
+      if (wa.lookbackUsed) {
+        lines.push(`Lookback Window: ${wa.lookbackUsed} rolls (dynamic)`);
+      }
+
+      // 🔥 NEW: Ignored columns
+      if (wa.ignoredColumns && wa.ignoredColumns.length > 0) {
+        lines.push(
+          `🚫 Ignored Columns: ${wa.ignoredColumns.join(
+            ", "
+          )} (≥70% swap - too volatile)`
+        );
+      }
+
+      // 🔥 NEW: Post-flip columns
+      if (wa.postFlipColumns && wa.postFlipColumns.length > 0) {
+        lines.push(
+          `⏸️ Post-Flip Cooldown: Column ${wa.postFlipColumns.join(
+            ", "
+          )} (just flipped)`
+        );
+      }
+
+      lines.push("");
+
+      // Column details with urgency
+      if (wa.columns) {
+        wa.columns.forEach((col) => {
+          const urgencyEmoji = {
+            critical: "🔴",
+            high: "🟠",
+            medium: "🟡",
+            low: "⚪",
+            none: "🔵",
+            skip: "🟣",
+          };
+
+          const urgencyBadge = urgencyEmoji[col.urgency] || "⚫";
+
+          lines.push(
+            `─── Column ${col.column}: ${col.name} (${
+              col.label
+            }) ${urgencyBadge} ${col.urgency?.toUpperCase() || "UNKNOWN"} ───`
+          );
+          lines.push(
+            `  Pair A (${col.scheme.pairALabel}): [${col.scheme.pairA.join(
+              ", "
+            )}]`
+          );
+          lines.push(
+            `  Pair B (${col.scheme.pairBLabel}): [${col.scheme.pairB.join(
+              ", "
+            )}]`
+          );
+          lines.push(`  ---`);
+          lines.push(
+            `  Current Pair: ${col.currentPair} (${col.currentLabel})`
+          );
+          lines.push(`  Run Length: ${col.runLength} consecutive`);
+          lines.push(`  Rhythm Pattern: ${col.rhythmDisplay}`);
+          lines.push(
+            `  Swap Rate: ${(col.swapRate * 100).toFixed(0)}% (${
+              col.swapRateLabel
+            })`
+          );
+          lines.push(`  Status: ${col.status}`);
+          lines.push(
+            `  ${urgencyBadge} Urgency: ${
+              col.urgency?.toUpperCase() || "UNKNOWN"
+            }`
+          );
+          lines.push(`  Confidence: ${Math.round(col.confidence * 100)}%`);
+          lines.push(`  ${col.message}`);
+
+          if (col.status === "due_to_flip") {
+            lines.push(
+              `  ⚠️ FLIP TARGET: ${col.flipLabel} [${col.flipTarget.join(
+                ", "
+              )}]`
+            );
+          }
+
+          // 🔥 NEW: Post-flip warning
+          if (col.missedFlip?.justFlipped) {
+            lines.push(
+              `  ⏸️ POST-FLIP: Just flipped from ${col.missedFlip.previousRun}-run ${col.missedFlip.previousPair}`
+            );
+            lines.push(`  ⚠️ ${col.missedFlip.recommendation}`);
+          }
+
+          // 🔥 NEW: Ignored warning
+          if (col.isIgnored) {
+            lines.push(
+              `  🚫 IGNORED: Too volatile (≥70% swap) - excluded from analysis`
+            );
+          }
+
+          lines.push("");
+        });
+      }
+
+      // Focus Column with urgency
+      if (wa.focusColumn) {
+        lines.push("\n🎯 FOCUS COLUMN (Highest Urgency + Confidence)");
+        lines.push("───────────────────────────────────");
+        const fc = wa.focusColumn[1];
+
+        lines.push(`Column: ${fc.scheme?.name || "Unknown"}`);
+        lines.push(
+          `Urgency: ${fc.urgency?.toUpperCase() || "UNKNOWN"} ${fc.icon || ""}`
+        );
+        lines.push(`Pattern: ${fc.rhythmDisplay}`);
+        lines.push(`Current: ${fc.currentLabel} (Run: ${fc.run.length})`);
+        lines.push(`Expected Flip: ${fc.flipLabel}`);
+        lines.push(`Flip Targets: [${fc.flipTarget.join(", ")}]`);
+        lines.push(`Confidence: ${Math.round(fc.confidence * 100)}%`);
+        lines.push(`Swap Rate: ${(fc.swapRate * 100).toFixed(0)}%`);
+        lines.push("");
+      }
+    }
+
+    // CURRENT PREDICTION
+    if (kiyoWaveData.prediction) {
+      lines.push("\n🎯 CURRENT PREDICTION");
+      lines.push("═══════════════════════════════════════════\n");
+
+      const pred = kiyoWaveData.prediction;
+      lines.push(`Main Prediction: ${pred.prediction}`);
+      lines.push(`Confidence: ${Math.round(pred.confidence * 100)}%`);
+      if (pred.alt) {
+        lines.push(`Alternative: ${pred.alt}`);
+      }
+      lines.push(`Mode: ${pred.mode}`);
+
+      if (pred.multiColumnAgreement) {
+        lines.push(`✨ Multi-Column Agreement: YES`);
+      }
+
+      if (pred.debug) {
+        lines.push(`\n  Debug Details:`);
+        lines.push(
+          `  Vote Strength: ${(
+            parseFloat(pred.debug.voteStrength) * 100
+          ).toFixed(1)}%`
+        );
+        if (pred.debug.flipColumns) {
+          lines.push(
+            `  Flip Columns: ${pred.debug.flipColumns
+              .map((c) => `Col${c.col} (run:${c.runLength})`)
+              .join(", ")}`
+          );
+        }
+        if (pred.debug.avgSwapRate) {
+          lines.push(
+            `  Avg Swap Rate: ${(
+              parseFloat(pred.debug.avgSwapRate) * 100
+            ).toFixed(0)}%`
+          );
+        }
+      }
+      lines.push("");
+
+      if (pred.isDisagreement) {
+        lines.push("⚠️ DISAGREEMENT DETAILS");
+        lines.push("───────────────────────────────────");
+        lines.push(`Tracer Predicts: ${pred.prediction}`);
+        const waveTarget = pred.waveTarget || [];
+        lines.push(`Wave Expects: 4${waveTarget.join(", 4")}`);
+        lines.push(`Reason: Wave pattern suggests flip needed\n`);
+      }
+    }
+
+    // 🔥 ENHANCED: STRATEGIC TIER ASSESSMENT
+    if (kiyoWaveData.strategicTier) {
+      lines.push("\n💎 STRATEGIC TIER ASSESSMENT (Enhanced)");
+      lines.push("═══════════════════════════════════════════\n");
+
+      const tierEmoji = {
+        S: "🔥",
+        A: "⚡",
+        B: "🤷",
+      };
+
+      lines.push(
+        `🏆 TIER: ${tierEmoji[kiyoWaveData.strategicTier] || ""} ${
+          kiyoWaveData.strategicTier
+        }`
+      );
+      lines.push(
+        `📊 Effective Reliability: ${kiyoWaveData.effectiveReliability}%`
+      );
+      lines.push(`🎯 Recommended Action: ${kiyoWaveData.recommendedAction}`);
+      lines.push(`🔗 Alignment: ${kiyoWaveData.alignment}`);
+
+      if (kiyoWaveData.tierReasoning && kiyoWaveData.tierReasoning.length > 0) {
+        lines.push("\nReasoning:");
+        kiyoWaveData.tierReasoning.forEach((reason) => {
+          lines.push(`  ${reason}`);
+        });
+      }
+
+      if (kiyoWaveData.conflictResolution) {
+        lines.push(
+          `\n⚖️ Conflict Resolution: ${kiyoWaveData.conflictResolution}`
+        );
+      }
+
+      if (kiyoWaveData.reliabilityFactors) {
+        const rf = kiyoWaveData.reliabilityFactors;
+        lines.push("\nReliability Factors:");
+        lines.push(`  Sticky Columns: ${rf.stickyColumns}/3`);
+        lines.push(`  Flip Columns: ${rf.flipColumns}/3`);
+        lines.push(`  Avg Swap Rate: ${(rf.avgSwapRate * 100).toFixed(0)}%`);
+        lines.push(`  Compound Confidence: ${rf.compoundConfidence}`);
+        if (rf.focusColumn) {
+          lines.push(
+            `  Focus Column Swap: ${(rf.focusColumn.swapRate * 100).toFixed(
+              0
+            )}%`
+          );
+          lines.push(`  Focus Column Run: ${rf.focusColumn.run.length}`);
+          lines.push(
+            `  Focus Column Urgency: ${
+              rf.focusColumn.urgency?.toUpperCase() || "UNKNOWN"
+            }`
+          );
+        }
+      }
+
+      // 🔥 ENHANCED: Tier guide with urgency
+      lines.push("\n📖 TIER GUIDE (Updated):");
+      lines.push("  🔥 TIER S: Bet good relics (75-90% reliability)");
+      lines.push("      • 🔴 CRITICAL urgency (5+ run) + Sticky (<30%)");
+      lines.push("      • 🟠 HIGH urgency (4 run) + Sticky (<40%)");
+      lines.push("      • Wave + Prefix perfectly aligned");
+      lines.push("  ⚡ TIER A: Bet okay relics (60-70% reliability)");
+      lines.push("      • 🟡 MEDIUM urgency (3 run) + Moderate sticky (<50%)");
+      lines.push("      • MODERATE confidence (1 flip + sticky)");
+      lines.push("      • Prefix high conf (≥65%) + LOW volatility (<60%)");
+      lines.push("  🤷 TIER B: Skip or bet trash (45-60% reliability)");
+      lines.push("      • BALANCED (0 flips) - No strong patterns");
+      lines.push("      • High volatility (≥60% avg swap) - Unstable");
+      lines.push("      • ⚪ LOW/🔵 NONE urgency - Weak signals");
+      lines.push("      • 🟣 POST-FLIP cooldown - Just flipped");
+      lines.push("");
+    }
+
+    // PAIRING HISTORY
+    if (kiyoWaveData.pairingViz && kiyoWaveData.pairingViz.length > 0) {
+      lines.push("\n🎨 WAVE PAIRING HISTORY (Last 12 Rolls)");
+      lines.push("═══════════════════════════════════════════\n");
+
+      lines.push("LEGEND:");
+      lines.push("  Column 1 (Odds/Evens): Odds [1,3] | Evens [2,4]");
+      lines.push("  Column 2 (Outer/Inner): Outer [1,4] | Inner [2,3]");
+      lines.push("  Column 3 (Low/High): Low [1,2] | High [3,4]");
+      lines.push("");
+
+      lines.push(
+        "Roll | Column 1        | Column 2        | Column 3        | Pattern"
+      );
+      lines.push("─".repeat(75));
+
+      kiyoWaveData.pairingViz.forEach((row) => {
+        const col1Label = row.col1.label.padEnd(15);
+        const col2Label = row.col2.label.padEnd(15);
+        const col3Label = row.col3.label.padEnd(15);
+        const pattern = `${row.col1.isA ? "A" : "B"}${
+          row.col2.isA ? "A" : "B"
+        }${row.col3.isA ? "A" : "B"}`;
+
+        lines.push(
+          `${row.roll.padEnd(
+            5
+          )} | ${col1Label} | ${col2Label} | ${col3Label} | ${pattern}`
+        );
+      });
+      lines.push("");
+    }
+
+    // COMBINED ROLLS CONTEXT
+    if (kiyoWaveData.combinedRolls) {
+      lines.push("\n📈 COMBINED ROLLS CONTEXT");
+      lines.push("═══════════════════════════════════════════\n");
+      lines.push(`Total Rolls: ${kiyoWaveData.combinedRolls.length}`);
+      lines.push(
+        `Recent 20: ${kiyoWaveData.combinedRolls.slice(-20).join(" → ")}`
+      );
+      lines.push("");
+    }
+
+    // 🔥 ENHANCED: ANALYSIS SUMMARY
+    lines.push("\n📋 ANALYSIS SUMMARY");
+    lines.push("═══════════════════════════════════════════\n");
+
+    if (kiyoWaveData.waveAnalysis) {
+      const wa = kiyoWaveData.waveAnalysis;
+
+      if (wa.flipCols && wa.flipCols.length > 0) {
+        lines.push(`Columns Due to Flip (${wa.flipCols.length}):`);
+        wa.flipCols.forEach((col) => {
+          const urgencyEmoji = {
+            critical: "🔴",
+            high: "🟠",
+            medium: "🟡",
+          };
+          lines.push(
+            `  ${urgencyEmoji[col.urgency] || "•"} ${col.name}: ${
+              col.currentLabel
+            } → ${col.flipLabel} (${Math.round(
+              col.confidence * 100
+            )}%, ${col.urgency?.toUpperCase()})`
+          );
+        });
+      } else {
+        lines.push(`Columns Due to Flip: None`);
+      }
+
+      lines.push("");
+      lines.push(`Swap Rate Analysis:`);
+      lines.push(
+        `  Average: ${(parseFloat(wa.avgSwapRate) * 100).toFixed(0)}% ${
+          parseFloat(wa.avgSwapRate) >= 0.7
+            ? "(HIGH - Volatile)"
+            : parseFloat(wa.avgSwapRate) >= 0.4
+            ? "(MODERATE)"
+            : "(LOW - Sticky)"
+        }`
+      );
+      lines.push(`  Sticky Columns: ${wa.stickyColumns}/3`);
+      lines.push(`  Compound Confidence: ${wa.compoundConfidence}`);
+
+      if (wa.ignoredColumns && wa.ignoredColumns.length > 0) {
+        lines.push(
+          `  🚫 Ignored: Column ${wa.ignoredColumns.join(", ")} (≥70% swap)`
+        );
+      }
+
+      if (wa.postFlipColumns && wa.postFlipColumns.length > 0) {
+        lines.push(`  ⏸️ Post-Flip: Column ${wa.postFlipColumns.join(", ")}`);
+      }
+    }
+
+    if (kiyoWaveData.prediction) {
+      lines.push("");
+      lines.push(
+        `Final Prediction: ${kiyoWaveData.prediction.prediction} (${Math.round(
+          kiyoWaveData.prediction.confidence * 100
+        )}%)`
+      );
+    }
+
+    // 🔥 ENHANCED: Explanation with urgency system
+    lines.push("\n═══════════════════════════════════════════════════════════");
+    lines.push("EXPLANATION:");
+    lines.push("  Run Length: # of consecutive times same pattern appeared");
+    lines.push(
+      "  Swap Rate: % of time column changes (0%=sticky, 100%=alternating)"
+    );
+    lines.push("");
+    lines.push("  Urgency Levels (NEW!):");
+    lines.push(
+      "    🔴 CRITICAL (5+ run): 75-90% confidence - HIGHEST priority"
+    );
+    lines.push("    🟠 HIGH (4 run): 70% confidence - Very reliable");
+    lines.push("    🟡 MEDIUM (3 run): 65% confidence - Use with caution");
+    lines.push("    ⚪ LOW (2 run): 55% confidence - Uncertain");
+    lines.push("    🔵 NONE (1 run): 50% confidence - Just started");
+    lines.push(
+      "    🟣 SKIP (post-flip): Pattern just flipped - cooldown needed"
+    );
+    lines.push("");
+    lines.push("  Status:");
+    lines.push("    • due_to_flip: 3+ consecutive, flip highly likely");
+    lines.push("    • could_go_either_way: 2 consecutive, uncertain");
+    lines.push("    • likely_continue: 1 occurrence, may continue");
+    lines.push("    • post_flip_cooldown: Just flipped, skip this column");
+    lines.push("    • ignored: ≥70% swap rate, excluded from analysis");
+    lines.push("");
+    lines.push("  Compound Confidence: HIGH when 2+ columns agree on flip");
+    lines.push(
+      "  Dynamic Lookback: 20 rolls (sticky), 15 (moderate), 12 (volatile)"
+    );
+    lines.push("═══════════════════════════════════════════════════════════");
+
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    a.download = `Kiyo-Debug-v2-${timestamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 sm:p-5 mt-4 relative">
       {/* DEBUG MODE Badge */}
@@ -547,6 +971,346 @@ export default function DebugPanel({
         ))}
       </div>
 
+      {/* ═══ KIYO DEBUG TAB 🔥 NEW ═══ */}
+      {activeTab === "kiyo-debug" && (
+        <div className="space-y-4 p-4 bg-gradient-to-br from-emerald-900/20 to-cyan-900/20 rounded-2xl border border-emerald-500/30">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+            <div className="text-center flex-1">
+              <h4 className="text-lg font-black text-emerald-400 mb-1">
+                🌊 Kiyo Mode Debug Analysis
+              </h4>
+              <p className="text-xs text-slate-400">
+                Wave pattern data + predictions for analysis
+              </p>
+            </div>
+            {kiyoWaveData && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("Download clicked!", kiyoWaveData); // DEBUG
+                  handleDownloadKiyoDebug();
+                }}
+                className="px-4 py-2 text-xs rounded-lg font-semibold whitespace-nowrap transition bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg"
+              >
+                📥 Download
+              </button>
+            )}
+          </div>
+
+          {kiyoWaveData ? (
+            <div className="space-y-4">
+              {/* WAVE PATTERN ANALYSIS */}
+              {kiyoWaveData.waveAnalysis && (
+                <div className="bg-slate-950/60 rounded-xl border border-emerald-500/40 p-4">
+                  <div className="text-sm font-bold text-emerald-300 mb-3">
+                    📊 Wave Pattern Analysis
+                  </div>
+
+                  {/* Column Analysis Grid */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {Object.entries(
+                      kiyoWaveData.waveAnalysis.columnAnalysis
+                    ).map(([key, col]) => (
+                      <div
+                        key={key}
+                        className={`rounded-lg p-3 border ${
+                          col.status === "expect_flip"
+                            ? "bg-orange-950/60 border-orange-500/50"
+                            : col.status.includes("favor")
+                            ? "bg-slate-900/60 border-slate-700/50"
+                            : "bg-slate-900/40 border-slate-700/30"
+                        }`}
+                      >
+                        <div className="text-[10px] font-bold text-slate-300 mb-2">
+                          {col.scheme.name}
+                        </div>
+
+                        <div className="space-y-1.5 text-[9px]">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">A Count:</span>
+                            <span className="text-emerald-300 font-bold">
+                              {col.aCountRecent}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">B Count:</span>
+                            <span className="text-amber-300 font-bold">
+                              {col.bCountRecent}
+                            </span>
+                          </div>
+
+                          <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-emerald-400 to-amber-400"
+                              style={{
+                                width: `${
+                                  (col.aCountRecent /
+                                    (col.aCountRecent + col.bCountRecent ||
+                                      1)) *
+                                  100
+                                }%`,
+                              }}
+                            ></div>
+                          </div>
+
+                          <div className="pt-1 border-t border-slate-700/30">
+                            <div className="text-[8px] text-slate-400 mb-1">
+                              Status
+                            </div>
+                            <div
+                              className={`inline-block px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                col.status === "expect_flip"
+                                  ? "bg-orange-900/60 text-orange-300"
+                                  : "bg-slate-800/60 text-slate-300"
+                              }`}
+                            >
+                              {col.status === "expect_flip"
+                                ? "⚠️ FLIP"
+                                : col.status === "balanced"
+                                ? "Balanced"
+                                : "Favor"}
+                            </div>
+                          </div>
+
+                          <div className="text-[8px] text-slate-400">
+                            Conf:{" "}
+                            <span className="text-emerald-300 font-bold">
+                              {col.confidence}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Focus Column Detail */}
+                  {kiyoWaveData.waveAnalysis.focusColumn && (
+                    <div className="bg-gradient-to-br from-cyan-900/50 to-emerald-900/40 rounded-lg p-3 border border-cyan-500/40">
+                      <div className="text-[10px] font-bold text-cyan-300 mb-2">
+                        🎯 Focus Column (Most Predictable)
+                      </div>
+                      <div className="space-y-1.5 text-[9px]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-300">Column:</span>
+                          <span className="text-cyan-300 font-bold">
+                            {
+                              kiyoWaveData.waveAnalysis.focusColumn[1].scheme
+                                .name
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-300">Dominant:</span>
+                          <span className="text-orange-300 font-bold">
+                            {
+                              kiyoWaveData.waveAnalysis.focusColumn[1]
+                                .dominantLabel
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-300">
+                            Expect Flip to:
+                          </span>
+                          <span className="text-emerald-300 font-bold">
+                            {
+                              kiyoWaveData.waveAnalysis.focusColumn[1]
+                                .oppositeLabel
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-300">Confidence:</span>
+                          <span className="text-cyan-300 font-bold">
+                            {
+                              kiyoWaveData.waveAnalysis.focusColumn[1]
+                                .confidence
+                            }
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PREDICTION DATA */}
+              {kiyoWaveData.prediction && (
+                <div className="bg-slate-950/60 rounded-xl border border-violet-500/40 p-4">
+                  <div className="text-sm font-bold text-violet-300 mb-3">
+                    🎯 Current Prediction
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Main */}
+                    <div className="bg-emerald-900/40 rounded-lg p-3 border border-emerald-500/30">
+                      <div className="text-[9px] text-slate-300 mb-1">Main</div>
+                      <div className="text-3xl font-mono font-black text-emerald-300 mb-1">
+                        {kiyoWaveData.prediction.prediction}
+                      </div>
+                      <div className="text-[10px] font-bold text-emerald-300">
+                        {Math.round(kiyoWaveData.prediction.confidence * 100)}%
+                      </div>
+                    </div>
+
+                    {/* Alt */}
+                    {kiyoWaveData.prediction.alt && (
+                      <div className="bg-amber-900/40 rounded-lg p-3 border border-amber-500/30">
+                        <div className="text-[9px] text-slate-300 mb-1">
+                          Alternative
+                        </div>
+                        <div className="text-3xl font-mono font-black text-amber-300 mb-1">
+                          {kiyoWaveData.prediction.alt}
+                        </div>
+                        <div className="text-[10px] text-amber-300">
+                          Alt Option
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode */}
+                    <div className="bg-violet-900/40 rounded-lg p-3 border border-violet-500/30">
+                      <div className="text-[9px] text-slate-300 mb-1">Mode</div>
+                      <div className="text-sm font-bold text-violet-300 break-words">
+                        {kiyoWaveData.prediction.mode}
+                      </div>
+                      <div className="text-[8px] text-violet-300 mt-1">
+                        {kiyoWaveData.prediction.isDisagreement
+                          ? "⚠️ Disagreement"
+                          : "✓ Aligned"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {kiyoWaveData.prediction.isDisagreement && (
+                    <div className="mt-3 bg-red-950/60 rounded-lg p-2 border border-red-500/40 text-[9px]">
+                      <div className="font-bold text-red-300 mb-1">
+                        ⚠️ Wave Disagreement
+                      </div>
+                      <div className="text-red-200">
+                        Tracer predicts:{" "}
+                        <span className="font-mono font-bold">
+                          {kiyoWaveData.prediction.prediction}
+                        </span>
+                        <br />
+                        Wave expects:{" "}
+                        <span className="font-mono font-bold text-emerald-300">
+                          4{kiyoWaveData.prediction.waveTarget?.join(", 4")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PAIRING VIZ TABLE */}
+              {kiyoWaveData.pairingViz &&
+                kiyoWaveData.pairingViz.length > 0 && (
+                  <div className="bg-slate-950/60 rounded-xl border border-slate-700/50 p-4">
+                    <div className="text-sm font-bold text-slate-300 mb-3">
+                      🎨 Wave Pairing History (Last{" "}
+                      {kiyoWaveData.pairingViz.length})
+                    </div>
+
+                    <div className="overflow-x-auto max-h-48">
+                      <table className="w-full text-[10px] border-collapse bg-slate-950/50">
+                        <thead className="bg-slate-900/80 sticky top-0">
+                          <tr>
+                            <th className="p-2 text-left text-slate-300 font-semibold border border-slate-700/30">
+                              Roll
+                            </th>
+                            <th className="p-2 text-center text-slate-300 font-semibold border border-slate-700/30">
+                              Col 1
+                            </th>
+                            <th className="p-2 text-center text-slate-300 font-semibold border border-slate-700/30">
+                              Col 2
+                            </th>
+                            <th className="p-2 text-center text-slate-300 font-semibold border border-slate-700/30">
+                              Col 3
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {kiyoWaveData.pairingViz.map((row, idx) => (
+                            <tr
+                              key={idx}
+                              className="hover:bg-slate-800/40 border-t border-slate-700/30 even:bg-slate-950/20"
+                            >
+                              <td className="p-2 font-mono font-bold text-slate-200 border border-slate-700/30">
+                                {row.roll}
+                              </td>
+                              <td
+                                className={`p-2 text-center font-bold text-[9px] border border-slate-700/30 ${
+                                  row.col1.isA
+                                    ? "bg-emerald-900/40 text-emerald-300"
+                                    : "bg-amber-900/40 text-amber-300"
+                                }`}
+                              >
+                                {row.col1.label.split(" ")[0]}
+                              </td>
+                              <td
+                                className={`p-2 text-center font-bold text-[9px] border border-slate-700/30 ${
+                                  row.col2.isA
+                                    ? "bg-emerald-900/40 text-emerald-300"
+                                    : "bg-amber-900/40 text-amber-300"
+                                }`}
+                              >
+                                {row.col2.label.split(" ")[0]}
+                              </td>
+                              <td
+                                className={`p-2 text-center font-bold text-[9px] border border-slate-700/30 ${
+                                  row.col3.isA
+                                    ? "bg-emerald-900/40 text-emerald-300"
+                                    : "bg-amber-900/40 text-amber-300"
+                                }`}
+                              >
+                                {row.col3.label.split(" ")[0]}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-2 text-[9px] text-slate-400 bg-slate-900/40 rounded p-2 border border-slate-700/30">
+                      <span className="text-emerald-300 font-semibold">
+                        Green
+                      </span>{" "}
+                      = Pattern A dominant |{" "}
+                      <span className="text-amber-300 font-semibold">
+                        Orange
+                      </span>{" "}
+                      = Pattern B dominant
+                    </div>
+                  </div>
+                )}
+
+              {/* COMBINED ROLLS */}
+              {kiyoWaveData.combinedRolls && (
+                <div className="bg-slate-950/60 rounded-xl border border-slate-700/50 p-4">
+                  <div className="text-sm font-bold text-slate-300 mb-2">
+                    📈 Combined Rolls Context
+                  </div>
+                  <div className="text-[10px] text-slate-200 font-mono break-all bg-slate-900/40 rounded p-2 border border-slate-700/30">
+                    {kiyoWaveData.combinedRolls.join(" → ")}
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-2">
+                    Total: {kiyoWaveData.combinedRolls.length} rolls analyzed
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500 text-sm">
+              No Kiyo mode data available. Enter Kiyo Mode and make a prediction
+              first.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ═══ BACKTEST TAB ═══ */}
       {activeTab === "backtest" && isDebugMode && (
         <div className="space-y-4 p-4 bg-gradient-to-br from-emerald-900/20 to-sky-900/20 rounded-2xl border border-emerald-500/30">
@@ -574,201 +1338,211 @@ export default function DebugPanel({
             </label>
           </div>
 
-          {/* Overall Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40 text-center">
-              <div className="text-3xl font-black text-emerald-400">
-                {backtestResults?.overall.top2Pct?.toFixed(1) || 0}%
-              </div>
-              <div className="text-xs text-emerald-300 uppercase tracking-wider">
-                Top-2 Accuracy
-              </div>
-            </div>
-            <div className="bg-sky-900/40 p-3 rounded-xl border border-sky-500/40 text-center">
-              <div className="text-3xl font-black text-sky-400">
-                {backtestResults?.overall.top1Pct?.toFixed(1) || 0}%
-              </div>
-              <div className="text-xs text-sky-300 uppercase tracking-wider">
-                Top-1 Accuracy
-              </div>
-            </div>
-            <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40 text-center">
-              <div className="text-3xl font-bold text-violet-400">
-                {backtestResults?.overall.totalValid || 0}
-              </div>
-              <div className="text-xs text-violet-300 uppercase tracking-wider">
-                Valid Tests
-              </div>
-            </div>
-          </div>
-
-          {/* Sessions Table */}
-          <div className="overflow-x-auto max-h-40">
-            <table className="w-full text-xs border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
-              <thead className="bg-slate-900/80 sticky top-0">
-                <tr>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Session
-                  </th>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Tests
-                  </th>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Valid
-                  </th>
-                  <th className="p-3 text-left font-bold text-emerald-400">
-                    Top-1 %
-                  </th>
-                  <th className="p-3 text-left font-bold text-sky-400">
-                    Top-2 %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {backtestResults?.sessions?.length ? (
-                  backtestResults.sessions.map((session, i) => (
-                    <tr
-                      key={i}
-                      className="hover:bg-slate-800/50 border-t border-slate-700/30 even:bg-slate-950/20"
-                    >
-                      <td className="p-3 font-mono">#{session.session}</td>
-                      <td className="p-3">{session.tests}</td>
-                      <td className="p-3 font-bold text-violet-400">
-                        {session.valid}
-                      </td>
-                      <td className="p-3 text-emerald-400 font-bold">
-                        {session.top1Pct.toFixed(1)}%
-                      </td>
-                      <td className="p-3 text-sky-400 font-bold">
-                        {session.top2Pct.toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="p-8 text-center text-slate-500 italic"
-                    >
-                      No historical data. Roll more!
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Latest Session Details */}
-          {latestSessionStats && (
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>
-                  Session #{latestSessionStats.session.session} – detailed view
-                </span>
-                <span>
-                  {latestSessionStats.session.valid} valid /{" "}
-                  {latestSessionStats.session.tests} total
-                </span>
-              </div>
-
-              {/* Summary boxes */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
+          {backtestResults ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40 text-center">
+                  <div className="text-3xl font-black text-emerald-400">
+                    {backtestResults?.overall.top2Pct?.toFixed(1) || 0}%
+                  </div>
+                  <div className="text-xs text-emerald-300 uppercase tracking-wider">
                     Top-2 Accuracy
                   </div>
-                  <div className="text-2xl font-black text-violet-300">
-                    {latestSessionStats.session.top2Pct.toFixed(1)}%
+                </div>
+                <div className="bg-sky-900/40 p-3 rounded-xl border border-sky-500/40 text-center">
+                  <div className="text-3xl font-black text-sky-400">
+                    {backtestResults?.overall.top1Pct?.toFixed(1) || 0}%
+                  </div>
+                  <div className="text-xs text-sky-300 uppercase tracking-wider">
+                    Top-1 Accuracy
                   </div>
                 </div>
-                <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
-                    Main Hits
+                <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40 text-center">
+                  <div className="text-3xl font-bold text-violet-400">
+                    {backtestResults?.overall.totalValid || 0}
                   </div>
-                  <div className="text-2xl font-black text-emerald-300">
-                    {latestSessionStats.mainHits}
-                  </div>
-                </div>
-                <div className="bg-amber-900/40 p-3 rounded-xl border border-amber-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
-                    Alt Hits
-                  </div>
-                  <div className="text-2xl font-black text-amber-300">
-                    {latestSessionStats.altHits}
-                  </div>
-                </div>
-                <div className="bg-rose-900/40 p-3 rounded-xl border border-rose-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">Misses</div>
-                  <div className="text-2xl font-black text-rose-300">
-                    {latestSessionStats.misses}
+                  <div className="text-xs text-violet-300 uppercase tracking-wider">
+                    Valid Tests
                   </div>
                 </div>
               </div>
 
-              {/* Per-roll detail table */}
-              <div className="overflow-x-auto max-h-52 text-[10px] font-mono">
-                <table className="w-full border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
+              <div className="overflow-x-auto max-h-40">
+                <table className="w-full text-xs border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
                   <thead className="bg-slate-900/80 sticky top-0">
                     <tr>
-                      <th className="p-2 text-left text-slate-300">#</th>
-                      <th className="p-2 text-left text-slate-300">
-                        Ctx (last 8)
+                      <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
+                        Session
                       </th>
-                      <th className="p-2 text-left text-slate-300">Pred</th>
-                      <th className="p-2 text-left text-slate-300">Alt</th>
-                      <th className="p-2 text-left text-slate-300">Actual</th>
-                      <th className="p-2 text-left text-slate-300">Result</th>
+                      <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
+                        Tests
+                      </th>
+                      <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
+                        Valid
+                      </th>
+                      <th className="p-3 text-left font-bold text-emerald-400">
+                        Top-1 %
+                      </th>
+                      <th className="p-3 text-left font-bold text-sky-400">
+                        Top-2 %
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {latestSessionStats.detailRows.map((row, i) => {
-                      const resultLabel = row.hitMain
-                        ? "MAIN"
-                        : row.hitAlt
-                        ? "ALT"
-                        : "MISS";
-                      const resultColor = row.hitMain
-                        ? "text-emerald-300"
-                        : row.hitAlt
-                        ? "text-amber-300"
-                        : "text-rose-300";
-
-                      return (
+                    {backtestResults?.sessions?.length ? (
+                      backtestResults.sessions.map((session, i) => (
                         <tr
                           key={i}
-                          className="border-t border-slate-700/40 hover:bg-slate-800/40"
+                          className="hover:bg-slate-800/50 border-t border-slate-700/30 even:bg-slate-950/20"
                         >
-                          <td className="p-2 text-slate-400">{i + 1}</td>
-                          <td className="p-2 text-slate-200">
-                            {(row.rolls || []).join(", ")}
+                          <td className="p-3 font-mono">#{session.session}</td>
+                          <td className="p-3">{session.tests}</td>
+                          <td className="p-3 font-bold text-violet-400">
+                            {session.valid}
                           </td>
-                          <td className="p-2 text-slate-200">
-                            {row.pred}{" "}
-                            {row.predConf != null && `(${row.predConf}%)`}
+                          <td className="p-3 text-emerald-400 font-bold">
+                            {session.top1Pct.toFixed(1)}%
                           </td>
-                          <td className="p-2 text-slate-200">
-                            {row.alt || "—"}
-                          </td>
-                          <td className="p-2 text-slate-200">{row.actual}</td>
-                          <td className={`p-2 font-bold ${resultColor}`}>
-                            {resultLabel}
+                          <td className="p-3 text-sky-400 font-bold">
+                            {session.top2Pct.toFixed(1)}%
                           </td>
                         </tr>
-                      );
-                    })}
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="p-8 text-center text-slate-500 italic"
+                        >
+                          No historical data. Roll more!
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              {latestSessionStats && (
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>
+                      Session #{latestSessionStats.session.session} – detailed
+                      view
+                    </span>
+                    <span>
+                      {latestSessionStats.session.valid} valid /
+                      {latestSessionStats.session.tests} total
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40">
+                      <div className="text-[11px] text-slate-300 mb-1">
+                        Top-2 Accuracy
+                      </div>
+                      <div className="text-2xl font-black text-violet-300">
+                        {latestSessionStats.session.top2Pct.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40">
+                      <div className="text-[11px] text-slate-300 mb-1">
+                        Main Hits
+                      </div>
+                      <div className="text-2xl font-black text-emerald-300">
+                        {latestSessionStats.mainHits}
+                      </div>
+                    </div>
+                    <div className="bg-amber-900/40 p-3 rounded-xl border border-amber-500/40">
+                      <div className="text-[11px] text-slate-300 mb-1">
+                        Alt Hits
+                      </div>
+                      <div className="text-2xl font-black text-amber-300">
+                        {latestSessionStats.altHits}
+                      </div>
+                    </div>
+                    <div className="bg-rose-900/40 p-3 rounded-xl border border-rose-500/40">
+                      <div className="text-[11px] text-slate-300 mb-1">
+                        Misses
+                      </div>
+                      <div className="text-2xl font-black text-rose-300">
+                        {latestSessionStats.misses}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-52 text-[10px] font-mono">
+                    <table className="w-full border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
+                      <thead className="bg-slate-900/80 sticky top-0">
+                        <tr>
+                          <th className="p-2 text-left text-slate-300">#</th>
+                          <th className="p-2 text-left text-slate-300">
+                            Ctx (last 8)
+                          </th>
+                          <th className="p-2 text-left text-slate-300">Pred</th>
+                          <th className="p-2 text-left text-slate-300">Alt</th>
+                          <th className="p-2 text-left text-slate-300">
+                            Actual
+                          </th>
+                          <th className="p-2 text-left text-slate-300">
+                            Result
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {latestSessionStats.detailRows.map((row, i) => {
+                          const resultLabel = row.hitMain
+                            ? "MAIN"
+                            : row.hitAlt
+                            ? "ALT"
+                            : "MISS";
+                          const resultColor = row.hitMain
+                            ? "text-emerald-300"
+                            : row.hitAlt
+                            ? "text-amber-300"
+                            : "text-rose-300";
+
+                          return (
+                            <tr
+                              key={i}
+                              className="border-t border-slate-700/40 hover:bg-slate-800/40"
+                            >
+                              <td className="p-2 text-slate-400">{i + 1}</td>
+                              <td className="p-2 text-slate-200">
+                                {(row.rolls || []).join(", ")}
+                              </td>
+                              <td className="p-2 text-slate-200">
+                                {row.pred}{" "}
+                                {row.predConf != null && `(${row.predConf}%)`}
+                              </td>
+                              <td className="p-2 text-slate-200">
+                                {row.alt || "—"}
+                              </td>
+                              <td className="p-2 text-slate-200">
+                                {row.actual}
+                              </td>
+                              <td className={`p-2 font-bold ${resultColor}`}>
+                                {resultLabel}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8 text-slate-500 text-sm">
+              No backtest data. Import or record some rolls first.
             </div>
           )}
         </div>
       )}
 
       {/* ═══ LONG STRING TAB ═══ */}
-      {/* ═══ LONG STRING TAB ═══ */}
       {activeTab === "long" && (
         <div className="space-y-4">
-          {/* auto-built long string from live debug logs */}
           <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-40 overflow-y-auto">
             {longString && longString !== "—" ? (
               <div className="flex items-start justify-between gap-2">
@@ -791,7 +1565,6 @@ export default function DebugPanel({
 
           {longString && longString !== "—" && (
             <>
-              {/* what the digits mean */}
               <p className="text-[11px] text-slate-400">
                 <span className="font-semibold text-violet-300">Hint:</span>{" "}
                 digits <span className="text-violet-300">1–4</span> mark the
@@ -834,7 +1607,6 @@ export default function DebugPanel({
             </>
           )}
 
-          {/* Manual decoder */}
           <div className="mt-4 border-t border-slate-800/70 pt-3">
             <h4 className="text-xs font-semibold text-slate-200 mb-2 uppercase tracking-wide">
               Manual Long String Decoder
@@ -897,11 +1669,11 @@ export default function DebugPanel({
         activeTab === "3" ||
         activeTab === "4" ||
         activeTab === "all") && (
-        <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-52 sm:max-h-64 overflow-y-auto text-[10px] sm:text-[11px] font-mono leading-relaxed">
+        <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-52 sm:max-h-64 overflow-y-auto text-[10px] sm:text-[11px] font-mono leading-relaxed space-y-1">
           {filtered.length === 0 ? (
             <div className="text-slate-500">No debug entries yet.</div>
           ) : (
-            filtered.map((log) => {
+            filtered.map((log, idx) => {
               const isMainHit =
                 log.actual && String(log.actual) === String(log.prediction);
               const isAltHit =
@@ -915,7 +1687,7 @@ export default function DebugPanel({
 
               return (
                 <div
-                  key={`${log.ts}-${log.kind}-${log.actual}`}
+                  key={`${log.ts}-${log.kind}-${log.actual}-${idx}`}
                   className={color}
                 >
                   {formatLine(log)}
@@ -923,6 +1695,39 @@ export default function DebugPanel({
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Mode Accuracy Stats */}
+      {modeStats.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-slate-700/50">
+          <div className="text-xs text-slate-300 font-semibold mb-2">
+            📊 Current Session Mode Accuracy
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[10px]">
+            {modeStats.map((stat) => (
+              <div
+                key={stat.mode}
+                className="bg-slate-950/60 rounded-lg border border-slate-700/50 p-2"
+              >
+                <div className="text-slate-400 mb-1 truncate font-semibold">
+                  {stat.mode}
+                </div>
+                <div className="text-lg font-black text-violet-400 mb-1">
+                  {stat.pct}%
+                </div>
+                <div className="text-[9px] text-slate-500">
+                  {stat.hits}/{stat.total}
+                </div>
+                <div className="h-1 bg-slate-800/50 rounded-full overflow-hidden mt-1">
+                  <div
+                    className="h-full bg-violet-500"
+                    style={{ width: `${stat.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
