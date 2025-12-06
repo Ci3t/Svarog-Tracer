@@ -93,6 +93,28 @@ export default function WaveAnalysisDisplay({ analyzeWavePatterns }) {
                         {focusCol.message}
                       </div>
                     </div>
+
+                    {/* 🔥 NEW: Adaptive behavior indicator */}
+                    {focusCol.behavior && (
+                      <div className="bg-orange-900/30 rounded-lg p-2 border border-orange-500/20 mt-2">
+                        <div className="text-[9px] text-orange-200 mb-1">
+                          🧠 Adaptive Behavior
+                        </div>
+                        <div className="text-xs font-bold text-orange-300 capitalize">
+                          {focusCol.behavior}
+                        </div>
+                        {focusCol.adaptiveNote && (
+                          <div className="text-[9px] text-orange-100 mt-1">
+                            {focusCol.adaptiveNote}
+                          </div>
+                        )}
+                        {focusCol.avgFlipLength && (
+                          <div className="text-[9px] text-orange-100">
+                            Avg flip at: {focusCol.avgFlipLength} consecutive
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

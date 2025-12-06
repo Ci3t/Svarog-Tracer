@@ -142,6 +142,23 @@ export default function PredictionCards({
                   </div>
                   <div className="text-xs font-bold text-cyan-400">
                     {Math.round(smartPrefixPrediction.confidence * 100)}%
+                    {smartPrefixPrediction.blendInfo?.liveWeight > 0 && (
+                      <span className="ml-1 text-[9px] text-cyan-200">
+                        (
+                        {Math.round(
+                          smartPrefixPrediction.blendInfo.liveWeight * 100
+                        )}
+                        % live)
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1">
+                    {smartPrefixPrediction.agreement === "strong" &&
+                      "✅ Training + Live agree"}
+                    {smartPrefixPrediction.agreement === "conflict" &&
+                      "⚠️ Training disagrees"}
+                    {smartPrefixPrediction.agreement === "moderate" &&
+                      "📊 Moderate blend"}
                   </div>
                   <div className="text-[9px] text-slate-400 mt-1">
                     {smartPrefixPrediction.matchCount} matches

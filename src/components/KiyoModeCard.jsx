@@ -11,6 +11,7 @@ import { translateTo4 } from "../utils/stringHelpers";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import PredictionCards from "./kiyo/PredictionCards";
 import TestRollsInput from "./kiyo/TestRollsInput";
+
 import WavePairingTable from "./kiyo/WavePairingTable";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import KiyoAccuracyStats from "./kiyo/KiyoAccuracyStats";
@@ -104,11 +105,38 @@ function calculateSwapRate(rolls, scheme) {
 }
 
 // 🔥 ENHANCED: Determine flip likelihood based on run length with urgency levels
-function calculateFlipStatus(runLength, pair, scheme) {
-  if (runLength >= 5) {
+// 🔥 ENHANCED: Adaptive flip status with column-specific behavior
+function calculateFlipStatus(runLength, pair, scheme, columnBehavior = null) {
+  // Use adaptive thresholds if behavior data available
+  const isVolatile = columnBehavior?.behavior === "volatile";
+  const isSticky = columnBehavior?.behavior === "sticky";
+  const flipAt2Rate = columnBehavior?.flipAt2Rate || 0;
+
+  // 🔥 CRITICAL: For volatile columns, 2-run is significant
+  if (runLength === 2 && isVolatile && flipAt2Rate > 0.5) {
     return {
       status: "due_to_flip",
-      confidence: Math.min(0.75 + (runLength - 5) * 0.05, 0.9),
+      confidence: 0.6 + flipAt2Rate * 0.15, // 60-75%
+      message: `${runLength} consecutive ${
+        pair === "A" ? scheme.pairALabel : scheme.pairBLabel
+      } - FLIP LIKELY (volatile pattern)`,
+      flipTarget: pair === "A" ? scheme.pairB : scheme.pairA,
+      flipLabel: pair === "A" ? scheme.pairBLabel : scheme.pairALabel,
+      urgency: "medium",
+      icon: "🟡",
+      adaptiveNote: `🧠 ${Math.round(
+        flipAt2Rate * 100
+      )}% flip at 2 historically`,
+    };
+  }
+
+  // 🔥 STICKY: Higher thresholds needed
+  if (runLength >= 5) {
+    const baseConf = 0.75 + (runLength - 5) * 0.05;
+    const stickyBonus = isSticky ? 0.05 : 0;
+    return {
+      status: "due_to_flip",
+      confidence: Math.min(baseConf + stickyBonus, 0.92),
       message: `${runLength} consecutive ${
         pair === "A" ? scheme.pairALabel : scheme.pairBLabel
       } - FLIP VERY LIKELY`,
@@ -120,7 +148,7 @@ function calculateFlipStatus(runLength, pair, scheme) {
   } else if (runLength === 4) {
     return {
       status: "due_to_flip",
-      confidence: 0.7,
+      confidence: 0.72,
       message: `${runLength} consecutive ${
         pair === "A" ? scheme.pairALabel : scheme.pairBLabel
       } - FLIP LIKELY`,
@@ -132,7 +160,7 @@ function calculateFlipStatus(runLength, pair, scheme) {
   } else if (runLength === 3) {
     return {
       status: "due_to_flip",
-      confidence: 0.65,
+      confidence: 0.67,
       message: `${runLength} consecutive ${
         pair === "A" ? scheme.pairALabel : scheme.pairBLabel
       } - FLIP POSSIBLE`,
@@ -142,19 +170,31 @@ function calculateFlipStatus(runLength, pair, scheme) {
       icon: "🟡",
     };
   } else if (runLength === 2) {
+    // Normal 2-run handling
+    const confidence = flipAt2Rate > 0.4 ? 0.6 : 0.55;
+    const status = flipAt2Rate > 0.4 ? "due_to_flip" : "could_go_either_way";
+    const urgency = flipAt2Rate > 0.4 ? "medium" : "low";
+    const icon = flipAt2Rate > 0.4 ? "🟡" : "⚪";
+
     return {
-      status: "could_go_either_way",
-      confidence: 0.55,
-      message: `${runLength} consecutive - Could go either way`,
+      status,
+      confidence,
+      message: `${runLength} consecutive - ${
+        flipAt2Rate > 0.4 ? "Flip likely" : "Could go either way"
+      }`,
       flipTarget: pair === "A" ? scheme.pairB : scheme.pairA,
       flipLabel: pair === "A" ? scheme.pairBLabel : scheme.pairALabel,
-      urgency: "low",
-      icon: "⚪",
+      urgency,
+      icon,
+      adaptiveNote:
+        flipAt2Rate > 0
+          ? `🧠 ${Math.round(flipAt2Rate * 100)}% flip at 2`
+          : null,
     };
   } else if (runLength === 1) {
     return {
       status: "likely_continue",
-      confidence: 0.5,
+      confidence: 0.52,
       message: `Just started - May continue`,
       flipTarget: pair === "A" ? scheme.pairA : scheme.pairB,
       flipLabel: pair === "A" ? scheme.pairALabel : scheme.pairBLabel,
@@ -224,7 +264,142 @@ function detectMissedFlip(recentRolls, scheme) {
 
   return null;
 }
+// 🔥 NEW: Calculate historical flip behavior per column (ADAPTIVE LEARNING)
+function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
+  if (!rolls || rolls.length < 6) {
+    return {
+      avgFlipLength: 3,
+      flipAt2Rate: 0,
+      totalFlips: 0,
+      behavior: "unknown",
+      flips: [],
+    };
+  }
 
+  const recentRolls = rolls.slice(-Math.min(lookback, rolls.length));
+  const flips = [];
+  let currentPair = null;
+  let runLength = 0;
+
+  for (let i = recentRolls.length - 1; i >= 0; i--) {
+    const lastDigit = recentRolls[i][2];
+    const isA = scheme.pairA.includes(lastDigit);
+    const pair = isA ? "A" : "B";
+
+    if (currentPair === null) {
+      currentPair = pair;
+      runLength = 1;
+    } else if (pair === currentPair) {
+      runLength++;
+    } else {
+      if (runLength >= 2) {
+        flips.push({ length: runLength, pair: currentPair });
+      }
+      currentPair = pair;
+      runLength = 1;
+    }
+  }
+
+  // Calculate metrics
+  const avgFlipLength =
+    flips.length > 0
+      ? flips.reduce((sum, f) => sum + f.length, 0) / flips.length
+      : 3;
+
+  const flipAt2Count = flips.filter((f) => f.length === 2).length;
+  const flipAt3Count = flips.filter((f) => f.length === 3).length;
+  const flipAt2Rate = flips.length > 0 ? flipAt2Count / flips.length : 0;
+  const flipAt3Rate = flips.length > 0 ? flipAt3Count / flips.length : 0;
+
+  // Determine behavior type
+  let behavior = "moderate";
+  if (flipAt2Rate > 0.5) {
+    behavior = "volatile"; // Flips frequently after just 2
+  } else if (avgFlipLength >= 4) {
+    behavior = "sticky"; // Needs longer runs to flip
+  }
+
+  return {
+    avgFlipLength: Math.round(avgFlipLength * 10) / 10,
+    flipAt2Rate,
+    flipAt3Rate,
+    totalFlips: flips.length,
+    behavior,
+    flips,
+    recentPattern: flips.slice(-5).map((f) => f.length),
+  };
+}
+
+// 🔥 NEW: Multi-column prediction combiner
+// 🔥 NEW: Multi-column prediction combiner
+function predictFromMultipleColumns(columnAnalysis) {
+  // Build possible digit sets from each column
+  const col1Digits =
+    columnAnalysis[0].status === "due_to_flip"
+      ? columnAnalysis[0].flipTarget
+      : columnAnalysis[0].currentPair === "A"
+      ? columnAnalysis[0].scheme.pairA
+      : columnAnalysis[0].scheme.pairB;
+
+  const col2Digits =
+    columnAnalysis[1].status === "due_to_flip"
+      ? columnAnalysis[1].flipTarget
+      : columnAnalysis[1].currentPair === "A"
+      ? columnAnalysis[1].scheme.pairA
+      : columnAnalysis[1].scheme.pairB;
+
+  const col3Digits =
+    columnAnalysis[2].status === "due_to_flip"
+      ? columnAnalysis[2].flipTarget
+      : columnAnalysis[2].currentPair === "A"
+      ? columnAnalysis[2].scheme.pairA
+      : columnAnalysis[2].scheme.pairB;
+
+  // 🔥 FIX: Calculate highConfCols BEFORE the loop
+  const highConfCols = columnAnalysis.filter(
+    (c) => c.confidence >= 0.65
+  ).length;
+
+  // Generate all combinations
+  const predictions = [];
+  for (const d1 of col1Digits) {
+    for (const d2 of col2Digits) {
+      for (const d3 of col3Digits) {
+        const finalRoll = `4${d2}${d3}`;
+
+        const avgConfidence =
+          (columnAnalysis[0].confidence +
+            columnAnalysis[1].confidence +
+            columnAnalysis[2].confidence) /
+          3;
+
+        // Boost confidence if multiple columns have high confidence
+        const confidenceBoost = highConfCols >= 2 ? 1.15 : 1.0;
+
+        predictions.push({
+          roll: finalRoll,
+          confidence: Math.min(avgConfidence * confidenceBoost, 0.9),
+          breakdown: {
+            col1: { digit: d2, conf: columnAnalysis[0].confidence },
+            col2: { digit: d2, conf: columnAnalysis[1].confidence },
+            col3: { digit: d3, conf: columnAnalysis[2].confidence },
+          },
+        });
+      }
+    }
+  }
+
+  // Sort by confidence and return top 3
+  predictions.sort((a, b) => b.confidence - a.confidence);
+
+  return {
+    prediction: predictions[0]?.roll || null,
+    confidence: predictions[0]?.confidence || 0.5,
+    alt: predictions[1]?.roll || null,
+    allPredictions: predictions.slice(0, 3),
+    multiColumnAgreement: highConfCols >= 2,
+  };
+}
 // 🔥 Caesar shift function
 function caesarShiftForLine(prediction, line) {
   if (!prediction || !line) return null;
@@ -613,11 +788,21 @@ export default function KiyoModeCard({
 
     const columnAnalysis = schemes.map((scheme, idx) => {
       const runAnalysis = calculateConsecutiveRun(recentRolls, scheme);
+
+      // 🔥 NEW: Calculate adaptive behavior
+      const columnBehavior = calculateColumnFlipBehavior(
+        recentRolls,
+        scheme,
+        LOOKBACK
+      );
+
       const flipStatus = calculateFlipStatus(
         runAnalysis.length,
         runAnalysis.pair,
-        scheme
+        scheme,
+        columnBehavior // 🔥 PASS BEHAVIOR DATA
       );
+
       const swapRate = calculateSwapRate(recentRolls, scheme);
 
       // 🔥 NEW: Check for missed flip (post-flip scenario)
@@ -692,6 +877,12 @@ export default function KiyoModeCard({
         missedFlip,
         urgency: adjustedFlipStatus.urgency,
         icon: adjustedFlipStatus.icon,
+
+        // 🔥 NEW: Add adaptive behavior data
+        behavior: columnBehavior.behavior,
+        flipAt2Rate: columnBehavior.flipAt2Rate,
+        avgFlipLength: columnBehavior.avgFlipLength,
+        adaptiveNote: adjustedFlipStatus.adaptiveNote,
       };
     });
 
@@ -755,15 +946,24 @@ export default function KiyoModeCard({
     };
   }, [combinedRolls]);
 
+  // 🔥 NEW: Multi-column wave prediction
+  const waveMultiColumnPrediction = useMemo(() => {
+    if (!analyzeWavePatterns || combinedRolls.length < 4) return null;
+
+    const { columns } = analyzeWavePatterns;
+    if (!columns || columns.length < 3) return null;
+
+    return predictFromMultipleColumns(columns);
+  }, [analyzeWavePatterns, combinedRolls]);
+
   const smartPrefixPrediction = useMemo(() => {
-    if (combinedRolls.length < 4) return null;
+    if (combinedRolls.length < 3) return null;
 
     let sourcePrefix = null;
     let sourceType = null;
 
     // 🔥 PRIORITY 1: Live typing input (watch testInput for 2 or 3 digits)
     if (testInput.length >= 2) {
-      // Pad to 3 digits if needed, then translate to 4xx format
       const paddedInput = testInput.length === 2 ? testInput + "1" : testInput;
       const translated = translateTo4(paddedInput);
       if (translated && translated.length >= 2) {
@@ -771,7 +971,7 @@ export default function KiyoModeCard({
         sourceType = "typing";
       }
     }
-    // 🔥 PRIORITY 2: Manual prefix selection (activePrefix)
+    // 🔥 PRIORITY 2: Manual prefix selection
     else if (activePrefix && activePrefix.length === 2) {
       sourcePrefix = activePrefix;
       sourceType = "manual";
@@ -785,30 +985,119 @@ export default function KiyoModeCard({
 
     if (!sourcePrefix) return null;
 
-    // Combine EU training data + imported + test + live rolls
-    const fullDataset = [...EU_SEQUENTIAL_3STR, ...combinedRolls];
-    const prediction = predictWithPrefix(fullDataset, sourcePrefix);
-
-    if (!prediction || !prediction.prediction) return null;
-
-    // Calculate dynamic confidence boost from live data
-    const confidenceBoost = calculatePrefixConfidenceBoost(
+    // 🔥 IMPROVED: Separate training and live predictions
+    const trainingPrediction = predictWithPrefix(
       EU_SEQUENTIAL_3STR,
-      combinedRolls,
       sourcePrefix
     );
+    const livePrediction =
+      combinedRolls.length >= 10
+        ? predictWithPrefix(combinedRolls, sourcePrefix)
+        : null;
 
-    if (prediction.prediction) {
-      prediction.confidence = Math.max(
-        0.35,
-        Math.min(prediction.confidence + confidenceBoost, 0.85)
-      );
-      prediction.confidenceBoost = confidenceBoost;
-      prediction.liveMatchQuality = confidenceBoost > 0 ? "good" : "poor";
+    // 🔥 NEW: Intelligent blending
+    let finalPrediction;
+    let blendInfo = { method: "training-only", liveWeight: 0 };
+
+    if (livePrediction && livePrediction.matchCount >= 5) {
+      // Strong live data
+      const liveWeight = 0.7;
+      blendInfo = { method: "strong-live", liveWeight };
+
+      if (trainingPrediction.prediction === livePrediction.prediction) {
+        // Agreement - boost confidence
+        finalPrediction = {
+          ...livePrediction,
+          confidence: Math.min(
+            trainingPrediction.confidence * 0.3 +
+              livePrediction.confidence * 0.7 +
+              0.1,
+            0.88
+          ),
+          matchCount: livePrediction.matchCount + trainingPrediction.matchCount,
+          agreement: "strong",
+        };
+      } else {
+        // Conflict - use live but reduce confidence
+        finalPrediction = {
+          ...livePrediction,
+          confidence: livePrediction.confidence * 0.85,
+          matchCount: livePrediction.matchCount,
+          agreement: "conflict",
+          trainingAlt: trainingPrediction.prediction,
+        };
+      }
+    } else if (livePrediction && livePrediction.matchCount >= 2) {
+      // Moderate live data
+      const liveWeight = 0.6;
+      blendInfo = { method: "moderate-live", liveWeight };
+
+      finalPrediction = {
+        ...livePrediction,
+        confidence:
+          trainingPrediction.confidence * 0.4 + livePrediction.confidence * 0.6,
+        matchCount: livePrediction.matchCount + trainingPrediction.matchCount,
+        agreement: "moderate",
+      };
+    } else {
+      // Weak/no live data - use training
+      blendInfo = { method: "training-only", liveWeight: 0 };
+      finalPrediction = {
+        ...trainingPrediction,
+        confidence: trainingPrediction.confidence * 0.95,
+        matchCount: trainingPrediction.matchCount,
+        agreement: "training-only",
+      };
     }
 
-    return { ...prediction, sourcePrefix, sourceType };
-  }, [combinedRolls, activePrefix, testInput]);
+    // 🔥 IMPROVED: Wave alignment boost with multi-column consideration
+    if (waveMultiColumnPrediction && finalPrediction.prediction) {
+      const wavePredLastDigit = waveMultiColumnPrediction.prediction[2];
+      const prefixPredLastDigit = finalPrediction.prediction[2];
+      const alignsWithWave = wavePredLastDigit === prefixPredLastDigit;
+
+      if (alignsWithWave && waveMultiColumnPrediction.multiColumnAgreement) {
+        finalPrediction.confidence = Math.min(
+          finalPrediction.confidence * 1.25,
+          0.9
+        );
+        finalPrediction.waveBoost = "multi-column-aligned";
+      } else if (
+        analyzeWavePatterns?.focusColumn &&
+        analyzeWavePatterns.focusColumn[1].urgency === "critical"
+      ) {
+        const [_, focusCol] = analyzeWavePatterns.focusColumn;
+        const alignsWithFocus =
+          focusCol.flipTarget.includes(prefixPredLastDigit);
+
+        if (alignsWithFocus) {
+          finalPrediction.confidence = Math.min(
+            finalPrediction.confidence * 1.2,
+            0.9
+          );
+          finalPrediction.waveBoost = "critical-aligned";
+        } else {
+          finalPrediction.confidence *= 0.75;
+          finalPrediction.waveConflict = true;
+        }
+      }
+    }
+
+    return {
+      ...finalPrediction,
+      sourcePrefix,
+      sourceType,
+      blendInfo,
+      liveMatchCount: livePrediction?.matchCount || 0,
+      trainingMatchCount: trainingPrediction?.matchCount || 0,
+    };
+  }, [
+    combinedRolls,
+    activePrefix,
+    testInput,
+    analyzeWavePatterns,
+    waveMultiColumnPrediction,
+  ]);
   // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
   // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
   const prediction = useMemo(() => {

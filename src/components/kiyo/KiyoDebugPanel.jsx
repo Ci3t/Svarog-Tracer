@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 
 function calculateStrategicTier(
   waveAnalysis,
@@ -179,6 +179,86 @@ function calculateStrategicTier(
   };
 }
 
+// 🔥 NEW: Parse debug file and calculate accuracy
+function analyzeDebugFile(content, actualRolls) {
+  const lines = content.split("\n");
+
+  // Extract prediction from debug file
+  let prediction = null;
+  let focusColumn = null;
+  let flipColumns = [];
+
+  for (const line of lines) {
+    if (line.includes("Main Prediction:")) {
+      prediction = line.match(/\d{3}/)?.[0];
+    }
+    if (line.includes("Focus:")) {
+      const colMatch = line.match(/Column (\d)/);
+      if (colMatch) focusColumn = parseInt(colMatch[1]);
+    }
+    if (line.includes("Columns Due to Flip:")) {
+      const nextLine = lines[lines.indexOf(line) + 1];
+      if (nextLine && nextLine.includes("Column")) {
+        flipColumns =
+          nextLine
+            .match(/Column \d/g)
+            ?.map((m) => parseInt(m.match(/\d/)[0])) || [];
+      }
+    }
+  }
+
+  if (!prediction || !actualRolls || actualRolls.length === 0) {
+    return null;
+  }
+
+  // Compare prediction with actual rolls
+  const results = actualRolls.map((actual, idx) => {
+    const match = actual === prediction;
+
+    // Check column-wise accuracy
+    const predDigits = prediction.split("").map(Number);
+    const actualDigits = actual.split("").map(Number);
+
+    const col1Match = predDigits[1] === actualDigits[1];
+    const col2Match = predDigits[1] === actualDigits[1]; // Simplified - should check pair
+    const col3Match = predDigits[2] === actualDigits[2];
+
+    return {
+      rollNumber: idx + 1,
+      predicted: prediction,
+      actual,
+      match,
+      col1Match,
+      col2Match,
+      col3Match,
+    };
+  });
+
+  const totalRolls = results.length;
+  const hits = results.filter((r) => r.match).length;
+  const col1Hits = results.filter((r) => r.col1Match).length;
+  const col2Hits = results.filter((r) => r.col2Match).length;
+  const col3Hits = results.filter((r) => r.col3Match).length;
+
+  return {
+    prediction,
+    focusColumn,
+    flipColumns,
+    results,
+    accuracy: {
+      overall: totalRolls > 0 ? Math.round((hits / totalRolls) * 100) : 0,
+      col1: totalRolls > 0 ? Math.round((col1Hits / totalRolls) * 100) : 0,
+      col2: totalRolls > 0 ? Math.round((col2Hits / totalRolls) * 100) : 0,
+      col3: totalRolls > 0 ? Math.round((col3Hits / totalRolls) * 100) : 0,
+    },
+    stats: {
+      total: totalRolls,
+      hits,
+      misses: totalRolls - hits,
+    },
+  };
+}
+
 export default function KiyoDebugPanel({
   analyzeWavePatterns,
   smartPrefixPrediction,
@@ -190,16 +270,286 @@ export default function KiyoDebugPanel({
     prediction
   );
 
+  // 🔥 NEW: State for debug file import
+  const [showAccuracyTest, setShowAccuracyTest] = useState(false);
+  const [testResults, setTestResults] = useState(null);
+  const [actualRollsInput, setActualRollsInput] = useState("");
+  const debugFileInputRef = useRef(null);
+
+  // 🔥 NEW: Handle debug file import
+  const handleDebugFileImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      setShowAccuracyTest(true);
+
+      // Store file content for later analysis
+      sessionStorage.setItem("lastDebugFile", content);
+    };
+
+    reader.readAsText(file);
+
+    if (debugFileInputRef.current) {
+      debugFileInputRef.current.value = "";
+    }
+  };
+
+  // 🔥 NEW: Analyze accuracy with actual rolls
+  const handleAnalyzeAccuracy = () => {
+    const debugContent = sessionStorage.getItem("lastDebugFile");
+    if (!debugContent) {
+      alert("Please import a debug file first!");
+      return;
+    }
+
+    const rolls = actualRollsInput
+      .split(/[\n,\s]+/)
+      .map((r) => r.trim())
+      .filter((r) => /^[1-4]{3}$/.test(r));
+
+    if (rolls.length === 0) {
+      alert("Please enter valid 3-digit rolls!");
+      return;
+    }
+
+    const results = analyzeDebugFile(debugContent, rolls);
+    setTestResults(results);
+  };
+
   return (
     <div className="bg-slate-950/90 rounded-lg p-4 border border-slate-700/50 space-y-3 text-[11px] font-mono">
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-emerald-300 font-bold">
           🔬 Enhanced Debug Info
         </div>
-        <div className="text-[10px] text-slate-500">
-          Lookback: {analyzeWavePatterns.lookbackUsed} rolls
+        <div className="flex items-center gap-2">
+          {/* 🔥 NEW: Import Debug File Button */}
+          <input
+            ref={debugFileInputRef}
+            type="file"
+            accept=".txt"
+            onChange={handleDebugFileImport}
+            className="hidden"
+          />
+          <button
+            onClick={() => debugFileInputRef.current?.click()}
+            className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded transition"
+            title="Import debug file for accuracy testing"
+          >
+            📥 Import Debug
+          </button>
+
+          <div className="text-[10px] text-slate-500">
+            Lookback: {analyzeWavePatterns.lookbackUsed} rolls
+          </div>
         </div>
       </div>
+
+      {/* 🔥 NEW: Accuracy Testing Panel */}
+      {showAccuracyTest && (
+        <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-lg p-4 border border-blue-500/50 space-y-3">
+          <div className="text-sm font-bold text-blue-300 mb-2 flex items-center justify-between">
+            <span>🎯 Accuracy Testing</span>
+            <button
+              onClick={() => setShowAccuracyTest(false)}
+              className="text-blue-400 hover:text-blue-200 text-lg"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] text-blue-200">
+              Enter actual rolls that occurred (one per line or
+              comma-separated):
+            </label>
+            <textarea
+              value={actualRollsInput}
+              onChange={(e) => setActualRollsInput(e.target.value)}
+              placeholder="e.g. 413, 444, 422, 433..."
+              className="w-full bg-blue-950/60 border border-blue-500/40 rounded-lg px-3 py-2 text-xs font-mono text-blue-100 outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[80px]"
+            />
+            <button
+              onClick={handleAnalyzeAccuracy}
+              className="w-full px-3 py-2 bg-blue-500/30 text-blue-200 hover:bg-blue-500/40 border border-blue-500/50 rounded-lg transition text-xs font-semibold"
+            >
+              📊 Calculate Accuracy
+            </button>
+          </div>
+
+          {/* 🔥 NEW: Accuracy Results */}
+          {testResults && (
+            <div className="space-y-3 mt-4">
+              {/* Overall Stats */}
+              <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/40">
+                <div className="text-xs font-bold text-blue-200 mb-2">
+                  📈 Overall Accuracy
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="flex justify-between">
+                    <span className="text-blue-300">Prediction:</span>
+                    <span className="text-blue-100 font-mono font-bold">
+                      {testResults.prediction}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-300">Total Rolls:</span>
+                    <span className="text-blue-100 font-bold">
+                      {testResults.stats.total}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-green-300">Hits:</span>
+                    <span className="text-green-200 font-bold">
+                      {testResults.stats.hits}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-red-300">Misses:</span>
+                    <span className="text-red-200 font-bold">
+                      {testResults.stats.misses}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-blue-500/30">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-100 mb-1">
+                      {testResults.accuracy.overall}%
+                    </div>
+                    <div className="text-[9px] text-blue-300">
+                      Overall Accuracy
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Column-wise Accuracy */}
+              <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/40">
+                <div className="text-xs font-bold text-blue-200 mb-2">
+                  📊 Column Accuracy
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-blue-900/30 rounded px-2 py-1.5">
+                    <span className="text-[10px] text-blue-300">
+                      Column 1 (Odds/Evens)
+                    </span>
+                    <span
+                      className={`text-sm font-bold ${
+                        testResults.accuracy.col1 >= 70
+                          ? "text-green-300"
+                          : testResults.accuracy.col1 >= 50
+                          ? "text-yellow-300"
+                          : "text-red-300"
+                      }`}
+                    >
+                      {testResults.accuracy.col1}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between bg-blue-900/30 rounded px-2 py-1.5">
+                    <span className="text-[10px] text-blue-300">
+                      Column 2 (Outer/Inner)
+                    </span>
+                    <span
+                      className={`text-sm font-bold ${
+                        testResults.accuracy.col2 >= 70
+                          ? "text-green-300"
+                          : testResults.accuracy.col2 >= 50
+                          ? "text-yellow-300"
+                          : "text-red-300"
+                      }`}
+                    >
+                      {testResults.accuracy.col2}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between bg-blue-900/30 rounded px-2 py-1.5">
+                    <span className="text-[10px] text-blue-300">
+                      Column 3 (Low/High)
+                    </span>
+                    <span
+                      className={`text-sm font-bold ${
+                        testResults.accuracy.col3 >= 70
+                          ? "text-green-300"
+                          : testResults.accuracy.col3 >= 50
+                          ? "text-yellow-300"
+                          : "text-red-300"
+                      }`}
+                    >
+                      {testResults.accuracy.col3}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flip Prediction Accuracy */}
+              {testResults.focusColumn && (
+                <div className="bg-orange-950/60 rounded-lg p-3 border border-orange-500/40">
+                  <div className="text-xs font-bold text-orange-200 mb-2">
+                    🔄 Flip Prediction
+                  </div>
+                  <div className="text-[10px] text-orange-100">
+                    <div className="mb-1">
+                      Focus Column:{" "}
+                      <span className="font-bold">
+                        Column {testResults.focusColumn}
+                      </span>
+                    </div>
+                    {testResults.flipColumns.length > 0 && (
+                      <div>
+                        Flip Columns:{" "}
+                        <span className="font-bold">
+                          {testResults.flipColumns.join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Roll-by-Roll Results */}
+              <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/40 max-h-[300px] overflow-y-auto">
+                <div className="text-xs font-bold text-blue-200 mb-2">
+                  📋 Roll-by-Roll Results
+                </div>
+                <div className="space-y-1">
+                  {testResults.results.map((result) => (
+                    <div
+                      key={result.rollNumber}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded text-[10px] ${
+                        result.match
+                          ? "bg-green-900/30 border border-green-500/30"
+                          : "bg-red-900/30 border border-red-500/30"
+                      }`}
+                    >
+                      <span className="text-blue-300">
+                        Roll #{result.rollNumber}
+                      </span>
+                      <span className="font-mono">
+                        <span className="text-blue-200">
+                          Pred: {result.predicted}
+                        </span>
+                        <span className="mx-2 text-blue-400">→</span>
+                        <span
+                          className={
+                            result.match ? "text-green-300" : "text-red-300"
+                          }
+                        >
+                          Actual: {result.actual}
+                        </span>
+                        <span className="ml-2">
+                          {result.match ? "✅" : "❌"}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Strategic Tier Summary */}
       <div className="bg-gradient-to-br from-violet-900/40 to-purple-900/40 rounded-lg p-3 border border-violet-500/50">
@@ -404,6 +754,24 @@ export default function KiyoDebugPanel({
           </div>
         </div>
       )}
+
+      {/* 🔥 NEW: Adaptive Learning Metrics */}
+      <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/40">
+        <div className="text-sm font-bold text-purple-300 mb-2">
+          🧠 Adaptive Learning
+        </div>
+        <div className="space-y-2 text-xs text-purple-100">
+          {analyzeWavePatterns.columns?.map((col) => (
+            <div key={col.column} className="flex justify-between">
+              <span>{col.name}:</span>
+              <span className="font-mono">
+                {col.behavior} (flip@2:{" "}
+                {Math.round((col.flipAt2Rate || 0) * 100)}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
