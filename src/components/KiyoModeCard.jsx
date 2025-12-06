@@ -333,63 +333,46 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
 // 🔥 NEW: Multi-column prediction combiner
 // 🔥 NEW: Multi-column prediction combiner
 function predictFromMultipleColumns(columnAnalysis) {
-  // Build possible digit sets from each column
-  const col1Digits =
+  // 🔥 CHANGE: Only Column 2 & 3
+  const col2Digits =
     columnAnalysis[0].status === "due_to_flip"
       ? columnAnalysis[0].flipTarget
       : columnAnalysis[0].currentPair === "A"
       ? columnAnalysis[0].scheme.pairA
       : columnAnalysis[0].scheme.pairB;
 
-  const col2Digits =
+  const col3Digits =
     columnAnalysis[1].status === "due_to_flip"
       ? columnAnalysis[1].flipTarget
       : columnAnalysis[1].currentPair === "A"
       ? columnAnalysis[1].scheme.pairA
       : columnAnalysis[1].scheme.pairB;
 
-  const col3Digits =
-    columnAnalysis[2].status === "due_to_flip"
-      ? columnAnalysis[2].flipTarget
-      : columnAnalysis[2].currentPair === "A"
-      ? columnAnalysis[2].scheme.pairA
-      : columnAnalysis[2].scheme.pairB;
-
-  // 🔥 FIX: Calculate highConfCols BEFORE the loop
   const highConfCols = columnAnalysis.filter(
     (c) => c.confidence >= 0.65
   ).length;
 
-  // Generate all combinations
   const predictions = [];
-  for (const d1 of col1Digits) {
-    for (const d2 of col2Digits) {
-      for (const d3 of col3Digits) {
-        const finalRoll = `4${d2}${d3}`;
+  for (const d2 of col2Digits) {
+    for (const d3 of col3Digits) {
+      const finalRoll = `4${d2}${d3}`;
 
-        const avgConfidence =
-          (columnAnalysis[0].confidence +
-            columnAnalysis[1].confidence +
-            columnAnalysis[2].confidence) /
-          3;
+      const avgConfidence =
+        (columnAnalysis[0].confidence + columnAnalysis[1].confidence) / 2;
 
-        // Boost confidence if multiple columns have high confidence
-        const confidenceBoost = highConfCols >= 2 ? 1.15 : 1.0;
+      const confidenceBoost = highConfCols >= 2 ? 1.15 : 1.0;
 
-        predictions.push({
-          roll: finalRoll,
-          confidence: Math.min(avgConfidence * confidenceBoost, 0.9),
-          breakdown: {
-            col1: { digit: d2, conf: columnAnalysis[0].confidence },
-            col2: { digit: d2, conf: columnAnalysis[1].confidence },
-            col3: { digit: d3, conf: columnAnalysis[2].confidence },
-          },
-        });
-      }
+      predictions.push({
+        roll: finalRoll,
+        confidence: Math.min(avgConfidence * confidenceBoost, 0.9),
+        breakdown: {
+          col2: { digit: d2, conf: columnAnalysis[0].confidence },
+          col3: { digit: d3, conf: columnAnalysis[1].confidence },
+        },
+      });
     }
   }
 
-  // Sort by confidence and return top 3
   predictions.sort((a, b) => b.confidence - a.confidence);
 
   return {
@@ -781,7 +764,9 @@ export default function KiyoModeCard({
         : Math.min(12, combinedRolls.length); // Volatile = shorter
 
     const recentRolls = combinedRolls.slice(-LOOKBACK);
-    const schemes = [WAVE_SCHEMES.col1, WAVE_SCHEMES.col2, WAVE_SCHEMES.col3];
+
+    // 🔥 CHANGE: Only use Column 2 & 3 (skip Column 1)
+    const schemes = [WAVE_SCHEMES.col2, WAVE_SCHEMES.col3];
 
     let totalSwapRate = 0;
     let validColumnsCount = 0;
@@ -840,7 +825,7 @@ export default function KiyoModeCard({
       const flipLabel = adjustedFlipStatus.flipLabel;
 
       return {
-        column: idx + 1,
+        column: idx + 2, // 🔥 CHANGE: Column 2 & 3 (not 1, 2, 3)
         name: scheme.name,
         label: scheme.label,
         scheme: scheme,
@@ -1418,13 +1403,13 @@ export default function KiyoModeCard({
             <div>
               <span className="text-gray-400">Flip Columns:</span>
               <span className="ml-2 text-white">
-                {analyzeWavePatterns.flipColumns}/3
+                {analyzeWavePatterns.flipColumns}/2
               </span>
             </div>
             <div>
               <span className="text-gray-400">Sticky Columns:</span>
               <span className="ml-2 text-white">
-                {analyzeWavePatterns.stickyColumns}/3
+                {analyzeWavePatterns.stickyColumns}/2
               </span>
             </div>
             <div>
