@@ -1,23 +1,30 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { predictNext3EU, predictWithPrefix } from "../utils/predictNext";
+import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
+// NEW:
 import {
-  predictNext3EU,
-  predictWithPrefix,
-  calculatePrefixConfidenceBoost,
-} from "../utils/predictNext";
-import { EU_SEQUENTIAL_3STR } from "../utils/euLiveSheetData";
+  EU_SEQUENTIAL_3STR_RECENT,
+  EU_SEQUENTIAL_3STR_ALL,
+  EU_PATCH_INFO,
+} from "../utils/euLiveSheetData";
 import { translateTo4 } from "../utils/stringHelpers";
 
-// 🔥 Import new components
-import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
+// 🔥 Import kiyo components
 import PredictionCards from "./kiyo/PredictionCards";
 import TestRollsInput from "./kiyo/TestRollsInput";
-
 import WavePairingTable from "./kiyo/WavePairingTable";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import KiyoAccuracyStats from "./kiyo/KiyoAccuracyStats";
 import CombinedDatasetStats from "./kiyo/CombinedDatasetStats";
 import RawInputHelper from "./kiyo/RawInputHelper";
+import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import KiyoDebugPanel from "./kiyo/KiyoDebugPanel";
+import WaveAccuracyDisplay from "./kiyo/WaveAccuracyDisplay";
+
+// 🔥 Import new layout components
+import CompactStatsHeader from "./CompactStatsHeader";
+import AdvancedToolsSection from "./AdvancedToolsSection";
+import ModesInfo from "./ModesInfo";
 
 // 🔥 WAVE THEORY SCHEMES - Optimized structure
 const WAVE_SCHEMES = {
@@ -602,7 +609,11 @@ export default function KiyoModeCard({
   const [importedRolls, setImportedRolls] = useState([]);
   const [showImportStats, setShowImportStats] = useState(false);
   const fileInputRef = useRef(null);
-
+  const [persistentWaveAccuracy, setPersistentWaveAccuracy] = useState({
+    col2: { hits: 0, total: 0 },
+    col3: { hits: 0, total: 0 },
+    lastPredictions: { col2: null, col3: null },
+  });
   // Extract live rolls from entries
   const live3Rolls = useMemo(() => {
     return entries
@@ -736,6 +747,62 @@ export default function KiyoModeCard({
     return { total, mainHits, altHits, misses, mainPct, altPct, top2Pct };
   }, [debugLogs]);
 
+  // Add this to KiyoModeCard.jsx - Replace the waveAccuracy useMemo
+
+  // 🔥 REPLACE THE waveAccuracy useMemo WITH THIS
+  const waveAccuracy = useMemo(() => {
+    const col2Pct =
+      persistentWaveAccuracy.col2.total > 0
+        ? Math.round(
+            (persistentWaveAccuracy.col2.hits /
+              persistentWaveAccuracy.col2.total) *
+              100
+          )
+        : 0;
+
+    const col3Pct =
+      persistentWaveAccuracy.col3.total > 0
+        ? Math.round(
+            (persistentWaveAccuracy.col3.hits /
+              persistentWaveAccuracy.col3.total) *
+              100
+          )
+        : 0;
+
+    const totalHits =
+      persistentWaveAccuracy.col2.hits + persistentWaveAccuracy.col3.hits;
+    const totalPredictions =
+      persistentWaveAccuracy.col2.total + persistentWaveAccuracy.col3.total;
+
+    const combinedPct =
+      totalPredictions > 0
+        ? Math.round((totalHits / totalPredictions) * 100)
+        : 0;
+
+    return {
+      col2: {
+        hits: persistentWaveAccuracy.col2.hits,
+        total: persistentWaveAccuracy.col2.total,
+        pct: col2Pct,
+      },
+      col3: {
+        hits: persistentWaveAccuracy.col3.hits,
+        total: persistentWaveAccuracy.col3.total,
+        pct: col3Pct,
+      },
+      combined: {
+        pct: combinedPct,
+        hits: totalHits,
+        total: totalPredictions,
+      },
+    };
+  }, [persistentWaveAccuracy]);
+  // 🔥 EXPLANATION:
+  // - Wave accuracy ONLY counts when wave made a flip prediction (col2Prediction/col3Prediction exist)
+  // - It checks if actual digit matches the predicted digits array
+  // - Stays persistent because it's based on debugLogs history
+  // - Won't reset unless debugLogs are cleared
+
   // 🔥 REFACTORED: RUN-LENGTH BASED WAVE ANALYSIS WITH SWAP RATE + HIGH-ACTIVITY FILTERING + MISSED FLIP DETECTION
   const analyzeWavePatterns = useMemo(() => {
     if (combinedRolls.length < 4)
@@ -825,7 +892,7 @@ export default function KiyoModeCard({
       const flipLabel = adjustedFlipStatus.flipLabel;
 
       return {
-        column: idx + 2, // 🔥 CHANGE: Column 2 & 3 (not 1, 2, 3)
+        column: idx + 2, // 🔥 This is correct (Column 2 & 3)
         name: scheme.name,
         label: scheme.label,
         scheme: scheme,
@@ -936,7 +1003,7 @@ export default function KiyoModeCard({
     if (!analyzeWavePatterns || combinedRolls.length < 4) return null;
 
     const { columns } = analyzeWavePatterns;
-    if (!columns || columns.length < 3) return null;
+    if (!columns || columns.length < 2) return null;
 
     return predictFromMultipleColumns(columns);
   }, [analyzeWavePatterns, combinedRolls]);
@@ -947,7 +1014,7 @@ export default function KiyoModeCard({
     let sourcePrefix = null;
     let sourceType = null;
 
-    // 🔥 PRIORITY 1: Live typing input (watch testInput for 2 or 3 digits)
+    // 🔥 PRIORITY 1: Live typing input
     if (testInput.length >= 2) {
       const paddedInput = testInput.length === 2 ? testInput + "1" : testInput;
       const translated = translateTo4(paddedInput);
@@ -970,72 +1037,167 @@ export default function KiyoModeCard({
 
     if (!sourcePrefix) return null;
 
-    // 🔥 IMPROVED: Separate training and live predictions
+    // ═══════════════════════════════════════════════════════
+    // 🔥 TIER S: CRITICAL WAVE OVERRIDE (5+ run + sticky <30%)
+    // ═══════════════════════════════════════════════════════
+    if (analyzeWavePatterns?.focusColumn) {
+      const focusCol = analyzeWavePatterns.focusColumn[1];
+
+      if (
+        focusCol.urgency === "critical" &&
+        focusCol.swapRate < 0.3 &&
+        focusCol.runLength >= 5 &&
+        focusCol.status === "due_to_flip"
+      ) {
+        // 🔥 WAVE IS CRITICAL - OVERRIDE EVERYTHING
+
+        // Get the other column (not focus)
+        const otherCol = analyzeWavePatterns.columns.find(
+          (c) => c.column !== focusCol.column
+        );
+
+        // Narrow down predictions using frequency
+        const col2Digit = getMostFrequentDigit(
+          analyzeWavePatterns.columns[0].flipTarget.length > 0
+            ? analyzeWavePatterns.columns[0].flipTarget
+            : analyzeWavePatterns.columns[0].scheme.pairA,
+          combinedRolls,
+          1
+        );
+
+        const col3Digit = getMostFrequentDigit(
+          focusCol.flipTarget,
+          combinedRolls,
+          2
+        );
+
+        return {
+          prediction: `4${col2Digit}${col3Digit}`,
+          alt: `4${col2Digit}${
+            focusCol.flipTarget.find((d) => d !== col3Digit) || col3Digit
+          }`,
+          confidence: Math.min(focusCol.confidence, 0.85),
+          matchCount: 0,
+          agreement: "wave-critical-override",
+          sourcePrefix,
+          sourceType,
+          method: "wave-critical",
+          tier: "S",
+          icon: "🔥",
+          overrideReason: `${focusCol.runLength}-run ${
+            focusCol.currentLabel
+          } + ${Math.round(focusCol.swapRate * 100)}% sticky`,
+          blendInfo: {
+            method: "wave-critical-override",
+            liveWeight: 0,
+            reason: "Critical wave pattern detected - ignoring prefix",
+          },
+        };
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 🔥 NORMAL FLOW: Smart Prefix with Wave Validation
+    // ═══════════════════════════════════════════════════════
+
     const trainingPrediction = predictWithPrefix(
-      EU_SEQUENTIAL_3STR,
+      EU_SEQUENTIAL_3STR_RECENT,
       sourcePrefix
     );
+
     const livePrediction =
-      combinedRolls.length >= 10
+      combinedRolls.length >= 6
         ? predictWithPrefix(combinedRolls, sourcePrefix)
         : null;
 
-    // 🔥 NEW: Intelligent blending
     let finalPrediction;
     let blendInfo = { method: "training-only", liveWeight: 0 };
 
-    if (livePrediction && livePrediction.matchCount >= 5) {
-      // Strong live data
-      const liveWeight = 0.7;
+    if (livePrediction && livePrediction.matchCount >= 3) {
+      // ✅ STRONG LIVE: Session has clear pattern
+      const liveWeight = 0.75;
       blendInfo = { method: "strong-live", liveWeight };
 
       if (trainingPrediction.prediction === livePrediction.prediction) {
-        // Agreement - boost confidence
         finalPrediction = {
           ...livePrediction,
           confidence: Math.min(
-            trainingPrediction.confidence * 0.3 +
-              livePrediction.confidence * 0.7 +
-              0.1,
-            0.88
+            trainingPrediction.confidence * 0.25 +
+              livePrediction.confidence * 0.75 +
+              0.12,
+            0.9
           ),
           matchCount: livePrediction.matchCount + trainingPrediction.matchCount,
           agreement: "strong",
         };
       } else {
-        // Conflict - use live but reduce confidence
         finalPrediction = {
           ...livePrediction,
-          confidence: livePrediction.confidence * 0.85,
+          confidence: livePrediction.confidence * 0.9,
           matchCount: livePrediction.matchCount,
-          agreement: "conflict",
+          agreement: "conflict-live-primary",
           trainingAlt: trainingPrediction.prediction,
         };
       }
     } else if (livePrediction && livePrediction.matchCount >= 2) {
-      // Moderate live data
-      const liveWeight = 0.6;
+      const liveWeight = 0.7;
       blendInfo = { method: "moderate-live", liveWeight };
 
-      finalPrediction = {
-        ...livePrediction,
-        confidence:
-          trainingPrediction.confidence * 0.4 + livePrediction.confidence * 0.6,
-        matchCount: livePrediction.matchCount + trainingPrediction.matchCount,
-        agreement: "moderate",
-      };
+      if (trainingPrediction.prediction === livePrediction.prediction) {
+        finalPrediction = {
+          ...livePrediction,
+          confidence: Math.min(
+            trainingPrediction.confidence * 0.3 +
+              livePrediction.confidence * 0.7 +
+              0.08,
+            0.85
+          ),
+          matchCount: livePrediction.matchCount + trainingPrediction.matchCount,
+          agreement: "moderate",
+        };
+      } else {
+        finalPrediction = {
+          ...livePrediction,
+          confidence: livePrediction.confidence * 0.85,
+          matchCount: livePrediction.matchCount,
+          agreement: "conflict-moderate",
+          trainingAlt: trainingPrediction.prediction,
+        };
+      }
     } else {
-      // Weak/no live data - use training
-      blendInfo = { method: "training-only", liveWeight: 0 };
-      finalPrediction = {
-        ...trainingPrediction,
-        confidence: trainingPrediction.confidence * 0.95,
-        matchCount: trainingPrediction.matchCount,
-        agreement: "training-only",
+      blendInfo = {
+        method: "training-primary",
+        liveWeight: livePrediction ? 0.3 : 0,
+        reason: livePrediction
+          ? `Live has only ${livePrediction.matchCount} match(es)`
+          : "Insufficient live data",
       };
+
+      if (
+        livePrediction &&
+        trainingPrediction.prediction === livePrediction.prediction
+      ) {
+        finalPrediction = {
+          ...trainingPrediction,
+          confidence: Math.min(trainingPrediction.confidence * 1.05, 0.75),
+          matchCount: trainingPrediction.matchCount + livePrediction.matchCount,
+          agreement: "weak-live-agreement",
+        };
+      } else {
+        finalPrediction = {
+          ...trainingPrediction,
+          confidence: trainingPrediction.confidence * 0.95,
+          matchCount: trainingPrediction.matchCount,
+          agreement: "training-only",
+          liveAlt: livePrediction?.prediction || null,
+        };
+      }
     }
 
-    // 🔥 IMPROVED: Wave alignment boost with multi-column consideration
+    // ═══════════════════════════════════════════════════════
+    // 🔥 WAVE VALIDATION: Check alignment and adjust confidence
+    // ═══════════════════════════════════════════════════════
+
     if (waveMultiColumnPrediction && finalPrediction.prediction) {
       const wavePredLastDigit = waveMultiColumnPrediction.prediction[2];
       const prefixPredLastDigit = finalPrediction.prediction[2];
@@ -1047,9 +1209,10 @@ export default function KiyoModeCard({
           0.9
         );
         finalPrediction.waveBoost = "multi-column-aligned";
+        finalPrediction.icon = "✅";
       } else if (
         analyzeWavePatterns?.focusColumn &&
-        analyzeWavePatterns.focusColumn[1].urgency === "critical"
+        analyzeWavePatterns.focusColumn[1].urgency === "high"
       ) {
         const [_, focusCol] = analyzeWavePatterns.focusColumn;
         const alignsWithFocus =
@@ -1057,13 +1220,15 @@ export default function KiyoModeCard({
 
         if (alignsWithFocus) {
           finalPrediction.confidence = Math.min(
-            finalPrediction.confidence * 1.2,
-            0.9
+            finalPrediction.confidence * 1.15,
+            0.85
           );
-          finalPrediction.waveBoost = "critical-aligned";
+          finalPrediction.waveBoost = "high-aligned";
+          finalPrediction.icon = "✅";
         } else {
           finalPrediction.confidence *= 0.75;
           finalPrediction.waveConflict = true;
+          finalPrediction.icon = "⚠️";
         }
       }
     }
@@ -1083,7 +1248,7 @@ export default function KiyoModeCard({
     analyzeWavePatterns,
     waveMultiColumnPrediction,
   ]);
-  // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
+  // 🔥 LEGACY TRAC
   // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
   const prediction = useMemo(() => {
     if (combinedRolls.length < 4) return null;
@@ -1150,12 +1315,13 @@ export default function KiyoModeCard({
   }, [combinedRolls]);
 
   // 🔥 TRAINING STATS
+  // Fix lines 1217-1231 (trainingStats):
   const trainingStats = useMemo(() => {
     const freq = {};
-    EU_SEQUENTIAL_3STR.forEach((pattern) => {
+    EU_SEQUENTIAL_3STR_RECENT.forEach((pattern) => {
       freq[pattern] = (freq[pattern] || 0) + 1;
     });
-    const total = EU_SEQUENTIAL_3STR.length;
+    const total = EU_SEQUENTIAL_3STR_RECENT.length;
     const sorted = Object.entries(freq)
       .map(([pattern, count]) => ({
         pattern,
@@ -1165,12 +1331,12 @@ export default function KiyoModeCard({
       .sort((a, b) => b.count - a.count);
     return { total, patterns: sorted };
   }, []);
-  // 🔥 COMBINED DATASET STATS
+  // Fix lines 1233-1257 (combinedDataset):
   const combinedDataset = useMemo(() => {
     const combined = {};
 
-    // Count EU training data
-    EU_SEQUENTIAL_3STR.forEach((pattern) => {
+    // Count EU training data (recent patches only)
+    EU_SEQUENTIAL_3STR_RECENT.forEach((pattern) => {
       combined[pattern] = (combined[pattern] || 0) + 1;
     });
 
@@ -1207,7 +1373,9 @@ export default function KiyoModeCard({
     }
   }, [prediction, combinedRolls, onSendToDebug]);
 
-  // Send debug data with enhanced strategic analytics
+  // This is the fix for the useEffect that sends debug data
+  // Replace the existing useEffect in KiyoModeCard.jsx (around line 1380)
+
   useEffect(() => {
     if (!prediction || !analyzeWavePatterns || !onSendKiyoDebugData) return;
 
@@ -1229,6 +1397,33 @@ export default function KiyoModeCard({
       prediction
     );
 
+    // 🔥 FIX: ALWAYS include wave predictions, even if no focusColumn
+    // This ensures wave accuracy tracking works correctly
+    const col2Analysis = analyzeWavePatterns?.columns?.[0];
+    const col3Analysis = analyzeWavePatterns?.columns?.[1];
+
+    // 🔥 Get predicted digits for each column based on current status
+    const getColumnPrediction = (colAnalysis) => {
+      if (!colAnalysis) return null;
+
+      // If column is due to flip, predict flipTarget
+      if (
+        colAnalysis.status === "due_to_flip" &&
+        colAnalysis.flipTarget?.length > 0
+      ) {
+        return colAnalysis.flipTarget;
+      }
+
+      // If column is stable/continuing, predict current pattern
+      if (colAnalysis.currentPair === "A") {
+        return colAnalysis.scheme.pairA;
+      } else if (colAnalysis.currentPair === "B") {
+        return colAnalysis.scheme.pairB;
+      }
+
+      return null;
+    };
+
     const debugData = {
       waveAnalysis: JSON.parse(JSON.stringify(analyzeWavePatterns)),
       prediction: { ...prediction },
@@ -1236,16 +1431,58 @@ export default function KiyoModeCard({
       pairingViz: pairingViz ? [...pairingViz] : [],
       combinedRolls: [...combinedRolls],
 
-      // 🔥 NEW: Strategic tier assessment
+      // 🔥 FIX: ALWAYS include wave predictions for tracking
+      waveData: {
+        col2Prediction: (() => {
+          const col = analyzeWavePatterns?.columns?.[0];
+          if (!col) return null;
+
+          // 🔥 Only predict if column has clear signal
+          if (col.status === "due_to_flip" && col.flipTarget?.length > 0) {
+            return col.flipTarget; // Predict flip
+          }
+
+          // 🔥 For stable patterns, predict continuation
+          if (col.status === "likely_continue" || col.runLength === 1) {
+            return col.currentPair === "A"
+              ? col.scheme.pairA
+              : col.scheme.pairB;
+          }
+
+          // 🔥 Don't make prediction for uncertain states
+          return null;
+        })(),
+
+        col3Prediction: (() => {
+          const col = analyzeWavePatterns?.columns?.[1];
+          if (!col) return null;
+
+          // 🔥 Only predict if column has clear signal
+          if (col.status === "due_to_flip" && col.flipTarget?.length > 0) {
+            return col.flipTarget; // Predict flip
+          }
+
+          // 🔥 For stable patterns, predict continuation
+          if (col.status === "likely_continue" || col.runLength === 1) {
+            return col.currentPair === "A"
+              ? col.scheme.pairA
+              : col.scheme.pairB;
+          }
+
+          // 🔥 Don't make prediction for uncertain states
+          return null;
+        })(),
+
+        col2Confidence: analyzeWavePatterns?.columns?.[0]?.confidence || 0,
+        col3Confidence: analyzeWavePatterns?.columns?.[1]?.confidence || 0,
+        col2Status: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
+        col3Status: analyzeWavePatterns?.columns?.[1]?.status || "unknown",
+      },
       strategicTier: strategicAnalysis.tier,
       tierReasoning: strategicAnalysis.reasoning,
       recommendedAction: strategicAnalysis.action,
       effectiveReliability: strategicAnalysis.effectiveReliability,
-
-      // 🔥 NEW: Reliability breakdown
       reliabilityFactors: strategicAnalysis.factors,
-
-      // 🔥 NEW: Wave vs Prefix alignment
       alignment: strategicAnalysis.alignment,
       conflictResolution: strategicAnalysis.conflictResolution,
     };
@@ -1260,6 +1497,11 @@ export default function KiyoModeCard({
     onSendKiyoDebugData,
   ]);
 
+  // 🔥 EXPLANATION:
+  // - Now ALWAYS sends wave predictions for both columns
+  // - Uses getColumnPrediction helper to determine what wave predicts
+  // - Includes column status so we know if it was a flip prediction
+  // - This ensures wave accuracy is tracked consistently
   // Handle test roll input
   const handleTestRollSubmit = (e) => {
     if (e.key === "Enter") {
@@ -1279,16 +1521,96 @@ export default function KiyoModeCard({
     setTestRolls((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // 🔥 OPTIONAL: Add reset button handler
+  const handleResetWaveAccuracy = () => {
+    setPersistentWaveAccuracy({
+      col2: { hits: 0, total: 0 },
+      col3: { hits: 0, total: 0 },
+      lastPredictions: { col2: null, col3: null },
+    });
+  };
+  // 🔥 ADD THIS EFFECT TO TRACK WAVE ACCURACY PERSISTENTLY
+  useEffect(() => {
+    // Only track if we have valid data
+    if (!analyzeWavePatterns || combinedRolls.length < 4) return;
+
+    const latestRoll = combinedRolls[combinedRolls.length - 1];
+    if (!latestRoll) return;
+
+    const actualCol2 = latestRoll[1];
+    const actualCol3 = latestRoll[2];
+
+    const col2Analysis = analyzeWavePatterns.columns?.[0];
+    const col3Analysis = analyzeWavePatterns.columns?.[1];
+
+    // Get current predictions
+    const getCurrentPrediction = (colAnalysis) => {
+      if (!colAnalysis) return null;
+
+      // Only predict if column is "due_to_flip" with flip target
+      if (
+        colAnalysis.status === "due_to_flip" &&
+        colAnalysis.flipTarget?.length > 0
+      ) {
+        return colAnalysis.flipTarget;
+      }
+
+      return null;
+    };
+
+    const currentCol2Pred = getCurrentPrediction(col2Analysis);
+    const currentCol3Pred = getCurrentPrediction(col3Analysis);
+
+    // Check if we have new predictions to verify
+    const hadPreviousPredictions =
+      persistentWaveAccuracy.lastPredictions.col2 !== null ||
+      persistentWaveAccuracy.lastPredictions.col3 !== null;
+
+    if (hadPreviousPredictions) {
+      const newAccuracy = { ...persistentWaveAccuracy };
+
+      // Verify Column 2 prediction
+      if (persistentWaveAccuracy.lastPredictions.col2) {
+        newAccuracy.col2.total++;
+        if (persistentWaveAccuracy.lastPredictions.col2.includes(actualCol2)) {
+          newAccuracy.col2.hits++;
+        }
+      }
+
+      // Verify Column 3 prediction
+      if (persistentWaveAccuracy.lastPredictions.col3) {
+        newAccuracy.col3.total++;
+        if (persistentWaveAccuracy.lastPredictions.col3.includes(actualCol3)) {
+          newAccuracy.col3.hits++;
+        }
+      }
+
+      // Update last predictions for next roll
+      newAccuracy.lastPredictions = {
+        col2: currentCol2Pred,
+        col3: currentCol3Pred,
+      };
+
+      setPersistentWaveAccuracy(newAccuracy);
+    } else {
+      // First time - just store predictions
+      setPersistentWaveAccuracy({
+        ...persistentWaveAccuracy,
+        lastPredictions: {
+          col2: currentCol2Pred,
+          col3: currentCol3Pred,
+        },
+      });
+    }
+  }, [combinedRolls.length]); // Only trigger when roll count changes
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-emerald-400">
-            🌊 Kiyo Mode (EU Wave Theory)
-          </h3>
-          <p className="text-[11px] text-slate-400">
-            Run-length rhythm analysis with smart prefix prediction
+          <h3 className="text-lg font-bold text-emerald-400">🌊 Kiyo Mode</h3>
+          <p className="text-xs text-slate-400">
+            Wave Theory + Smart Prefix Prediction
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1301,28 +1623,27 @@ export default function KiyoModeCard({
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg transition flex items-center gap-1.5"
-            title="Import rolls from .txt file"
+            className="px-3 py-1.5 text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg transition"
           >
-            📁 Import Rolls
+            📁 Import
           </button>
-
           <button
             onClick={() => setShowDecisionGuide(!showDecisionGuide)}
             className="px-3 py-1.5 text-xs font-semibold bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border border-violet-500/40 rounded-lg transition"
           >
-            📖 Decision Guide
-          </button>
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs text-slate-400 hover:text-emerald-400 transition"
-          >
-            {showDebug ? "Hide" : "Show"} Debug
+            📖 Guide
           </button>
         </div>
       </div>
-
-      {/* 🔥 EXTRACTED: Import Stats Display */}
+      {/* 🔥 NEW: Accuracy Header Bar */}
+      <AccuracyHeaderBar
+        kiyoAccuracy={kiyoAccuracy}
+        waveAccuracy={waveAccuracy}
+        combinedDataset={combinedDataset}
+        patchInfo={EU_PATCH_INFO}
+        onResetWaveAccuracy={handleResetWaveAccuracy}
+      />
+      {/* Import Stats Toast */}
       <ImportStatsDisplay
         importedRolls={importedRolls}
         showImportStats={showImportStats}
@@ -1331,36 +1652,37 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      {/* 🔥 EXTRACTED: Kiyo Mode Accuracy */}
-      <KiyoAccuracyStats kiyoAccuracy={kiyoAccuracy} />
+      {/* 🔥 1. TEST ROLLS - MOVED TO TOP */}
+      <TestRollsInput
+        testInput={testInput}
+        setTestInput={setTestInput}
+        handleTestRollSubmit={handleTestRollSubmit}
+        testRolls={testRolls}
+        translatedTestRolls={translatedTestRolls}
+        handleDeleteTestRoll={handleDeleteTestRoll}
+        setActivePrefix={setActivePrefix}
+      />
 
-      {/* 🔥 EXTRACTED: Combined Dataset */}
-      <CombinedDatasetStats
+      {/* 🔥 2. Compact Stats Header */}
+      {/* <CompactStatsHeader
+        kiyoAccuracy={kiyoAccuracy}
+        waveAccuracy={waveAccuracy}
         combinedDataset={combinedDataset}
-        trainingStats={trainingStats}
         importedRolls={importedRolls}
         testRolls={testRolls}
         live3Rolls={live3Rolls}
-      />
+        patchInfo={EU_PATCH_INFO}
+      /> */}
 
-      {/* TOP ROW: Test Rolls + Wave Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <TestRollsInput
-          testInput={testInput}
-          setTestInput={setTestInput}
-          handleTestRollSubmit={handleTestRollSubmit}
-          testRolls={testRolls}
-          translatedTestRolls={translatedTestRolls}
-          handleDeleteTestRoll={handleDeleteTestRoll}
-          setActivePrefix={setActivePrefix}
+      {/* 🔥 3. Wave Analysis with predictions combined */}
+      {combinedRolls.length >= 4 && analyzeWavePatterns && (
+        <WaveAnalysisDisplay
+          analyzeWavePatterns={analyzeWavePatterns}
+          smartPrefixPrediction={smartPrefixPrediction}
         />
+      )}
 
-        {combinedRolls.length >= 4 && analyzeWavePatterns && (
-          <WaveAnalysisDisplay analyzeWavePatterns={analyzeWavePatterns} />
-        )}
-      </div>
-
-      {/* PREDICTION CARDS ROW */}
+      {/* 🔥 4. Prediction Cards - side by side */}
       <PredictionCards
         analyzeWavePatterns={analyzeWavePatterns}
         smartPrefixPrediction={smartPrefixPrediction}
@@ -1368,418 +1690,37 @@ export default function KiyoModeCard({
         setManualLine={setManualLine}
       />
 
-      {/* 🔥 EXTRACTED: RAW INPUT HELPER */}
-      <RawInputHelper
-        analyzeWavePatterns={analyzeWavePatterns}
-        testRolls={testRolls}
+      {/* 🔥 5. Advanced Tools */}
+      <AdvancedToolsSection
+        waveAccuracy={waveAccuracy}
+        kiyoAccuracy={kiyoAccuracy}
+        pairingViz={pairingViz}
       />
 
-      {/* WAVE PAIRING TABLE */}
-      {combinedRolls.length >= 4 && (
-        <WavePairingTable pairingViz={pairingViz} />
-      )}
-
-      {/* 🔥 EXTRACTED: DEBUG PANEL */}
-      {showDebug && (
-        <KiyoDebugPanel
-          analyzeWavePatterns={analyzeWavePatterns}
-          smartPrefixPrediction={smartPrefixPrediction}
-          prediction={prediction}
-        />
-      )}
-
-      {/* Compound Analysis */}
-      {analyzeWavePatterns && analyzeWavePatterns.avgSwapRate && (
-        <div className="mt-4 p-3 bg-gray-700 rounded">
-          <div className="text-sm font-semibold mb-2">📊 Compound Analysis</div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="text-gray-400">Avg Swap Rate:</span>
-              <span className="ml-2 text-white">
-                {(parseFloat(analyzeWavePatterns.avgSwapRate) * 100).toFixed(0)}
-                %
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-400">Flip Columns:</span>
-              <span className="ml-2 text-white">
-                {analyzeWavePatterns.flipColumns}/2
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-400">Sticky Columns:</span>
-              <span className="ml-2 text-white">
-                {analyzeWavePatterns.stickyColumns}/2
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-400">Compound Conf:</span>
-              <span
-                className={`ml-2 font-bold ${
-                  analyzeWavePatterns.compoundConfidence === "HIGH"
-                    ? "text-green-400"
-                    : analyzeWavePatterns.compoundConfidence === "MODERATE"
-                    ? "text-yellow-400"
-                    : "text-gray-400"
-                }`}
-              >
-                {analyzeWavePatterns.compoundConfidence}
-              </span>
-            </div>
-          </div>
-          {analyzeWavePatterns.flipColumns >= 2 && (
-            <div className="mt-2 text-xs text-green-400">
-              ⚡ Multi-column flip agreement detected! Confidence boosted.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* DECISION GUIDE MODAL */}
+      {/* Decision Guide Modal */}
       {showDecisionGuide && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setShowDecisionGuide(false)}
-        >
-          <div
-            className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl border-2 border-violet-500/60 shadow-2xl max-w-4xl max-h-[90vh] overflow-y-auto m-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-gradient-to-r from-violet-900/90 to-purple-900/90 backdrop-blur-sm p-4 border-b border-violet-500/40 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📖</span>
-                <div>
-                  <h2 className="text-lg font-bold text-violet-200">
-                    Wave Theory Decision Guide
-                  </h2>
-                  <p className="text-xs text-violet-300">
-                    Quick reference for making predictions
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowDecisionGuide(false)}
-                className="text-violet-300 hover:text-white text-2xl font-bold px-3 py-1 hover:bg-violet-500/20 rounded transition"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Priority System */}
-              <div className="bg-gradient-to-br from-orange-900/40 to-red-900/30 rounded-lg p-4 border border-orange-500/50">
-                <h3 className="text-base font-bold text-orange-300 mb-3 flex items-center gap-2">
-                  <span>🎯</span> PRIORITY SYSTEM
-                </h3>
-                <div className="space-y-3">
-                  <div className="bg-orange-950/60 rounded-lg p-3 border border-orange-500/30">
-                    <div className="text-sm font-bold text-orange-200 mb-2">
-                      🔥 HIGHEST PRIORITY: Sticky Wave + Long Run
-                    </div>
-                    <div className="text-xs text-orange-100 space-y-1">
-                      <div>
-                        • Swap Rate:{" "}
-                        <span className="text-green-300 font-bold">
-                          &lt;30% (Sticky)
-                        </span>
-                      </div>
-                      <div>
-                        • Run Length:{" "}
-                        <span className="text-orange-300 font-bold">
-                          4+ consecutive
-                        </span>
-                      </div>
-                      <div>
-                        • Confidence:{" "}
-                        <span className="text-emerald-300 font-bold">
-                          75-85%
-                        </span>
-                      </div>
-                      <div className="pt-2 mt-2 border-t border-orange-500/30 text-yellow-200 font-semibold">
-                        ⚠️ When this occurs, TRUST THE WAVE over Smart Prefix!
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-violet-950/60 rounded-lg p-3 border border-violet-500/30">
-                    <div className="text-sm font-bold text-violet-200 mb-2">
-                      ⚡ HIGH PRIORITY: Wave + Prefix Aligned
-                    </div>
-                    <div className="text-xs text-violet-100">
-                      When both wave and prefix agree on the same digit,
-                      confidence is highest (80-90%).
-                    </div>
-                  </div>
-
-                  <div className="bg-cyan-950/60 rounded-lg p-3 border border-cyan-500/30">
-                    <div className="text-sm font-bold text-cyan-200 mb-2">
-                      📊 NORMAL: Prefix Only
-                    </div>
-                    <div className="text-xs text-cyan-100">
-                      When no strong wave pattern exists, use Smart Prefix
-                      prediction (45-65%).
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Swap Rate Guide */}
-              <div className="bg-gradient-to-br from-emerald-900/40 to-cyan-900/30 rounded-lg p-4 border border-emerald-500/50">
-                <h3 className="text-base font-bold text-emerald-300 mb-3 flex items-center gap-2">
-                  <span>🌊</span> SWAP RATE MEANINGS
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="bg-emerald-950/60 rounded-lg p-3 border border-emerald-500/30">
-                    <div className="text-sm font-bold text-green-300 mb-2">
-                      🔒 Sticky (&lt;40%)
-                    </div>
-                    <div className="text-xs text-emerald-100 space-y-1">
-                      <div>
-                        <span className="font-bold">Most Reliable!</span>
-                      </div>
-                      <div>Pattern is stable and predictable.</div>
-                      <div className="pt-2 text-green-200">
-                        Flip predictions are strongest here.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-amber-950/60 rounded-lg p-3 border border-amber-500/30">
-                    <div className="text-sm font-bold text-yellow-300 mb-2">
-                      ⚡ Moderate (40-70%)
-                    </div>
-                    <div className="text-xs text-amber-100 space-y-1">
-                      <div>
-                        <span className="font-bold">Average reliability</span>
-                      </div>
-                      <div>Pattern changes regularly but not chaotically.</div>
-                      <div className="pt-2 text-yellow-200">
-                        Use with caution.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-red-950/60 rounded-lg p-3 border border-red-500/30">
-                    <div className="text-sm font-bold text-red-300 mb-2">
-                      🌊 High Activity (≥70%)
-                    </div>
-                    <div className="text-xs text-red-100 space-y-1">
-                      <div>
-                        <span className="font-bold">Volatile!</span>
-                      </div>
-                      <div>Pattern flips constantly.</div>
-                      <div className="pt-2 text-red-200">
-                        Trust prefix more than wave.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Run Length Guide */}
-              <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/30 rounded-lg p-4 border border-blue-500/50">
-                <h3 className="text-base font-bold text-blue-300 mb-3 flex items-center gap-2">
-                  <span>📏</span> RUN LENGTH THRESHOLDS
-                </h3>
-                <div className="space-y-2">
-                  <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/30 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-blue-200">
-                        5+ Consecutive
-                      </div>
-                      <div className="text-xs text-blue-100">
-                        Flip is very likely
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold text-orange-300">
-                      80-85%
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/30 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-blue-200">
-                        3-4 Consecutive
-                      </div>
-                      <div className="text-xs text-blue-100">
-                        Flip is likely
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold text-emerald-300">
-                      70-75%
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/30 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-blue-200">
-                        2 Consecutive
-                      </div>
-                      <div className="text-xs text-blue-100">
-                        Could go either way
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold text-yellow-300">
-                      55%
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-950/60 rounded-lg p-3 border border-blue-500/30 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-blue-200">
-                        1 or Less
-                      </div>
-                      <div className="text-xs text-blue-100">May continue</div>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-400">
-                      50-60%
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Conflict Resolution */}
-              <div className="bg-gradient-to-br from-red-900/40 to-pink-900/30 rounded-lg p-4 border border-red-500/50">
-                <h3 className="text-base font-bold text-red-300 mb-3 flex items-center gap-2">
-                  <span>⚠️</span> WHEN WAVE vs PREFIX CONFLICT
-                </h3>
-                <div className="space-y-3 text-sm text-red-100">
-                  <div className="bg-red-950/60 rounded-lg p-3 border border-red-500/30">
-                    <div className="font-bold text-red-200 mb-2">
-                      IF Swap Rate &lt; 30% AND Run ≥ 4:
-                    </div>
-                    <div className="text-green-300 font-bold text-base">
-                      → TRUST THE WAVE (ignore prefix)
-                    </div>
-                  </div>
-
-                  <div className="bg-red-950/60 rounded-lg p-3 border border-red-500/30">
-                    <div className="font-bold text-red-200 mb-2">
-                      IF Swap Rate 30-70% OR Run = 2-3:
-                    </div>
-                    <div className="text-yellow-300 font-bold text-base">
-                      → CONSIDER BOTH (cautious approach)
-                    </div>
-                  </div>
-
-                  <div className="bg-red-950/60 rounded-lg p-3 border border-red-500/30">
-                    <div className="font-bold text-red-200 mb-2">
-                      IF Swap Rate &gt; 70% OR Run &lt; 2:
-                    </div>
-                    <div className="text-cyan-300 font-bold text-base">
-                      → TRUST PREFIX (wave unreliable)
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Real Example */}
-              <div className="bg-gradient-to-br from-purple-900/40 to-violet-900/30 rounded-lg p-4 border border-purple-500/50">
-                <h3 className="text-base font-bold text-purple-300 mb-3 flex items-center gap-2">
-                  <span>💡</span> REAL EXAMPLE
-                </h3>
-                <div className="bg-purple-950/60 rounded-lg p-3 border border-purple-500/30 space-y-2 text-xs text-purple-100">
-                  <div className="font-bold text-purple-200 text-sm mb-2">
-                    Scenario:
-                  </div>
-                  <div>
-                    • Column 2:{" "}
-                    <span className="text-orange-300 font-bold">
-                      5 consecutive Outer
-                    </span>
-                  </div>
-                  <div>
-                    • Swap Rate:{" "}
-                    <span className="text-green-300 font-bold">
-                      20% (Sticky)
-                    </span>
-                  </div>
-                  <div>
-                    • Wave predicts:{" "}
-                    <span className="text-cyan-300 font-bold">
-                      Inner (42/43)
-                    </span>
-                  </div>
-                  <div>
-                    • Prefix predicts:{" "}
-                    <span className="text-yellow-300 font-bold">
-                      421 (Outer)
-                    </span>
-                  </div>
-                  <div className="pt-3 mt-3 border-t border-purple-500/30">
-                    <div className="text-sm font-bold text-emerald-300 mb-1">
-                      ✅ DECISION: Trust Wave (Inner)
-                    </div>
-                    <div className="text-purple-200">
-                      Because: Sticky (&lt;30%) + Long Run (5) = Highest
-                      reliability
-                    </div>
-                  </div>
-                  <div className="pt-2">
-                    <div className="text-sm font-bold text-green-300">
-                      Result: 413 (Inner = 3) ✅ Wave was correct!
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Tips */}
-              <div className="bg-gradient-to-br from-slate-800/60 to-slate-700/50 rounded-lg p-4 border border-slate-600/50">
-                <h3 className="text-base font-bold text-slate-300 mb-3 flex items-center gap-2">
-                  <span>💎</span> QUICK TIPS
-                </h3>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">•</span>
-                    <span>
-                      Always check{" "}
-                      <span className="text-emerald-300 font-bold">
-                        Swap Rate first
-                      </span>{" "}
-                      - it tells you reliability
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">•</span>
-                    <span>
-                      <span className="text-orange-300 font-bold">
-                        Sticky + Long Run
-                      </span>{" "}
-                      beats everything else
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">•</span>
-                    <span>
-                      When wave and prefix{" "}
-                      <span className="text-violet-300 font-bold">align</span>,
-                      confidence is highest
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">•</span>
-                    <span>
-                      High swap rate (≥70%) ={" "}
-                      <span className="text-red-300 font-bold">
-                        trust prefix
-                      </span>{" "}
-                      instead
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">•</span>
-                    <span>
-                      Need at least{" "}
-                      <span className="text-cyan-300 font-bold">4 rolls</span>{" "}
-                      for reliable predictions
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ModesInfo onClose={() => setShowDecisionGuide(false)} />
       )}
     </div>
   );
+}
+
+// 🔥 NEW: Get most frequent digit from recent rolls
+function getMostFrequentDigit(digits, recentRolls, position = 2) {
+  if (!digits || digits.length === 0) return digits[0];
+  if (recentRolls.length < 3) return digits[0];
+
+  const freq = {};
+  digits.forEach((d) => (freq[d] = 0));
+
+  // Count occurrences in last 8 rolls
+  recentRolls.slice(-8).forEach((roll) => {
+    const digit = String(roll)[position];
+    if (freq.hasOwnProperty(digit)) {
+      freq[digit]++;
+    }
+  });
+
+  // Return most frequent, or first if tie
+  return digits.sort((a, b) => (freq[b] || 0) - (freq[a] || 0))[0];
 }

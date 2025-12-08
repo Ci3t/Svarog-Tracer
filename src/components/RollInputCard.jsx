@@ -12,6 +12,7 @@ export default function RollInputCard({
   entries, // 🔥 NEW: pass entries for Kiyo Mode
   debugLogs,
   onSendKiyoDebugData,
+  onSendToDebug,
 }) {
   const [activeTab, setActiveTab] = useState("live"); // live | long | kiyo
 
@@ -109,7 +110,7 @@ export default function RollInputCard({
           <KiyoModeCard
             key={`kiyo-${entries.length}`}
             entries={entries}
-            onSendToDebug={onSendLongStringToDebug}
+            onSendToDebug={onSendToDebug}
             debugLogs={debugLogs}
             onSendKiyoDebugData={onSendKiyoDebugData}
           />

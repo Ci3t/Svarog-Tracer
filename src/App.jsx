@@ -58,62 +58,71 @@ export default function App() {
   const timerRef = useRef(null);
   const longStringCtxRef = useRef([]);
 
-  const handleKiyoDebugData = useCallback((data) => {
-    setKiyoDebugData(data);
-  }, []);
+  const handleKiyoDebugData = useCallback(
+    (data) => {
+      setKiyoDebugData(data);
+
+      // 🔥 Merge waveData into most recent Kiyo debug log
+      if (data.waveData && debugLogs.length > 0) {
+        setDebugLogs((prev) => {
+          const logs = [...prev];
+          for (let i = logs.length - 1; i >= 0; i--) {
+            if (logs[i].source === "kiyo" && logs[i].kind === "3") {
+              logs[i] = { ...logs[i], waveData: data.waveData };
+              break;
+            }
+          }
+          return logs;
+        });
+      }
+    },
+    [debugLogs]
+  ); // ✅ Add debugLogs dependency
   // 🔬 Kiyo Mode: Send predictions to debug
   function handleKiyoToDebug(newRolls = [], kind = "3-str") {
     if (!newRolls.length) return;
 
     let ctx3 = kiyoCtxRef.current || [];
 
-    if (ctx3.length === 0) {
-      // Fresh session
+    // 🔥 FIX: Only predict for the LAST roll (most recent)
+    // Use previous rolls as context
+    const contextRolls = newRolls.slice(0, -1);
+    const lastRoll = newRolls[newRolls.length - 1];
+
+    if (contextRolls.length < 3) {
+      // Not enough context yet
+      return;
     }
 
-    const baseTs = Date.now();
-    const safeCandidates = (p) =>
-      Array.isArray(p?.candidates) ? p.candidates : [];
+    const actual3 = String(lastRoll).slice(0, 3);
+    if (actual3.length !== 3) return;
 
-    const logsToAdd = [];
+    const p = predictNext3(contextRolls);
+    const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
+    const alt = p.alt || (candidates[1]?.value ?? null);
 
-    newRolls.forEach((raw, idx) => {
-      const actual3 = String(raw).slice(0, 3);
-      if (actual3.length !== 3) return;
+    if (
+      p.prediction &&
+      p.prediction !== "—" &&
+      !String(p.prediction).toLowerCase().startsWith("insufficient")
+    ) {
+      const newLog = {
+        ts: Date.now(),
+        kind: "3",
+        prediction: p.prediction,
+        confidence: p.confidence || 0,
+        alt,
+        mode: p.mode || "—",
+        actual: actual3,
+        ctx: contextRolls.slice(-8),
+        candidates,
+        source: "kiyo",
+      };
 
-      const predictorCtx = [...ctx3];
-
-      const p = predictNext3(predictorCtx);
-      const candidates = safeCandidates(p);
-      const alt = p.alt || (candidates[1]?.value ?? null);
-
-      if (
-        p.prediction &&
-        p.prediction !== "—" &&
-        !String(p.prediction).toLowerCase().startsWith("insufficient")
-      ) {
-        logsToAdd.push({
-          ts: baseTs + idx,
-          kind: "3",
-          prediction: p.prediction,
-          confidence: p.confidence || 0,
-          alt,
-          mode: p.mode || "—",
-          actual: actual3,
-          ctx: predictorCtx.slice(-8),
-          candidates,
-          source: "kiyo", // 🔥 Mark as Kiyo source
-        });
-      }
-
-      ctx3.unshift(actual3);
-    });
-
-    kiyoCtxRef.current = ctx3;
-
-    if (logsToAdd.length) {
-      setDebugLogs((prev) => [...logsToAdd, ...prev].slice(0, 300));
+      setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
     }
+
+    kiyoCtxRef.current = newRolls;
   }
 
   const kiyoCtxRef = useRef([]);
@@ -473,6 +482,7 @@ export default function App() {
             entries={entries}
             debugLogs={debugLogs}
             onSendKiyoDebugData={handleKiyoDebugData}
+            onSendToDebug={handleKiyoToDebug}
           />
           {/* 🔮 New Long String Lab */}
 

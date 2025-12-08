@@ -1319,11 +1319,19 @@ function detectMono3(seq, n = 4) {
 }
 
 /**
- * 🎯 PREFIX-CONSTRAINED PREDICTION
- * Given a 2-digit prefix (e.g., "41"), predict the best 3rd digit
- * based on historical patterns in the dataset.
+ * 🎯 SMART PREFIX-CONSTRAINED PREDICTION WITH WAVE TIE-BREAKER
+ *
+ * Strategy:
+ * 1. Translate ALL rolls to 4xx space FIRST (fixes the bug)
+ * 2. Prioritize recent rolls with weighted decay (session learning)
+ * 3. Use Wave Column 3 analysis as tie-breaker when candidates are close
+ *
+ * @param {Array} rolls3str - Raw roll data (will be translated internally)
+ * @param {String} prefix - Already translated prefix (e.g., "41")
+ * @param {Object} waveAnalysis - Optional wave column analysis for tie-breaking
+ * @returns {Object} Prediction with confidence, candidates, and debug info
  */
-export function predictWithPrefix(rolls3str, prefix) {
+export function predictWithPrefix(rolls3str, prefix, waveAnalysis = null) {
   if (!prefix || prefix.length !== 2) {
     return {
       prediction: null,
@@ -1333,8 +1341,23 @@ export function predictWithPrefix(rolls3str, prefix) {
     };
   }
 
-  // Filter rolls that start with this prefix
-  const matchingRolls = rolls3str.filter((r) => r.startsWith(prefix));
+  // 🔥 FIX: Translate ALL rolls to 4xx space FIRST
+  const translatedRolls = rolls3str
+    .map((r) => translateTo4(stripZeros(String(r))))
+    .filter((r) => r && r.length === 3);
+
+  if (translatedRolls.length < 3) {
+    return {
+      prediction: null,
+      confidence: 0,
+      candidates: [],
+      mode: "insufficient-data",
+      message: `Only ${translatedRolls.length} translated rolls available`,
+    };
+  }
+
+  // NOW search for prefix in translated space
+  const matchingRolls = translatedRolls.filter((r) => r.startsWith(prefix));
 
   if (matchingRolls.length < 3) {
     return {
@@ -1346,7 +1369,7 @@ export function predictWithPrefix(rolls3str, prefix) {
     };
   }
 
-  // Extract 3rd digits with weighted frequency
+  // 🔥 SESSION LEARNING: Extract 3rd digits with weighted frequency (recency bias)
   const decay = 0.85;
   const freq = {};
 
@@ -1359,13 +1382,16 @@ export function predictWithPrefix(rolls3str, prefix) {
 
   const totalWeight = Object.values(freq).reduce((a, b) => a + b, 0);
 
+  // Build candidates sorted by weighted frequency
   const candidates = Object.entries(freq)
     .map(([digit, weight]) => ({
+      digit,
       value: prefix + digit,
       pct: Math.round((weight / totalWeight) * 100),
       weight,
+      rawCount: matchingRolls.filter((r) => r[2] === digit).length,
     }))
-    .sort((a, b) => b.pct - a.pct);
+    .sort((a, b) => b.weight - a.weight);
 
   if (candidates.length === 0) {
     return {
@@ -1376,91 +1402,219 @@ export function predictWithPrefix(rolls3str, prefix) {
     };
   }
 
+  // 🔥 TIE DETECTION: Check if top candidates are close in weight
   const top = candidates[0];
-  const confidence = clampConf(top.pct / 100, 0.45, 0.75);
+  const runner = candidates[1];
+  const isTied = runner && Math.abs(top.weight - runner.weight) < 0.5;
 
-  // Check for successor patterns (what came after this roll before?)
+  let finalPrediction = top.value;
+  let finalConfidence = clampConf(top.pct / 100, 0.45, 0.75);
+  let tieBreaker = null;
+
+  // 🔥 WAVE COLUMN 3 TIE-BREAKER
+  if (isTied && waveAnalysis && waveAnalysis.debug) {
+    const col3Analysis = waveAnalysis.debug.columnResults.find(
+      (col) => col.column === 3
+    );
+
+    if (col3Analysis && col3Analysis.confidence >= 0.6) {
+      // Wave Column 3 has strong opinion: LOW (1,2) vs HIGH (3,4)
+      const wavePredictedDigits = col3Analysis.predictedDigits;
+
+      const topMatchesWave = wavePredictedDigits.includes(top.digit);
+      const runnerMatchesWave = wavePredictedDigits.includes(runner.digit);
+
+      if (topMatchesWave && !runnerMatchesWave) {
+        // Top aligns with wave - boost confidence
+        finalConfidence = Math.min(finalConfidence * 1.15, 0.82);
+        tieBreaker = {
+          method: "wave-column-3-agreement",
+          waveConfidence: col3Analysis.confidence,
+          wavePrediction: wavePredictedDigits,
+          chosenDigit: top.digit,
+        };
+      } else if (runnerMatchesWave && !topMatchesWave) {
+        // Runner-up aligns with wave - OVERRIDE!
+        finalPrediction = runner.value;
+        finalConfidence = Math.min(runner.pct / 100 + 0.15, 0.82);
+        tieBreaker = {
+          method: "wave-column-3-override",
+          waveConfidence: col3Analysis.confidence,
+          wavePrediction: wavePredictedDigits,
+          chosenDigit: runner.digit,
+          originalTop: top.digit,
+        };
+      } else {
+        tieBreaker = {
+          method: "wave-no-clear-winner",
+          waveConfidence: col3Analysis.confidence,
+          wavePrediction: wavePredictedDigits,
+        };
+      }
+    }
+  }
+
+  // Successor boost (historical pattern reinforcement)
   let successorBoost = 0;
-  const allRolls = rolls3str;
-  for (let i = 0; i < allRolls.length - 1; i++) {
-    if (allRolls[i] === top.value) {
+  for (let i = 0; i < translatedRolls.length - 1; i++) {
+    if (translatedRolls[i] === finalPrediction) {
       successorBoost += 0.02;
     }
   }
 
-  const adjustedConfidence = Math.min(confidence + successorBoost, 0.78);
+  const adjustedConfidence = Math.min(finalConfidence + successorBoost, 0.82);
 
   return {
-    prediction: top.value,
+    prediction: finalPrediction,
     confidence: adjustedConfidence,
     alt: candidates[1]?.value || null,
-    candidates: candidates.slice(0, 4),
+    candidates: candidates.slice(0, 4).map((c) => ({
+      value: c.value,
+      pct: c.pct,
+      rawCount: c.rawCount,
+    })),
     mode: "prefix-constrained",
     matchCount: matchingRolls.length,
     prefix,
+    isTied,
+    tieBreaker,
+    debug: {
+      topCandidates: candidates.slice(0, 3).map((c) => ({
+        digit: c.digit,
+        weight: c.weight.toFixed(2),
+        rawCount: c.rawCount,
+      })),
+      weightGap: runner ? (top.weight - runner.weight).toFixed(2) : "N/A",
+      translatedRollCount: translatedRolls.length,
+      successorBoost: successorBoost.toFixed(3),
+    },
   };
 }
 
-// Calculate how well live data matches training patterns for a prefix
-export function calculatePrefixConfidenceBoost(
-  trainingRolls,
-  liveRolls,
-  prefix
+/**
+ * 🎯 SMART PREFIX WITH LIVE + EU DATA BLENDING
+ *
+ * Combines current session rolls (fresh data) with EU historical data (v3.6-3.7)
+ *
+ * @param {Array} liveRolls - Current session rolls (priority #1)
+ * @param {Array} euRolls - EU historical data v3.6-3.7 (priority #2)
+ * @param {String} prefix - Translated prefix (e.g., "41")
+ * @param {Object} waveAnalysis - Wave theory analysis for tie-breaking
+ * @returns {Object} Blended prediction
+ */
+export function predictWithPrefixBlended(
+  liveRolls = [],
+  euRolls = [],
+  prefix,
+  waveAnalysis = null
 ) {
-  // Filter both datasets by prefix
-  const trainingMatches = trainingRolls.filter((r) => r.startsWith(prefix));
-  const liveMatches = liveRolls.filter((r) => r.startsWith(prefix));
-
-  if (trainingMatches.length < 3 || liveMatches.length < 3) {
-    return 0; // No boost if insufficient data
+  if (!prefix || prefix.length !== 2) {
+    return {
+      prediction: null,
+      confidence: 0,
+      candidates: [],
+      mode: "invalid-prefix",
+    };
   }
 
-  // Calculate frequency distributions
-  const trainingFreq = {};
-  const liveFreq = {};
+  // Get predictions from both sources
+  const livePrediction =
+    liveRolls.length >= 6
+      ? predictWithPrefix(liveRolls, prefix, waveAnalysis)
+      : null;
 
-  trainingMatches.forEach((roll) => {
-    const digit = roll[2];
-    trainingFreq[digit] = (trainingFreq[digit] || 0) + 1;
-  });
+  const euPrediction =
+    euRolls.length >= 3
+      ? predictWithPrefix(euRolls, prefix, waveAnalysis)
+      : null;
 
-  liveMatches.forEach((roll) => {
-    const digit = roll[2];
-    liveFreq[digit] = (liveFreq[digit] || 0) + 1;
-  });
+  // 🔥 PRIORITY 1: Strong live data (≥5 matches)
+  if (livePrediction && livePrediction.matchCount >= 5) {
+    if (euPrediction && livePrediction.prediction === euPrediction.prediction) {
+      // Both agree - HUGE confidence boost
+      return {
+        ...livePrediction,
+        confidence: Math.min(livePrediction.confidence * 1.25 + 0.08, 0.88),
+        mode: "prefix-live-eu-agreement",
+        agreement: "strong",
+        sources: {
+          live: livePrediction.matchCount,
+          eu: euPrediction.matchCount,
+        },
+      };
+    } else {
+      // Live dominant (trust fresh data)
+      return {
+        ...livePrediction,
+        confidence: Math.min(livePrediction.confidence * 1.1, 0.82),
+        mode: "prefix-live-dominant",
+        sources: {
+          live: livePrediction.matchCount,
+          eu: euPrediction?.matchCount || 0,
+        },
+      };
+    }
+  }
 
-  // Normalize to percentages
-  const trainingTotal = trainingMatches.length;
-  const liveTotal = liveMatches.length;
+  // 🔥 PRIORITY 2: Weak live data (3-4 matches) - blend with EU
+  if (livePrediction && livePrediction.matchCount >= 3 && euPrediction) {
+    const liveWeight = 0.65; // Fresh data gets priority
+    const euWeight = 0.35;
 
-  const trainingPct = {};
-  const livePct = {};
+    if (livePrediction.prediction === euPrediction.prediction) {
+      // Agreement - moderate boost
+      return {
+        ...livePrediction,
+        confidence: Math.min(
+          livePrediction.confidence * liveWeight +
+            euPrediction.confidence * euWeight +
+            0.05,
+          0.78
+        ),
+        mode: "prefix-blended-agreement",
+        agreement: "moderate",
+        sources: {
+          live: livePrediction.matchCount,
+          eu: euPrediction.matchCount,
+        },
+      };
+    } else {
+      // Disagreement - use live but lower confidence
+      return {
+        ...livePrediction,
+        confidence: Math.min(livePrediction.confidence * 0.95, 0.72),
+        mode: "prefix-blended-conflict",
+        conflict: {
+          livePrediction: livePrediction.prediction,
+          euPrediction: euPrediction.prediction,
+        },
+        sources: {
+          live: livePrediction.matchCount,
+          eu: euPrediction.matchCount,
+        },
+      };
+    }
+  }
 
-  Object.keys(trainingFreq).forEach((digit) => {
-    trainingPct[digit] = trainingFreq[digit] / trainingTotal;
-  });
+  // 🔥 FALLBACK: Use EU only if no live data
+  if (euPrediction) {
+    return {
+      ...euPrediction,
+      mode: "prefix-eu-only",
+      sources: {
+        live: 0,
+        eu: euPrediction.matchCount,
+      },
+    };
+  }
 
-  Object.keys(liveFreq).forEach((digit) => {
-    livePct[digit] = liveFreq[digit] / liveTotal;
-  });
-
-  // Calculate similarity (inverse of sum of squared differences)
-  let similarity = 0;
-  const allDigits = ["1", "2", "3", "4"];
-
-  allDigits.forEach((digit) => {
-    const tPct = trainingPct[digit] || 0;
-    const lPct = livePct[digit] || 0;
-    const diff = Math.abs(tPct - lPct);
-    similarity += 1 - diff; // Higher when distributions match
-  });
-
-  similarity = similarity / 4; // Average across 4 digits
-
-  // Convert to confidence boost: 0 to +0.15
-  const boost = (similarity - 0.5) * 0.3; // Range: -0.15 to +0.15
-
-  return Math.max(-0.1, Math.min(boost, 0.15)); // Clamp
+  // No data at all
+  return {
+    prediction: null,
+    confidence: 0,
+    candidates: [],
+    mode: "insufficient-data",
+  };
 }
 
 // 🔥 NEW: Calculate swap rate (frequency of column changes)
