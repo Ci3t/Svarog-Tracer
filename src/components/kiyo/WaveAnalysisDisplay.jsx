@@ -140,13 +140,18 @@ export default function WaveAnalysisDisplay({
                       </div>
                     </div>
 
-                    {/* Current Pattern with context */}
                     <div className="bg-black/30 rounded p-2 mb-3">
                       <div className="text-xs text-slate-400 mb-1">
                         Current Pattern:
                       </div>
                       <div className="text-lg font-bold text-cyan-300">
-                        {col.currentLabel}
+                        {col.currentPair === "A"
+                          ? `${col.scheme.pairALabel} (${col.scheme.pairA.join(
+                              "/"
+                            )})`
+                          : `${col.scheme.pairBLabel} (${col.scheme.pairB.join(
+                              "/"
+                            )})`}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1">
                         {urgency === "critical" || urgency === "high"
