@@ -13,19 +13,37 @@ export default function TestRollsInput({
 
   // Function to download rolls starting with "4xx"
   const handleDownloadRolls = () => {
+    if (!translatedTestRolls || translatedTestRolls.length === 0) return;
+
     const rollsStartingWith4 = translatedTestRolls.filter((roll) =>
       roll.startsWith("4")
     );
+
+    if (rollsStartingWith4.length === 0) return;
+
+    const now = new Date();
+
+    const pad = (n) => String(n).padStart(2, "0");
+
+    const normalizedTimestamp = `${now.getFullYear()}-${pad(
+      now.getMonth() + 1
+    )}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(
+      now.getMinutes()
+    )}:${pad(now.getSeconds())}`;
+
     const fileContent = rollsStartingWith4.join("\n");
     const blob = new Blob([fileContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = "rolls_4xx.txt";
-    link.click();
+    link.download = `Kiyo 3str data [${normalizedTimestamp}].txt`;
 
-    URL.revokeObjectURL(url);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (

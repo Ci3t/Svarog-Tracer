@@ -25,6 +25,7 @@ import WaveAccuracyDisplay from "./kiyo/WaveAccuracyDisplay";
 import CompactStatsHeader from "./CompactStatsHeader";
 import AdvancedToolsSection from "./AdvancedToolsSection";
 import ModesInfo from "./ModesInfo";
+import GuideModal from "./kiyo/GuideModal";
 
 // 🔥 WAVE THEORY SCHEMES - Optimized structure
 const WAVE_SCHEMES = {
@@ -1699,7 +1700,10 @@ export default function KiyoModeCard({
 
       {/* Decision Guide Modal */}
       {showDecisionGuide && (
-        <ModesInfo onClose={() => setShowDecisionGuide(false)} />
+        <GuideModal
+          show={showDecisionGuide}
+          onClose={() => setShowDecisionGuide(false)}
+        />
       )}
     </div>
   );
