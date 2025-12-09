@@ -38,19 +38,40 @@ const CAESAR_TO_BASE = Object.fromEntries(
  *  - pairs: Caesar line codes, e.g. "41 12 24 …"
  *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
  */
+/**
+ * Expand a long-string of digits (1–4) into:
+ *  - pairs: Caesar line codes, e.g. "41 12 24 …"
+ *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
+ */
+/**
+ * Expand a long-string of digits (1–4) into:
+ *  - pairs: Caesar line codes, e.g. "41 12 24 …"
+ *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
+ */
 function expandManualLongString(longStr) {
   const cleaned = (longStr || "").replace(/[^1-4]/g, "");
-  if (cleaned.length < 2) {
-    return { cleaned, pairs: [], rolls: [] };
-  }
+  if (cleaned.length < 2) return { cleaned, pairs: [], rolls: [] };
 
   const digits = cleaned.split("");
   const pairs = [];
-  for (let i = 0; i < digits.length - 1; i++) {
-    pairs.push(digits[i] + digits[i + 1]);
+  const rolls = [];
+
+  // ✅ Step 1 — first full Caesar pair
+  let prevPair = digits[0] + digits[1];
+  pairs.push(prevPair);
+  rolls.push(CAESAR_TO_BASE[prevPair] || null);
+
+  // ✅ Step 2 — sliding LAST-digit only
+  for (let i = 2; i < digits.length; i++) {
+    const nextPair = prevPair[1] + digits[i]; // ✅ ONLY LAST DIGIT SLIDES
+    pairs.push(nextPair);
+
+    const decoded = CAESAR_TO_BASE[nextPair] || null;
+    rolls.push(decoded); // ✅ DECODED ONLY — NO 4xx
+
+    prevPair = nextPair;
   }
 
-  const rolls = pairs.map((p) => CAESAR_TO_BASE[p] || null).filter(Boolean);
   return { cleaned, pairs, rolls };
 }
 
@@ -215,29 +236,20 @@ export default function DebugPanel({
     const rolls = debugLogs
       .filter((log) => log.kind === "2" && log.actual)
       .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime())
-      .map((log) => String(log.actual).slice(0, 2))
+      .map((log) => String(log.actual).slice(0, 2)) // ✅ RAW PAIRS
       .filter((val) => LONG_VALS.includes(val));
 
     if (rolls.length === 0) return "";
 
-    const firstIdx = LONG_VALS.indexOf(rolls[0]);
-    if (firstIdx === -1) return "";
+    // ✅ FIRST RAW INPUT IS USED FULLY
+    let longString = rolls[0];
 
-    const digits = [4, firstIdx + 1];
-
+    // ✅ ONLY SECOND DIGIT OF EACH NEXT RAW INPUT
     for (let i = 1; i < rolls.length; i++) {
-      const prevIdx = LONG_VALS.indexOf(rolls[i - 1]);
-      const currIdx = LONG_VALS.indexOf(rolls[i]);
-
-      if (prevIdx === -1 || currIdx === -1) continue;
-
-      const diff = (currIdx - prevIdx + 4) % 4;
-      const d = DIFF_TO_DIGIT[diff];
-
-      if (d) digits.push(d);
+      longString += rolls[i][1];
     }
 
-    return digits.join("");
+    return longString;
   }
 
   const longString = useMemo(() => {
