@@ -4,9 +4,15 @@ export default function AccuracyHeaderBar({
   kiyoAccuracy,
   waveAccuracy,
   combinedDataset,
-  patchInfo,
+  patchInfo = [],
   onResetWaveAccuracy,
+  regionLabel = "EU",
 }) {
+  // ✅ Build dynamic patch label from patchInfo
+  const patchLabel =
+    patchInfo && patchInfo.length
+      ? patchInfo.map((p) => p.patch).join(" + ")
+      : "—";
   return (
     <div className="bg-slate-900/60 rounded-lg border border-slate-700/50 px-4 py-2">
       <div className="flex items-center justify-between text-xs">
@@ -84,11 +90,9 @@ export default function AccuracyHeaderBar({
         {/* Right: Patches */}
         <div className="flex items-center gap-2">
           <span className="text-slate-400">Patches:</span>
-          <span className="text-cyan-400 font-semibold">
-            {patchInfo
-              ?.slice(-2)
-              .map((p) => `EU v${p.patch}`)
-              .join(" + ") || "N/A"}
+          {/* ✅ ✅ ✅ THIS IS THE FIXED DYNAMIC PATCH TEXT */}
+          <span className="text-cyan-400">
+            Patches: {regionLabel} v{patchLabel}
           </span>
         </div>
       </div>

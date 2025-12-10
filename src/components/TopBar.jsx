@@ -1,4 +1,3 @@
-// src/components/TopBar.jsx - REPLACE YOUR EXISTING FILE
 import svarog from "/svarog.png";
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];

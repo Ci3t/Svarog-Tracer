@@ -1,6 +1,11 @@
 // ADAPTIVE: Learns which patterns work best THIS SESSION and reorders priority
 // Strategy: Start with default order, track hits/misses, promote winners
 
+import { ALL_SEQUENTIAL_2STR_RECENT as ALL_2STR_RECENT } from "./allLiveSheetData";
+import { EU_SEQUENTIAL_2STR_RECENT } from "./euLiveSheetData";
+import { NA_SEQUENTIAL_2STR_RECENT } from "./naLiveSheetData";
+import { ASIA_SEQUENTIAL_2STR_RECENT } from "./asiaLiveSheetData";
+
 const PHASE_CACHE = [];
 const PHASE_CACHE_LIMIT = 4;
 
@@ -42,6 +47,221 @@ function stripZeros(str = "") {
 
 function clampConf(conf, min = 0.42, max = 0.75) {
   return Math.max(min, Math.min(conf, max));
+}
+// --- 2-STR HISTORICAL HELPERS (live + sheet blending) ---
+
+function getHistorical2StrRolls(region = "ALL") {
+  const key = (region || "ALL").toUpperCase();
+
+  if (key === "EU") return EU_SEQUENTIAL_2STR_RECENT || [];
+  if (key === "ASIA") return ASIA_SEQUENTIAL_2STR_RECENT || [];
+  if (key === "AMERICA" || key === "NA" || key === "NORTH_AMERICA")
+    return NA_SEQUENTIAL_2STR_RECENT || [];
+
+  // default global
+  return ALL_2STR_RECENT || [];
+}
+
+function build2StrFrequency(rolls = []) {
+  const decay = 0.9;
+  const freq = {};
+
+  const clean = rolls
+    .map((r) =>
+      String(r)
+        .replace(/[^1-4]/g, "")
+        .slice(0, 2)
+    )
+    .filter((r) => r.length === 2);
+
+  const n = clean.length;
+  if (!n) {
+    return { total: 0, candidates: [] };
+  }
+
+  // recency-weighted frequency, similar spirit to predictWithPrefix
+  clean.forEach((val, idx) => {
+    const dist = n - 1 - idx; // recent rolls get higher weight
+    const weight = Math.pow(decay, dist);
+
+    if (!freq[val]) {
+      freq[val] = { value: val, weight: 0, rawCount: 0 };
+    }
+    freq[val].weight += weight;
+    freq[val].rawCount += 1;
+  });
+
+  const totalWeight = Object.values(freq).reduce((sum, f) => sum + f.weight, 0);
+
+  const candidates = Object.values(freq)
+    .map((f) => ({
+      value: f.value,
+      weight: f.weight,
+      rawCount: f.rawCount,
+      pct: Math.round((f.weight / totalWeight) * 100),
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  return { total: n, candidates };
+}
+
+function analyze2StrDataset(rolls = []) {
+  const { total, candidates } = build2StrFrequency(rolls);
+  if (!total || !candidates.length) {
+    return {
+      total: 0,
+      main: null,
+      alt: null,
+      candidates: [],
+      dominance: 0,
+    };
+  }
+
+  const main = candidates[0];
+  const alt = candidates[1] || null;
+  const dominance = main.pct / 100; // 0–1
+
+  return { total, main, alt, candidates, dominance };
+}
+
+function merge2StrCandidates(primary, secondary, mainValue) {
+  const seen = new Set();
+  const list = [];
+
+  function pushFrom(source) {
+    (source?.candidates || []).forEach((c) => {
+      if (!c || !c.value) return;
+      if (seen.has(c.value)) return;
+      seen.add(c.value);
+      list.push({ value: c.value, pct: c.pct ?? 0 });
+    });
+  }
+
+  pushFrom(primary);
+  pushFrom(secondary);
+
+  if (mainValue && !seen.has(mainValue)) {
+    list.unshift({ value: mainValue, pct: 100 });
+  }
+
+  if (!list.length && mainValue) {
+    return [{ value: mainValue, pct: 100 }];
+  }
+
+  // guarantee main first
+  if (mainValue) {
+    const idx = list.findIndex((c) => c.value === mainValue);
+    if (idx > 0) {
+      const [m] = list.splice(idx, 1);
+      list.unshift(m);
+    }
+  }
+
+  return list;
+}
+
+// 🔮 Main 2-str smart predictor (live + sheet, region-aware)
+// - live rolls are translated to 4-space like the other modes
+// - sheet data = last 2 patches per region
+// - live has higher priority, sheet boosts confidence when they agree
+export function predictNext2Smart(rawRolls, options = {}) {
+  const { region = "ALL" } = options;
+
+  // Normalise live rolls into 2-str in translated 4-space
+  const liveRolls = (rawRolls || [])
+    .map((r) => translateTo4(stripZeros(String(r))).slice(0, 2))
+    .filter((r) => r && r.length === 2);
+
+  // Historical rolls from sheets (already in 2-str form)
+  const historicalRolls = getHistorical2StrRolls(region);
+
+  const training = analyze2StrDataset(historicalRolls);
+  const live = analyze2StrDataset(liveRolls);
+
+  if (!training.total && !live.total) {
+    return {
+      prediction: null,
+      confidence: 0,
+      alt: null,
+      mode: "insufficient-data-2str",
+      candidates: [],
+    };
+  }
+
+  const liveCount = live.total;
+  const trainingHasPred = !!training.main;
+  const liveHasPred = !!live.main;
+
+  let prediction = null;
+  let alt = null;
+  let mode = "2str-hybrid";
+  let confidence = 0.5;
+
+  // --- choose regime based on live data length ---
+  if (liveHasPred && liveCount >= 8) {
+    // Strong live data → live dominates, sheet boosts if agrees
+    const agree = trainingHasPred && training.main.value === live.main.value;
+
+    prediction = live.main.value;
+    alt =
+      live.alt?.value ||
+      (agree ? training.alt?.value : training.main?.value) ||
+      null;
+
+    const base = 0.65 * live.dominance + 0.35 * (training.dominance || 0);
+    const bonus = agree ? 0.12 : -0.02;
+    confidence = clampConf(base + bonus, agree ? 0.65 : 0.55, 0.9);
+    mode = agree ? "2str-live+sheet-agree-strong" : "2str-live-priority-strong";
+  } else if (liveHasPred && liveCount >= 4) {
+    // Mid regime → blend live + sheet more evenly
+    const agree = trainingHasPred && training.main.value === live.main.value;
+
+    prediction = live.main.value;
+    alt =
+      (agree ? live.alt?.value : training.main?.value) ||
+      training.alt?.value ||
+      live.alt?.value ||
+      null;
+
+    const base = 0.55 * live.dominance + 0.45 * (training.dominance || 0);
+    const bonus = agree ? 0.08 : -0.04;
+    confidence = clampConf(base + bonus, agree ? 0.55 : 0.5, 0.82);
+    mode = agree ? "2str-live+sheet-agree-mid" : "2str-live-priority-mid";
+  } else if (liveHasPred && liveCount > 0) {
+    // Very little live data → sheet is main, live used as spicy alt
+    if (trainingHasPred) {
+      prediction = training.main.value;
+      alt = live.main.value;
+      const base = 0.5 * training.dominance + 0.3 * live.dominance + 0.1;
+      confidence = clampConf(base, 0.5, 0.78);
+      mode = "2str-sheet-priority";
+    } else {
+      prediction = live.main.value;
+      alt = live.alt?.value || null;
+      confidence = clampConf(0.45 + 0.3 * live.dominance, 0.45, 0.75);
+      mode = "2str-live-only";
+    }
+  } else {
+    // No live prediction → pure sheet
+    prediction = training.main?.value || null;
+    alt = training.alt?.value || null;
+    confidence = clampConf(0.52 + 0.3 * (training.dominance || 0), 0.5, 0.8);
+    mode = "2str-sheet-only";
+  }
+
+  const candidates = merge2StrCandidates(
+    liveHasPred ? live : null,
+    trainingHasPred ? training : null,
+    prediction
+  );
+
+  return {
+    prediction, // main suggestion
+    confidence, // 0–1, PredictionCard shows %
+    alt, // alt suggestion (2nd common)
+    mode, // shows under the pill
+    candidates, // full list, PredictionCard will show Alternatives
+  };
 }
 
 function buildCandidates(prediction, confPct, freqSorted) {
@@ -1636,4 +1856,7 @@ function calculateSwapRate(recentRolls, pairScheme) {
   });
 
   return swaps / (recentRolls.length - 1); // Returns 0.0 to 1.0
+}
+export function predictNext2EnhancedWrapper(rolls2, region = "ALL") {
+  return predictNext2Enhanced(rolls2, region);
 }

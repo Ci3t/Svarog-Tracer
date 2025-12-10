@@ -1,10 +1,21 @@
 // src/components/LongStringLabCard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { decodeLongString } from "../utils/stringHelpers.js";
-import { predictNext, getModeBreakdown } from "../utils/predictNext.js";
+import { getModeBreakdown } from "../utils/predictNext.js";
+import { predictNext2Smart } from "../utils/enhanced-2str-predictor";
+import { get2StrPatchInfo } from "../utils/twoStrHistoricalData";
 
 export default function LongStringLabCard({ onSendToDebug }) {
   const [input, setInput] = useState("");
+
+  // ✅ NEW: region + imported rolls
+  const [region, setRegion] = useState("ALL");
+  const [importedRolls, setImportedRolls] = useState([]);
+  const fileInputRef = useRef(null);
+
+  // ✅ Mini performance stats
+  const [totalPredictions, setTotalPredictions] = useState(0);
+  const [correctPredictions, setCorrectPredictions] = useState(0);
 
   // decode to pairs + 2-str rolls
   const { cleaned, pairs, rolls } = useMemo(
@@ -12,11 +23,17 @@ export default function LongStringLabCard({ onSendToDebug }) {
     [input]
   );
 
-  // main sandbox prediction (winner mode)
+  const allRolls = useMemo(
+    () => [...rolls, ...importedRolls],
+    [rolls, importedRolls]
+  );
+
+  // ✅ SMART sandbox prediction (region-aware now)
   const labPrediction = useMemo(() => {
-    if (!rolls.length) return null;
-    return predictNext(rolls);
-  }, [rolls]);
+    if (!allRolls.length) return null;
+    return predictNext2Smart(allRolls, { region });
+  }, [allRolls, region]);
+
   const altSandboxPct = useMemo(() => {
     if (!labPrediction || !labPrediction.alt) return null;
     const candidates = Array.isArray(labPrediction.candidates)
@@ -27,216 +44,211 @@ export default function LongStringLabCard({ onSendToDebug }) {
     );
     return match ? match.pct : null;
   }, [labPrediction]);
-  // per-mode breakdown (who votes what)
-  const modeBreakdown = useMemo(() => {
-    if (!rolls.length) return {};
-    return getModeBreakdown(rolls);
-  }, [rolls]);
 
-  // 🔥 AUTO-SEND: whenever new decoded rolls appear, send ONLY the new ones
-  // to debug, like a live stream.
+  // ✅ Auto performance tracking
   const prevRollCountRef = useRef(0);
+  const lastPredictionRef = useRef(null);
+
+  useEffect(() => {
+    if (!labPrediction || !labPrediction.prediction) return;
+
+    if (allRolls.length > prevRollCountRef.current) {
+      const newActual = allRolls[allRolls.length - 1];
+
+      if (lastPredictionRef.current) {
+        setTotalPredictions((t) => t + 1);
+
+        if (newActual === lastPredictionRef.current) {
+          setCorrectPredictions((c) => c + 1);
+        }
+      }
+
+      lastPredictionRef.current = labPrediction.prediction;
+      prevRollCountRef.current = allRolls.length;
+    }
+  }, [allRolls, labPrediction]);
+
+  // 🔥 AUTO-SEND to debug
+  const prevDebugCountRef = useRef(0);
   useEffect(() => {
     if (!onSendToDebug) return;
 
-    // if user deleted chars, just reset the counter – don't send anything
-    if (rolls.length <= prevRollCountRef.current) {
-      prevRollCountRef.current = rolls.length;
+    if (rolls.length <= prevDebugCountRef.current) {
+      prevDebugCountRef.current = rolls.length;
       return;
     }
 
-    const newRolls = rolls.slice(prevRollCountRef.current);
-    prevRollCountRef.current = rolls.length;
+    const newRolls = rolls.slice(prevDebugCountRef.current);
+    prevDebugCountRef.current = rolls.length;
 
     if (newRolls.length) {
-      // e.g. [ "41" ] or [ "41","43" ] etc.
       onSendToDebug(newRolls);
     }
   }, [rolls, onSendToDebug]);
 
-  const handleChange = (e) => {
-    setInput(e.target.value);
+  // ✅ Patch label from region
+  const patchLabel = useMemo(() => {
+    const info = get2StrPatchInfo(region);
+    if (!info || !info.length) return "Patch: —";
+
+    const patches = Array.from(
+      new Set(info.map((p) => p.patch).filter(Boolean))
+    );
+
+    if (!patches.length) return "Patch: —";
+
+    patches.sort((a, b) => {
+      const [aM, aN] = a.split(".").map(Number);
+      const [bM, bN] = b.split(".").map(Number);
+      return aM === bM ? aN - bN : aM - bM;
+    });
+
+    if (patches.length === 1) return `Patch: ${patches[0]}`;
+    return `Patch: ${patches[0]} – ${patches[patches.length - 1]}`;
+  }, [region]);
+
+  // ✅ TXT IMPORT
+  const handleImportChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      const lines = text.split(/\r?\n/).map((l) => l.trim());
+      const valid = lines.filter((l) => /^[1-4]{2}$/.test(l));
+      if (!valid.length) return;
+      setImportedRolls((prev) => [...prev, ...valid]);
+    };
+
+    reader.readAsText(file);
+    event.target.value = "";
   };
+
+  // ✅ TXT EXPORT
+  const handleExportTxt = () => {
+    if (!allRolls.length) return;
+    const text = allRolls.join("\n");
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sandbox-2str-session.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const accuracyPct =
+    totalPredictions > 0
+      ? Math.round((correctPredictions / totalPredictions) * 100)
+      : 0;
 
   return (
     <div className="bg-slate-900/70 border border-slate-700/70 rounded-2xl p-4 sm:p-5 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <div>
-          <h3 className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-200">
-            🧪 Long String Lab
-          </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Type a long string like{" "}
-            <span className="text-violet-300 font-mono">41242323</span> and see
-            the decoded 2-str rolls + predictions. Rolls are sent to the{" "}
-            <span className="text-violet-300">2-str debug</span> automatically
-            as you type.
-          </p>
+        <h3 className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-200">
+          🧪 Long String Lab (SMART)
+        </h3>
+      </div>
+
+      {/* Region + Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase text-slate-400">Region:</span>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded text-xs px-2 py-1 text-slate-100"
+          >
+            <option value="ALL">Global</option>
+            <option value="America">America</option>
+            <option value="EU">EU</option>
+            <option value="ASIA">Asia</option>
+          </select>
+          <span className="text-[11px] text-slate-500">{patchLabel}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportTxt}
+            className="text-[11px] px-2 py-1 border border-slate-700 rounded bg-slate-900 text-slate-200"
+          >
+            Download txt
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="text-[11px] px-2 py-1 border border-violet-600 rounded bg-violet-700/40 text-violet-100"
+          >
+            Import txt
+          </button>
+
+          {importedRolls.length > 0 && (
+            <button
+              onClick={() => setImportedRolls([])}
+              className="text-[11px] px-2 py-1 border border-red-600 rounded bg-red-700/30 text-red-200"
+            >
+              Clear imported ({importedRolls.length})
+            </button>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt"
+            className="hidden"
+            onChange={handleImportChange}
+          />
         </div>
       </div>
 
       {/* Input */}
-      <div className="space-y-1">
-        <label className="text-[11px] text-slate-400">
-          Long string (digits{" "}
-          <span className="text-violet-300 font-semibold">1–4</span> only)
-        </label>
-        <input
-          type="text"
-          value={input}
-          onChange={handleChange}
-          placeholder="Example: 41242323"
-          className="w-full rounded-lg bg-slate-950/70 border border-slate-700/60 px-3 py-1.5 text-xs text-slate-100 font-mono outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500"
-        />
-        {input && cleaned !== input.replace(/[^1-4]/g, "") && (
-          <p className="text-[10px] text-amber-400 mt-0.5">
-            Non 1–4 characters ignored. Cleaned:{" "}
-            <span className="font-mono text-violet-300">{cleaned}</span>
-          </p>
-        )}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="Example: 41242323"
+        className="w-full rounded-lg bg-slate-950/70 border border-slate-700/60 px-3 py-1.5 text-xs text-slate-100 font-mono"
+      />
+
+      {/* Decoded Rolls */}
+      <div className="text-[11px] text-slate-400">
+        Rolls:{" "}
+        <span className="text-emerald-300 font-mono">{allRolls.join(" ")}</span>
       </div>
 
-      {/* Caesar pairs */}
-      <div className="space-y-1">
-        <div className="text-[11px] text-slate-400">
-          Caesar pairs (sliding window):
-        </div>
-        <div className="bg-slate-950/70 rounded-lg border border-slate-800/80 px-3 py-2 text-[11px] text-slate-200 font-mono min-h-[32px] max-h-24 overflow-y-auto">
-          {pairs.length ? (
-            <span className="space-x-1">
-              {pairs.map((p, idx) => (
-                <span key={`${p}-${idx}`} className="text-violet-300">
-                  {p}
-                </span>
-              ))}
-            </span>
-          ) : (
-            <span className="text-slate-500">… waiting for input</span>
-          )}
-        </div>
-      </div>
-
-      {/* Decoded rolls */}
-      <div className="space-y-1">
-        <div className="text-[11px] text-slate-400">Decoded 2-str rolls:</div>
-        <div className="bg-slate-950/70 rounded-lg border border-slate-800/80 px-3 py-2 text-[11px] text-slate-200 font-mono min-h-[32px] max-h-24 overflow-y-auto">
-          {rolls.length ? (
-            <span className="space-x-1">
-              {rolls.map((r, idx) => (
-                <span key={`${r}-${idx}`} className="text-emerald-300">
-                  {r}
-                </span>
-              ))}
-            </span>
-          ) : (
-            <span className="text-slate-500">… nothing to decode yet</span>
-          )}
-        </div>
-        {rolls.length > 0 && (
-          <p className="text-[10px] text-slate-500 mt-0.5">
-            Total: {rolls.length} rolls decoded. Each new roll is streamed to{" "}
-            the 2-str debug trace.
-          </p>
-        )}
-      </div>
-
-      {/* Sandbox prediction + mode breakdown */}
+      {/* ✅ SMART Prediction */}
       {labPrediction && labPrediction.prediction && (
-        <div className="mt-2 border-t border-slate-800/70 pt-3 space-y-3">
-          {/* 🎯 Sandbox Prediction card (KEEP) */}
-          <div className="bg-slate-900/70 border border-emerald-700/30 rounded-xl p-3 text-xs flex justify-between items-center">
-            <div>
-              <div className="text-slate-400 mb-1">🎯 Sandbox Prediction</div>
-              <div className="text-emerald-300 font-mono text-sm">
-                Main: {labPrediction.prediction} (
-                {Math.round((labPrediction.confidence || 0) * 100)}%)
-              </div>
-              {labPrediction.alt && (
-                <div className=" py-1 rounded-lg bg-slate-900/80 ">
-                  <span className="text-amber-300 font-mono text-sm">Alt:</span>
-                  <span className="font-mono text-amber-300">
-                    {labPrediction.alt}
-                  </span>
-                  {altSandboxPct != null && (
-                    <span className="text-amber-300 ml-1">
-                      ({altSandboxPct}%)
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <div className="text-[10px] text-purple-300 mt-1">
-                Mode: {labPrediction.mode}
-              </div>
-            </div>
+        <div className="bg-slate-950/60 border border-emerald-600/30 rounded-lg p-3">
+          <div className="text-emerald-300 font-mono text-sm">
+            Main: {labPrediction.prediction} (
+            {Math.round((labPrediction.confidence || 0) * 100)}%)
           </div>
 
-          {/* 📊 Mode breakdown – which mode is best */}
-          {/* 📊 Mode breakdown – which mode is best */}
-          {modeBreakdown && Object.keys(modeBreakdown).length > 0 && (
-            <div className="space-y-1">
-              <div className="text-[11px] text-slate-400">
-                Mode breakdown (sandbox – ordered by confidence; higher % = more
-                reliable for this ctx):
-              </div>
-
-              {(() => {
-                const sortedModes = Object.entries(modeBreakdown)
-                  .map(([mode, info]) => ({
-                    mode,
-                    prediction: info.prediction,
-                    confidence: info.confidence || 0,
-                    alt: info.alt || null,
-                  }))
-                  .sort((a, b) => b.confidence - a.confidence); // ← all modes, sorted
-
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-                    {sortedModes.map((m, index) => {
-                      const pct = Math.round(m.confidence * 100);
-                      const strong = pct >= 60;
-
-                      return (
-                        <div
-                          key={m.mode}
-                          className={`p-2 rounded-lg border ${
-                            strong
-                              ? "bg-emerald-900/30 border-emerald-600/60"
-                              : "bg-slate-950/60 border-slate-700/60"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="font-mono text-slate-200 truncate">
-                              {m.mode}
-                            </div>
-                            <div className="text-[10px] text-slate-400 ml-2">
-                              #{index + 1}
-                            </div>
-                          </div>
-
-                          <div className="text-violet-300">
-                            pred:{" "}
-                            <span className="font-mono">{m.prediction}</span>
-                          </div>
-
-                          {m.alt && (
-                            <div className="text-sky-300">
-                              alt: <span className="font-mono">{m.alt}</span>
-                            </div>
-                          )}
-
-                          <div className="text-amber-300">
-                            conf: <span className="font-mono">{pct}%</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+          {labPrediction.alt && (
+            <div className="text-amber-300 font-mono text-xs mt-1">
+              Alt: {labPrediction.alt}
+              {altSandboxPct != null && ` (${altSandboxPct}%)`}
             </div>
           )}
+
+          <div className="text-[10px] text-slate-400 mt-1">
+            {Math.round(labPrediction.liveShare * 100)}% live /{" "}
+            {Math.round(labPrediction.sheetShare * 100)}% sheet
+          </div>
+
+          <div className="text-[10px] text-purple-300 mt-0.5">
+            Mode: {labPrediction.mode}
+          </div>
+
+          {/* ✅ Performance Mini Stats */}
+          <div className="text-[10px] text-slate-400 mt-1">
+            Sandbox accuracy: {correctPredictions}/{totalPredictions} (
+            {accuracyPct}%)
+          </div>
         </div>
       )}
     </div>

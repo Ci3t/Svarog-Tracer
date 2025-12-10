@@ -4,9 +4,23 @@ import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
 // NEW:
 import {
   EU_SEQUENTIAL_3STR_RECENT,
-  EU_SEQUENTIAL_3STR_ALL,
   EU_PATCH_INFO,
 } from "../utils/euLiveSheetData";
+
+import {
+  NA_SEQUENTIAL_3STR_RECENT,
+  NA_PATCH_INFO,
+} from "../utils/naLiveSheetData";
+
+import {
+  ASIA_SEQUENTIAL_3STR_RECENT,
+  ASIA_PATCH_INFO,
+} from "../utils/asiaLiveSheetData";
+
+import {
+  ALL_SEQUENTIAL_3STR_RECENT,
+  ALL_PATCH_INFO,
+} from "../utils/allLiveSheetData";
 import { translateTo4 } from "../utils/stringHelpers";
 
 // 🔥 Import kiyo components
@@ -61,8 +75,8 @@ const WAVE_SCHEMES = {
   },
 };
 
-// 🔥 NEW: Calculate consecutive run length (REAL EU WAVE THEORY)
-function calculateConsecutiveRun(rolls, scheme) {
+// 🔥 FIXED: calculateConsecutiveRun now accepts digitPosition parameter
+function calculateConsecutiveRun(rolls, scheme, digitPosition = 2) {
   if (!rolls || rolls.length === 0)
     return { pair: null, length: 0, pattern: [] };
 
@@ -70,10 +84,9 @@ function calculateConsecutiveRun(rolls, scheme) {
   let currentPair = null;
   let runLength = 0;
 
-  // Build pattern array from most recent backwards
   for (let i = rolls.length - 1; i >= 0; i--) {
-    const lastDigit = rolls[i][2];
-    const isA = scheme.pairA.includes(lastDigit);
+    const checkDigit = rolls[i][digitPosition];
+    const isA = scheme.pairA.includes(checkDigit);
     const pair = isA ? "A" : "B";
 
     pattern.unshift(pair); // Add to beginning for visual display
@@ -91,16 +104,16 @@ function calculateConsecutiveRun(rolls, scheme) {
   return { pair: currentPair, length: runLength, pattern };
 }
 
-// 🔥 NEW: Calculate swap rate for a column
-function calculateSwapRate(rolls, scheme) {
+// 🔥 FIXED: calculateSwapRate now accepts digitPosition parameter
+function calculateSwapRate(rolls, scheme, digitPosition = 2) {
   if (!rolls || rolls.length < 2) return 0;
 
   let swaps = 0;
   let lastPair = null;
 
   for (let i = rolls.length - 1; i >= 0; i--) {
-    const lastDigit = rolls[i][2];
-    const isA = scheme.pairA.includes(lastDigit);
+    const checkDigit = rolls[i][digitPosition];
+    const isA = scheme.pairA.includes(checkDigit);
     const pair = isA ? "A" : "B";
 
     if (lastPair !== null && pair !== lastPair) {
@@ -112,8 +125,7 @@ function calculateSwapRate(rolls, scheme) {
   return swaps / (rolls.length - 1);
 }
 
-// 🔥 ENHANCED: Determine flip likelihood based on run length with urgency levels
-// 🔥 ENHANCED: Adaptive flip status with column-specific behavior
+// 🔥 FIXED: calculateFlipStatus with adaptive thresholds
 function calculateFlipStatus(runLength, pair, scheme, columnBehavior = null) {
   // Use adaptive thresholds if behavior data available
   const isVolatile = columnBehavior?.behavior === "volatile";
@@ -203,11 +215,18 @@ function calculateFlipStatus(runLength, pair, scheme, columnBehavior = null) {
     return {
       status: "likely_continue",
       confidence: 0.52,
-      message: `Just started - May continue`,
+      message: `Just started - Likely to continue`,
+
+      // ✅ NOT A FLIP — CONTINUATION
       flipTarget: pair === "A" ? scheme.pairA : scheme.pairB,
-      flipLabel: pair === "A" ? scheme.pairALabel : scheme.pairBLabel,
+      flipLabel:
+        pair === "A"
+          ? `Continue ${scheme.pairALabel}`
+          : `Continue ${scheme.pairBLabel}`,
+
       urgency: "none",
       icon: "🔵",
+      isContinuation: true, // ✅ add this flag
     };
   }
 
@@ -223,7 +242,7 @@ function calculateFlipStatus(runLength, pair, scheme, columnBehavior = null) {
 }
 
 // 🔥 NEW: Detect "missed flip" - when a long run just ended (post-flip scenario)
-function detectMissedFlip(recentRolls, scheme) {
+function detectMissedFlip(recentRolls, scheme, digitPosition = 2) {
   if (recentRolls.length < 8) return null;
 
   // Check if a long run existed 3-8 rolls ago
@@ -235,8 +254,8 @@ function detectMissedFlip(recentRolls, scheme) {
   let prevRunLength = 0;
 
   for (let i = previousWindow.length - 1; i >= 0; i--) {
-    const lastDigit = previousWindow[i][2];
-    const isA = scheme.pairA.includes(lastDigit);
+    const checkDigit = previousWindow[i][digitPosition];
+    const isA = scheme.pairA.includes(checkDigit);
     const pair = isA ? "A" : "B";
 
     if (prevRunPair === null) {
@@ -251,8 +270,8 @@ function detectMissedFlip(recentRolls, scheme) {
 
   // Check if current window shows opposite pattern
   const currentPairs = currentWindow.map((roll) => {
-    const lastDigit = roll[2];
-    return scheme.pairA.includes(lastDigit) ? "A" : "B";
+    const checkDigit = roll[digitPosition];
+    return scheme.pairA.includes(checkDigit) ? "A" : "B";
   });
 
   const flippedToDifferent = currentPairs.every((p) => p !== prevRunPair);
@@ -605,6 +624,7 @@ export default function KiyoModeCard({
   const lastSentRef = useRef(null);
   const [, forceUpdate] = useState();
   const lastSentDataRef = useRef(null);
+  const [datasetRegion, setDatasetRegion] = useState("EU"); // default EU
 
   // 🔥 NEW: Imported rolls from text file
   const [importedRolls, setImportedRolls] = useState([]);
@@ -840,9 +860,14 @@ export default function KiyoModeCard({
     let validColumnsCount = 0;
 
     const columnAnalysis = schemes.map((scheme, idx) => {
-      const runAnalysis = calculateConsecutiveRun(recentRolls, scheme);
+      const digitPosition = idx === 0 ? 1 : 2; // ✅ col2 = 2nd digit | col3 = 3rd digit
 
-      // 🔥 NEW: Calculate adaptive behavior
+      const runAnalysis = calculateConsecutiveRun(
+        recentRolls,
+        scheme,
+        digitPosition
+      );
+
       const columnBehavior = calculateColumnFlipBehavior(
         recentRolls,
         scheme,
@@ -853,13 +878,12 @@ export default function KiyoModeCard({
         runAnalysis.length,
         runAnalysis.pair,
         scheme,
-        columnBehavior // 🔥 PASS BEHAVIOR DATA
+        columnBehavior
       );
 
-      const swapRate = calculateSwapRate(recentRolls, scheme);
+      const swapRate = calculateSwapRate(recentRolls, scheme, digitPosition);
 
-      // 🔥 NEW: Check for missed flip (post-flip scenario)
-      const missedFlip = detectMissedFlip(recentRolls, scheme);
+      const missedFlip = detectMissedFlip(recentRolls, scheme, digitPosition);
 
       // 🔥 NEW: Mark high-activity columns as ignored
       const isIgnored = swapRate >= 0.7;
@@ -1008,7 +1032,6 @@ export default function KiyoModeCard({
 
     return predictFromMultipleColumns(columns);
   }, [analyzeWavePatterns, combinedRolls]);
-
   const smartPrefixPrediction = useMemo(() => {
     if (combinedRolls.length < 3) return null;
 
@@ -1038,74 +1061,10 @@ export default function KiyoModeCard({
 
     if (!sourcePrefix) return null;
 
-    // ═══════════════════════════════════════════════════════
-    // 🔥 TIER S: CRITICAL WAVE OVERRIDE (5+ run + sticky <30%)
-    // ═══════════════════════════════════════════════════════
-    if (analyzeWavePatterns?.focusColumn) {
-      const focusCol = analyzeWavePatterns.focusColumn[1];
-
-      if (
-        focusCol.urgency === "critical" &&
-        focusCol.swapRate < 0.3 &&
-        focusCol.runLength >= 5 &&
-        focusCol.status === "due_to_flip"
-      ) {
-        // 🔥 WAVE IS CRITICAL - OVERRIDE EVERYTHING
-
-        // Get the other column (not focus)
-        const otherCol = analyzeWavePatterns.columns.find(
-          (c) => c.column !== focusCol.column
-        );
-
-        // Narrow down predictions using frequency
-        const col2Digit = getMostFrequentDigit(
-          analyzeWavePatterns.columns[0].flipTarget.length > 0
-            ? analyzeWavePatterns.columns[0].flipTarget
-            : analyzeWavePatterns.columns[0].scheme.pairA,
-          combinedRolls,
-          1
-        );
-
-        const col3Digit = getMostFrequentDigit(
-          focusCol.flipTarget,
-          combinedRolls,
-          2
-        );
-
-        return {
-          prediction: `4${col2Digit}${col3Digit}`,
-          alt: `4${col2Digit}${
-            focusCol.flipTarget.find((d) => d !== col3Digit) || col3Digit
-          }`,
-          confidence: Math.min(focusCol.confidence, 0.85),
-          matchCount: 0,
-          agreement: "wave-critical-override",
-          sourcePrefix,
-          sourceType,
-          method: "wave-critical",
-          tier: "S",
-          icon: "🔥",
-          overrideReason: `${focusCol.runLength}-run ${
-            focusCol.currentLabel
-          } + ${Math.round(focusCol.swapRate * 100)}% sticky`,
-          blendInfo: {
-            method: "wave-critical-override",
-            liveWeight: 0,
-            reason: "Critical wave pattern detected - ignoring prefix",
-          },
-        };
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // 🔥 NORMAL FLOW: Smart Prefix with Wave Validation
-    // ═══════════════════════════════════════════════════════
-
     const trainingPrediction = predictWithPrefix(
       EU_SEQUENTIAL_3STR_RECENT,
       sourcePrefix
     );
-
     const livePrediction =
       combinedRolls.length >= 6
         ? predictWithPrefix(combinedRolls, sourcePrefix)
@@ -1195,45 +1154,6 @@ export default function KiyoModeCard({
       }
     }
 
-    // ═══════════════════════════════════════════════════════
-    // 🔥 WAVE VALIDATION: Check alignment and adjust confidence
-    // ═══════════════════════════════════════════════════════
-
-    if (waveMultiColumnPrediction && finalPrediction.prediction) {
-      const wavePredLastDigit = waveMultiColumnPrediction.prediction[2];
-      const prefixPredLastDigit = finalPrediction.prediction[2];
-      const alignsWithWave = wavePredLastDigit === prefixPredLastDigit;
-
-      if (alignsWithWave && waveMultiColumnPrediction.multiColumnAgreement) {
-        finalPrediction.confidence = Math.min(
-          finalPrediction.confidence * 1.25,
-          0.9
-        );
-        finalPrediction.waveBoost = "multi-column-aligned";
-        finalPrediction.icon = "✅";
-      } else if (
-        analyzeWavePatterns?.focusColumn &&
-        analyzeWavePatterns.focusColumn[1].urgency === "high"
-      ) {
-        const [_, focusCol] = analyzeWavePatterns.focusColumn;
-        const alignsWithFocus =
-          focusCol.flipTarget.includes(prefixPredLastDigit);
-
-        if (alignsWithFocus) {
-          finalPrediction.confidence = Math.min(
-            finalPrediction.confidence * 1.15,
-            0.85
-          );
-          finalPrediction.waveBoost = "high-aligned";
-          finalPrediction.icon = "✅";
-        } else {
-          finalPrediction.confidence *= 0.75;
-          finalPrediction.waveConflict = true;
-          finalPrediction.icon = "⚠️";
-        }
-      }
-    }
-
     return {
       ...finalPrediction,
       sourcePrefix,
@@ -1242,13 +1162,7 @@ export default function KiyoModeCard({
       liveMatchCount: livePrediction?.matchCount || 0,
       trainingMatchCount: trainingPrediction?.matchCount || 0,
     };
-  }, [
-    combinedRolls,
-    activePrefix,
-    testInput,
-    analyzeWavePatterns,
-    waveMultiColumnPrediction,
-  ]);
+  }, [combinedRolls, activePrefix, testInput]);
   // 🔥 LEGACY TRAC
   // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
   const prediction = useMemo(() => {
@@ -1290,24 +1204,27 @@ export default function KiyoModeCard({
     const vizRolls = combinedRolls.slice(-12);
 
     return vizRolls.reverse().map((roll) => {
-      const lastDigit = roll[2];
+      const col1Digit = roll[0]; // 1st digit
+      const col2Digit = roll[1]; // 2nd digit
+      const col3Digit = roll[2]; // 3rd digit
+
       return {
         roll,
         col1: {
-          isA: WAVE_SCHEMES.col1.pairA.includes(lastDigit),
-          label: WAVE_SCHEMES.col1.pairA.includes(lastDigit)
+          isA: WAVE_SCHEMES.col1.pairA.includes(col1Digit),
+          label: WAVE_SCHEMES.col1.pairA.includes(col1Digit)
             ? WAVE_SCHEMES.col1.pairALabel
             : WAVE_SCHEMES.col1.pairBLabel,
         },
         col2: {
-          isA: WAVE_SCHEMES.col2.pairA.includes(lastDigit),
-          label: WAVE_SCHEMES.col2.pairA.includes(lastDigit)
+          isA: WAVE_SCHEMES.col2.pairA.includes(col2Digit),
+          label: WAVE_SCHEMES.col2.pairA.includes(col2Digit)
             ? WAVE_SCHEMES.col2.pairALabel
             : WAVE_SCHEMES.col2.pairBLabel,
         },
         col3: {
-          isA: WAVE_SCHEMES.col3.pairA.includes(lastDigit),
-          label: WAVE_SCHEMES.col3.pairA.includes(lastDigit)
+          isA: WAVE_SCHEMES.col3.pairA.includes(col3Digit),
+          label: WAVE_SCHEMES.col3.pairA.includes(col3Digit)
             ? WAVE_SCHEMES.col3.pairALabel
             : WAVE_SCHEMES.col3.pairBLabel,
         },
@@ -1332,22 +1249,39 @@ export default function KiyoModeCard({
       .sort((a, b) => b.count - a.count);
     return { total, patterns: sorted };
   }, []);
+
+  // ✅ ✅ ✅ ACTIVE DATASET SWITCH (SAMPLES ONLY — NO LOGIC CHANGE)
+  const ACTIVE_DATASET = useMemo(() => {
+    if (datasetRegion === "NA") return NA_SEQUENTIAL_3STR_RECENT;
+    if (datasetRegion === "ASIA") return ASIA_SEQUENTIAL_3STR_RECENT;
+    if (datasetRegion === "ALL") return ALL_SEQUENTIAL_3STR_RECENT;
+    return EU_SEQUENTIAL_3STR_RECENT; // default
+  }, [datasetRegion]);
+
+  const ACTIVE_PATCH_INFO = useMemo(() => {
+    if (datasetRegion === "NA") return NA_PATCH_INFO;
+    if (datasetRegion === "ASIA") return ASIA_PATCH_INFO;
+    if (datasetRegion === "ALL") return ALL_PATCH_INFO;
+    return EU_PATCH_INFO; // default
+  }, [datasetRegion]);
   // Fix lines 1233-1257 (combinedDataset):
+  // ✅ ✅ ✅ COMBINED DATASET (TRAINING + LIVE)
   const combinedDataset = useMemo(() => {
     const combined = {};
 
-    // Count EU training data (recent patches only)
-    EU_SEQUENTIAL_3STR_RECENT.forEach((pattern) => {
+    // ✅ Count ACTIVE REGION training data
+    ACTIVE_DATASET.forEach((pattern) => {
       combined[pattern] = (combined[pattern] || 0) + 1;
     });
 
-    // Add live rolls
+    // ✅ Add live rolls on top of training
     const allRolls = combinedRolls.filter((r) => r.length === 3);
     allRolls.forEach((roll) => {
       combined[roll] = (combined[roll] || 0) + 1;
     });
 
-    const total = Object.values(combined).reduce((a, b) => a + b, 0);
+    const total = Object.values(combined).reduce((a, b) => a + b, 0) || 1;
+
     const sorted = Object.entries(combined)
       .map(([pattern, count]) => ({
         pattern,
@@ -1356,8 +1290,12 @@ export default function KiyoModeCard({
       }))
       .sort((a, b) => b.count - a.count);
 
-    return { total, patterns: sorted, liveCount: allRolls.length };
-  }, [combinedRolls]);
+    return {
+      total,
+      patterns: sorted,
+      liveCount: allRolls.length,
+    };
+  }, [combinedRolls, ACTIVE_DATASET]);
 
   // Force update on roll changes
   useEffect(() => {
@@ -1624,26 +1562,46 @@ export default function KiyoModeCard({
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg transition"
+            className="px-3 py-1.5 text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg transition cursor-pointer"
           >
             📁 Import
           </button>
           <button
             onClick={() => setShowDecisionGuide(!showDecisionGuide)}
-            className="px-3 py-1.5 text-xs font-semibold bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border border-violet-500/40 rounded-lg transition"
+            className="px-3 py-1.5 text-xs font-semibold bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border cursor-pointer border-violet-500/40 rounded-lg transition"
           >
             📖 Guide
           </button>
         </div>
       </div>
-      {/* 🔥 NEW: Accuracy Header Bar */}
-      <AccuracyHeaderBar
-        kiyoAccuracy={kiyoAccuracy}
-        waveAccuracy={waveAccuracy}
-        combinedDataset={combinedDataset}
-        patchInfo={EU_PATCH_INFO}
-        onResetWaveAccuracy={handleResetWaveAccuracy}
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2  ">
+        {/* 🔥 NEW: Accuracy Header Bar */}
+        <AccuracyHeaderBar
+          kiyoAccuracy={kiyoAccuracy}
+          waveAccuracy={waveAccuracy}
+          combinedDataset={combinedDataset}
+          patchInfo={ACTIVE_PATCH_INFO}
+          onResetWaveAccuracy={handleResetWaveAccuracy}
+          regionLabel={datasetRegion}
+        />
+
+        {/* ✅ REGION SELECTOR — ONLY CHANGES TRAINING DATA */}
+        <div className="flex  items-center gap-2 text-xs">
+          <span className="text-slate-400">Sheet Data:</span>
+          <select
+            value={datasetRegion}
+            onChange={(e) => setDatasetRegion(e.target.value)}
+            className="bg-slate-900 border cursor-pointer border-slate-700 rounded-lg
+             px-3 py-2 text-sm min-w-[8px]
+             focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="EU">EU</option>
+            <option value="NA">NA</option>
+            <option value="ASIA">ASIA</option>
+            <option value="ALL">Global</option>
+          </select>
+        </div>
+      </div>
       {/* Import Stats Toast */}
       <ImportStatsDisplay
         importedRolls={importedRolls}
@@ -1684,12 +1642,12 @@ export default function KiyoModeCard({
       )}
 
       {/* 🔥 4. Prediction Cards - side by side */}
-      <PredictionCards
+      {/* <PredictionCards
         analyzeWavePatterns={analyzeWavePatterns}
         smartPrefixPrediction={smartPrefixPrediction}
         manualLine={manualLine}
         setManualLine={setManualLine}
-      />
+      /> */}
 
       {/* 🔥 5. Advanced Tools */}
       <AdvancedToolsSection

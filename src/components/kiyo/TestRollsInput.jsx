@@ -53,9 +53,7 @@ export default function TestRollsInput({
         <div className="flex items-center gap-2 mb-3">
           <span className="text-lg">⚗️</span>
           <div className="text-left">
-            <div className="text-sm font-bold text-purple-300">
-              Test Rolls Input
-            </div>
+            <div className="text-sm font-bold text-purple-300">Rolls Input</div>
           </div>
         </div>
         <input
@@ -73,21 +71,23 @@ export default function TestRollsInput({
       <div className="mt-3">
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="w-full flex items-center justify-between p-3 hover:bg-slate-700/50 transition rounded-lg bg-slate-700"
+          className="w-full flex items-center justify-between p-3 hover:bg-slate-700/50 transition cursor-pointer rounded-lg bg-slate-700"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ">
             <span className="text-lg">📋</span>
             <div className="text-left">
               <div className="text-sm font-bold text-purple-300">
                 Added Test Rolls
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-400 ">
                 {testRolls.length} rolls • Click to{" "}
                 {isCollapsed ? "expand" : "collapse"}
               </div>
             </div>
           </div>
-          <span className="text-slate-400">{isCollapsed ? "▼" : "▲"}</span>
+          <span className="text-slate-400 cursor-pointer">
+            {isCollapsed ? "▼" : "▲"}
+          </span>
         </button>
 
         {/* Collapsible Content */}
@@ -119,7 +119,7 @@ export default function TestRollsInput({
                         </div>
                         <button
                           onClick={() => handleDeleteTestRoll(idx)}
-                          className="text-purple-400 hover:text-red-400 text-xs"
+                          className="text-purple-400 hover:text-red-400 text-xs cursor-pointer"
                         >
                           ✕
                         </button>
@@ -139,7 +139,7 @@ export default function TestRollsInput({
                         <button
                           key={prefix}
                           onClick={() => setActivePrefix(prefix)}
-                          className="px-2 py-1 bg-cyan-900/30 border border-cyan-500/40 rounded text-xs text-cyan-300 hover:bg-cyan-900/50"
+                          className="px-2 py-1 bg-cyan-900/30 border border-cyan-500/40 rounded text-xs text-cyan-300 hover:bg-cyan-900/50 cursor-pointer"
                         >
                           {prefix}x
                         </button>
@@ -153,7 +153,7 @@ export default function TestRollsInput({
               <div className="pt-3">
                 <button
                   onClick={handleDownloadRolls}
-                  className="px-3 py-1.5 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg text-xs font-semibold transition"
+                  className="px-3 py-1.5 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
                   📥 Download Rolls (4xx)
                 </button>

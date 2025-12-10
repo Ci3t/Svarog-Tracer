@@ -1,119 +1,97 @@
 import React from "react";
 
-function caesarShiftForLine(prediction, line) {
-  if (!prediction || !line) return null;
-  const cleanPred = String(prediction).replace(/[^1-4]/g, "");
-  if (!cleanPred) return null;
-  const lineDigit = Number(line);
-  if (lineDigit < 1 || lineDigit > 4) return null;
-  const digits = cleanPred.split("").map(Number);
-  const shift = (lineDigit - digits[0] + 4) % 4;
-  const shifted = digits
-    .map((d) => {
-      const z = d - 1;
-      const s = (z + shift) % 4;
-      return (s + 1).toString();
-    })
-    .join("");
-  return shifted;
-}
-
-export default function PredictionCards({
-  analyzeWavePatterns,
-  smartPrefixPrediction,
-  manualLine,
-  setManualLine,
+export default function PredictionCard({
+  prediction,
+  suggestTab,
+  setSuggestTab,
 }) {
-  const [_, focusCol] = analyzeWavePatterns?.focusColumn || [null, null];
-  const prefixLastDigit = smartPrefixPrediction?.prediction?.[2];
-  const isAligned =
-    focusCol &&
-    prefixLastDigit &&
-    focusCol.flipTarget.includes(prefixLastDigit);
+  const mainValue = prediction?.prediction ?? "—";
+  const confidencePct = Math.round((prediction?.confidence || 0) * 100);
+  const altValue = prediction?.alt || null;
+  const candidates = Array.isArray(prediction?.candidates)
+    ? prediction.candidates
+    : [];
 
   return (
-    <div className="space-y-3">
-      {/* LINE HELPER */}
-      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-lg">📍</span>
-          <div>
-            <div className="text-sm font-bold text-amber-300">LINE HELPER</div>
-            <div className="text-[10px] text-amber-200">
-              Caesar shift for your line
+    <div className="bg-slate-900/80 border border-slate-700/60 rounded-xl p-4 space-y-3">
+      {/* Tabs */}
+      <div className="flex gap-1 mb-2">
+        {["2", "3", "4"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setSuggestTab(t)}
+            className={`px-2 py-1 rounded text-xs ${
+              suggestTab === t
+                ? "bg-violet-700 text-white"
+                : "bg-slate-800 text-slate-300"
+            }`}
+          >
+            {t}-STR
+          </button>
+        ))}
+      </div>
+
+      {/* Main Prediction */}
+      <div className="bg-slate-950/40 rounded-lg p-3 border border-violet-500/20">
+        <div className="text-xs text-slate-400 mb-1">Next Roll</div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-3xl font-mono text-violet-300">
+            {mainValue}
+          </span>
+
+          <div className="text-right">
+            <div className="text-xs text-violet-200">
+              {confidencePct}% confidence
             </div>
+
+            {suggestTab === "2" &&
+              typeof prediction?.liveShare === "number" && (
+                <div className="text-[10px] text-slate-400">
+                  {Math.round(prediction.liveShare * 100)}% live /{" "}
+                  {Math.round(prediction.sheetShare * 100)}% sheet
+                </div>
+              )}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="text-[10px] text-amber-300 font-semibold">
-            Your line:
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map((line) => (
-              <button
-                key={line}
-                onClick={() =>
-                  setManualLine(manualLine === String(line) ? "" : String(line))
-                }
-                className={`py-2 rounded text-sm font-bold transition-all cursor-pointer ${
-                  manualLine === String(line)
-                    ? "bg-amber-500 text-slate-900"
-                    : "bg-slate-700/60 text-slate-400 hover:bg-slate-700 border border-slate-600/50"
-                }`}
-              >
-                {line}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {manualLine && smartPrefixPrediction && (
-          <div className="space-y-2 pt-3 mt-3 border-t border-amber-500/30">
-            {(() => {
-              const mainShifted = caesarShiftForLine(
-                smartPrefixPrediction.prediction,
-                manualLine
-              );
-              const altShifted = caesarShiftForLine(
-                smartPrefixPrediction.alt,
-                manualLine
-              );
-
-              return (
-                <>
-                  {mainShifted && (
-                    <div className="bg-violet-900/30 rounded-lg p-3 border border-violet-500/40">
-                      <div className="text-[10px] text-violet-300 font-semibold mb-1">
-                        Main @ Line {manualLine}
-                      </div>
-                      <div className="text-2xl font-mono font-black text-violet-300 text-center">
-                        {mainShifted}
-                      </div>
-                    </div>
-                  )}
-                  {altShifted && (
-                    <div className="bg-sky-900/30 rounded-lg p-3 border border-sky-500/40">
-                      <div className="text-[10px] text-sky-300 font-semibold mb-1">
-                        Alt @ Line {manualLine}
-                      </div>
-                      <div className="text-xl font-mono font-bold text-sky-300 text-center">
-                        {altShifted}
-                      </div>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {!manualLine && (
-          <div className="text-center py-3 mt-3 text-xs text-amber-400/60 bg-amber-950/20 rounded border border-amber-500/20">
-            Select a line to see Caesar shift
+        {altValue && (
+          <div className="mt-1 text-[11px] text-amber-300 font-mono">
+            Alt: {altValue}
           </div>
         )}
       </div>
+
+      {/* ✅🔥 PER-CANDIDATE PROBABILITY BARS (2-STR ONLY) */}
+      {suggestTab === "2" && candidates.length > 0 && (
+        <div className="space-y-1 pt-2 border-t border-slate-700/50">
+          <div className="text-[11px] text-slate-400 mb-1">
+            Candidate Distribution
+          </div>
+
+          {candidates.slice(0, 6).map((c, idx) => (
+            <div key={idx} className="flex items-center gap-2 text-[11px]">
+              <span className="w-6 text-emerald-300 font-mono">{c.value}</span>
+
+              <div className="flex-1 bg-slate-800 rounded h-2 overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all"
+                  style={{ width: `${c.pct}%` }}
+                />
+              </div>
+
+              <span className="w-8 text-slate-300 text-right">{c.pct}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Mode */}
+      {prediction?.mode && (
+        <div className="text-[10px] text-purple-300 mt-1">
+          Mode: {prediction.mode}
+        </div>
+      )}
     </div>
   );
 }

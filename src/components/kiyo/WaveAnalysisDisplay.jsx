@@ -163,23 +163,47 @@ export default function WaveAnalysisDisplay({
                     </div>
 
                     {/* Expected Flip - CLEAR INDICATION */}
+                    {/* Expected Flip / Continuation - SMART INDICATION */}
                     {!isIgnored && !isPostFlip && col.flipTarget.length > 0 && (
                       <div className="bg-cyan-950/60 rounded-lg p-3 border border-cyan-500/40 text-center mb-3">
+                        {/* ✅ LABEL SWITCH */}
                         <div className="text-xs text-cyan-400 mb-1 uppercase font-semibold">
-                          ⚡ EXPECTED TO FLIP TO:
+                          {col.status === "due_to_flip"
+                            ? "⚡ EXPECTED TO FLIP TO:"
+                            : col.status === "likely_continue"
+                            ? "✅ EXPECTED TO CONTINUE:"
+                            : "🟡 PATTERN OUTLOOK:"}
                         </div>
+
+                        {/* ✅ VALUE */}
                         <div className="text-3xl font-black text-cyan-300 mb-1">
-                          {col.flipLabel}
+                          {col.status === "likely_continue"
+                            ? col.currentLabel
+                            : col.flipLabel}
                         </div>
+
+                        {/* ✅ DIGITS */}
                         <div className="text-sm text-slate-300">
-                          [{col.flipTarget.join(", ")}]
+                          [
+                          {col.status === "likely_continue"
+                            ? col.currentPair === "A"
+                              ? col.scheme.pairA.join(", ")
+                              : col.scheme.pairB.join(", ")
+                            : col.flipTarget.join(", ")}
+                          ]
                         </div>
+
+                        {/* ✅ MESSAGE */}
                         <div className="text-[10px] text-cyan-400 mt-2">
-                          {urgency === "critical"
-                            ? "🔴 FLIP VERY LIKELY - Bet now!"
-                            : urgency === "high"
-                            ? "🟠 FLIP LIKELY - Good opportunity"
-                            : "🟡 FLIP POSSIBLE - Monitor"}
+                          {col.status === "due_to_flip"
+                            ? urgency === "critical"
+                              ? "🔴 FLIP VERY LIKELY - Bet now!"
+                              : urgency === "high"
+                              ? "🟠 FLIP LIKELY - Good opportunity"
+                              : "🟡 FLIP POSSIBLE - Monitor"
+                            : col.status === "likely_continue"
+                            ? "✅ Trend continuation expected"
+                            : "🟡 No strong signal - Monitor"}
                         </div>
                       </div>
                     )}

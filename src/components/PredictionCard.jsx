@@ -87,9 +87,19 @@ export default function PredictionCard({
               <span className="text-3xl sm:text-4xl font-mono bg-gradient-to-r from-violet-300 to-purple-300 bg-clip-text text-transparent">
                 {mainValue}
               </span>
-              <span className="text-xs font-medium text-violet-100">
-                {confidencePct}% confidence
-              </span>
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="text-xs font-medium text-violet-100">
+                  {confidencePct}% confidence
+                </span>
+                {suggestTab === "2" &&
+                  typeof prediction?.liveShare === "number" &&
+                  typeof prediction?.sheetShare === "number" && (
+                    <span className="text-[10px] text-slate-400">
+                      {Math.round((prediction.liveShare || 0) * 100)}% live /{" "}
+                      {Math.round((prediction.sheetShare || 0) * 100)}% sheet
+                    </span>
+                  )}
+              </div>
             </div>
           </div>
 
