@@ -13,6 +13,7 @@ export default function RollInputCard({
   debugLogs,
   onSendKiyoDebugData,
   onSendToDebug,
+  pendingKiyoSnapshotsRef,
 }) {
   const [activeTab, setActiveTab] = useState("live"); // live | long | kiyo
 
@@ -113,6 +114,7 @@ export default function RollInputCard({
             onSendToDebug={onSendToDebug}
             debugLogs={debugLogs}
             onSendKiyoDebugData={onSendKiyoDebugData}
+            pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
           />
         </div>
       )}

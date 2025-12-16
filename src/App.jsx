@@ -64,42 +64,87 @@ export default function App() {
 
   const [isCustomPatch, setIsCustomPatch] = useState(false);
   const [kiyoDebugData, setKiyoDebugData] = useState(null);
+  const pendingKiyoSnapshotsRef = useRef([]); // 👈 ADD
+  const lastSnapshotKeyRef = useRef(null); // 👈 ADD (dedupe)
   const timerRef = useRef(null);
   const longStringCtxRef = useRef([]);
+  const livePrefixPredictionRef = useRef(null);
+  const onSendKiyoDebugData = (debugData) => {
+    // keep latest snapshot for UI
+    setKiyoDebugData(debugData);
 
+    // 👇 ADD: push a frozen snapshot to queue
+    const snap = {
+      t: Date.now(),
+      waveC2: debugData?.waveData?.col2Prediction || null,
+      waveC3: debugData?.waveData?.col3Prediction || null,
+      prefixMain: debugData?.smartPrefix?.prediction || null,
+      prefixAlt: debugData?.smartPrefix?.alt || null,
+      tracerMain: debugData?.prediction?.prediction || null,
+      tracerAlt: debugData?.prediction?.alt || null,
+    };
+
+    const key = JSON.stringify(snap);
+    if (key !== lastSnapshotKeyRef.current) {
+      lastSnapshotKeyRef.current = key;
+      pendingKiyoSnapshotsRef.current.push(snap);
+    }
+  };
   const handleKiyoDebugData = useCallback(
     (data) => {
       setKiyoDebugData(data);
 
-      // 🔥 Merge waveData into most recent Kiyo debug log
+      // 🔥 NEW: Store the current prefix prediction for next roll
+      if (data.smartPrefix?.prediction) {
+        livePrefixPredictionRef.current = {
+          main: data.smartPrefix.prediction,
+          alt: data.smartPrefix.alt || null,
+          confidence: data.smartPrefix.confidence || 0,
+          timestamp: Date.now(),
+        };
+      }
+
+      // Merge waveData into debug logs (existing code)
       if (data.waveData && debugLogs.length > 0) {
         setDebugLogs((prev) => {
           const logs = [...prev];
-          for (let i = logs.length - 1; i >= 0; i--) {
+
+          for (let i = 0; i < logs.length; i++) {
             if (logs[i].source === "kiyo" && logs[i].kind === "3") {
-              logs[i] = { ...logs[i], waveData: data.waveData };
-              break;
+              if (
+                !logs[i].waveData ||
+                (!logs[i].waveData.col2Prediction &&
+                  !logs[i].waveData.col3Prediction)
+              ) {
+                logs[i] = {
+                  ...logs[i],
+                  waveData: { ...data.waveData },
+                  // 🔥 NEW: Attach the "live" prefix that was showing before this roll
+                  livePrefix: livePrefixPredictionRef.current
+                    ? { ...livePrefixPredictionRef.current }
+                    : null,
+                };
+                break;
+              }
             }
           }
+
           return logs;
         });
       }
     },
     [debugLogs]
-  ); // ✅ Add debugLogs dependency
+  );
+
   // 🔬 Kiyo Mode: Send predictions to debug
   function handleKiyoToDebug(newRolls = [], kind = "3-str") {
     if (!newRolls.length) return;
 
     let ctx3 = kiyoCtxRef.current || [];
-
-    // 🔥 FIX: Only predict for the LAST roll (most recent)
-    // Use previous rolls as context
     const contextRolls = newRolls.slice(0, -1);
     const lastRoll = newRolls[newRolls.length - 1];
 
     if (contextRolls.length < 3) {
-      // Not enough context yet
       return;
     }
 
@@ -126,6 +171,11 @@ export default function App() {
         ctx: contextRolls.slice(-8),
         candidates,
         source: "kiyo",
+        waveData: null, // Will be filled by handleKiyoDebugData
+        // 🔥 NEW: Capture the live prefix that was showing BEFORE this roll
+        livePrefix: livePrefixPredictionRef.current
+          ? { ...livePrefixPredictionRef.current }
+          : null,
       };
 
       setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
@@ -133,6 +183,7 @@ export default function App() {
 
     kiyoCtxRef.current = newRolls;
   }
+  // 👇 ADD THIS NEW HANDLER FUNCTION
 
   const kiyoCtxRef = useRef([]);
   /* ========= LOAD ========= */
@@ -241,10 +292,7 @@ export default function App() {
     if (!value) return;
 
     const clean = sanitizeRollInput(value);
-    if (!clean) {
-      setRollInput("");
-      return;
-    }
+    if (!clean) return;
 
     const { s2, s3, s4, s5 } = splitString(clean);
     const nowIso = new Date().toISOString();
@@ -279,62 +327,26 @@ export default function App() {
 
     const newLogsToAdd = [];
 
+    // Capture live state of the smart predictor
+    const liveSmartPrefix = {
+      main: p3.prediction || "—",
+      alt: p3.alt || safeCandidates(p3)[1]?.value || null,
+    };
+
     newLogsToAdd.push({
       ts: nowTs,
-      kind: "2",
-      prediction: p2.prediction || "—",
-      confidence: p2.confidence || 0,
-      alt: p2.alt || safeCandidates(p2)[1]?.value || null,
-      mode: p2.mode || "—",
-      actual: actual2,
-      ctx: rolls2.slice(-8),
-      candidates: safeCandidates(p2),
+      kind: "3",
+      prediction: liveSmartPrefix.main,
+      confidence: p3.confidence || 0,
+      alt: liveSmartPrefix.alt,
+      mode: p3.mode || "—",
+      actual: actual3,
+      ctx: rolls3.slice(-8),
+      candidates: safeCandidates(p3),
+      smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
 
-    if (actual3.length === 3 && rolls3.length) {
-      newLogsToAdd.push({
-        ts: nowTs,
-        kind: "3",
-        prediction: p3.prediction || "—",
-        confidence: p3.confidence || 0,
-        alt: p3.alt || safeCandidates(p3)[1]?.value || null,
-        mode: p3.mode || "—",
-        actual: actual3,
-        ctx: rolls3.slice(-8),
-        candidates: safeCandidates(p3),
-      });
-    }
-
-    if (actual4.length === 4 && rolls4.length) {
-      newLogsToAdd.push({
-        ts: nowTs,
-        kind: "4",
-        prediction: p4.prediction || "—",
-        confidence: p4.confidence || 0,
-        alt: p4.alt || safeCandidates(p4)[1]?.value || null,
-        mode: p4.mode || "—",
-        actual: actual4,
-        ctx: rolls4.slice(-8),
-        candidates: safeCandidates(p4),
-      });
-    }
-
-    setEntries((prev) => {
-      const newEntry = {
-        id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
-        raw: clean,
-        translated,
-        time: nowIso,
-        s2,
-        s3,
-        s4,
-        s5,
-        region,
-        patch,
-      };
-      return [newEntry, ...prev];
-    });
-
+    setEntries((prev) => [...prev, { s2, s3, s4, s5, translated, ts: nowIso }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
@@ -544,6 +556,7 @@ export default function App() {
               isDebugMode={isDebugMode}
               onImportLogs={handleImportDebugLogs}
               kiyoWaveData={kiyoDebugData}
+              pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
             />
           </div>
 

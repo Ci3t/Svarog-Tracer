@@ -1,45 +1,36 @@
+// KiyoModeCard.jsx
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { predictNext3EU, predictWithPrefix } from "../utils/predictNext";
 import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
+
 // NEW:
 import {
   EU_SEQUENTIAL_3STR_RECENT,
   EU_PATCH_INFO,
 } from "../utils/euLiveSheetData";
-
 import {
   NA_SEQUENTIAL_3STR_RECENT,
   NA_PATCH_INFO,
 } from "../utils/naLiveSheetData";
-
 import {
   ASIA_SEQUENTIAL_3STR_RECENT,
   ASIA_PATCH_INFO,
 } from "../utils/asiaLiveSheetData";
-
 import {
   ALL_SEQUENTIAL_3STR_RECENT,
   ALL_PATCH_INFO,
 } from "../utils/allLiveSheetData";
+
 import { translateTo4 } from "../utils/stringHelpers";
 
 // 🔥 Import kiyo components
-import PredictionCards from "./kiyo/PredictionCards";
 import TestRollsInput from "./kiyo/TestRollsInput";
-import WavePairingTable from "./kiyo/WavePairingTable";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
-import KiyoAccuracyStats from "./kiyo/KiyoAccuracyStats";
-import CombinedDatasetStats from "./kiyo/CombinedDatasetStats";
-import RawInputHelper from "./kiyo/RawInputHelper";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
-import KiyoDebugPanel from "./kiyo/KiyoDebugPanel";
-import WaveAccuracyDisplay from "./kiyo/WaveAccuracyDisplay";
+import GuideModal from "./kiyo/GuideModal";
 
 // 🔥 Import new layout components
-import CompactStatsHeader from "./CompactStatsHeader";
 import AdvancedToolsSection from "./AdvancedToolsSection";
-import ModesInfo from "./ModesInfo";
-import GuideModal from "./kiyo/GuideModal";
 
 // 🔥 WAVE THEORY SCHEMES - Optimized structure
 const WAVE_SCHEMES = {
@@ -216,17 +207,15 @@ function calculateFlipStatus(runLength, pair, scheme, columnBehavior = null) {
       status: "likely_continue",
       confidence: 0.52,
       message: `Just started - Likely to continue`,
-
       // ✅ NOT A FLIP — CONTINUATION
       flipTarget: pair === "A" ? scheme.pairA : scheme.pairB,
       flipLabel:
         pair === "A"
           ? `Continue ${scheme.pairALabel}`
           : `Continue ${scheme.pairBLabel}`,
-
       urgency: "none",
       icon: "🔵",
-      isContinuation: true, // ✅ add this flag
+      isContinuation: true,
     };
   }
 
@@ -291,6 +280,7 @@ function detectMissedFlip(recentRolls, scheme, digitPosition = 2) {
 
   return null;
 }
+
 // 🔥 NEW: Calculate historical flip behavior per column (ADAPTIVE LEARNING)
 function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
   if (!rolls || rolls.length < 6) {
@@ -319,15 +309,12 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
     } else if (pair === currentPair) {
       runLength++;
     } else {
-      if (runLength >= 2) {
-        flips.push({ length: runLength, pair: currentPair });
-      }
+      if (runLength >= 2) flips.push({ length: runLength, pair: currentPair });
       currentPair = pair;
       runLength = 1;
     }
   }
 
-  // Calculate metrics
   const avgFlipLength =
     flips.length > 0
       ? flips.reduce((sum, f) => sum + f.length, 0) / flips.length
@@ -338,13 +325,9 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
   const flipAt2Rate = flips.length > 0 ? flipAt2Count / flips.length : 0;
   const flipAt3Rate = flips.length > 0 ? flipAt3Count / flips.length : 0;
 
-  // Determine behavior type
   let behavior = "moderate";
-  if (flipAt2Rate > 0.5) {
-    behavior = "volatile"; // Flips frequently after just 2
-  } else if (avgFlipLength >= 4) {
-    behavior = "sticky"; // Needs longer runs to flip
-  }
+  if (flipAt2Rate > 0.5) behavior = "volatile";
+  else if (avgFlipLength >= 4) behavior = "sticky";
 
   return {
     avgFlipLength: Math.round(avgFlipLength * 10) / 10,
@@ -357,10 +340,8 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
   };
 }
 
-// 🔥 NEW: Multi-column prediction combiner
-// 🔥 NEW: Multi-column prediction combiner
+// 🔥 NEW: Multi-column prediction combiner (Column 2 & 3 only)
 function predictFromMultipleColumns(columnAnalysis) {
-  // 🔥 CHANGE: Only Column 2 & 3
   const col2Digits =
     columnAnalysis[0].status === "due_to_flip"
       ? columnAnalysis[0].flipTarget
@@ -386,7 +367,6 @@ function predictFromMultipleColumns(columnAnalysis) {
 
       const avgConfidence =
         (columnAnalysis[0].confidence + columnAnalysis[1].confidence) / 2;
-
       const confidenceBoost = highConfCols >= 2 ? 1.15 : 1.0;
 
       predictions.push({
@@ -410,6 +390,7 @@ function predictFromMultipleColumns(columnAnalysis) {
     multiColumnAgreement: highConfCols >= 2,
   };
 }
+
 // 🔥 Caesar shift function
 function caesarShiftForLine(prediction, line) {
   if (!prediction || !line) return null;
@@ -417,8 +398,10 @@ function caesarShiftForLine(prediction, line) {
   if (!cleanPred) return null;
   const lineDigit = Number(line);
   if (lineDigit < 1 || lineDigit > 4) return null;
+
   const digits = cleanPred.split("").map(Number);
   const shift = (lineDigit - digits[0] + 4) % 4;
+
   const shifted = digits
     .map((d) => {
       const z = d - 1;
@@ -426,10 +409,11 @@ function caesarShiftForLine(prediction, line) {
       return (s + 1).toString();
     })
     .join("");
+
   return shifted;
 }
 
-// 🔥 IMPROVED STRATEGIC TIER CALCULATOR - Fixed false confidence issues
+// 🔥 IMPROVED STRATEGIC TIER CALCULATOR
 function calculateStrategicTier(
   waveAnalysis,
   prefixPrediction,
@@ -474,7 +458,7 @@ function calculateStrategicTier(
     alignment = "WAVE_ONLY";
   }
 
-  // 🔥 TIER S: Bet Good Relics (75%+ effective reliability)
+  // 🔥 TIER S
   if (
     factors.focusColumn &&
     factors.focusColumn.swapRate < 0.3 &&
@@ -505,7 +489,7 @@ function calculateStrategicTier(
     conflictResolution = "PERFECT ALIGNMENT - Both agree";
   }
 
-  // 🔥 TIER A: Bet Okay Relics (60-70% effective reliability)
+  // 🔥 TIER A
   else if (
     factors.focusColumn &&
     factors.focusColumn.swapRate < 0.5 &&
@@ -528,9 +512,7 @@ function calculateStrategicTier(
     action = "BET OKAY RELICS";
     effectiveReliability = Math.max(effectiveReliability, 60);
     conflictResolution = "TRUST WAVE with caution";
-  }
-  // 🔥 FIX: Add volatility gating for prefix-only scenarios
-  else if (
+  } else if (
     prefixPrediction?.confidence >= 0.65 &&
     !factors.focusColumn &&
     factors.avgSwapRate < 0.6
@@ -546,8 +528,7 @@ function calculateStrategicTier(
     conflictResolution = "PREFIX ONLY - No strong wave";
   }
 
-  // 🔥 TIER B: Trash Relics Only (45-60% effective reliability)
-  // 🔥 FIX: Add volatility downgrade case BEFORE balanced case
+  // 🔥 TIER B
   else if (
     alignment === "PREFIX_ONLY" &&
     factors.avgSwapRate >= 0.6 &&
@@ -560,7 +541,6 @@ function calculateStrategicTier(
       )}%) - Unstable patterns`
     );
     action = "SKIP or BET TRASH";
-    // 🔥 FIX: Apply confidence penalty for high volatility
     const volatilityPenalty = factors.avgSwapRate >= 0.65 ? 0.6 : 0.8;
     effectiveReliability = Math.round(
       (prefixPrediction?.confidence * 100 || 50) * volatilityPenalty
@@ -614,10 +594,10 @@ export default function KiyoModeCard({
   onSendToDebug,
   debugLogs = [],
   onSendKiyoDebugData,
+  onKiyoSnapshot,
 }) {
   const [testInput, setTestInput] = useState("");
   const [testRolls, setTestRolls] = useState([]);
-  const [showDebug, setShowDebug] = useState(false);
   const [manualLine, setManualLine] = useState("");
   const [activePrefix, setActivePrefix] = useState(null);
   const [showDecisionGuide, setShowDecisionGuide] = useState(false);
@@ -630,11 +610,13 @@ export default function KiyoModeCard({
   const [importedRolls, setImportedRolls] = useState([]);
   const [showImportStats, setShowImportStats] = useState(false);
   const fileInputRef = useRef(null);
+
   const [persistentWaveAccuracy, setPersistentWaveAccuracy] = useState({
     col2: { hits: 0, total: 0 },
     col3: { hits: 0, total: 0 },
     lastPredictions: { col2: null, col3: null },
   });
+
   // Extract live rolls from entries
   const live3Rolls = useMemo(() => {
     return entries
@@ -693,7 +675,6 @@ export default function KiyoModeCard({
     reader.onload = (event) => {
       const text = event.target.result;
       const rolls = text.match(/[1-4]{3}/g) || [];
-
       const validRolls = rolls.filter((roll) => /^[1-4]{3}$/.test(roll));
 
       if (validRolls.length === 0) {
@@ -708,16 +689,13 @@ export default function KiyoModeCard({
 
     reader.readAsText(file);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // 🔥 NEW: Clear imported rolls
   const handleClearImported = () => {
-    if (confirm(`Clear ${importedRolls.length} imported rolls?`)) {
+    if (confirm(`Clear ${importedRolls.length} imported rolls?`))
       setImportedRolls([]);
-    }
   };
 
   // 🔥 KIYO MODE ACCURACY TRACKING
@@ -749,14 +727,9 @@ export default function KiyoModeCard({
       )
       .forEach((log) => {
         total++;
-
-        if (String(log.actual) === String(log.prediction)) {
-          mainHits++;
-        } else if (log.alt && String(log.actual) === String(log.alt)) {
-          altHits++;
-        } else {
-          misses++;
-        }
+        if (String(log.actual) === String(log.prediction)) mainHits++;
+        else if (log.alt && String(log.actual) === String(log.alt)) altHits++;
+        else misses++;
       });
 
     const mainPct = total ? Math.round((mainHits / total) * 100) : 0;
@@ -768,9 +741,7 @@ export default function KiyoModeCard({
     return { total, mainHits, altHits, misses, mainPct, altPct, top2Pct };
   }, [debugLogs]);
 
-  // Add this to KiyoModeCard.jsx - Replace the waveAccuracy useMemo
-
-  // 🔥 REPLACE THE waveAccuracy useMemo WITH THIS
+  // 🔥 Wave accuracy (persistent)
   const waveAccuracy = useMemo(() => {
     const col2Pct =
       persistentWaveAccuracy.col2.total > 0
@@ -811,20 +782,11 @@ export default function KiyoModeCard({
         total: persistentWaveAccuracy.col3.total,
         pct: col3Pct,
       },
-      combined: {
-        pct: combinedPct,
-        hits: totalHits,
-        total: totalPredictions,
-      },
+      combined: { pct: combinedPct, hits: totalHits, total: totalPredictions },
     };
   }, [persistentWaveAccuracy]);
-  // 🔥 EXPLANATION:
-  // - Wave accuracy ONLY counts when wave made a flip prediction (col2Prediction/col3Prediction exist)
-  // - It checks if actual digit matches the predicted digits array
-  // - Stays persistent because it's based on debugLogs history
-  // - Won't reset unless debugLogs are cleared
 
-  // 🔥 REFACTORED: RUN-LENGTH BASED WAVE ANALYSIS WITH SWAP RATE + HIGH-ACTIVITY FILTERING + MISSED FLIP DETECTION
+  // 🔥 Wave analysis (Column 2 & 3 only)
   const analyzeWavePatterns = useMemo(() => {
     if (combinedRolls.length < 4)
       return {
@@ -835,7 +797,6 @@ export default function KiyoModeCard({
         compoundConfidence: "NORMAL",
       };
 
-    // 🔥 DYNAMIC LOOKBACK - Longer for stable patterns
     const avgSwapEstimate =
       combinedRolls.length >= 6
         ? combinedRolls.slice(-6).reduce((acc, roll, idx, arr) => {
@@ -846,49 +807,43 @@ export default function KiyoModeCard({
 
     const LOOKBACK =
       avgSwapEstimate < 0.4
-        ? Math.min(20, combinedRolls.length) // Sticky = longer window
+        ? Math.min(20, combinedRolls.length)
         : avgSwapEstimate < 0.6
-        ? Math.min(15, combinedRolls.length) // Moderate
-        : Math.min(12, combinedRolls.length); // Volatile = shorter
+        ? Math.min(15, combinedRolls.length)
+        : Math.min(12, combinedRolls.length);
 
     const recentRolls = combinedRolls.slice(-LOOKBACK);
 
-    // 🔥 CHANGE: Only use Column 2 & 3 (skip Column 1)
+    // Only col2 + col3
     const schemes = [WAVE_SCHEMES.col2, WAVE_SCHEMES.col3];
 
     let totalSwapRate = 0;
     let validColumnsCount = 0;
 
     const columnAnalysis = schemes.map((scheme, idx) => {
-      const digitPosition = idx === 0 ? 1 : 2; // ✅ col2 = 2nd digit | col3 = 3rd digit
+      const digitPosition = idx === 0 ? 1 : 2; // col2 = 2nd digit | col3 = 3rd digit
 
       const runAnalysis = calculateConsecutiveRun(
         recentRolls,
         scheme,
         digitPosition
       );
-
       const columnBehavior = calculateColumnFlipBehavior(
         recentRolls,
         scheme,
         LOOKBACK
       );
-
       const flipStatus = calculateFlipStatus(
         runAnalysis.length,
         runAnalysis.pair,
         scheme,
         columnBehavior
       );
-
       const swapRate = calculateSwapRate(recentRolls, scheme, digitPosition);
-
       const missedFlip = detectMissedFlip(recentRolls, scheme, digitPosition);
 
-      // 🔥 NEW: Mark high-activity columns as ignored
       const isIgnored = swapRate >= 0.7;
 
-      // 🔥 NEW: Downgrade flip status if post-flip detected
       let adjustedFlipStatus = flipStatus;
       if (missedFlip?.justFlipped) {
         adjustedFlipStatus = {
@@ -906,21 +861,19 @@ export default function KiyoModeCard({
         validColumnsCount++;
       }
 
-      // Build rhythm display
       const rhythmDisplay = runAnalysis.pattern
         .map((p) => (p === "A" ? scheme.pairALabel[0] : scheme.pairBLabel[0]))
         .join("-");
 
-      // Get current and flip labels
       const currentLabel =
         runAnalysis.pair === "A" ? scheme.pairALabel : scheme.pairBLabel;
       const flipLabel = adjustedFlipStatus.flipLabel;
 
       return {
-        column: idx + 2, // 🔥 This is correct (Column 2 & 3)
+        column: idx + 2, // Column 2 & 3
         name: scheme.name,
         label: scheme.label,
-        scheme: scheme,
+        scheme,
         runLength: runAnalysis.length,
         currentPair: runAnalysis.pair,
         flipStatus: isIgnored
@@ -955,7 +908,6 @@ export default function KiyoModeCard({
         urgency: adjustedFlipStatus.urgency,
         icon: adjustedFlipStatus.icon,
 
-        // 🔥 NEW: Add adaptive behavior data
         behavior: columnBehavior.behavior,
         flipAt2Rate: columnBehavior.flipAt2Rate,
         avgFlipLength: columnBehavior.avgFlipLength,
@@ -963,11 +915,9 @@ export default function KiyoModeCard({
       };
     });
 
-    // 🔥 FIX: Calculate avgSwapRate only from valid (non-ignored) columns
     const avgSwapRate =
       validColumnsCount > 0 ? totalSwapRate / validColumnsCount : 0;
 
-    // 🔥 FIX: Detect flip columns EXCLUDING ignored and post-flip cooldown ones
     const flipColumns = columnAnalysis.filter(
       (col) =>
         !col.isIgnored &&
@@ -975,20 +925,15 @@ export default function KiyoModeCard({
         col.flipStatus.urgency !== "skip"
     );
 
-    // 🔥 Detect sticky columns (low swap = reliable constraint)
     const stickyColumns = columnAnalysis.filter(
       (col) => !col.isIgnored && col.swapRate < 0.4
     );
 
-    // 🔥 Determine compound confidence level
     let compoundConfidence = "NORMAL";
-    if (flipColumns.length >= 2) {
-      compoundConfidence = "HIGH";
-    } else if (flipColumns.length === 1 && stickyColumns.length >= 1) {
+    if (flipColumns.length >= 2) compoundConfidence = "HIGH";
+    else if (flipColumns.length === 1 && stickyColumns.length >= 1)
       compoundConfidence = "MODERATE";
-    }
 
-    // 🔥 IMPROVED: Select focus column (highest urgency + confidence)
     let focusColumn = null;
     if (flipColumns.length > 0) {
       const urgencyOrder = { critical: 4, high: 3, medium: 2, low: 1, none: 0 };
@@ -1023,22 +968,20 @@ export default function KiyoModeCard({
     };
   }, [combinedRolls]);
 
-  // 🔥 NEW: Multi-column wave prediction
+  // 🔥 NEW: Multi-column wave prediction (not used in UI here, but kept)
   const waveMultiColumnPrediction = useMemo(() => {
     if (!analyzeWavePatterns || combinedRolls.length < 4) return null;
-
     const { columns } = analyzeWavePatterns;
     if (!columns || columns.length < 2) return null;
-
     return predictFromMultipleColumns(columns);
   }, [analyzeWavePatterns, combinedRolls]);
+
   const smartPrefixPrediction = useMemo(() => {
     if (combinedRolls.length < 3) return null;
 
     let sourcePrefix = null;
     let sourceType = null;
 
-    // 🔥 PRIORITY 1: Live typing input
     if (testInput.length >= 2) {
       const paddedInput = testInput.length === 2 ? testInput + "1" : testInput;
       const translated = translateTo4(paddedInput);
@@ -1046,14 +989,10 @@ export default function KiyoModeCard({
         sourcePrefix = translated.slice(0, 2);
         sourceType = "typing";
       }
-    }
-    // 🔥 PRIORITY 2: Manual prefix selection
-    else if (activePrefix && activePrefix.length === 2) {
+    } else if (activePrefix && activePrefix.length === 2) {
       sourcePrefix = activePrefix;
       sourceType = "manual";
-    }
-    // 🔥 FALLBACK: Use last roll's prefix
-    else if (combinedRolls.length > 0) {
+    } else if (combinedRolls.length > 0) {
       const lastRoll = combinedRolls[combinedRolls.length - 1];
       sourcePrefix = lastRoll.slice(0, 2);
       sourceType = "auto";
@@ -1071,13 +1010,8 @@ export default function KiyoModeCard({
         : null;
 
     let finalPrediction;
-    let blendInfo = { method: "training-only", liveWeight: 0 };
 
     if (livePrediction && livePrediction.matchCount >= 3) {
-      // ✅ STRONG LIVE: Session has clear pattern
-      const liveWeight = 0.75;
-      blendInfo = { method: "strong-live", liveWeight };
-
       if (trainingPrediction.prediction === livePrediction.prediction) {
         finalPrediction = {
           ...livePrediction,
@@ -1100,9 +1034,6 @@ export default function KiyoModeCard({
         };
       }
     } else if (livePrediction && livePrediction.matchCount >= 2) {
-      const liveWeight = 0.7;
-      blendInfo = { method: "moderate-live", liveWeight };
-
       if (trainingPrediction.prediction === livePrediction.prediction) {
         finalPrediction = {
           ...livePrediction,
@@ -1125,14 +1056,6 @@ export default function KiyoModeCard({
         };
       }
     } else {
-      blendInfo = {
-        method: "training-primary",
-        liveWeight: livePrediction ? 0.3 : 0,
-        reason: livePrediction
-          ? `Live has only ${livePrediction.matchCount} match(es)`
-          : "Insufficient live data",
-      };
-
       if (
         livePrediction &&
         trainingPrediction.prediction === livePrediction.prediction
@@ -1158,21 +1081,18 @@ export default function KiyoModeCard({
       ...finalPrediction,
       sourcePrefix,
       sourceType,
-      blendInfo,
       liveMatchCount: livePrediction?.matchCount || 0,
       trainingMatchCount: trainingPrediction?.matchCount || 0,
     };
   }, [combinedRolls, activePrefix, testInput]);
-  // 🔥 LEGACY TRAC
-  // 🔥 LEGACY TRACER PREDICTION (for backward compatibility)
+
+  // 🔥 LEGACY TRACER PREDICTION
   const prediction = useMemo(() => {
     if (combinedRolls.length < 4) return null;
     let basePrediction = predictNext3EU([...combinedRolls]);
 
-    // Apply wave alignment boost
     if (analyzeWavePatterns?.focusColumn && basePrediction?.prediction) {
-      // ✅ ADD null check
-      const [_, focusCol] = analyzeWavePatterns.focusColumn;
+      const [, focusCol] = analyzeWavePatterns.focusColumn;
 
       if (focusCol.status === "due_to_flip") {
         const tracerLastDigit = basePrediction.prediction[2];
@@ -1198,15 +1118,15 @@ export default function KiyoModeCard({
     return basePrediction;
   }, [combinedRolls, analyzeWavePatterns]);
 
-  // 🔥 PAIRING VISUALIZATION
+  // 🔥 PAIRING VISUALIZATION (for AdvancedToolsSection)
   const pairingViz = useMemo(() => {
     if (combinedRolls.length < 4) return null;
     const vizRolls = combinedRolls.slice(-12);
 
     return vizRolls.reverse().map((roll) => {
-      const col1Digit = roll[0]; // 1st digit
-      const col2Digit = roll[1]; // 2nd digit
-      const col3Digit = roll[2]; // 3rd digit
+      const col1Digit = roll[0];
+      const col2Digit = roll[1];
+      const col3Digit = roll[2];
 
       return {
         roll,
@@ -1232,49 +1152,29 @@ export default function KiyoModeCard({
     });
   }, [combinedRolls]);
 
-  // 🔥 TRAINING STATS
-  // Fix lines 1217-1231 (trainingStats):
-  const trainingStats = useMemo(() => {
-    const freq = {};
-    EU_SEQUENTIAL_3STR_RECENT.forEach((pattern) => {
-      freq[pattern] = (freq[pattern] || 0) + 1;
-    });
-    const total = EU_SEQUENTIAL_3STR_RECENT.length;
-    const sorted = Object.entries(freq)
-      .map(([pattern, count]) => ({
-        pattern,
-        count,
-        pct: ((count / total) * 100).toFixed(1),
-      }))
-      .sort((a, b) => b.count - a.count);
-    return { total, patterns: sorted };
-  }, []);
-
-  // ✅ ✅ ✅ ACTIVE DATASET SWITCH (SAMPLES ONLY — NO LOGIC CHANGE)
+  // ✅ REGION SELECTOR — ONLY CHANGES TRAINING DATA (for stats display)
   const ACTIVE_DATASET = useMemo(() => {
     if (datasetRegion === "NA") return NA_SEQUENTIAL_3STR_RECENT;
     if (datasetRegion === "ASIA") return ASIA_SEQUENTIAL_3STR_RECENT;
     if (datasetRegion === "ALL") return ALL_SEQUENTIAL_3STR_RECENT;
-    return EU_SEQUENTIAL_3STR_RECENT; // default
+    return EU_SEQUENTIAL_3STR_RECENT;
   }, [datasetRegion]);
 
   const ACTIVE_PATCH_INFO = useMemo(() => {
     if (datasetRegion === "NA") return NA_PATCH_INFO;
     if (datasetRegion === "ASIA") return ASIA_PATCH_INFO;
     if (datasetRegion === "ALL") return ALL_PATCH_INFO;
-    return EU_PATCH_INFO; // default
+    return EU_PATCH_INFO;
   }, [datasetRegion]);
-  // Fix lines 1233-1257 (combinedDataset):
-  // ✅ ✅ ✅ COMBINED DATASET (TRAINING + LIVE)
+
+  // ✅ COMBINED DATASET (TRAINING + LIVE) for header stats
   const combinedDataset = useMemo(() => {
     const combined = {};
 
-    // ✅ Count ACTIVE REGION training data
     ACTIVE_DATASET.forEach((pattern) => {
       combined[pattern] = (combined[pattern] || 0) + 1;
     });
 
-    // ✅ Add live rolls on top of training
     const allRolls = combinedRolls.filter((r) => r.length === 3);
     allRolls.forEach((roll) => {
       combined[roll] = (combined[roll] || 0) + 1;
@@ -1290,11 +1190,7 @@ export default function KiyoModeCard({
       }))
       .sort((a, b) => b.count - a.count);
 
-    return {
-      total,
-      patterns: sorted,
-      liveCount: allRolls.length,
-    };
+    return { total, patterns: sorted, liveCount: allRolls.length };
   }, [combinedRolls, ACTIVE_DATASET]);
 
   // Force update on roll changes
@@ -1312,9 +1208,7 @@ export default function KiyoModeCard({
     }
   }, [prediction, combinedRolls, onSendToDebug]);
 
-  // This is the fix for the useEffect that sends debug data
-  // Replace the existing useEffect in KiyoModeCard.jsx (around line 1380)
-
+  // Send kiyo debug blob (wave+prefix+pairing) to DebugPanel
   useEffect(() => {
     if (!prediction || !analyzeWavePatterns || !onSendKiyoDebugData) return;
 
@@ -1329,39 +1223,11 @@ export default function KiyoModeCard({
     if (lastSentDataRef.current === dataSignature) return;
     lastSentDataRef.current = dataSignature;
 
-    // 🔥 ENHANCED: Calculate strategic tier and reliability metrics
     const strategicAnalysis = calculateStrategicTier(
       analyzeWavePatterns,
       smartPrefixPrediction,
       prediction
     );
-
-    // 🔥 FIX: ALWAYS include wave predictions, even if no focusColumn
-    // This ensures wave accuracy tracking works correctly
-    const col2Analysis = analyzeWavePatterns?.columns?.[0];
-    const col3Analysis = analyzeWavePatterns?.columns?.[1];
-
-    // 🔥 Get predicted digits for each column based on current status
-    const getColumnPrediction = (colAnalysis) => {
-      if (!colAnalysis) return null;
-
-      // If column is due to flip, predict flipTarget
-      if (
-        colAnalysis.status === "due_to_flip" &&
-        colAnalysis.flipTarget?.length > 0
-      ) {
-        return colAnalysis.flipTarget;
-      }
-
-      // If column is stable/continuing, predict current pattern
-      if (colAnalysis.currentPair === "A") {
-        return colAnalysis.scheme.pairA;
-      } else if (colAnalysis.currentPair === "B") {
-        return colAnalysis.scheme.pairB;
-      }
-
-      return null;
-    };
 
     const debugData = {
       waveAnalysis: JSON.parse(JSON.stringify(analyzeWavePatterns)),
@@ -1370,53 +1236,38 @@ export default function KiyoModeCard({
       pairingViz: pairingViz ? [...pairingViz] : [],
       combinedRolls: [...combinedRolls],
 
-      // 🔥 FIX: ALWAYS include wave predictions for tracking
+      // waveData for timeline
       waveData: {
         col2Prediction: (() => {
           const col = analyzeWavePatterns?.columns?.[0];
           if (!col) return null;
-
-          // 🔥 Only predict if column has clear signal
-          if (col.status === "due_to_flip" && col.flipTarget?.length > 0) {
-            return col.flipTarget; // Predict flip
-          }
-
-          // 🔥 For stable patterns, predict continuation
+          if (col.status === "due_to_flip" && col.flipTarget?.length > 0)
+            return col.flipTarget;
           if (col.status === "likely_continue" || col.runLength === 1) {
             return col.currentPair === "A"
               ? col.scheme.pairA
               : col.scheme.pairB;
           }
-
-          // 🔥 Don't make prediction for uncertain states
           return null;
         })(),
-
         col3Prediction: (() => {
           const col = analyzeWavePatterns?.columns?.[1];
           if (!col) return null;
-
-          // 🔥 Only predict if column has clear signal
-          if (col.status === "due_to_flip" && col.flipTarget?.length > 0) {
-            return col.flipTarget; // Predict flip
-          }
-
-          // 🔥 For stable patterns, predict continuation
+          if (col.status === "due_to_flip" && col.flipTarget?.length > 0)
+            return col.flipTarget;
           if (col.status === "likely_continue" || col.runLength === 1) {
             return col.currentPair === "A"
               ? col.scheme.pairA
               : col.scheme.pairB;
           }
-
-          // 🔥 Don't make prediction for uncertain states
           return null;
         })(),
-
         col2Confidence: analyzeWavePatterns?.columns?.[0]?.confidence || 0,
         col3Confidence: analyzeWavePatterns?.columns?.[1]?.confidence || 0,
         col2Status: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
         col3Status: analyzeWavePatterns?.columns?.[1]?.status || "unknown",
       },
+
       strategicTier: strategicAnalysis.tier,
       tierReasoning: strategicAnalysis.reasoning,
       recommendedAction: strategicAnalysis.action,
@@ -1436,11 +1287,6 @@ export default function KiyoModeCard({
     onSendKiyoDebugData,
   ]);
 
-  // 🔥 EXPLANATION:
-  // - Now ALWAYS sends wave predictions for both columns
-  // - Uses getColumnPrediction helper to determine what wave predicts
-  // - Includes column status so we know if it was a flip prediction
-  // - This ensures wave accuracy is tracked consistently
   // Handle test roll input
   const handleTestRollSubmit = (e) => {
     if (e.key === "Enter") {
@@ -1460,7 +1306,6 @@ export default function KiyoModeCard({
     setTestRolls((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // 🔥 OPTIONAL: Add reset button handler
   const handleResetWaveAccuracy = () => {
     setPersistentWaveAccuracy({
       col2: { hits: 0, total: 0 },
@@ -1468,9 +1313,9 @@ export default function KiyoModeCard({
       lastPredictions: { col2: null, col3: null },
     });
   };
-  // 🔥 ADD THIS EFFECT TO TRACK WAVE ACCURACY PERSISTENTLY
+
+  // 🔥 Track wave accuracy (only when wave predicted flips)
   useEffect(() => {
-    // Only track if we have valid data
     if (!analyzeWavePatterns || combinedRolls.length < 4) return;
 
     const latestRoll = combinedRolls[combinedRolls.length - 1];
@@ -1482,25 +1327,19 @@ export default function KiyoModeCard({
     const col2Analysis = analyzeWavePatterns.columns?.[0];
     const col3Analysis = analyzeWavePatterns.columns?.[1];
 
-    // Get current predictions
     const getCurrentPrediction = (colAnalysis) => {
       if (!colAnalysis) return null;
-
-      // Only predict if column is "due_to_flip" with flip target
       if (
         colAnalysis.status === "due_to_flip" &&
         colAnalysis.flipTarget?.length > 0
-      ) {
+      )
         return colAnalysis.flipTarget;
-      }
-
       return null;
     };
 
     const currentCol2Pred = getCurrentPrediction(col2Analysis);
     const currentCol3Pred = getCurrentPrediction(col3Analysis);
 
-    // Check if we have new predictions to verify
     const hadPreviousPredictions =
       persistentWaveAccuracy.lastPredictions.col2 !== null ||
       persistentWaveAccuracy.lastPredictions.col3 !== null;
@@ -1508,40 +1347,33 @@ export default function KiyoModeCard({
     if (hadPreviousPredictions) {
       const newAccuracy = { ...persistentWaveAccuracy };
 
-      // Verify Column 2 prediction
       if (persistentWaveAccuracy.lastPredictions.col2) {
         newAccuracy.col2.total++;
-        if (persistentWaveAccuracy.lastPredictions.col2.includes(actualCol2)) {
+        if (persistentWaveAccuracy.lastPredictions.col2.includes(actualCol2))
           newAccuracy.col2.hits++;
-        }
       }
 
-      // Verify Column 3 prediction
       if (persistentWaveAccuracy.lastPredictions.col3) {
         newAccuracy.col3.total++;
-        if (persistentWaveAccuracy.lastPredictions.col3.includes(actualCol3)) {
+        if (persistentWaveAccuracy.lastPredictions.col3.includes(actualCol3))
           newAccuracy.col3.hits++;
-        }
       }
 
-      // Update last predictions for next roll
       newAccuracy.lastPredictions = {
         col2: currentCol2Pred,
         col3: currentCol3Pred,
       };
-
       setPersistentWaveAccuracy(newAccuracy);
     } else {
-      // First time - just store predictions
       setPersistentWaveAccuracy({
         ...persistentWaveAccuracy,
-        lastPredictions: {
-          col2: currentCol2Pred,
-          col3: currentCol3Pred,
-        },
+        lastPredictions: { col2: currentCol2Pred, col3: currentCol3Pred },
       });
     }
-  }, [combinedRolls.length]); // Only trigger when roll count changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combinedRolls.length]);
+  // 👇 ADD THIS NEW useEffect
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -1552,6 +1384,7 @@ export default function KiyoModeCard({
             Wave Theory + Smart Prefix Prediction
           </p>
         </div>
+
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}
@@ -1574,8 +1407,8 @@ export default function KiyoModeCard({
           </button>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2  ">
-        {/* 🔥 NEW: Accuracy Header Bar */}
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <AccuracyHeaderBar
           kiyoAccuracy={kiyoAccuracy}
           waveAccuracy={waveAccuracy}
@@ -1585,15 +1418,13 @@ export default function KiyoModeCard({
           regionLabel={datasetRegion}
         />
 
-        {/* ✅ REGION SELECTOR — ONLY CHANGES TRAINING DATA */}
-        <div className="flex  items-center gap-2 text-xs">
+        {/* ✅ REGION SELECTOR */}
+        <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-400">Sheet Data:</span>
           <select
             value={datasetRegion}
             onChange={(e) => setDatasetRegion(e.target.value)}
-            className="bg-slate-900 border cursor-pointer border-slate-700 rounded-lg
-             px-3 py-2 text-sm min-w-[8px]
-             focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="bg-slate-900 border cursor-pointer border-slate-700 rounded-lg px-3 py-2 text-sm min-w-[8px] focus:outline-none focus:ring-2 focus:ring-violet-500"
           >
             <option value="EU">EU</option>
             <option value="NA">NA</option>
@@ -1602,6 +1433,7 @@ export default function KiyoModeCard({
           </select>
         </div>
       </div>
+
       {/* Import Stats Toast */}
       <ImportStatsDisplay
         importedRolls={importedRolls}
@@ -1611,7 +1443,7 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      {/* 🔥 1. TEST ROLLS - MOVED TO TOP */}
+      {/* TEST ROLLS */}
       <TestRollsInput
         testInput={testInput}
         setTestInput={setTestInput}
@@ -1622,18 +1454,7 @@ export default function KiyoModeCard({
         setActivePrefix={setActivePrefix}
       />
 
-      {/* 🔥 2. Compact Stats Header */}
-      {/* <CompactStatsHeader
-        kiyoAccuracy={kiyoAccuracy}
-        waveAccuracy={waveAccuracy}
-        combinedDataset={combinedDataset}
-        importedRolls={importedRolls}
-        testRolls={testRolls}
-        live3Rolls={live3Rolls}
-        patchInfo={EU_PATCH_INFO}
-      /> */}
-
-      {/* 🔥 3. Wave Analysis with predictions combined */}
+      {/* Wave Analysis */}
       {combinedRolls.length >= 4 && analyzeWavePatterns && (
         <WaveAnalysisDisplay
           analyzeWavePatterns={analyzeWavePatterns}
@@ -1641,15 +1462,7 @@ export default function KiyoModeCard({
         />
       )}
 
-      {/* 🔥 4. Prediction Cards - side by side */}
-      {/* <PredictionCards
-        analyzeWavePatterns={analyzeWavePatterns}
-        smartPrefixPrediction={smartPrefixPrediction}
-        manualLine={manualLine}
-        setManualLine={setManualLine}
-      /> */}
-
-      {/* 🔥 5. Advanced Tools */}
+      {/* Advanced Tools */}
       <AdvancedToolsSection
         waveAccuracy={waveAccuracy}
         kiyoAccuracy={kiyoAccuracy}
@@ -1678,11 +1491,10 @@ function getMostFrequentDigit(digits, recentRolls, position = 2) {
   // Count occurrences in last 8 rolls
   recentRolls.slice(-8).forEach((roll) => {
     const digit = String(roll)[position];
-    if (freq.hasOwnProperty(digit)) {
+    if (Object.prototype.hasOwnProperty.call(freq, digit)) {
       freq[digit]++;
     }
   });
 
-  // Return most frequent, or first if tie
   return digits.sort((a, b) => (freq[b] || 0) - (freq[a] || 0))[0];
 }
