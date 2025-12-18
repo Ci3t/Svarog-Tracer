@@ -27,10 +27,12 @@ import { translateTo4 } from "../utils/stringHelpers";
 import TestRollsInput from "./kiyo/TestRollsInput";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
+import FiveMinWindowTracker from "./FiveMinWindowTracker";
 import GuideModal from "./kiyo/GuideModal";
 
 // 🔥 Import new layout components
 import AdvancedToolsSection from "./AdvancedToolsSection";
+import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
 
 // 🔥 WAVE THEORY SCHEMES - Optimized structure
 const WAVE_SCHEMES = {
@@ -282,7 +284,12 @@ function detectMissedFlip(recentRolls, scheme, digitPosition = 2) {
 }
 
 // 🔥 NEW: Calculate historical flip behavior per column (ADAPTIVE LEARNING)
-function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
+function calculateColumnFlipBehavior(
+  rolls,
+  scheme,
+  lookback = 20,
+  digitPosition = 2
+) {
   if (!rolls || rolls.length < 6) {
     return {
       avgFlipLength: 3,
@@ -299,8 +306,10 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
   let runLength = 0;
 
   for (let i = recentRolls.length - 1; i >= 0; i--) {
-    const lastDigit = recentRolls[i][2];
-    const isA = scheme.pairA.includes(lastDigit);
+    const digit = recentRolls[i]?.[digitPosition];
+    if (digit === undefined) continue;
+
+    const isA = scheme.pairA.includes(digit);
     const pair = isA ? "A" : "B";
 
     if (currentPair === null) {
@@ -342,19 +351,22 @@ function calculateColumnFlipBehavior(rolls, scheme, lookback = 20) {
 
 // 🔥 NEW: Multi-column prediction combiner (Column 2 & 3 only)
 function predictFromMultipleColumns(columnAnalysis) {
+  const col2 = columnAnalysis[0] || {}; // Ensure columnAnalysis[0] exists
+  const col3 = columnAnalysis[1] || {}; // Ensure columnAnalysis[1] exists
+
   const col2Digits =
-    columnAnalysis[0].status === "due_to_flip"
-      ? columnAnalysis[0].flipTarget
-      : columnAnalysis[0].currentPair === "A"
-      ? columnAnalysis[0].scheme.pairA
-      : columnAnalysis[0].scheme.pairB;
+    col2.status === "due_to_flip"
+      ? col2.flipTarget || [] // Fallback to an empty array if flipTarget is undefined
+      : col2.currentPair === "A"
+      ? col2.scheme?.pairA || [] // Fallback to an empty array if scheme or pairA is undefined
+      : col2.scheme?.pairB || []; // Fallback to an empty array if scheme or pairB is undefined
 
   const col3Digits =
-    columnAnalysis[1].status === "due_to_flip"
-      ? columnAnalysis[1].flipTarget
-      : columnAnalysis[1].currentPair === "A"
-      ? columnAnalysis[1].scheme.pairA
-      : columnAnalysis[1].scheme.pairB;
+    col3.status === "due_to_flip"
+      ? col3.flipTarget || [] // Fallback to an empty array if flipTarget is undefined
+      : col3.currentPair === "A"
+      ? col3.scheme?.pairA || [] // Fallback to an empty array if scheme or pairA is undefined
+      : col3.scheme?.pairB || []; // Fallback to an empty array if scheme or pairB is undefined
 
   const highConfCols = columnAnalysis.filter(
     (c) => c.confidence >= 0.65
@@ -363,19 +375,9 @@ function predictFromMultipleColumns(columnAnalysis) {
   const predictions = [];
   for (const d2 of col2Digits) {
     for (const d3 of col3Digits) {
-      const finalRoll = `4${d2}${d3}`;
-
-      const avgConfidence =
-        (columnAnalysis[0].confidence + columnAnalysis[1].confidence) / 2;
-      const confidenceBoost = highConfCols >= 2 ? 1.15 : 1.0;
-
       predictions.push({
-        roll: finalRoll,
-        confidence: Math.min(avgConfidence * confidenceBoost, 0.9),
-        breakdown: {
-          col2: { digit: d2, conf: columnAnalysis[0].confidence },
-          col3: { digit: d3, conf: columnAnalysis[1].confidence },
-        },
+        roll: `${d2}${d3}`,
+        confidence: Math.min(col2.confidence, col3.confidence),
       });
     }
   }
@@ -616,7 +618,7 @@ export default function KiyoModeCard({
     col3: { hits: 0, total: 0 },
     lastPredictions: { col2: null, col3: null },
   });
-
+  const [liveRolls, setLiveRolls] = useState([]);
   // Extract live rolls from entries
   const live3Rolls = useMemo(() => {
     return entries
@@ -624,6 +626,114 @@ export default function KiyoModeCard({
       .filter((r) => r.length === 3)
       .reverse();
   }, [entries]);
+
+  const rollEvents = useMemo(() => {
+    // entries appear to be newest-first in your app; adjust if needed
+    const list = Array.isArray(entries) ? [...entries] : [];
+
+    const entryEvents = list
+      .map((e) => {
+        const ts = e?.time ? new Date(e.time).getTime() : 0;
+        const roll = String(e?.s3 ?? "").trim();
+        return { roll, ts };
+      })
+      .filter((x) => x.ts > 0 && x.roll.length >= 3)
+      .reverse(); // oldest -> newest
+
+    const importedEvents = importedRolls.map((roll, i) => ({
+      roll,
+      ts: Date.now() + i * 10,
+    }));
+    const testEvents = testRolls.map((roll, i) => ({
+      roll,
+      ts: Date.now() + i * 10,
+    }));
+    const liveEvents = liveRolls;
+
+    return [...entryEvents, ...importedEvents, ...testEvents, ...liveEvents];
+  }, [entries, importedRolls, testRolls, liveRolls]);
+  const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 3);
+  // ─────────────────────────────────────────────────────────────
+  // 5‑minute window tracking (LIVE rolls only)
+  // We do NOT have timestamps for imported/test rolls, so we track
+  // when live rolls are observed and bucket them by current wall‑clock 5‑min window.
+  const MIN_WINDOW_WARMUP_ROLLS = 3;
+
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveRollEventsRef = useRef([]); // [{ roll: '432', ts: 1700000000000 }]
+  const prevLiveRollsRef = useRef(0);
+
+  useEffect(() => {
+    const rolls = Array.isArray(live3Rolls) ? live3Rolls : [];
+    const prev = prevLiveRollsRef.current || [];
+
+    // shrink: user deleted rolls
+    if (rolls.length < prev.length) {
+      liveRollEventsRef.current = liveRollEventsRef.current.slice(
+        0,
+        rolls.length
+      );
+      prevLiveRollsRef.current = rolls.slice();
+      return;
+    }
+
+    // same length: user edited last value (or replaced array)
+    if (rolls.length === prev.length) {
+      if (rolls.length > 0) {
+        const lastNow = String(rolls[rolls.length - 1] ?? "");
+        const lastPrev = String(prev[prev.length - 1] ?? "");
+        if (lastNow !== lastPrev && liveRollEventsRef.current.length) {
+          // keep timestamp, only update roll value
+          liveRollEventsRef.current[liveRollEventsRef.current.length - 1] = {
+            ...liveRollEventsRef.current[liveRollEventsRef.current.length - 1],
+            roll: lastNow,
+          };
+        }
+      }
+      prevLiveRollsRef.current = rolls.slice();
+      return;
+    }
+
+    // grown: new rolls appended
+    const added = rolls.slice(prev.length);
+    let base = Date.now();
+    added.forEach((r, i) => {
+      // ensure monotonic timestamps even if multiple added in same tick
+      liveRollEventsRef.current.push({ roll: String(r), ts: base + i * 5 });
+    });
+    setLiveRolls([...liveRollEventsRef.current]);
+    prevLiveRollsRef.current = rolls.slice();
+  }, [live3Rolls]);
+
+  const windowStartMs = useMemo(() => {
+    const d = new Date(nowTick);
+    const floored = Math.floor(d.getMinutes() / 5) * 5;
+    const start = new Date(d);
+    start.setMinutes(floored, 0, 0);
+    return start.getTime();
+  }, [nowTick]);
+
+  const windowEndMs = useMemo(
+    () => windowStartMs + 5 * 60 * 1000,
+    [windowStartMs]
+  );
+
+  const rollsInCurrentWindow = useMemo(() => {
+    const events = liveRollEventsRef.current || [];
+    let count = 0;
+    for (const e of events) {
+      if (e?.ts >= windowStartMs && e?.ts < windowEndMs) count += 1;
+    }
+    return count;
+  }, [windowStartMs, windowEndMs, nowTick]);
+
+  const windowWarmupRemaining = windowInfo?.warmupRemaining ?? 0;
+  const windowSecondsRemaining = windowInfo?.secondsRemaining ?? 0;
 
   // Translate test rolls using Caesar shift (rotate to start with 4)
   const translatedTestRolls = useMemo(() => {
@@ -795,13 +905,19 @@ export default function KiyoModeCard({
         flipColumns: 0,
         stickyColumns: 0,
         compoundConfidence: "NORMAL",
+        windowQuality: "SKIP",
+        window: {
+          warmupRemaining: windowInfo?.warmupRemaining ?? 0,
+          secondsRemaining: windowInfo?.secondsRemaining ?? 0,
+          rollsInWindow: windowInfo?.rollsInWindow ?? 0,
+        },
       };
 
     const avgSwapEstimate =
       combinedRolls.length >= 6
         ? combinedRolls.slice(-6).reduce((acc, roll, idx, arr) => {
             if (idx === 0) return 0;
-            return acc + (roll[2] !== arr[idx - 1][2] ? 1 : 0);
+            return acc + (roll?.[2] !== arr[idx - 1]?.[2] ? 1 : 0);
           }, 0) / 5
         : 0.5;
 
@@ -814,7 +930,72 @@ export default function KiyoModeCard({
 
     const recentRolls = combinedRolls.slice(-LOOKBACK);
 
-    // Only col2 + col3
+    // -------------------------
+    // Pair rhythm (from WavePairingTable logic)
+    // -------------------------
+    // Map last N rolls to a compact pair state: O/I (col2) + L/H (col3)
+    const toPairState = (rollStr) => {
+      const s = String(rollStr ?? "");
+      if (s.length < 3) return null;
+      const d2 = Number(s[1]);
+      const d3 = Number(s[2]);
+      if (!Number.isFinite(d2) || !Number.isFinite(d3)) return null;
+
+      const c2 = d2 === 1 || d2 === 4 ? "O" : "I"; // Outer vs Inner
+      const c3 = d3 === 1 || d3 === 2 ? "L" : "H"; // Low vs High
+      return `${c2}-${c3}`; // e.g. "O-L"
+    };
+
+    const pairSeq = recentRolls.slice(-12).map(toPairState).filter(Boolean);
+
+    const calcPairSupport = (seq) => {
+      if (!seq || seq.length < 4) return { score: 0, reason: "insufficient" };
+
+      const last = seq[seq.length - 1];
+      const prev = seq[seq.length - 2];
+
+      // repeat (.. X, X)
+      const repeat = last === prev ? 1 : 0;
+
+      // alternation on last 4 (A,B,A,B)
+      const last4 = seq.slice(-4);
+      const alt =
+        last4.length === 4 &&
+        last4[0] === last4[2] &&
+        last4[1] === last4[3] &&
+        last4[0] !== last4[1]
+          ? 1
+          : 0;
+
+      // dominance (top pair >= 50% of seq)
+      const freq = {};
+      for (const p of seq) freq[p] = (freq[p] || 0) + 1;
+      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      const [topPair, topCount] = entries[0] || [null, 0];
+      const dom = topPair && topCount / seq.length >= 0.5 ? 1 : 0;
+
+      // simple weighted score
+      const score = Math.min(1, repeat * 0.4 + alt * 0.35 + dom * 0.25);
+
+      const reason =
+        score >= 0.6
+          ? alt
+            ? `alt(${last4[0]}↔${last4[1]})`
+            : repeat
+            ? `repeat(${last})`
+            : `dom(${topPair} ${Math.round((topCount / seq.length) * 100)}%)`
+          : "weak";
+
+      return { score, reason, topPair, topCount, len: seq.length };
+    };
+
+    const pairSupport = calcPairSupport(pairSeq);
+
+    const windowWarmupRemaining = windowInfo?.warmupRemaining ?? 0;
+    const windowSecondsRemaining = windowInfo?.secondsRemaining ?? 0;
+    const hasLiveRolls = Array.isArray(live3Rolls) && live3Rolls.length > 0;
+
+    // Only col2 + col3 (exactly what WaveAnalysisDisplay expects)
     const schemes = [WAVE_SCHEMES.col2, WAVE_SCHEMES.col3];
 
     let totalSwapRate = 0;
@@ -823,28 +1004,15 @@ export default function KiyoModeCard({
     const columnAnalysis = schemes.map((scheme, idx) => {
       const digitPosition = idx === 0 ? 1 : 2; // col2 = 2nd digit | col3 = 3rd digit
 
-      const runAnalysis = calculateConsecutiveRun(
-        recentRolls,
-        scheme,
-        digitPosition
-      );
-      const columnBehavior = calculateColumnFlipBehavior(
-        recentRolls,
-        scheme,
-        LOOKBACK
-      );
-      const flipStatus = calculateFlipStatus(
-        runAnalysis.length,
-        runAnalysis.pair,
-        scheme,
-        columnBehavior
-      );
-      const swapRate = calculateSwapRate(recentRolls, scheme, digitPosition);
-      const missedFlip = detectMissedFlip(recentRolls, scheme, digitPosition);
+      const { runAnalysis, swapRate, flipStatus, missedFlip, columnBehavior } =
+        calculateColumnMetrics(recentRolls, scheme, LOOKBACK, digitPosition);
 
       const isIgnored = swapRate >= 0.7;
 
+      // default: use flipStatus
       let adjustedFlipStatus = flipStatus;
+
+      // 🟣 post-flip cooldown overrides everything (but still not "ignored")
       if (missedFlip?.justFlipped) {
         adjustedFlipStatus = {
           ...flipStatus,
@@ -856,18 +1024,69 @@ export default function KiyoModeCard({
         };
       }
 
+      // compute avg swap only for non-ignored columns
       if (!isIgnored) {
         totalSwapRate += swapRate;
         validColumnsCount++;
       }
 
-      const rhythmDisplay = runAnalysis.pattern
+      // rhythm helpers (UI)
+      const rhythmDisplay = (runAnalysis.pattern || [])
         .map((p) => (p === "A" ? scheme.pairALabel[0] : scheme.pairBLabel[0]))
         .join("-");
 
       const currentLabel =
         runAnalysis.pair === "A" ? scheme.pairALabel : scheme.pairBLabel;
+
       const flipLabel = adjustedFlipStatus.flipLabel;
+
+      let adaptiveNote = adjustedFlipStatus.adaptiveNote;
+
+      // -------------------------
+      // Window gating (live-only)
+      // -------------------------
+      const originalStatus = isIgnored ? "ignored" : adjustedFlipStatus.status;
+      const originalConfidence = isIgnored ? 0 : adjustedFlipStatus.confidence;
+
+      let isGated = false;
+      let gatingReason = null;
+
+      // Gate near boundary (last 20 seconds)
+      if (
+        !isIgnored &&
+        windowSecondsRemaining <= 20 &&
+        windowSecondsRemaining > 0
+      ) {
+        isGated = true;
+        gatingReason = `Window transition in ${windowSecondsRemaining}s - Pattern may shift`;
+      }
+      // Gate warm-up (only when you actually have live rolls in this window)
+      else if (!isIgnored && hasLiveRolls && windowWarmupRemaining > 0) {
+        isGated = true;
+        gatingReason = `Window warm-up: need ${windowWarmupRemaining} more live roll(s)`;
+      }
+      // Gate unstable: short run + moderate volatility (avoid false flips)
+      else if (!isIgnored && runAnalysis.length < 3 && swapRate >= 0.5) {
+        // Soft-override: if historical confidence is strong AND the pair rhythm (from the table)
+        // is giving a clear signal, don't hard-gate. This is important when upgrades are scarce.
+        const canSoftOverride =
+          originalConfidence >= 0.7 && pairSupport?.score >= 0.6;
+
+        if (canSoftOverride) {
+          isGated = false;
+          gatingReason = null;
+          adaptiveNote = `${
+            adaptiveNote ? adaptiveNote + " • " : ""
+          }⚠️ Soft gate override: high conf (${Math.round(
+            originalConfidence * 100
+          )}%) + pair rhythm (${pairSupport.reason})`;
+        } else {
+          isGated = true;
+          gatingReason = `Short run (${
+            runAnalysis.length
+          }) + moderate volatility (${Math.round(swapRate * 100)}%)`;
+        }
+      }
 
       return {
         column: idx + 2, // Column 2 & 3
@@ -911,7 +1130,14 @@ export default function KiyoModeCard({
         behavior: columnBehavior.behavior,
         flipAt2Rate: columnBehavior.flipAt2Rate,
         avgFlipLength: columnBehavior.avgFlipLength,
-        adaptiveNote: adjustedFlipStatus.adaptiveNote,
+        adaptiveNote,
+
+        // gating fields used by WaveAnalysisDisplay
+        isGated,
+        gatingReason,
+        originalStatus,
+        originalConfidence,
+        pairSupport,
       };
     });
 
@@ -921,12 +1147,13 @@ export default function KiyoModeCard({
     const flipColumns = columnAnalysis.filter(
       (col) =>
         !col.isIgnored &&
+        !col.isGated &&
         col.flipStatus.status === "due_to_flip" &&
         col.flipStatus.urgency !== "skip"
     );
 
     const stickyColumns = columnAnalysis.filter(
-      (col) => !col.isIgnored && col.swapRate < 0.4
+      (col) => !col.isIgnored && !col.isGated && col.swapRate < 0.4
     );
 
     let compoundConfidence = "NORMAL";
@@ -944,6 +1171,20 @@ export default function KiyoModeCard({
       });
       focusColumn = ["focus", sortedFlips[0]];
     }
+
+    const windowQuality = (() => {
+      const ungatedCols = columnAnalysis.filter(
+        (c) => !c.isIgnored && !c.isGated
+      );
+      if (ungatedCols.length === 0) return "SKIP";
+      if (
+        ungatedCols.length === 2 &&
+        ungatedCols.every((c) => c.confidence >= 0.7)
+      )
+        return "GOLDEN";
+      if (ungatedCols.length >= 1) return "MIXED";
+      return "CHAOTIC";
+    })();
 
     return {
       columns: columnAnalysis,
@@ -965,8 +1206,16 @@ export default function KiyoModeCard({
       postFlipColumns: columnAnalysis
         .filter((c) => c.missedFlip?.justFlipped)
         .map((c) => c.column),
+
+      windowQuality,
+      window: {
+        warmupRemaining: windowWarmupRemaining,
+        secondsRemaining: windowSecondsRemaining,
+        rollsInWindow: windowInfo?.rollsInWindow ?? 0,
+        hasLiveRolls,
+      },
     };
-  }, [combinedRolls]);
+  }, [combinedRolls, windowInfo, live3Rolls]);
 
   // 🔥 NEW: Multi-column wave prediction (not used in UI here, but kept)
   const waveMultiColumnPrediction = useMemo(() => {
@@ -1456,10 +1705,16 @@ export default function KiyoModeCard({
 
       {/* Wave Analysis */}
       {combinedRolls.length >= 4 && analyzeWavePatterns && (
-        <WaveAnalysisDisplay
-          analyzeWavePatterns={analyzeWavePatterns}
-          smartPrefixPrediction={smartPrefixPrediction}
-        />
+        <>
+          <FiveMinWindowTracker
+            windowInfo={windowInfo}
+            analyzeWavePatterns={analyzeWavePatterns}
+          />
+          <WaveAnalysisDisplay
+            analyzeWavePatterns={analyzeWavePatterns}
+            smartPrefixPrediction={smartPrefixPrediction}
+          />
+        </>
       )}
 
       {/* Advanced Tools */}
@@ -1497,4 +1752,56 @@ function getMostFrequentDigit(digits, recentRolls, position = 2) {
   });
 
   return digits.sort((a, b) => (freq[b] || 0) - (freq[a] || 0))[0];
+}
+
+// 🔥 NEW: Calculate metrics for a single column (used in analyzeWavePatterns)
+function calculateColumnMetrics(rolls, scheme, lookback, digitPosition = 2) {
+  if (!rolls || rolls.length < 4) {
+    return {
+      runAnalysis: { pair: null, length: 0, pattern: [] },
+      swapRate: 0,
+      flipStatus: {
+        status: "balanced",
+        confidence: 0.5,
+        message: "Balanced",
+        flipTarget: [],
+        flipLabel: "Unknown",
+        urgency: "none",
+        icon: "⚫",
+      },
+      missedFlip: null,
+      columnBehavior: {
+        avgFlipLength: 3,
+        flipAt2Rate: 0,
+        totalFlips: 0,
+        behavior: "unknown",
+        flips: [],
+      },
+    };
+  }
+
+  const recentRolls = rolls.slice(-Math.min(lookback, rolls.length));
+
+  const runAnalysis = calculateConsecutiveRun(
+    recentRolls,
+    scheme,
+    digitPosition
+  );
+  const swapRate = calculateSwapRate(recentRolls, scheme, digitPosition);
+  const columnBehavior = calculateColumnFlipBehavior(
+    recentRolls,
+    scheme,
+    lookback,
+    digitPosition
+  );
+  const flipStatus = calculateFlipStatus(
+    runAnalysis.length,
+    runAnalysis.pair,
+    scheme,
+    columnBehavior
+  );
+  const missedFlip = detectMissedFlip(recentRolls, scheme, digitPosition);
+
+  // NOTE: gating is applied in analyzeWavePatterns (so this stays pure / predictable)
+  return { runAnalysis, swapRate, flipStatus, missedFlip, columnBehavior };
 }

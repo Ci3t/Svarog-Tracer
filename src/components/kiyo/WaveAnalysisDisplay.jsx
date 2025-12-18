@@ -1,21 +1,58 @@
-import React from "react";
+// import React from "react";
 
 export default function WaveAnalysisDisplay({
   analyzeWavePatterns,
   smartPrefixPrediction,
 }) {
-  // Always render the component container
+  // Defensive: ensure columns exists & has at least 2 entries
   const hasData =
-    analyzeWavePatterns && analyzeWavePatterns.columns.length >= 2;
+    Array.isArray(analyzeWavePatterns?.columns) &&
+    analyzeWavePatterns.columns.length >= 2;
 
-  const col2 = hasData ? analyzeWavePatterns.columns[0] : null;
-  const col3 = hasData ? analyzeWavePatterns.columns[1] : null;
-  const [_, focusCol] = analyzeWavePatterns?.focusColumn || [null, null];
+  const cols = analyzeWavePatterns?.columns ?? [];
+  const col2 = hasData ? cols[0] : null;
+  const col3 = hasData ? cols[1] : null;
+
+  // focusColumn is expected like [index, colObj]
+  const [__, rawFocusCol] = analyzeWavePatterns?.focusColumn || [null, null];
+  const focusCol = rawFocusCol || null;
+
+  // Make focusCol.flipTarget safe everywhere
+  const focusFlipTarget = Array.isArray(focusCol?.flipTarget)
+    ? focusCol.flipTarget
+    : [];
+
+  // 5-min window helpers (optional)
+  const windowInfo = analyzeWavePatterns?.window || null;
+  const warmupRemaining = windowInfo?.warmupRemaining ?? 0;
+  const secondsRemaining = windowInfo?.secondsRemaining;
+  const minsLeft =
+    typeof secondsRemaining === "number"
+      ? Math.floor(secondsRemaining / 60)
+      : null;
+  const secsLeft =
+    typeof secondsRemaining === "number"
+      ? String(secondsRemaining % 60).padStart(2, "0")
+      : null;
+
+  const windowQuality = analyzeWavePatterns?.windowQuality;
+
+  const gatedCount = cols.filter((c) => c?.isGated).length;
+
+  // avgSwapRate might be undefined or non-number
+  const avgSwapRateNum = Number(analyzeWavePatterns?.avgSwapRate);
+  const avgSwapRatePct = Number.isFinite(avgSwapRateNum)
+    ? (avgSwapRateNum * 100).toFixed(0)
+    : null;
+
+  const postFlipColumns = Array.isArray(analyzeWavePatterns?.postFlipColumns)
+    ? analyzeWavePatterns.postFlipColumns
+    : [];
 
   return (
     <div className="space-y-3">
       {/* Wave Pattern Analysis Card */}
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border-2 border-cyan-500/60 shadow-xl">
+      <div className="bg-linear-to-br from-slate-800 to-slate-900 rounded-xl p-4 border-2 border-cyan-500/60 shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -26,23 +63,26 @@ export default function WaveAnalysisDisplay({
               Column 2 & 3 flip detection
             </p>
           </div>
+
           {hasData ? (
             <div className="text-right text-xs text-slate-400">
               <div>
                 Avg Swap:{" "}
                 <span className="text-white font-semibold">
-                  {(parseFloat(analyzeWavePatterns.avgSwapRate) * 100).toFixed(
-                    0
-                  )}
-                  %
+                  {avgSwapRatePct ?? "—"}%
                 </span>
               </div>
               <div>
                 Flip Columns:{" "}
                 <span className="text-cyan-300 font-semibold">
-                  {analyzeWavePatterns.flipColumns}/2
+                  {analyzeWavePatterns?.flipColumns ?? 0}/2
                 </span>
               </div>
+              {gatedCount > 0 && (
+                <div className="text-[10px] text-red-300 mt-1">
+                  🚫 {gatedCount} gated
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-right text-xs text-slate-400">
@@ -63,24 +103,32 @@ export default function WaveAnalysisDisplay({
         ) : (
           <>
             {/* Post-Flip Warning */}
-            {analyzeWavePatterns.postFlipColumns?.length > 0 && (
+            {postFlipColumns.length > 0 && (
               <div className="mb-4 bg-purple-900/40 rounded-lg p-3 border border-purple-500/50 text-center">
                 <div className="text-sm font-bold text-purple-200">
                   🟣 POST-FLIP COOLDOWN DETECTED
                 </div>
                 <div className="text-xs text-purple-300 mt-1">
-                  Column {analyzeWavePatterns.postFlipColumns.join(", ")} just
-                  flipped - SKIP betting
+                  Column {postFlipColumns.join(", ")} just flipped - SKIP
+                  betting
                 </div>
               </div>
             )}
 
             {/* Column Cards */}
             <div className="grid grid-cols-2 gap-4">
-              {[col2, col3].map((col) => {
+              {[col2, col3].map((col, idx) => {
+                // Defensive: skip if missing
+                if (!col) return null;
+
+                // Make flipTarget safe for this column
+                const flipTarget = Array.isArray(col.flipTarget)
+                  ? col.flipTarget
+                  : [];
+
                 const isPostFlip =
                   col.flipStatus?.status === "post_flip_cooldown";
-                const isIgnored = col.isIgnored;
+                const isIgnored = Boolean(col.isIgnored);
                 const urgency = col.urgency;
 
                 // Background color based on urgency
@@ -109,34 +157,60 @@ export default function WaveAnalysisDisplay({
                   ? "border-yellow-500/60"
                   : "border-slate-600/40";
 
+                // Gated view
+                if (col.isGated) {
+                  return (
+                    <div
+                      key={col.column ?? `col-${idx}`}
+                      className="bg-slate-800/40 rounded-lg p-4 border-2 border-red-500/50"
+                    >
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">🚫</div>
+                        <div className="text-sm font-bold text-red-300 mb-2">
+                          Column {col.column ?? "?"} Gated
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {col.gatingReason ?? "No gating reason provided"}
+                        </div>
+                        <div className="mt-3 text-xs text-slate-500">
+                          Original confidence:{" "}
+                          {Number.isFinite(col.originalConfidence)
+                            ? `${Math.round(col.originalConfidence * 100)}%`
+                            : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
-                    key={col.column}
-                    className={`bg-gradient-to-br ${bgColor} rounded-lg p-4 border-2 ${borderColor}`}
+                    key={col.column ?? `col-${idx}`}
+                    className={`bg-linear-to-br ${bgColor} rounded-lg p-4 border-2 ${borderColor}`}
                   >
                     {/* Icon + Name */}
                     <div className="flex items-center gap-3 mb-3">
-                      <span className="text-4xl">{col.icon}</span>
+                      <span className="text-4xl">{col.icon ?? "📌"}</span>
                       <div>
                         <div className="text-sm font-bold text-white">
-                          {col.name}
+                          {col.name ?? "Column"}
                         </div>
                         <div className="text-xs text-slate-300">
-                          {col.label}
+                          {col.label ?? ""}
                         </div>
                       </div>
                     </div>
 
-                    {/* Run Length - BIG with explanation */}
+                    {/* Run Length */}
                     <div className="text-center mb-3">
                       <div className="text-5xl font-black text-white">
-                        {col.runLength}
+                        {col.runLength ?? 0}
                       </div>
                       <div className="text-xs text-slate-400 uppercase tracking-wide">
                         CONSECUTIVE RUN
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1">
-                        ({col.runLength} {col.currentLabel} in a row)
+                        ({col.runLength ?? 0} {col.currentLabel ?? ""} in a row)
                       </div>
                     </div>
 
@@ -146,12 +220,12 @@ export default function WaveAnalysisDisplay({
                       </div>
                       <div className="text-lg font-bold text-cyan-300">
                         {col.currentPair === "A"
-                          ? `${col.scheme.pairALabel} (${col.scheme.pairA.join(
-                              "/"
-                            )})`
-                          : `${col.scheme.pairBLabel} (${col.scheme.pairB.join(
-                              "/"
-                            )})`}
+                          ? `${col.scheme?.pairALabel ?? ""} (${(
+                              col.scheme?.pairA ?? []
+                            ).join("/")})`
+                          : `${col.scheme?.pairBLabel ?? ""} (${(
+                              col.scheme?.pairB ?? []
+                            ).join("/")})`}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-1">
                         {urgency === "critical" || urgency === "high"
@@ -162,11 +236,9 @@ export default function WaveAnalysisDisplay({
                       </div>
                     </div>
 
-                    {/* Expected Flip - CLEAR INDICATION */}
-                    {/* Expected Flip / Continuation - SMART INDICATION */}
-                    {!isIgnored && !isPostFlip && col.flipTarget.length > 0 && (
+                    {/* Expected Flip / Continuation */}
+                    {!isIgnored && !isPostFlip && flipTarget.length > 0 && (
                       <div className="bg-cyan-950/60 rounded-lg p-3 border border-cyan-500/40 text-center mb-3">
-                        {/* ✅ LABEL SWITCH */}
                         <div className="text-xs text-cyan-400 mb-1 uppercase font-semibold">
                           {col.status === "due_to_flip"
                             ? "⚡ EXPECTED TO FLIP TO:"
@@ -175,25 +247,22 @@ export default function WaveAnalysisDisplay({
                             : "🟡 PATTERN OUTLOOK:"}
                         </div>
 
-                        {/* ✅ VALUE */}
                         <div className="text-3xl font-black text-cyan-300 mb-1">
                           {col.status === "likely_continue"
-                            ? col.currentLabel
-                            : col.flipLabel}
+                            ? col.currentLabel ?? "—"
+                            : col.flipLabel ?? "—"}
                         </div>
 
-                        {/* ✅ DIGITS */}
                         <div className="text-sm text-slate-300">
                           [
                           {col.status === "likely_continue"
                             ? col.currentPair === "A"
-                              ? col.scheme.pairA.join(", ")
-                              : col.scheme.pairB.join(", ")
-                            : col.flipTarget.join(", ")}
+                              ? (col.scheme?.pairA ?? []).join(", ")
+                              : (col.scheme?.pairB ?? []).join(", ")
+                            : flipTarget.join(", ")}
                           ]
                         </div>
 
-                        {/* ✅ MESSAGE */}
                         <div className="text-[10px] text-cyan-400 mt-2">
                           {col.status === "due_to_flip"
                             ? urgency === "critical"
@@ -216,7 +285,9 @@ export default function WaveAnalysisDisplay({
                           Flip Confidence
                         </div>
                         <div className="text-white font-bold text-lg">
-                          {Math.round(col.confidence * 100)}%
+                          {Number.isFinite(col.confidence)
+                            ? `${Math.round(col.confidence * 100)}%`
+                            : "—"}
                         </div>
                         <div className="text-slate-500 text-[9px] mt-0.5">
                           {col.confidence >= 0.8
@@ -243,10 +314,12 @@ export default function WaveAnalysisDisplay({
                               : "text-red-400"
                           }`}
                         >
-                          {Math.round(col.swapRate * 100)}%
+                          {Number.isFinite(col.swapRate)
+                            ? `${Math.round(col.swapRate * 100)}%`
+                            : "—"}
                         </div>
                         <div className="text-slate-500 text-[9px] mt-0.5">
-                          {col.swapRateLabel}
+                          {col.swapRateLabel ?? ""}
                         </div>
                       </div>
                     </div>
@@ -258,9 +331,22 @@ export default function WaveAnalysisDisplay({
                       </div>
                     )}
 
+                    {/* Warm-up */}
+                    {warmupRemaining > 0 && (
+                      <div className="mt-3 text-xs text-center text-slate-300 italic border-t border-slate-700/50 pt-2">
+                        Warm-up: need {warmupRemaining} more roll(s) in this
+                        5-min window
+                        {minsLeft !== null && secsLeft !== null && (
+                          <span className="ml-2 opacity-80">
+                            (≈{minsLeft}m {secsLeft}s left)
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Message */}
-                    <div className="mt-3 text-xs text-center text-slate-300 italic border-t border-slate-700/50 pt-2">
-                      {col.message}
+                    <div className="mt-2 text-xs text-center text-slate-300 italic">
+                      {col.message ?? ""}
                     </div>
                   </div>
                 );
@@ -270,13 +356,13 @@ export default function WaveAnalysisDisplay({
         )}
       </div>
 
-      {/* Alignment Status Banner - ALWAYS SHOW IF BOTH PREDICTIONS EXIST */}
+      {/* Alignment Status Banner */}
       {smartPrefixPrediction && focusCol && (
         <div
           className={`rounded-lg px-3 py-2 border text-center text-sm font-bold ${(() => {
             const prefixLastDigit = smartPrefixPrediction.prediction?.[2];
             const isAligned =
-              prefixLastDigit && focusCol.flipTarget.includes(prefixLastDigit);
+              prefixLastDigit && focusFlipTarget.includes(prefixLastDigit);
             return isAligned
               ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
               : "bg-orange-950/60 border-orange-500/40 text-orange-300";
@@ -285,7 +371,7 @@ export default function WaveAnalysisDisplay({
           {(() => {
             const prefixLastDigit = smartPrefixPrediction.prediction?.[2];
             const isAligned =
-              prefixLastDigit && focusCol.flipTarget.includes(prefixLastDigit);
+              prefixLastDigit && focusFlipTarget.includes(prefixLastDigit);
             return isAligned
               ? "✓ WAVE & PREFIX AGREE - HIGH CONFIDENCE"
               : "⚠️ WAVE vs PREFIX CONFLICT";
@@ -293,11 +379,11 @@ export default function WaveAnalysisDisplay({
         </div>
       )}
 
-      {/* Prediction Cards - ALWAYS VISIBLE */}
+      {/* Prediction Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* RECOMMENDED TARGET (Wave) - ALWAYS SHOW */}
+        {/* RECOMMENDED TARGET (Wave) */}
         <div className="bg-gradient-to-br from-cyan-900/50 to-emerald-900/50 rounded-lg p-3 border border-cyan-500/60">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="bg-linear-to-br from-cyan-900/50 to-emerald-900/50 rounded-lg p-3 border border-cyan-500/60">
             <span className="text-lg">🎯</span>
             <div>
               <div className="text-xs font-bold text-cyan-300">
@@ -309,14 +395,14 @@ export default function WaveAnalysisDisplay({
             </div>
           </div>
 
-          {focusCol && focusCol.flipTarget && focusCol.flipTarget.length > 0 ? (
+          {focusFlipTarget.length > 0 ? (
             <div className="space-y-2">
               <div className="bg-cyan-950/60 rounded p-2 border border-cyan-500/40">
                 <div className="text-[12px] text-cyan-300 font-semibold mb-1">
                   Target digits:
                 </div>
                 <div className="flex gap-1">
-                  {focusCol.flipTarget.map((digit) => (
+                  {focusFlipTarget.map((digit) => (
                     <div
                       key={digit}
                       className="flex-1 bg-cyan-900/60 rounded px-2 py-1.5 border border-cyan-500/50 text-center"
@@ -325,7 +411,7 @@ export default function WaveAnalysisDisplay({
                         4{digit}
                       </div>
                       <div className="text-[11px] text-yellow-200">
-                        {focusCol.flipLabel}
+                        {focusCol?.flipLabel ?? ""}
                       </div>
                     </div>
                   ))}
@@ -335,7 +421,9 @@ export default function WaveAnalysisDisplay({
               <div className="text-[12px] text-slate-400">
                 Confidence:{" "}
                 <span className="text-cyan-300 font-bold">
-                  {Math.round(focusCol.confidence * 100)}%
+                  {Number.isFinite(focusCol?.confidence)
+                    ? `${Math.round(focusCol.confidence * 100)}%`
+                    : "—"}
                 </span>
               </div>
             </div>
@@ -350,9 +438,9 @@ export default function WaveAnalysisDisplay({
           )}
         </div>
 
-        {/* SMART PREFIX PREDICTOR - ALWAYS SHOW */}
+        {/* SMART PREFIX PREDICTOR */}
         <div className="bg-gradient-to-br from-cyan-900/50 to-blue-900/50 rounded-lg p-3 border border-cyan-500/60">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="bg-linear-to-br from-cyan-900/50 to-blue-900/50 rounded-lg p-3 border border-cyan-500/60">
             <span className="text-lg">🎯</span>
             <div>
               <div className="text-xs font-bold text-cyan-300">
@@ -378,7 +466,7 @@ export default function WaveAnalysisDisplay({
                   {smartPrefixPrediction.prediction}
                 </div>
                 <div className="text-xs font-bold text-cyan-400">
-                  {Math.round(smartPrefixPrediction.confidence * 100)}%
+                  {Math.round((smartPrefixPrediction.confidence ?? 0) * 100)}%
                   {smartPrefixPrediction.blendInfo?.liveWeight > 0 && (
                     <span className="ml-1 text-[9px] text-cyan-200">
                       (
@@ -390,7 +478,7 @@ export default function WaveAnalysisDisplay({
                   )}
                 </div>
                 <div className="text-[9px] text-slate-400 mt-1">
-                  {smartPrefixPrediction.matchCount} matches
+                  {smartPrefixPrediction.matchCount ?? 0} matches
                 </div>
               </div>
 
@@ -403,7 +491,10 @@ export default function WaveAnalysisDisplay({
                     {smartPrefixPrediction.alt}
                   </div>
                   <div className="text-[10px] text-blue-400">
-                    {Math.round(smartPrefixPrediction.confidence * 0.7 * 100)}%
+                    {Math.round(
+                      (smartPrefixPrediction.confidence ?? 0) * 0.7 * 100
+                    )}
+                    %
                   </div>
                 </div>
               )}
@@ -421,6 +512,41 @@ export default function WaveAnalysisDisplay({
           )}
         </div>
       </div>
+
+      {/* Window Quality Alert */}
+      {hasData && windowQuality && (
+        <div
+          className={`mb-4 rounded-lg p-3 border text-center ${
+            windowQuality === "SKIP"
+              ? "bg-red-900/40 border-red-500/50"
+              : windowQuality === "MIXED"
+              ? "bg-yellow-900/40 border-yellow-500/50"
+              : windowQuality === "GOLDEN"
+              ? "bg-green-900/40 border-green-500/50"
+              : "bg-slate-900/40 border-slate-500/50"
+          }`}
+        >
+          <div
+            className={`text-sm font-bold ${
+              windowQuality === "SKIP"
+                ? "text-red-200"
+                : windowQuality === "MIXED"
+                ? "text-yellow-200"
+                : windowQuality === "GOLDEN"
+                ? "text-green-200"
+                : "text-slate-200"
+            }`}
+          >
+            {windowQuality === "SKIP"
+              ? "🚫 SKIP THIS WINDOW – wait for next boundary"
+              : windowQuality === "MIXED"
+              ? "⚠️ MIXED QUALITY – proceed with caution"
+              : windowQuality === "GOLDEN"
+              ? "✅ GOLDEN WINDOW – optimal conditions"
+              : "🤷 CHAOTIC WINDOW"}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
