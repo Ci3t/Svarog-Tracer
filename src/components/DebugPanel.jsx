@@ -521,7 +521,13 @@ export default function DebugPanel({
     lines.push("");
 
     // 🔥 FIX 1: Format rolls in table (15 per row)
-    const allRolls = kiyoWaveData?.combinedRolls || [];
+    const allRollsFromLogs = kiyoLogs
+      .map((l) => l?.actual)
+      .filter(Boolean)
+      .map(String);
+    const allRolls = allRollsFromLogs.length
+      ? allRollsFromLogs
+      : kiyoWaveData?.combinedRolls || [];
     if (allRolls.length > 0) {
       lines.push("┌─────────────────────────────────────────────────────────┐");
       lines.push(
@@ -578,9 +584,10 @@ export default function DebugPanel({
       const actualD2 = actual[1] || "-";
       const actualD3 = actual[2] || "-";
 
-      // Wave predictions
-      const c2Pred = log.waveData?.col2Prediction || null;
-      const c3Pred = log.waveData?.col3Prediction || null;
+      // Wave predictions (prediction BEFORE this roll comes from previous log)
+      const prev = idx > 0 ? kiyoLogs[idx - 1] : null;
+      const c2Pred = prev?.waveData?.col2Prediction || null;
+      const c3Pred = prev?.waveData?.col3Prediction || null;
 
       const waveC2 = c2Pred ? `[${c2Pred.join(",")}]` : "-";
       const waveC3 = c3Pred ? `[${c3Pred.join(",")}]` : "-";
@@ -598,14 +605,16 @@ export default function DebugPanel({
             : "✗"
           : "-";
 
-      // 🔥 NEW: Use livePrefix that was captured BEFORE this roll
+      // Prefix prediction BEFORE this roll (comes from previous log)
       let prefixMain = "-";
       let prefixAlt = "-";
 
-      if (log.livePrefix) {
-        // Use the "live" prefix that was showing before roll was entered
-        prefixMain = log.livePrefix.main || "-";
-        prefixAlt = log.livePrefix.alt || "-";
+      if (prev?.livePrefix) {
+        prefixMain = prev.livePrefix.main || "-";
+        prefixAlt = prev.livePrefix.alt || "-";
+      } else if (prev?.smartPrefix) {
+        prefixMain = prev.smartPrefix.main || "-";
+        prefixAlt = prev.smartPrefix.alt || "-";
       }
 
       const prefixDisplay =
@@ -655,14 +664,16 @@ export default function DebugPanel({
 
     const isDash = (v) => !v || v === "-" || v === "--";
 
-    kiyoLogs.forEach((log) => {
+    kiyoLogs.forEach((log, idx) => {
       const actual = String(log.actual || "");
 
       const d2 = actual[1] || null;
       const d3 = actual[2] || null;
 
-      const c2Arr = log.waveData?.col2Prediction || null;
-      const c3Arr = log.waveData?.col3Prediction || null;
+      const prev = idx > 0 ? kiyoLogs[idx - 1] : null;
+
+      const c2Arr = prev?.waveData?.col2Prediction || null;
+      const c3Arr = prev?.waveData?.col3Prediction || null;
 
       const hasC2 = Array.isArray(c2Arr) && c2Arr.length > 0;
       const hasC3 = Array.isArray(c3Arr) && c3Arr.length > 0;
@@ -685,8 +696,8 @@ export default function DebugPanel({
       }
 
       // Prefix (use whatever your timeline uses: livePrefix or smartPrefix)
-      const pMain = log.livePrefix?.main ?? log.smartPrefix?.main ?? "-";
-      const pAlt = log.livePrefix?.alt ?? log.smartPrefix?.alt ?? "-";
+      const pMain = prev?.livePrefix?.main ?? prev?.smartPrefix?.main ?? "-";
+      const pAlt = prev?.livePrefix?.alt ?? prev?.smartPrefix?.alt ?? "-";
 
       const hasPrefix = !isDash(pMain) || !isDash(pAlt);
       if (hasPrefix) {

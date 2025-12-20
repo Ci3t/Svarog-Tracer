@@ -33,8 +33,18 @@ const WAVE_SCHEMES = {
   },
 };
 
-export default function WavePairingTable({ pairingViz }) {
+export default function WavePairingTable({ pairingViz, splitIndex = null }) {
   if (!pairingViz) return null;
+  const to4xx = (roll) => {
+    const s = String(roll ?? "").trim();
+    if (s.length !== 3) return null;
+    const shift = (ch) => {
+      const n = Number(ch);
+      if (!Number.isFinite(n)) return ch;
+      return String((n % 4) + 1); // 1->2,2->3,3->4,4->1
+    };
+    return shift(s[0]) + shift(s[1]) + shift(s[2]);
+  };
 
   return (
     <div className="bg-slate-950/80 rounded-lg p-4 border border-slate-700/50">
@@ -84,40 +94,70 @@ export default function WavePairingTable({ pairingViz }) {
             </tr>
           </thead>
           <tbody>
-            {pairingViz?.map((row, idx) => (
-              <tr key={idx} className="hover:bg-slate-800/20">
-                <td className="py-2 px-3 text-slate-300 font-mono font-bold border border-slate-700/30">
-                  {row.roll}
-                </td>
-                <td
-                  className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
-                    row.col1.isA
-                      ? "bg-emerald-900/40 text-emerald-300"
-                      : "bg-amber-900/40 text-amber-300"
-                  }`}
-                >
-                  {row.col1.label} ({row.roll})
-                </td>
-                <td
-                  className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
-                    row.col2.isA
-                      ? "bg-emerald-900/40 text-emerald-300"
-                      : "bg-amber-900/40 text-amber-300"
-                  }`}
-                >
-                  {row.col2.label} ({row.roll})
-                </td>
-                <td
-                  className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
-                    row.col3.isA
-                      ? "bg-emerald-900/40 text-emerald-300"
-                      : "bg-amber-900/40 text-amber-300"
-                  }`}
-                >
-                  {row.col3.label} ({row.roll})
-                </td>
-              </tr>
-            )) || (
+            {pairingViz?.flatMap((row, idx) => {
+              const currWin = row?.windowStartMs;
+              const prevWin = pairingViz[idx - 1]?.windowStartMs;
+              const rows = [];
+
+              // Insert separator BEFORE the first row of the new 5-min window
+              if (
+                idx > 0 &&
+                currWin != null &&
+                prevWin != null &&
+                currWin !== prevWin
+              ) {
+                rows.push(
+                  <tr key={`window-sep-${idx}`}>
+                    <td colSpan={4} className="p-0">
+                      <div className="flex items-center gap-3 px-3 py-2 bg-slate-900/70 border-y border-cyan-500/40">
+                        <div className="h-[2px] flex-1 bg-cyan-400/40" />
+                        <div className="text-[11px] font-semibold text-cyan-200 tracking-wide">
+                          NEW 5-MIN WINDOW
+                        </div>
+                        <div className="h-[2px] flex-1 bg-cyan-400/40" />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
+              rows.push(
+                <tr key={idx} className="hover:bg-slate-800/20">
+                  <td className="py-2 px-3 text-slate-300 font-mono font-bold border border-slate-700/30">
+                    {row.roll}
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
+                      row?.col1?.isA
+                        ? "bg-emerald-900/40 text-emerald-300"
+                        : "bg-amber-900/40 text-amber-300"
+                    }`}
+                  >
+                    {row?.col1?.label ?? "—"} ({row.roll})
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
+                      row.col2.isA
+                        ? "bg-emerald-900/40 text-emerald-300"
+                        : "bg-amber-900/40 text-amber-300"
+                    }`}
+                  >
+                    {row.col2.label} ({row.roll})
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
+                      row.col3.isA
+                        ? "bg-emerald-900/40 text-emerald-300"
+                        : "bg-amber-900/40 text-amber-300"
+                    }`}
+                  >
+                    {row.col3.label} ({row.roll})
+                  </td>
+                </tr>
+              );
+
+              return rows;
+            }) || (
               <tr>
                 <td colSpan="4" className="py-4 text-center text-slate-500">
                   No data yet - add at least 4 rolls

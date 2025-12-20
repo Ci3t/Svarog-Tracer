@@ -1,0 +1,133 @@
+╔═══════════════════════════════════════════════════════════╗
+║         KIYO MODE DEBUG EXPORT v3.0                       ║
+║         Clean Tracking & Analysis                         ║
+╚═══════════════════════════════════════════════════════════╝
+
+Generated: 20/12/2025, 18:14:07
+Total Rolls: 36
+
+┌─────────────────────────────────────────────────────────┐
+│  📋 ALL ROLLS (Session History)                          │
+└─────────────────────────────────────────────────────────┘
+
+  1. 413    2. 433    3. 412    4. 413    5. 421    6. 433    7. 411    8. 442    9. 431   10. 421   11. 414   12. 413   13. 423   14. 412   15. 433
+ 16. 443   17. 424   18. 424   19. 441   20. 413   21. 422   22. 443   23. 433   24. 443   25. 414   26. 441   27. 433   28. 411   29. 412   30. 413
+
+
+┌─────────────────────────────────────────────────────────┐
+│  📊 TRACKING TABLE                                       │
+└─────────────────────────────────────────────────────────┘
+
+How to read:
+- Actual = what you got in-game
+- WaveC2 = Column 2 wave prediction (Outer/Inner)
+- WaveC3 = Column 3 wave prediction (Low/High)
+- C2/C3 = ✓ if wave hit, ✗ if wave missed, - if no prediction
+- Prefix = Smart prefix prediction BEFORE this roll
+- Res = M=main hit, A=alt hit, ✗=miss
+
+Idx  Time         Actual  WaveC2     C2  WaveC3     C3  Prefix          Res
+---------------------------------------------------------------------------
+1    06:11:44 PM  413     -          -   -          -   -               ✗  
+2    06:11:54 PM  433     -          -   -          -   443/441         ✗  
+3    06:12:03 PM  412     [2,3]      ✗   [1,2]      ✓   434/432         ✗  
+4    06:12:12 PM  413     [1,4]      ✓   [1,2]      ✗   413/414         M  
+5    06:12:21 PM  421     [1,4]      ✗   [3,4]      ✗   413/414         ✗  
+6    06:12:31 PM  433     [2,3]      ✓   [1,2]      ✗   423             ✗  
+7    06:12:44 PM  411     [2,3]      ✗   [3,4]      ✗   434/432         ✗  
+8    06:12:45 PM  442     [1,4]      ✓   [1,2]      ✓   413/411         ✗  
+9    06:12:46 PM  431     [1,4]      ✗   [1,2]      ✓   441/443         ✗  
+10   06:12:47 PM  421     [2,3]      ✓   [1,2]      ✓   431/432         ✗  
+11   06:12:50 PM  414     [2,3]      ✗   [3,4]      ✓   423             ✗  
+12   06:12:52 PM  413     [1,4]      ✓   [3,4]      ✓   413/411         M  
+13   06:12:55 PM  423     [1,4]      ✗   [3,4]      ✓   413/411         ✗  
+14   06:13:01 PM  412     [2,3]      ✗   [3,4]      ✗   423/424         ✗  
+15   06:13:10 PM  433     [1,4]      ✗   [1,2]      ✗   413/411         ✗  
+16   06:13:11 PM  443     [2,3]      ✗   [3,4]      ✓   431/432         ✗  
+17   06:13:16 PM  424     [1,4]      ✗   [3,4]      ✓   443/441         ✗  
+18   06:13:21 PM  424     []         ✗   [3,4]      ✓   421/422         ✗  
+19   06:13:29 PM  441     [2,3]      ✗   [3,4]      ✗   424/422         ✗  
+20   06:13:30 PM  413     []         ✗   [1,2]      ✗   441/444         ✗  
+21   06:13:31 PM  422     [1,4]      ✗   [3,4]      ✗   413/412         ✗  
+22   06:13:33 PM  443     []         ✗   [1,2]      ✗   424/421         ✗  
+23   06:13:34 PM  433     []         ✗   [3,4]      ✓   443/441         ✗  
+24   06:13:35 PM  443     []         ✗   [3,4]      ✓   431/433         ✗  
+25   06:13:36 PM  414     []         ✗   [3,4]      ✓   443/444         ✗  
+26   06:13:39 PM  441     []         ✗   [1,2]      ✓   413/412         ✗  
+27   06:13:44 PM  433     [1,4]      ✗   [1,2]      ✗   443/444         ✗  
+28   06:13:47 PM  411     [2,3]      ✗   [3,4]      ✗   433             ✗  
+29   06:13:54 PM  412     [1,4]      ✓   [1,2]      ✓   414/411         ✗  
+30   06:13:58 PM  413     [1,4]      ✓   [1,2]      ✗   412/411         ✗  
+
+
+┌─────────────────────────────────────────────────────────┐
+│  📈 SUMMARY (Calculate from table above)                 │
+└─────────────────────────────────────────────────────────┘
+
+WAVE PERFORMANCE:
+  Column 2 Hits: 7 / 21 (33.3%)
+  Column 3 Hits: 15 / 28 (53.6%)
+  Combined: 4 / 21 (19.0%)
+
+PREFIX PERFORMANCE:
+  Main Hits: 2 (6.9%)
+  Alt Hits: 0 (0.0%)
+  Total: 2 / 29 (6.9%)
+
+ALIGNED BETS (When both wave columns + prefix agree):
+  Total: 17
+  Hits: 1 / 17 (5.9%)
+
+┌─────────────────────────────────────────────────────────┐
+│  🎨 PATTERN ANALYSIS (Last 12 Rolls)                    │
+└─────────────────────────────────────────────────────────┘
+
+Roll | Digit 2 | Digit 3 | Col2 (O/I) | Col3 (L/H) | Pattern
+──────────────────────────────────────────────────────────────
+413  |    1    |    3    | Outer  | High   | O-H
+412  |    1    |    2    | Outer  | Low    | O-L
+411  |    1    |    1    | Outer  | Low    | O-L
+433  |    3    |    3    | Inner  | High   | I-H
+441  |    4    |    1    | Outer  | Low    | O-L
+414  |    1    |    4    | Outer  | High   | O-H
+443  |    4    |    3    | Outer  | High   | O-H
+433  |    3    |    3    | Inner  | High   | I-H
+443  |    4    |    3    | Outer  | High   | O-H
+422  |    2    |    2    | Inner  | Low    | I-L
+413  |    1    |    3    | Outer  | High   | O-H
+441  |    4    |    1    | Outer  | Low    | O-L
+
+Current Streaks:
+  • Column 2: 3 consecutive Outer
+  • Column 3: 1 consecutive High
+
+
+┌─────────────────────────────────────────────────────────┐
+│  💡 INTERPRETATION GUIDE                                 │
+└─────────────────────────────────────────────────────────┘
+
+WAVE PREDICTIONS:
+  • WaveC2/C3 show which digits wave expects next
+  • Look for patterns where both columns agree (ALIGNED)
+  • 3+ consecutive in same category = flip likely
+  • - means no prediction (cooldown or balanced)
+
+PREFIX PREDICTIONS:
+  • Based on recent prefix patterns
+  • Alt provides backup option
+  • Higher confidence when live + training agree
+
+BETTING STRATEGY:
+  1. BEST: Wave + Prefix AGREE (both predict same digits)
+  2. GOOD: Wave shows 3+ consecutive run
+  3. SKIP: Wave cooldown or conflict with prefix
+  4. AVOID: High volatility (60%+ swap rate)
+
+ACCURACY GOALS:
+  • 70%+ = Trust predictions
+  • 60-70% = Use with caution
+  • Below 60% = Pattern unstable, skip or adjust
+
+═══════════════════════════════════════════════════════════
+Generated by Kiyo Mode v3.0 - Pattern Recognition System
+═══════════════════════════════════════════════════════════

@@ -1,552 +1,329 @@
 // import React from "react";
 
+/**
+ * WaveAnalysisDisplay
+ * - Shows two column cards (Column 2 + Column 3) produced by KiyoModeCard's analyzeWavePatterns memo.
+ * - Defensive: never assume shape; avoid ReferenceErrors like "col2 is not defined".
+ */
 export default function WaveAnalysisDisplay({
   analyzeWavePatterns,
   smartPrefixPrediction,
 }) {
-  // Defensive: ensure columns exists & has at least 2 entries
-  const hasData =
-    Array.isArray(analyzeWavePatterns?.columns) &&
-    analyzeWavePatterns.columns.length >= 2;
-
-  const cols = analyzeWavePatterns?.columns ?? [];
-  const col2 = hasData ? cols[0] : null;
-  const col3 = hasData ? cols[1] : null;
-
-  // focusColumn is expected like [index, colObj]
-  const [__, rawFocusCol] = analyzeWavePatterns?.focusColumn || [null, null];
-  const focusCol = rawFocusCol || null;
-
-  // Make focusCol.flipTarget safe everywhere
-  const focusFlipTarget = Array.isArray(focusCol?.flipTarget)
-    ? focusCol.flipTarget
+  const cols = Array.isArray(analyzeWavePatterns?.columns)
+    ? analyzeWavePatterns.columns
     : [];
+  const col2 = cols[0] ?? null;
+  const col3 = cols[1] ?? null;
+  const hasData = Boolean(col2 && col3);
 
-  // 5-min window helpers (optional)
-  const windowInfo = analyzeWavePatterns?.window || null;
-  const warmupRemaining = windowInfo?.warmupRemaining ?? 0;
-  const secondsRemaining = windowInfo?.secondsRemaining;
-  const minsLeft =
-    typeof secondsRemaining === "number"
-      ? Math.floor(secondsRemaining / 60)
-      : null;
-  const secsLeft =
-    typeof secondsRemaining === "number"
-      ? String(secondsRemaining % 60).padStart(2, "0")
-      : null;
+  const clampPct = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.min(1, n));
+  };
 
-  const windowQuality = analyzeWavePatterns?.windowQuality;
+  const fmtPct = (v) => {
+    const p = clampPct(v);
+    if (p === null) return "—";
+    return `${Math.round(p * 100)}%`;
+  };
 
-  const gatedCount = cols.filter((c) => c?.isGated).length;
+  const statusLabel = (col) => {
+    const s = col?.status;
+    if (s === "due_to_flip") return "EXPECTED TO FLIP";
+    if (s === "likely_continue") return "EXPECTED TO CONTINUE";
+    if (s === "suppressed") return "SUPPRESSED";
+    return "—";
+  };
 
-  // avgSwapRate might be undefined or non-number
-  const avgSwapRateNum = Number(analyzeWavePatterns?.avgSwapRate);
-  const avgSwapRatePct = Number.isFinite(avgSwapRateNum)
-    ? (avgSwapRateNum * 100).toFixed(0)
-    : null;
+  const targetLabel = (col) => {
+    // flipLabel is the human label for the target side (e.g., "Low (1/2)")
+    if (typeof col?.flipLabel === "string" && col.flipLabel.trim())
+      return col.flipLabel;
+    // fallback to current label if missing
+    if (
+      typeof col?.runAnalysis?.label === "string" &&
+      col.runAnalysis.label.trim()
+    )
+      return col.runAnalysis.label;
+    return "—";
+  };
+  const getSwapRate = (col) =>
+    col?.swapRate ?? col?.fingerprint?.swapRate ?? null;
 
-  const postFlipColumns = Array.isArray(analyzeWavePatterns?.postFlipColumns)
-    ? analyzeWavePatterns.postFlipColumns
-    : [];
+  const isDominanceLock = (col) => {
+    const runLen = Number.isFinite(col?.runAnalysis?.length)
+      ? col.runAnalysis.length
+      : 0;
+    const sr = getSwapRate(col);
+    return runLen >= 5 && sr != null && sr <= 0.4;
+  };
+
+  // “Guaranteed flip” heuristic (tweakable):
+  // Only when it says flip AND confidence is high AND not suppressed.
+  const isGuaranteedFlip = (col) => {
+    const conf = Number(col?.confidence);
+    return (
+      col?.status === "due_to_flip" &&
+      Number.isFinite(conf) &&
+      conf >= 0.85 &&
+      col?.status !== "suppressed"
+    );
+  };
+
+  const cardTheme = (col) => {
+    const sessionType = col?.fingerprint?.type;
+    const suppressed = col?.status === "suppressed";
+    const lock = isDominanceLock(col);
+    const guaranteedFlip = isGuaranteedFlip(col);
+    const expectedFlip = col?.status === "due_to_flip";
+
+    if (suppressed || sessionType === "chaotic") {
+      return {
+        shell:
+          "border-rose-500/40 bg-rose-950/15 shadow-[0_0_0_1px_rgba(244,63,94,0.15)]",
+        badge: "bg-rose-500/15 text-rose-200 border-rose-500/30",
+        accentText: "text-rose-200",
+      };
+    }
+
+    if (lock || sessionType === "sticky-dominant") {
+      return {
+        shell:
+          "border-emerald-500/40 bg-emerald-950/10 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]",
+        badge: "bg-emerald-500/15 text-emerald-200 border-emerald-500/30",
+        accentText: "text-emerald-200",
+      };
+    }
+
+    if (guaranteedFlip) {
+      return {
+        shell:
+          "border-fuchsia-500/40 bg-fuchsia-950/10 shadow-[0_0_0_1px_rgba(217,70,239,0.12)]",
+        badge: "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/30",
+        accentText: "text-fuchsia-200",
+      };
+    }
+
+    if (expectedFlip) {
+      return {
+        shell:
+          "border-amber-500/40 bg-amber-950/10 shadow-[0_0_0_1px_rgba(245,158,11,0.12)]",
+        badge: "bg-amber-500/15 text-amber-200 border-amber-500/30",
+        accentText: "text-amber-200",
+      };
+    }
+
+    // default
+    return {
+      shell: "border-slate-700/40 bg-slate-900/40",
+      badge: "bg-slate-900/60 text-slate-200 border-slate-700/50",
+      accentText: "text-slate-200",
+    };
+  };
+
+  const renderColumnCard = (col) => {
+    // 🛡️ CRITICAL FIX: If col is missing, don't try to render or read properties
+    if (!col || typeof col !== "object") return null;
+
+    const runLen = Number.isFinite(col?.runAnalysis?.length)
+      ? col.runAnalysis.length
+      : 0;
+    const currentLabel =
+      typeof col?.runAnalysis?.label === "string" &&
+      col.runAnalysis.label.trim()
+        ? col.runAnalysis.label
+        : "—";
+
+    const confidence = fmtPct(col?.confidence);
+    const swapRate =
+      col?.swapRate != null
+        ? col.swapRate
+        : col?.fingerprint?.swapRate != null
+        ? col.fingerprint.swapRate
+        : null;
+
+    const swap = swapRate == null ? "—" : `${Math.round(swapRate * 100)}%`;
+    // One brutal footer line (per your UI rule). Prefer adaptiveNote (already composed in KiyoModeCard).
+    const footer =
+      typeof col?.adaptiveNote === "string" && col.adaptiveNote.trim()
+        ? col.adaptiveNote
+        : typeof col?.flipStatus?.message === "string" &&
+          col.flipStatus.message.trim()
+        ? col.flipStatus.message
+        : "";
+
+    const sessionType =
+      typeof col?.fingerprint?.type === "string" && col.fingerprint.type.trim()
+        ? col.fingerprint.type
+        : null;
+
+    const expected = statusLabel(col);
+    const expectedTarget = targetLabel(col);
+    const theme = cardTheme(col);
+    const isSuppressed = col?.status === "suppressed";
+
+    return (
+      <div
+        key={`col-${col.column ?? col.name ?? Math.random()}`}
+        className={`rounded-2xl border p-4 shadow ${theme.shell}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-100">
+              {col?.name ?? `Column ${col?.column ?? ""}`}
+            </div>
+            <div className="text-xs text-slate-400">{col?.label ?? ""}</div>
+          </div>
+
+          {/* Confidence chip */}
+          <div
+            className={`rounded-full border px-2 py-1 text-xs ${theme.badge}`}
+          >
+            Conf: {confidence}
+          </div>
+          <div
+            className={`rounded-full border px-2 py-1 text-xs ${theme.badge}`}
+          >
+            Swap: {swap}
+          </div>
+        </div>
+
+        {/* Current state + run */}
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs text-slate-400">Current</div>
+            <div className="truncate text-lg font-extrabold text-white">
+              {currentLabel}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-slate-400">Run</div>
+            <div className="text-3xl font-extrabold text-white tabular-nums">
+              {runLen}
+            </div>
+          </div>
+        </div>
+
+        {/* Expected block */}
+        <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/30 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className={`text-xs font-bold ${theme.accentText}`}>
+              {expected}
+              {isSuppressed ? "" : ":"}
+            </div>
+            {sessionType && (
+              <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                {sessionType}
+              </div>
+            )}
+          </div>
+
+          {!isSuppressed && (
+            <div className="mt-1 text-sm font-bold text-white">
+              {expectedTarget}
+            </div>
+          )}
+
+          {/* One footer sentence */}
+          {footer ? (
+            <div className="mt-2 text-xs text-slate-300 italic">{footer}</div>
+          ) : null}
+
+          {/* Small risk / message line (optional) */}
+          {typeof col?.message === "string" && col.message.trim() ? (
+            <div className="mt-2 text-[11px] text-slate-400">{col.message}</div>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPrefix = () => {
+    const p = smartPrefixPrediction;
+    if (!p) return null;
+
+    const main = p?.prediction ?? p?.main ?? null;
+    const mainConf = p?.confidence ?? p?.mainConfidence ?? null;
+    const alt = p?.altPrediction ?? p?.alt ?? null;
+    const altConf = p?.altConfidence ?? null;
+    const prefix = p?.prefix ?? p?.activePrefix ?? null;
+
+    const hasSomething = Boolean(main || alt || prefix);
+    if (!hasSomething) return null;
+
+    return (
+      <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-slate-100">
+              Smart Prefix Predictor
+            </div>
+            {prefix ? (
+              <div className="text-xs text-slate-400">Analyzing: {prefix}</div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
+            <div className="text-xs text-slate-400">Main</div>
+            <div className="text-lg font-extrabold text-white">
+              {main ?? "—"}{" "}
+              <span className="text-xs font-normal text-slate-300">
+                {mainConf != null ? `(${fmtPct(mainConf)})` : ""}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
+            <div className="text-xs text-slate-400">Alt</div>
+            <div className="text-lg font-extrabold text-white">
+              {alt ?? "—"}{" "}
+              <span className="text-xs font-normal text-slate-300">
+                {altConf != null ? `(${fmtPct(altConf)})` : ""}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3">
-      {/* Wave Pattern Analysis Card */}
-      <div className="bg-linear-to-br from-slate-800 to-slate-900 rounded-xl p-4 border-2 border-cyan-500/60 shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+      <div className="rounded-2xl border border-cyan-500/40 bg-slate-900/30 p-4 shadow">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-cyan-300">
-              🌊 Wave Pattern Analysis
-            </h3>
-            <p className="text-xs text-slate-400">
-              Column 2 & 3 flip detection
-            </p>
-          </div>
-
-          {hasData ? (
-            <div className="text-right text-xs text-slate-400">
-              <div>
-                Avg Swap:{" "}
-                <span className="text-white font-semibold">
-                  {avgSwapRatePct ?? "—"}%
-                </span>
-              </div>
-              <div>
-                Flip Columns:{" "}
-                <span className="text-cyan-300 font-semibold">
-                  {analyzeWavePatterns?.flipColumns ?? 0}/2
-                </span>
-              </div>
-              {gatedCount > 0 && (
-                <div className="text-[10px] text-red-300 mt-1">
-                  🚫 {gatedCount} gated
-                </div>
-              )}
+            <div className="text-lg font-extrabold text-cyan-200">
+              Wave Analysis
             </div>
-          ) : (
-            <div className="text-right text-xs text-slate-400">
-              <div>⏳ Waiting for data...</div>
-            </div>
-          )}
-        </div>
-
-        {/* Show placeholder when no data */}
-        {!hasData ? (
-          <div className="text-center py-8 text-slate-400">
-            <div className="text-4xl mb-3">📊</div>
-            <div className="text-sm mb-2">No wave data yet</div>
-            <div className="text-xs text-slate-500">
-              Add at least 4 rolls to see wave pattern analysis
+            <div className="text-xs text-slate-400">
+              Table-adaptive state machine (Column 2 + Column 3)
             </div>
           </div>
-        ) : (
-          <>
-            {/* Post-Flip Warning */}
-            {postFlipColumns.length > 0 && (
-              <div className="mb-4 bg-purple-900/40 rounded-lg p-3 border border-purple-500/50 text-center">
-                <div className="text-sm font-bold text-purple-200">
-                  🟣 POST-FLIP COOLDOWN DETECTED
-                </div>
-                <div className="text-xs text-purple-300 mt-1">
-                  Column {postFlipColumns.join(", ")} just flipped - SKIP
-                  betting
-                </div>
-              </div>
-            )}
-
-            {/* Column Cards */}
-            <div className="grid grid-cols-2 gap-4">
-              {[col2, col3].map((col, idx) => {
-                // Defensive: skip if missing
-                if (!col) return null;
-
-                // Make flipTarget safe for this column
-                const flipTarget = Array.isArray(col.flipTarget)
-                  ? col.flipTarget
-                  : [];
-
-                const isPostFlip =
-                  col.flipStatus?.status === "post_flip_cooldown";
-                const isIgnored = Boolean(col.isIgnored);
-                const urgency = col.urgency;
-
-                // Background color based on urgency
-                const bgColor = isPostFlip
-                  ? "from-purple-900/30 to-purple-800/30"
-                  : isIgnored
-                  ? "from-gray-800/40 to-gray-700/40"
-                  : urgency === "critical"
-                  ? "from-red-900/40 to-red-800/40"
-                  : urgency === "high"
-                  ? "from-orange-900/40 to-orange-800/40"
-                  : urgency === "medium"
-                  ? "from-yellow-900/40 to-yellow-800/40"
-                  : "from-slate-700/40 to-slate-600/40";
-
-                // Border color
-                const borderColor = isPostFlip
-                  ? "border-purple-500/50"
-                  : isIgnored
-                  ? "border-gray-600/40"
-                  : urgency === "critical"
-                  ? "border-red-500/60"
-                  : urgency === "high"
-                  ? "border-orange-500/60"
-                  : urgency === "medium"
-                  ? "border-yellow-500/60"
-                  : "border-slate-600/40";
-
-                // Gated view
-                if (col.isGated) {
-                  return (
-                    <div
-                      key={col.column ?? `col-${idx}`}
-                      className="bg-slate-800/40 rounded-lg p-4 border-2 border-red-500/50"
-                    >
-                      <div className="text-center">
-                        <div className="text-4xl mb-2">🚫</div>
-                        <div className="text-sm font-bold text-red-300 mb-2">
-                          Column {col.column ?? "?"} Gated
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {col.gatingReason ?? "No gating reason provided"}
-                        </div>
-                        <div className="mt-3 text-xs text-slate-500">
-                          Original confidence:{" "}
-                          {Number.isFinite(col.originalConfidence)
-                            ? `${Math.round(col.originalConfidence * 100)}%`
-                            : "—"}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div
-                    key={col.column ?? `col-${idx}`}
-                    className={`bg-linear-to-br ${bgColor} rounded-lg p-4 border-2 ${borderColor}`}
-                  >
-                    {/* Icon + Name */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-4xl">{col.icon ?? "📌"}</span>
-                      <div>
-                        <div className="text-sm font-bold text-white">
-                          {col.name ?? "Column"}
-                        </div>
-                        <div className="text-xs text-slate-300">
-                          {col.label ?? ""}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Run Length */}
-                    <div className="text-center mb-3">
-                      <div className="text-5xl font-black text-white">
-                        {col.runLength ?? 0}
-                      </div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wide">
-                        CONSECUTIVE RUN
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-1">
-                        ({col.runLength ?? 0} {col.currentLabel ?? ""} in a row)
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 rounded p-2 mb-3">
-                      <div className="text-xs text-slate-400 mb-1">
-                        Current Pattern:
-                      </div>
-                      <div className="text-lg font-bold text-cyan-300">
-                        {col.currentPair === "A"
-                          ? `${col.scheme?.pairALabel ?? ""} (${(
-                              col.scheme?.pairA ?? []
-                            ).join("/")})`
-                          : `${col.scheme?.pairBLabel ?? ""} (${(
-                              col.scheme?.pairB ?? []
-                            ).join("/")})`}
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-1">
-                        {urgency === "critical" || urgency === "high"
-                          ? "⚠️ Pattern likely to flip soon"
-                          : urgency === "medium"
-                          ? "⏳ Pattern may continue or flip"
-                          : "✓ Pattern stable"}
-                      </div>
-                    </div>
-
-                    {/* Expected Flip / Continuation */}
-                    {!isIgnored && !isPostFlip && flipTarget.length > 0 && (
-                      <div className="bg-cyan-950/60 rounded-lg p-3 border border-cyan-500/40 text-center mb-3">
-                        <div className="text-xs text-cyan-400 mb-1 uppercase font-semibold">
-                          {col.status === "due_to_flip"
-                            ? "⚡ EXPECTED TO FLIP TO:"
-                            : col.status === "likely_continue"
-                            ? "✅ EXPECTED TO CONTINUE:"
-                            : "🟡 PATTERN OUTLOOK:"}
-                        </div>
-
-                        <div className="text-3xl font-black text-cyan-300 mb-1">
-                          {col.status === "likely_continue"
-                            ? col.currentLabel ?? "—"
-                            : col.flipLabel ?? "—"}
-                        </div>
-
-                        <div className="text-sm text-slate-300">
-                          [
-                          {col.status === "likely_continue"
-                            ? col.currentPair === "A"
-                              ? (col.scheme?.pairA ?? []).join(", ")
-                              : (col.scheme?.pairB ?? []).join(", ")
-                            : flipTarget.join(", ")}
-                          ]
-                        </div>
-
-                        <div className="text-[10px] text-cyan-400 mt-2">
-                          {col.status === "due_to_flip"
-                            ? urgency === "critical"
-                              ? "🔴 FLIP VERY LIKELY - Bet now!"
-                              : urgency === "high"
-                              ? "🟠 FLIP LIKELY - Good opportunity"
-                              : "🟡 FLIP POSSIBLE - Monitor"
-                            : col.status === "likely_continue"
-                            ? "✅ Trend continuation expected"
-                            : "🟡 No strong signal - Monitor"}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {/* Confidence */}
-                      <div className="bg-black/20 rounded p-2">
-                        <div className="text-slate-400 text-[10px] mb-1">
-                          Flip Confidence
-                        </div>
-                        <div className="text-white font-bold text-lg">
-                          {Number.isFinite(col.confidence)
-                            ? `${Math.round(col.confidence * 100)}%`
-                            : "—"}
-                        </div>
-                        <div className="text-slate-500 text-[9px] mt-0.5">
-                          {col.confidence >= 0.8
-                            ? "Very High"
-                            : col.confidence >= 0.65
-                            ? "High"
-                            : col.confidence >= 0.5
-                            ? "Moderate"
-                            : "Low"}
-                        </div>
-                      </div>
-
-                      {/* Swap Rate */}
-                      <div className="bg-black/20 rounded p-2">
-                        <div className="text-slate-400 text-[10px] mb-1">
-                          Swap Rate (Volatility)
-                        </div>
-                        <div
-                          className={`font-bold text-lg ${
-                            col.swapRate < 0.3
-                              ? "text-green-400"
-                              : col.swapRate < 0.6
-                              ? "text-yellow-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {Number.isFinite(col.swapRate)
-                            ? `${Math.round(col.swapRate * 100)}%`
-                            : "—"}
-                        </div>
-                        <div className="text-slate-500 text-[9px] mt-0.5">
-                          {col.swapRateLabel ?? ""}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Adaptive Note */}
-                    {col.adaptiveNote && (
-                      <div className="mt-2 text-xs text-cyan-300 bg-cyan-950/40 rounded px-2 py-1.5">
-                        🧠 {col.adaptiveNote}
-                      </div>
-                    )}
-
-                    {/* Warm-up */}
-                    {warmupRemaining > 0 && (
-                      <div className="mt-3 text-xs text-center text-slate-300 italic border-t border-slate-700/50 pt-2">
-                        Warm-up: need {warmupRemaining} more roll(s) in this
-                        5-min window
-                        {minsLeft !== null && secsLeft !== null && (
-                          <span className="ml-2 opacity-80">
-                            (≈{minsLeft}m {secsLeft}s left)
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Message */}
-                    <div className="mt-2 text-xs text-center text-slate-300 italic">
-                      {col.message ?? ""}
-                    </div>
-                  </div>
-                );
-              })}
+          {analyzeWavePatterns?.windowQuality ? (
+            <div className="text-xs text-slate-300">
+              Window:{" "}
+              <span className="font-bold">
+                {analyzeWavePatterns.windowQuality}
+              </span>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Alignment Status Banner */}
-      {smartPrefixPrediction && focusCol && (
-        <div
-          className={`rounded-lg px-3 py-2 border text-center text-sm font-bold ${(() => {
-            const prefixLastDigit = smartPrefixPrediction.prediction?.[2];
-            const isAligned =
-              prefixLastDigit && focusFlipTarget.includes(prefixLastDigit);
-            return isAligned
-              ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-              : "bg-orange-950/60 border-orange-500/40 text-orange-300";
-          })()}`}
-        >
-          {(() => {
-            const prefixLastDigit = smartPrefixPrediction.prediction?.[2];
-            const isAligned =
-              prefixLastDigit && focusFlipTarget.includes(prefixLastDigit);
-            return isAligned
-              ? "✓ WAVE & PREFIX AGREE - HIGH CONFIDENCE"
-              : "⚠️ WAVE vs PREFIX CONFLICT";
-          })()}
-        </div>
-      )}
-
-      {/* Prediction Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* RECOMMENDED TARGET (Wave) */}
-        <div className="bg-gradient-to-br from-cyan-900/50 to-emerald-900/50 rounded-lg p-3 border border-cyan-500/60">
-          <div className="bg-linear-to-br from-cyan-900/50 to-emerald-900/50 rounded-lg p-3 border border-cyan-500/60">
-            <span className="text-lg">🎯</span>
-            <div>
-              <div className="text-xs font-bold text-cyan-300">
-                RECOMMENDED TARGET
-              </div>
-              <div className="text-[10px] text-cyan-200">
-                Based on wave rhythm
-              </div>
-            </div>
-          </div>
-
-          {focusFlipTarget.length > 0 ? (
-            <div className="space-y-2">
-              <div className="bg-cyan-950/60 rounded p-2 border border-cyan-500/40">
-                <div className="text-[12px] text-cyan-300 font-semibold mb-1">
-                  Target digits:
-                </div>
-                <div className="flex gap-1">
-                  {focusFlipTarget.map((digit) => (
-                    <div
-                      key={digit}
-                      className="flex-1 bg-cyan-900/60 rounded px-2 py-1.5 border border-cyan-500/50 text-center"
-                    >
-                      <div className="text-2xl font-mono font-black text-cyan-300">
-                        4{digit}
-                      </div>
-                      <div className="text-[11px] text-yellow-200">
-                        {focusCol?.flipLabel ?? ""}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="text-[12px] text-slate-400">
-                Confidence:{" "}
-                <span className="text-cyan-300 font-bold">
-                  {Number.isFinite(focusCol?.confidence)
-                    ? `${Math.round(focusCol.confidence * 100)}%`
-                    : "—"}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-6 text-slate-400">
-              <div className="text-3xl mb-2">⏳</div>
-              <div className="text-xs">No wave target yet</div>
-              <div className="text-[10px] text-slate-500 mt-1">
-                Waiting for flip pattern
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* SMART PREFIX PREDICTOR */}
-        <div className="bg-gradient-to-br from-cyan-900/50 to-blue-900/50 rounded-lg p-3 border border-cyan-500/60">
-          <div className="bg-linear-to-br from-cyan-900/50 to-blue-900/50 rounded-lg p-3 border border-cyan-500/60">
-            <span className="text-lg">🎯</span>
-            <div>
-              <div className="text-xs font-bold text-cyan-300">
-                SMART PREFIX PREDICTOR
-              </div>
-              <div className="text-[8px] text-cyan-200">
-                {smartPrefixPrediction?.sourceType === "typing"
-                  ? "Live input suggestions"
-                  : smartPrefixPrediction?.sourcePrefix
-                  ? `Prefix: ${smartPrefixPrediction.sourcePrefix}x`
-                  : "Waiting for input"}
-              </div>
-            </div>
-          </div>
-
-          {smartPrefixPrediction && smartPrefixPrediction.prediction ? (
-            <div className="space-y-2">
-              <div className="bg-cyan-950/60 rounded-lg p-3 border border-cyan-500/40 text-center">
-                <div className="text-[10px] text-cyan-400 mb-1">
-                  Analyzing: {smartPrefixPrediction.sourcePrefix}x
-                </div>
-                <div className="text-3xl font-mono font-black text-cyan-300 mb-1">
-                  {smartPrefixPrediction.prediction}
-                </div>
-                <div className="text-xs font-bold text-cyan-400">
-                  {Math.round((smartPrefixPrediction.confidence ?? 0) * 100)}%
-                  {smartPrefixPrediction.blendInfo?.liveWeight > 0 && (
-                    <span className="ml-1 text-[9px] text-cyan-200">
-                      (
-                      {Math.round(
-                        smartPrefixPrediction.blendInfo.liveWeight * 100
-                      )}
-                      % live)
-                    </span>
-                  )}
-                </div>
-                <div className="text-[9px] text-slate-400 mt-1">
-                  {smartPrefixPrediction.matchCount ?? 0} matches
-                </div>
-              </div>
-
-              {smartPrefixPrediction.alt && (
-                <div className="bg-blue-950/60 rounded-lg p-2 border border-blue-500/40 text-center">
-                  <div className="text-[10px] text-blue-400 mb-0.5">
-                    Alternative
-                  </div>
-                  <div className="text-lg font-mono font-bold text-blue-300">
-                    {smartPrefixPrediction.alt}
-                  </div>
-                  <div className="text-[10px] text-blue-400">
-                    {Math.round(
-                      (smartPrefixPrediction.confidence ?? 0) * 0.7 * 100
-                    )}
-                    %
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-slate-400">
-              <div className="text-3xl mb-2">⏳</div>
-              <div className="text-xs">No prediction yet</div>
-              <div className="text-[10px] text-slate-500 mt-1">
-                {smartPrefixPrediction?.sourcePrefix
-                  ? "Insufficient data for this prefix"
-                  : "Start typing or add rolls"}
-              </div>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Window Quality Alert */}
-      {hasData && windowQuality && (
-        <div
-          className={`mb-4 rounded-lg p-3 border text-center ${
-            windowQuality === "SKIP"
-              ? "bg-red-900/40 border-red-500/50"
-              : windowQuality === "MIXED"
-              ? "bg-yellow-900/40 border-yellow-500/50"
-              : windowQuality === "GOLDEN"
-              ? "bg-green-900/40 border-green-500/50"
-              : "bg-slate-900/40 border-slate-500/50"
-          }`}
-        >
-          <div
-            className={`text-sm font-bold ${
-              windowQuality === "SKIP"
-                ? "text-red-200"
-                : windowQuality === "MIXED"
-                ? "text-yellow-200"
-                : windowQuality === "GOLDEN"
-                ? "text-green-200"
-                : "text-slate-200"
-            }`}
-          >
-            {windowQuality === "SKIP"
-              ? "🚫 SKIP THIS WINDOW – wait for next boundary"
-              : windowQuality === "MIXED"
-              ? "⚠️ MIXED QUALITY – proceed with caution"
-              : windowQuality === "GOLDEN"
-              ? "✅ GOLDEN WINDOW – optimal conditions"
-              : "🤷 CHAOTIC WINDOW"}
-          </div>
+      {hasData ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[col2, col3].map(renderColumnCard)}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-6 text-slate-300">
+          ⏳ Waiting for wave data…
         </div>
       )}
+
+      {renderPrefix()}
     </div>
   );
 }

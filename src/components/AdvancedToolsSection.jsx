@@ -7,6 +7,7 @@ export default function AdvancedToolsSection({
   waveAccuracy,
   kiyoAccuracy,
   pairingViz,
+  pairingSplitIndex,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -35,16 +36,21 @@ export default function AdvancedToolsSection({
       {isExpanded && (
         <div className="p-3 pt-0 space-y-3 border-t border-slate-700">
           {/* Wave Accuracy Display */}
-          <WaveAccuracyDisplay
+          {/* <WaveAccuracyDisplay
             waveAccuracy={waveAccuracy}
             kiyoAccuracy={kiyoAccuracy}
-          />
+          /> */}
 
           {/* Raw Input Helper */}
           <RawInputHelper />
 
           {/* Wave Pairing Table */}
-          {pairingViz && <WavePairingTable pairingViz={pairingViz} />}
+          {pairingViz && (
+            <WavePairingTable
+              pairingViz={pairingViz}
+              splitIndex={pairingSplitIndex}
+            />
+          )}
         </div>
       )}
     </div>
