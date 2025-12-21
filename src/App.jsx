@@ -50,7 +50,7 @@ export default function App() {
   const [prevSessions, setPrevSessions] = useState([]);
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
-  const [patch, setPatch] = useState("3.7");
+  const [patch, setPatch] = useState("3.8");
 
   const [debugLogs, setDebugLogs] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
@@ -140,46 +140,52 @@ export default function App() {
   function handleKiyoToDebug(newRolls = [], kind = "3-str") {
     if (!newRolls.length) return;
 
-    let ctx3 = kiyoCtxRef.current || [];
-    const contextRolls = newRolls.slice(0, -1);
-    const lastRoll = newRolls[newRolls.length - 1];
+    // 🔥 FIX: Log each NEW roll individually, not just the last one
+    const prevRolls = kiyoCtxRef.current || [];
+    const rollsToLog = newRolls.slice(prevRolls.length); // Only new rolls
+    
+    if (rollsToLog.length === 0) return;
 
-    if (contextRolls.length < 3) {
-      return;
-    }
+    rollsToLog.forEach((roll, idx) => {
+      const rollIndex = prevRolls.length + idx;
+      
+      // Need at least 3 rolls for context
+      if (rollIndex < 3) return;
+      
+      const contextRolls = newRolls.slice(0, rollIndex);
+      const actual3 = String(roll).slice(0, 3);
+      
+      if (actual3.length !== 3) return;
 
-    const actual3 = String(lastRoll).slice(0, 3);
-    if (actual3.length !== 3) return;
+      const p = predictNext3(contextRolls);
+      const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
+      const alt = p.alt || (candidates[1]?.value ?? null);
 
-    const p = predictNext3(contextRolls);
-    const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
-    const alt = p.alt || (candidates[1]?.value ?? null);
+      if (
+        p.prediction &&
+        p.prediction !== "—" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
+        const newLog = {
+          ts: Date.now() + idx, // Slight offset to maintain order
+          kind: "3",
+          prediction: p.prediction,
+          confidence: p.confidence || 0,
+          alt,
+          mode: p.mode || "—",
+          actual: actual3,
+          ctx: contextRolls.slice(-8),
+          candidates,
+          source: "kiyo",
+          waveData: null, // Will be filled by handleKiyoDebugData
+          livePrefix: livePrefixPredictionRef.current
+            ? { ...livePrefixPredictionRef.current }
+            : null,
+        };
 
-    if (
-      p.prediction &&
-      p.prediction !== "—" &&
-      !String(p.prediction).toLowerCase().startsWith("insufficient")
-    ) {
-      const newLog = {
-        ts: Date.now(),
-        kind: "3",
-        prediction: p.prediction,
-        confidence: p.confidence || 0,
-        alt,
-        mode: p.mode || "—",
-        actual: actual3,
-        ctx: contextRolls.slice(-8),
-        candidates,
-        source: "kiyo",
-        waveData: null, // Will be filled by handleKiyoDebugData
-        // 🔥 NEW: Capture the live prefix that was showing BEFORE this roll
-        livePrefix: livePrefixPredictionRef.current
-          ? { ...livePrefixPredictionRef.current }
-          : null,
-      };
-
-      setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
-    }
+        setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
+      }
+    });
 
     kiyoCtxRef.current = newRolls;
   }
@@ -346,7 +352,16 @@ export default function App() {
       smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
 
-    setEntries((prev) => [...prev, { s2, s3, s4, s5, translated, ts: nowIso }]);
+    setEntries((prev) => [...prev, { 
+      id: `${nowTs}-${Math.random()}`,
+      raw: value,
+      s2, 
+      s3, 
+      s4, 
+      s5, 
+      translated, 
+      time: nowIso  // Fixed: was 'ts', should be 'time'
+    }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }

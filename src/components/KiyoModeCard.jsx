@@ -5,30 +5,42 @@ import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
 
 import {
   EU_SEQUENTIAL_3STR_RECENT,
+  EU_SEQUENTIAL_2STR_RECENT,
   EU_PATCH_INFO,
 } from "../utils/euLiveSheetData";
 import {
   NA_SEQUENTIAL_3STR_RECENT,
+  NA_SEQUENTIAL_2STR_RECENT,
   NA_PATCH_INFO,
 } from "../utils/naLiveSheetData";
 import {
   ASIA_SEQUENTIAL_3STR_RECENT,
+  ASIA_SEQUENTIAL_2STR_RECENT,
   ASIA_PATCH_INFO,
 } from "../utils/asiaLiveSheetData";
 import {
   ALL_SEQUENTIAL_3STR_RECENT,
+  ALL_SEQUENTIAL_2STR_RECENT,
   ALL_PATCH_INFO,
 } from "../utils/allLiveSheetData";
 
 import { translateTo4 } from "../utils/stringHelpers";
+import { getWindowTracker } from "../utils/windowPerformanceTracker";
+import { predictWithCascadingPriority } from "../utils/cascadingPredictor";
+import { getSmartRecommendation } from "../utils/smartDecisionSystem";
+import { analyzePatternWithWindow } from "../utils/patternRecognition";
 
 import TestRollsInput from "./kiyo/TestRollsInput";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
+import PrefixPredictors from "./kiyo/PrefixPredictors";
+import BettingRecommendationCard from "./kiyo/BettingRecommendationCard";
 import FiveMinWindowTracker from "./FiveMinWindowTracker";
 import GuideModal from "./kiyo/GuideModal";
 import AdvancedToolsSection from "./AdvancedToolsSection";
 import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
+import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
+import RecommendationPanel from "./kiyo/RecommendationPanel";
 
 const WAVE_SCHEMES = {
   col1: {
@@ -61,7 +73,7 @@ const WAVE_SCHEMES = {
 // 🎯 BEAST MODE v2: CONFIDENCE-AWARE WAVE ANALYSIS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function analyzeColumnWave(rolls, scheme, digitPosition) {
+function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = null) {
   if (!rolls || rolls.length < 4) {
     return {
       valid: false,
@@ -139,14 +151,264 @@ function analyzeColumnWave(rolls, scheme, digitPosition) {
     dominantSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 🎯 DECISION TREE v2: HONEST CONFIDENCE + BET ADVICE
+  // 🔥 PER-WINDOW PATTERN DETECTION WITH CROSS-WINDOW CONTEXT
   // ═══════════════════════════════════════════════════════════════════════
+  
+  // 🔥 NEW: Combine last 3 rolls from previous window with current window
+  let patternWindow;
+  let previousRollCount = 0;
+  
+  if (windowContext?.windowStates) {
+    const currentStates = windowContext.windowStates;
+    const previousStates = windowContext.previousStates || [];
+    
+    // Combine: last 3 from prev + all from current
+    patternWindow = [...previousStates, ...currentStates];
+    previousRollCount = previousStates.length;
+  } else {
+    // Fallback: use last 6-8 rolls
+    patternWindow = states.slice(-Math.min(8, states.length));
+  }
+  
+  const isNewWindow = windowContext?.isNewWindow || false;
+  const windowRollCount = windowContext?.rollCount || 0;
+  const totalAnalysisRolls = patternWindow.length;
+  
+  // 🔥 NEW WINDOW HANDLING - Now with cross-window context
+  // We need at least 3 rolls total (can be from prev + curr)
+  if (isNewWindow && totalAnalysisRolls < 3) {
+    return {
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "WAIT",
+      confidence: 0.35,
+      reliability: "BUILDING",
+      betAdvice: "WAIT FOR PATTERN",
+      message: `🔄 New 5-min window - building pattern (${windowRollCount}/4 rolls)`,
+      flipTarget: null,
+      flipLabel: "Wait",
+      urgency: "low",
+      icon: "⏳",
+      patternStatus: {
+        type: 'building',
+        confidence: 0,
+        runLength: null
+      }
+    };
+  }
+  
+  // Detect run-based pattern
+  let detectedPattern = null;
+  let patternConfidence = 0;
+  
+  if (patternWindow.length >= 6) {
+    // 🔥 STEP 1: Check for DOMINANCE pattern (sticky sessions)
+    const aCount = patternWindow.filter(s => s === 'A').length;
+    const bCount = patternWindow.length - aCount;
+    const dominanceRate = Math.max(aCount, bCount) / patternWindow.length;
+    const dominantSide = aCount > bCount ? 'A' : 'B';
+    
+    // If one side appears 70%+ of the time, it's a dominance pattern
+    if (dominanceRate >= 0.70) {
+      detectedPattern = {
+        type: 'dominance',
+        dominantSide: dominantSide,
+        dominanceRate: dominanceRate,
+        runLength: null, // Not applicable for dominance
+        confidence: dominanceRate
+      };
+      patternConfidence = dominanceRate;
+    } else {
+      // 🔥 STEP 2: Check for RUN-BASED patterns (alternating, double-run, etc.)
+      // Count runs
+      const runs = [];
+      let currentRunVal = patternWindow[0];
+      let currentRunLen = 1;
+      
+      for (let i = 1; i < patternWindow.length; i++) {
+        if (patternWindow[i] === currentRunVal) {
+          currentRunLen++;
+        } else {
+          runs.push(currentRunLen);
+          currentRunVal = patternWindow[i];
+          currentRunLen = 1;
+        }
+      }
+      runs.push(currentRunLen);
+      
+      // Determine most common run length
+      const runCounts = {};
+      runs.forEach(len => runCounts[len] = (runCounts[len] || 0) + 1);
+      const sortedRuns = Object.entries(runCounts)
+        .sort((a, b) => b[1] - a[1]);
+      
+      if (sortedRuns.length > 0) {
+        const mostCommonRun = sortedRuns[0];
+        const runLen = parseInt(mostCommonRun[0]);
+        const frequency = mostCommonRun[1] / runs.length;
+        
+        // 🔥 IMPROVED: Lower threshold for run-based patterns (50% instead of 60%)
+        // Also check if there's a clear dominant run length
+        if (frequency >= 0.5) {
+          detectedPattern = {
+            type: runLen === 1 ? 'alternating' : `${runLen}x-run`,
+            runLength: runLen,
+            confidence: frequency
+          };
+          patternConfidence = frequency;
+        }
+        // 🔥 NEW: If no single dominant run, check for mixed run pattern
+        else if (sortedRuns.length >= 2) {
+          const secondRun = sortedRuns[1];
+          const combinedFreq = (mostCommonRun[1] + secondRun[1]) / runs.length;
+          
+          if (combinedFreq >= 0.7) {
+            // Mixed run pattern (e.g., alternating between 1x and 2x)
+            detectedPattern = {
+              type: 'mixed-run',
+              runLength: parseInt(mostCommonRun[0]),
+              secondaryRunLength: parseInt(secondRun[0]),
+              confidence: combinedFreq * 0.8 // Slightly lower confidence
+            };
+            patternConfidence = combinedFreq * 0.8;
+          }
+        }
+      }
+    }
+  }
 
-  // ─────────────────────────────────────────────────────────────────────
-  // TIER S: DOMINANCE LOCK (5+ run + low swap ≤35%)
-  // ─────────────────────────────────────────────────────────────────────
-  if (runLength >= 5 && swapRate <= 0.35) {
-    if (runLength >= 8) {
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔥 CHAOS DETECTION - Skip betting but keep analyzing
+  // ═══════════════════════════════════════════════════════════════════════
+  
+  const isChaotic = !detectedPattern || patternConfidence < 0.5;
+  
+  if (isChaotic) {
+    // Still return analysis but mark as SKIP
+    return {
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "SKIP",
+      confidence: patternConfidence || 0.35,
+      reliability: "CHAOTIC",
+      betAdvice: "DO NOT BET - MONITORING",
+      message: `⚠️ Chaotic pattern - SKIP (monitoring for emergence)`,
+      flipTarget: null,
+      flipLabel: "Skip",
+      urgency: "none",
+      icon: "⚠️",
+      isChaotic: true,
+      patternStatus: {
+        type: 'chaotic',
+        confidence: patternConfidence || 0,
+        runLength: null
+      }
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🎯 DECISION TREE v4: PATTERN-BASED PREDICTION
+  // ═══════════════════════════════════════════════════════════════════════
+  
+  // If we detected a clear pattern, use it
+  if (detectedPattern && patternConfidence >= 0.6) {
+    
+    // 🔥 DOMINANCE PATTERN: Predict continuation of dominant side
+    if (detectedPattern.type === 'dominance') {
+      const isDominantSide = currentSide === detectedPattern.dominantSide;
+      
+      if (isDominantSide) {
+        // Continue betting on dominant side
+        return {
+          valid: true,
+          currentSide,
+          currentLabel,
+          runLength,
+          dominance,
+          dominantSide,
+          swapRate,
+          action: "CONTINUE",
+          confidence: Math.min(0.70 + (patternConfidence - 0.70) * 0.5, 0.85),
+          reliability: "HIGH",
+          betAdvice: "BET GOOD RELICS",
+          message: `🔥 ${currentLabel} dominance (${(patternConfidence * 100).toFixed(0)}%) → Continue ${currentLabel}`,
+          flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
+          flipLabel: currentLabel,
+          urgency: "sticky",
+          icon: "🔥",
+          patternDetected: detectedPattern
+        };
+      } else {
+        // We're on the weak side, suggest flipping to dominant
+        const flipTarget = detectedPattern.dominantSide === "A" ? scheme.pairA : scheme.pairB;
+        const flipLabel = detectedPattern.dominantSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
+        
+        return {
+          valid: true,
+          currentSide,
+          currentLabel,
+          runLength,
+          dominance,
+          dominantSide,
+          swapRate,
+          action: "FLIP",
+          confidence: 0.70,
+          reliability: "MODERATE",
+          betAdvice: "BET OKAY RELICS",
+          message: `🔥 ${flipLabel} dominance detected → Flip to ${flipLabel}`,
+          flipTarget,
+          flipLabel,
+          urgency: "due",
+          icon: "🔥",
+          patternDetected: detectedPattern
+        };
+      }
+    }
+    
+    // 🔥 RUN-BASED PATTERN: Predict based on run length
+    const expectedRunLength = detectedPattern.runLength;
+    
+    // Check if we should flip based on pattern
+    // 🔥 SPECIAL CASE: For dominance patterns, NEVER flip - always continue
+    if (detectedPattern && detectedPattern.type === 'dominance') {
+      // Dominance pattern = sticky session, keep betting same side
+      return {
+        valid: true,
+        currentSide,
+        currentLabel,
+        runLength,
+        dominance,
+        dominantSide,
+        swapRate,
+        action: "CONTINUE",
+        confidence: Math.min(0.80 + (patternConfidence - 0.7) * 0.5, 0.95),
+        reliability: "VERY HIGH",
+        betAdvice: "BET BEST RELICS",
+        message: `🔒 ${detectedPattern.type} pattern (${Math.round(dominance * 100)}%) → Continue ${currentLabel}`,
+        flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
+        flipLabel: currentLabel,
+        urgency: "critical",
+        icon: "🔒",
+        patternDetected: detectedPattern
+      };
+    }
+    
+    // For other patterns (alternating, run-based), check if we should flip
+    if (runLength >= expectedRunLength) {
+      // Time to flip!
+      const flipTarget = currentSide === "A" ? scheme.pairB : scheme.pairA;
+      const flipLabel = currentSide === "A" ? scheme.pairBLabel : scheme.pairALabel;
+      
       return {
         valid: true,
         currentSide,
@@ -156,14 +418,176 @@ function analyzeColumnWave(rolls, scheme, digitPosition) {
         dominantSide,
         swapRate,
         action: "FLIP",
-        confidence: 0.75,
+        confidence: Math.min(0.75 + (patternConfidence - 0.6) * 0.5, 0.90),
         reliability: "HIGH",
         betAdvice: "BET GOOD RELICS",
-        message: `🔥 Extreme ${runLength}x ${currentLabel} → FLIP`,
-        flipTarget: currentSide === "A" ? scheme.pairB : scheme.pairA,
-        flipLabel: oppositeLabel,
+        message: `🎯 ${detectedPattern.type} pattern detected → Flip to ${flipLabel}`,
+        flipTarget,
+        flipLabel,
+        urgency: runLength > expectedRunLength ? "overdue" : "due",
+        icon: "🎯",
+        patternDetected: detectedPattern
+      };
+    } else {
+      // Continue current side
+      return {
+        valid: true,
+        currentSide,
+        currentLabel,
+        runLength,
+        dominance,
+        dominantSide,
+        swapRate,
+        action: "CONTINUE",
+        confidence: 0.65,
+        reliability: "MODERATE",
+        betAdvice: "BET OKAY RELICS",
+        message: `📊 ${detectedPattern.type} pattern → Continue ${currentLabel} (${runLength}/${expectedRunLength})`,
+        flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
+        flipLabel: currentLabel,
+        urgency: "building",
+        icon: "📊",
+        patternDetected: detectedPattern
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🎯 FALLBACK: OLD ALTERNATING DETECTION
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // 🔥 STEP 1: DETECT ALTERNATING PATTERNS (L-H-L-H-L-H)
+  // Use column-specific lookback: C2 (Outer/Inner) is more volatile, needs shorter lookback
+  const isCol2 = digitPosition === 1; // Column 2 = Outer/Inner (digit position 1)
+  const lookbackForAlternating = Math.min(isCol2 ? 4 : 6, states.length);
+  const recentForAlternating = states.slice(-lookbackForAlternating);
+  
+  let alternationCount = 0;
+  for (let i = 1; i < recentForAlternating.length; i++) {
+    if (recentForAlternating[i] !== recentForAlternating[i - 1]) {
+      alternationCount++;
+    }
+  }
+  
+  const alternationRate = recentForAlternating.length > 1 
+    ? alternationCount / (recentForAlternating.length - 1) 
+    : 0;
+  
+  // Column-specific alternating thresholds:
+  // C2: 50% threshold (more sensitive, faster detection)
+  // C3: 60% threshold (more conservative)
+  const alternatingThreshold = isCol2 ? 0.5 : 0.6;
+  const minRollsForAlternating = isCol2 ? 3 : 4;
+  const isAlternating = alternationRate >= alternatingThreshold && recentForAlternating.length >= minRollsForAlternating;
+  
+  if (isAlternating) {
+    // ALTERNATING STRATEGY: Predict opposite of current side
+    const flipTarget = currentSide === "A" ? scheme.pairB : scheme.pairA;
+    const flipLabel = currentSide === "A" ? scheme.pairBLabel : scheme.pairALabel;
+    
+    return {
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "ALTERNATING_FLIP",
+      confidence: 0.68,
+      reliability: "MODERATE",
+      betAdvice: "BET OKAY RELICS",
+      message: `🔄 Alternating (${Math.round(alternationRate * 100)}% flip) → ${flipLabel}`,
+      flipTarget,
+      flipLabel,
+      urgency: "moderate",
+      icon: "🔄",
+      isAlternating: true,
+      alternationRate,
+      patternDetected: { type: 'alternating', confidence: alternationRate, runLength: 1 } // NEW
+    };
+  }
+
+  // 🔥 STEP 2: TUNED ADAPTIVE FLIP THRESHOLD with minimum sample size check
+  const windowAccuracy = windowContext?.accuracy || 0.5;
+  const sampleSize = windowContext?.rollCount || 0;
+  
+  // 🔥 5-MINUTE WINDOW OPTIMIZATION
+  const is5MinWindow = rolls.length <= 15;
+  const adaptiveFlipThreshold = is5MinWindow
+    ? (sampleSize >= 8 && windowAccuracy > 0.7 ? 3 :
+       sampleSize >= 6 && windowAccuracy > 0.6 ? 4 :
+       5)
+    : (sampleSize >= 10 && windowAccuracy > 0.75 ? 4 :
+       sampleSize >= 8 && windowAccuracy > 0.65 ? 5 :
+       6);
+
+  // 🔥 CONFIDENCE MULTIPLIER based on run length
+  let confidenceMultiplier = 1.0;
+  if (runLength >= 8) {
+    confidenceMultiplier = 0.95;
+  } else if (runLength >= 6) {
+    confidenceMultiplier = 1.05;
+  }
+  
+  // 🔥 PATTERN STABILITY CHECK
+  const recentStates = states.slice(-6);
+  let flips = 0;
+  for (let i = 1; i < recentStates.length; i++) {
+    if (recentStates[i] !== recentStates[i - 1]) flips++;
+  }
+  const isStable = flips <= 2;
+  if (!isStable) {
+    confidenceMultiplier *= 0.9;
+  }
+  
+  // 🔥 SKIP if too chaotic (>80% swap)
+  if (swapRate > 0.8) {
+    return {
+      valid: false,
+      currentSide,
+      currentLabel,
+      runLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "SKIP",
+      confidence: 0.3,
+      reliability: "NONE",
+      betAdvice: "SKIP - TOO CHAOTIC",
+      message: `⚠️ Chaos (${Math.round(swapRate * 100)}% swap) → skip`,
+      flipTarget: [],
+      flipLabel: "—",
+      isStable: false,
+      patternDetected: { type: 'chaotic', confidence: 0, runLength: null } // NEW
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TIER S: DOMINANCE LOCK (adaptive threshold + low swap ≤35%)
+  // ─────────────────────────────────────────────────────────────────────
+  if (runLength >= adaptiveFlipThreshold && swapRate <= 0.35) {
+    if (runLength >= 8) {
+      return {
+        valid: true,
+        currentSide,
+        currentLabel,
+        runLength,
+        dominance,
+        dominantSide,
+        swapRate,
+        action: "CONTINUE",
+        confidence: 0.90 * confidenceMultiplier,
+        reliability: "VERY HIGH",
+        betAdvice: "BET BEST RELICS",
+        message: `🔥 Extreme ${runLength}x ${currentLabel} dominance → Continue ${currentLabel}`,
+        flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
+        flipLabel: currentLabel,
         urgency: "high",
         icon: "🟠",
+        adaptiveThreshold: adaptiveFlipThreshold,
+        isStable,
+        patternDetected: { type: 'dominance', confidence: 0.88, runLength: runLength } // NEW
       };
     }
 
@@ -176,7 +600,7 @@ function analyzeColumnWave(rolls, scheme, digitPosition) {
       dominantSide,
       swapRate,
       action: "CONTINUE",
-      confidence: 0.88,
+      confidence: 0.88 * confidenceMultiplier,
       reliability: "VERY HIGH",
       betAdvice: "BET BEST RELICS",
       message: `🔒 Dominance lock: ${currentLabel} (${runLength}x, ${Math.round(
@@ -186,6 +610,9 @@ function analyzeColumnWave(rolls, scheme, digitPosition) {
       flipLabel: `Continue ${currentLabel}`,
       urgency: "critical",
       icon: "🟢",
+      adaptiveThreshold: adaptiveFlipThreshold,
+      isStable,
+      patternDetected: { type: 'dominance', confidence: 0.88, runLength: runLength } // NEW
     };
   }
 
@@ -513,16 +940,25 @@ export default function KiyoModeCard({
       roll,
       ts: Date.now() + i * 10,
     }));
-    const testEvents = testRolls.map((roll, i) => ({
-      roll,
-      ts: Date.now() + i * 10,
-    }));
+    
+    // testRolls now stores {roll, ts} objects with actual window timestamps
+    const testEvents = testRolls.map((item) => {
+      if (typeof item === 'string') {
+        // Fallback for old string format
+        return { roll: item, ts: Date.now() };
+      }
+      return { roll: item.roll, ts: item.ts };
+    });
+    
     const liveEvents = liveRolls;
 
     return [...entryEvents, ...importedEvents, ...testEvents, ...liveEvents];
   }, [entries, importedRolls, testRolls, liveRolls]);
 
   const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 3);
+  
+  // 🔥 NEW: Per-window pattern analysis
+  const windowAnalysis = useWindowPatternAnalysis(rollEvents, windowInfo);
 
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
@@ -571,7 +1007,8 @@ export default function KiyoModeCard({
   }, [live3Rolls]);
 
   const translatedTestRolls = useMemo(() => {
-    return testRolls.map((roll) => {
+    return testRolls.map((item) => {
+      const roll = typeof item === 'string' ? item : item.roll;
       const digits = roll.split("").map(Number);
       const shift = (4 - digits[0] + 4) % 4;
       const shifted = digits
@@ -732,10 +1169,34 @@ export default function KiyoModeCard({
       };
     }
 
-    const baseRolls = combinedRolls.slice(-18);
+    // 🔥 5-MINUTE WINDOW OPTIMIZATION: Use shorter lookback for small sessions
+    const is5MinWindow = combinedRolls.length <= 15;
+    const lookbackSize = is5MinWindow ? Math.min(10, combinedRolls.length) : 18;
+    const baseRolls = combinedRolls.slice(-lookbackSize);
 
-    const col2Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col2, 1);
-    const col3Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col3, 2);
+    // 🔥 Get window analysis for per-window pattern detection
+    const baseWindowContext = {
+      windowStates: null, // Will be set per column below
+      previousStates: null, // NEW: Previous window context
+      isNewWindow: windowAnalysis?.isNewWindow || false,
+      rollCount: windowAnalysis?.rollCount || 0
+    };
+
+    // Create column-specific window context with cross-window data
+    const col2WindowContext = {
+      ...baseWindowContext,
+      windowStates: windowAnalysis?.currentWindowStates?.col2 || null,
+      previousStates: windowAnalysis?.previousContext?.col2States || null // NEW
+    };
+    
+    const col3WindowContext = {
+      ...baseWindowContext,
+      windowStates: windowAnalysis?.currentWindowStates?.col3 || null,
+      previousStates: windowAnalysis?.previousContext?.col3States || null // NEW
+    };
+
+    const col2Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col2, 1, col2WindowContext);
+    const col3Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col3, 2, col3WindowContext);
 
     const columns = [
       {
@@ -794,6 +1255,52 @@ export default function KiyoModeCard({
         ? "MODERATE"
         : "NORMAL";
 
+    // 🔥 NEW: Column Comparison & Betting Recommendation
+    const col2Clear = !col2Analysis.isChaotic && col2Analysis.confidence >= 0.6;
+    const col3Clear = !col3Analysis.isChaotic && col3Analysis.confidence >= 0.6;
+    
+    let bettingRecommendation = {
+      suggestion: "ANALYZE BOTH",
+      focus: "both",
+      message: "Monitor both columns",
+      col2Status: "neutral",
+      col3Status: "neutral"
+    };
+    
+    if (col2Clear && col3Clear) {
+      bettingRecommendation = {
+        suggestion: "BET ON BOTH",
+        focus: "both",
+        message: "Both columns have clear patterns - bet on both!",
+        col2Status: "good",
+        col3Status: "good"
+      };
+    } else if (col3Clear && !col2Clear) {
+      bettingRecommendation = {
+        suggestion: "FOCUS ON COL3",
+        focus: "col3",
+        message: "Col3 has clear pattern, Col2 is chaotic - focus on Col3 only",
+        col2Status: "bad",
+        col3Status: "good"
+      };
+    } else if (col2Clear && !col3Clear) {
+      bettingRecommendation = {
+        suggestion: "FOCUS ON COL2",
+        focus: "col2",
+        message: "Col2 has clear pattern, Col3 is chaotic - focus on Col2 only",
+        col2Status: "good",
+        col3Status: "bad"
+      };
+    } else if (col2Analysis.isChaotic && col3Analysis.isChaotic) {
+      bettingRecommendation = {
+        suggestion: "SKIP SESSION",
+        focus: "none",
+        message: "Both columns chaotic - wait for clearer patterns to emerge",
+        col2Status: "bad",
+        col3Status: "bad"
+      };
+    }
+
     return {
       columns,
       columnAnalysis: {
@@ -809,8 +1316,9 @@ export default function KiyoModeCard({
       lookbackUsed: baseRolls.length,
       window: windowInfo,
       windowQuality: windowInfo?.quality ?? null,
+      bettingRecommendation, // NEW: Betting recommendation
     };
-  }, [combinedRolls, windowInfo]);
+  }, [combinedRolls, windowInfo, windowAnalysis]);
 
   const smartPrefixPrediction = useMemo(() => {
     if (combinedRolls.length < 3) return null;
@@ -836,7 +1344,8 @@ export default function KiyoModeCard({
 
     if (!sourcePrefix) return null;
 
-    const recentRolls = combinedRolls.slice(-15);
+    // 🔥 IMPROVEMENT: Increase live data lookback from 15 to 30
+    const recentRolls = combinedRolls.slice(-30);
     const liveTable = {};
 
     for (let i = 0; i < recentRolls.length - 1; i++) {
@@ -856,10 +1365,11 @@ export default function KiyoModeCard({
       const mainCount = sorted[0][1];
       const confidence = mainCount / total;
 
-      if (total >= 2 && confidence >= 0.5) {
+      // 🔥 IMPROVEMENT: Lower threshold from 0.5 to 0.4, boost confidence
+      if (total >= 2 && confidence >= 0.4) {
         return {
           prediction: sourcePrefix + mainDigit,
-          confidence: Math.min(confidence + 0.1, 0.85),
+          confidence: Math.min(confidence * 1.2, 0.85), // Boost live confidence
           alt: sorted[1] ? sourcePrefix + sorted[1][0] : null,
           matchCount: total,
           sourcePrefix,
@@ -869,6 +1379,7 @@ export default function KiyoModeCard({
       }
     }
 
+    // Fallback to sheet data with REDUCED confidence
     const trainingPrediction = predictWithPrefix(
       EU_SEQUENTIAL_3STR_RECENT,
       sourcePrefix
@@ -877,11 +1388,11 @@ export default function KiyoModeCard({
     if (trainingPrediction.prediction) {
       return {
         ...trainingPrediction,
-        confidence: Math.min(trainingPrediction.confidence * 0.7, 0.65),
+        confidence: Math.min(trainingPrediction.confidence * 0.5, 0.55), // Reduced from 0.7
         sourcePrefix,
         sourceType: `training-${sourceType}`,
         mode: "training-fallback",
-        warning: "Live data weak - using historical",
+        warning: "Live data weak - using historical with low confidence",
       };
     }
 
@@ -919,24 +1430,80 @@ export default function KiyoModeCard({
     return basePrediction;
   }, [combinedRolls, analyzeWavePatterns]);
 
+  // 🎯 SMART RECOMMENDATION SYSTEM - 2-STR AND 3-STR
+  const smartRecommendation = useMemo(() => {
+    if (!combinedRolls || combinedRolls.length < 4) return null;
+
+    // Get sheet data based on region
+    const sheet2str = 
+      datasetRegion === 'EU' ? EU_SEQUENTIAL_2STR_RECENT :
+      datasetRegion === 'NA' ? NA_SEQUENTIAL_2STR_RECENT :
+      datasetRegion === 'ASIA' ? ASIA_SEQUENTIAL_2STR_RECENT :
+      ALL_SEQUENTIAL_2STR_RECENT;
+      
+    const sheet3str = 
+      datasetRegion === 'EU' ? EU_SEQUENTIAL_3STR_RECENT :
+      datasetRegion === 'NA' ? NA_SEQUENTIAL_3STR_RECENT :
+      datasetRegion === 'ASIA' ? ASIA_SEQUENTIAL_3STR_RECENT :
+      ALL_SEQUENTIAL_3STR_RECENT;
+
+    // Determine active prefix from user input or last roll
+    let currentPrefix = activePrefix;
+    if (!currentPrefix && combinedRolls.length > 0) {
+      const lastRoll = String(combinedRolls[combinedRolls.length - 1]);
+      currentPrefix = lastRoll.slice(0, 2);
+    }
+
+    // 2-STR PREDICTION (for 2nd digit)
+    const prediction2str = predictWithCascadingPriority(
+      combinedRolls, // Use combinedRolls (already translated)
+      [], // No separate import data (already in combinedRolls)
+      sheet2str,
+      currentPrefix ? currentPrefix[0] : null, // First digit only for 2-str
+      '2str'
+    );
+
+    // 3-STR PREDICTION (for 3rd digit)
+    const prediction3str = predictWithCascadingPriority(
+      combinedRolls, // Use combinedRolls (already translated)
+      [], // No separate import data (already in combinedRolls)
+      sheet3str,
+      currentPrefix, // Full 2-digit prefix for 3-str
+      '3str'
+    );
+
+    // Get recommendation (Wave vs Prefix) based on 3-str
+    const recommendation = getSmartRecommendation(analyzeWavePatterns, prediction3str);
+
+    return {
+      ...recommendation,
+      prediction2str,
+      prediction3str,
+      prefixPrediction: prediction3str // Backward compatibility
+    };
+  }, [combinedRolls, analyzeWavePatterns, datasetRegion, activePrefix]);
+
   const pairingViz = useMemo(() => {
-    if (combinedRolls.length < 4) return null;
+    if (!combinedRolls || combinedRolls.length < 4) return null;
 
     const vizRolls = combinedRolls.slice(-12).reverse(); // newest first
 
-    // Map: roll string -> most recent ts we saw for it
-    const tsByRoll = new Map();
-    for (let i = (rollEvents?.length ?? 0) - 1; i >= 0; i--) {
-      const r = String(rollEvents[i]?.roll ?? "").trim();
-      const ts = Number(rollEvents[i]?.ts ?? 0);
-      if (r.length === 3 && ts > 0 && !tsByRoll.has(r)) tsByRoll.set(r, ts);
-    }
-
-    const bucket5m = (ts) => Math.floor(ts / 300000) * 300000;
-
-    return vizRolls.map((roll) => {
+    // ✅ Wall-clock 5-min bucket (00/05/10/15/...) - matches useFiveMinuteWindowRolls
+    const bucket5m = (ts) => {
+      const d = new Date(ts);
+      const start = new Date(d);
+      start.setSeconds(0, 0);
+      start.setMinutes(Math.floor(d.getMinutes() / 5) * 5);
+      return start.getTime();
+    };
+    
+    return vizRolls.map((roll, vizIdx) => {
       const r = String(roll).trim();
-      const ts = tsByRoll.get(r) ?? Date.now(); // fallback so table still works
+      
+      // Find the actual timestamp from rollEvents for this roll
+      // Search backwards from the end to get the most recent occurrence
+      const rollEventIdx = rollEvents.length - 1 - vizIdx;
+      const ts = rollEvents[rollEventIdx]?.ts || Date.now();
 
       const col1Digit = r[0];
       const col2Digit = r[1];
@@ -1037,9 +1604,15 @@ export default function KiyoModeCard({
     const debugData = {
       waveAnalysis: JSON.parse(JSON.stringify(analyzeWavePatterns)),
       prediction: { ...prediction },
-      smartPrefix: smartPrefixPrediction ? { ...smartPrefixPrediction } : null,
+      smartPrefix: smartRecommendation ? {
+        ...smartRecommendation,
+        // Ensure predictions are in the format debug panel expects
+        prediction2str: smartRecommendation.prediction2str || null,
+        prediction3str: smartRecommendation.prediction3str || null,
+      } : null,
       pairingViz: pairingViz ? [...pairingViz] : [],
       combinedRolls: [...combinedRolls],
+      windowTracker: getWindowTracker(), // 🔥 NEW: Add window tracker
 
       waveData: {
         col2Prediction: (() => {
@@ -1056,6 +1629,16 @@ export default function KiyoModeCard({
         col3Confidence: analyzeWavePatterns?.columns?.[1]?.confidence || 0,
         col2Status: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
         col3Status: analyzeWavePatterns?.columns?.[1]?.status || "unknown",
+        
+        // 🔥 NEW: Pattern analysis fields
+        col2PatternStatus: analyzeWavePatterns?.columns?.[0]?.patternStatus || null,
+        col3PatternStatus: analyzeWavePatterns?.columns?.[1]?.patternStatus || null,
+        col2WindowBoundary: analyzeWavePatterns?.columns?.[0]?.windowBoundary || false,
+        col3WindowBoundary: analyzeWavePatterns?.columns?.[1]?.windowBoundary || false,
+        col2PatternBroke: analyzeWavePatterns?.columns?.[0]?.patternBroke || false,
+        col3PatternBroke: analyzeWavePatterns?.columns?.[1]?.patternBroke || false,
+        col2Expected: analyzeWavePatterns?.columns?.[0]?.expected || null,
+        col3Expected: analyzeWavePatterns?.columns?.[1]?.expected || null,
       },
     };
 
@@ -1063,7 +1646,7 @@ export default function KiyoModeCard({
   }, [
     prediction,
     analyzeWavePatterns,
-    smartPrefixPrediction,
+    smartRecommendation,
     pairingViz,
     combinedRolls,
     onSendKiyoDebugData,
@@ -1075,7 +1658,9 @@ export default function KiyoModeCard({
       const value = testInput.trim();
 
       if (value.length === 3 && /^[1-4]{3}$/.test(value)) {
-        setTestRolls((prev) => [...prev, value]);
+        // Store roll with current 5-minute window start time
+        const ts = windowInfo?.startMs || Date.now();
+        setTestRolls((prev) => [...prev, { roll: value, ts }]);
         setTestInput("");
       } else {
         setTestInput("");
@@ -1213,6 +1798,7 @@ export default function KiyoModeCard({
         setTestInput={setTestInput}
         handleTestRollSubmit={handleTestRollSubmit}
         testRolls={testRolls}
+        setTestRolls={setTestRolls}
         translatedTestRolls={translatedTestRolls}
         handleDeleteTestRoll={handleDeleteTestRoll}
         setActivePrefix={setActivePrefix}
@@ -1224,17 +1810,34 @@ export default function KiyoModeCard({
             windowInfo={windowInfo}
             analyzeWavePatterns={analyzeWavePatterns}
           />
+
+          <BettingRecommendationCard
+            waveAnalysis={analyzeWavePatterns}
+            persistentAccuracy={waveAccuracy}
+          />
+
           <WaveAnalysisDisplay
             analyzeWavePatterns={analyzeWavePatterns}
-            smartPrefixPrediction={smartPrefixPrediction}
+            smartPrefixPrediction={smartRecommendation?.prefixPrediction}
+            smartRecommendation={smartRecommendation}
           />
         </>
       )}
+
+      <RecommendationPanel
+        waveAccuracy={waveAccuracy}
+        kiyoAccuracy={kiyoAccuracy}
+        pairingViz={pairingViz}
+        smartRecommendation={smartRecommendation}
+        combinedRolls={combinedRolls}
+        analyzeWavePatterns={analyzeWavePatterns}
+      />
 
       <AdvancedToolsSection
         waveAccuracy={waveAccuracy}
         kiyoAccuracy={kiyoAccuracy}
         pairingViz={pairingViz}
+        combinedRolls={combinedRolls}
       />
 
       {showDecisionGuide && (

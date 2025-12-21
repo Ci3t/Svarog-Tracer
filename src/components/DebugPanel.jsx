@@ -238,15 +238,26 @@ export default function DebugPanel({
   }, [debugLogs]);
 
   const digitCounts = useMemo(() => {
-    if (!longString || longString === "—") {
-      return { 1: 0, 2: 0, 3: 0, 4: 0 };
+    // Combine auto-built long string + manual input for counting
+    let combinedString = "";
+    
+    // Add auto-built long string
+    if (longString && longString !== "—") {
+      combinedString += longString;
     }
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    for (const char of longString) {
+    
+    // Add manual decoder input (cleaned)
+    if (manualLong.cleaned && manualLong.cleaned.length >= 2) {
+      combinedString += manualLong.cleaned;
+    }
+    
+    // Count digits
+    const counts = { "1": 0, "2": 0, "3": 0, "4": 0 };
+    for (const char of combinedString) {
       if (counts.hasOwnProperty(char)) counts[char]++;
     }
     return counts;
-  }, [longString]);
+  }, [longString, manualLong]);
 
   function parseSvarogExport(text) {
     const rawLines = text.split(/\r?\n/);
@@ -550,35 +561,38 @@ export default function DebugPanel({
     }
 
     // Timeline with wave predictions
-    lines.push("┌─────────────────────────────────────────────────────────┐");
-    lines.push("│  📊 TRACKING TABLE                                       │");
-    lines.push("└─────────────────────────────────────────────────────────┘");
+    lines.push("┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐");
+    lines.push("│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │");
+    lines.push("└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘");
     lines.push("");
-    lines.push("How to read:");
-    lines.push("- Actual = what you got in-game");
-    lines.push("- WaveC2 = Column 2 wave prediction (Outer/Inner)");
-    lines.push("- WaveC3 = Column 3 wave prediction (Low/High)");
-    lines.push("- C2/C3 = ✓ if wave hit, ✗ if wave missed, - if no prediction");
-    lines.push("- Prefix = Smart prefix prediction BEFORE this roll");
-    lines.push("- Res = M=main hit, A=alt hit, ✗=miss");
+    lines.push("Legend:");
+    lines.push("  Actual = What you got in-game");
+    lines.push("  Wave-C2/C3 = Wave predictions (digits suggested)");
+    lines.push("  Suggest = What wave card recommended (message)");
+    lines.push("  2str/3str = Prefix predictions");
+    lines.push("  ✓ = Hit, ✗ = Miss, - = No prediction");
     lines.push("");
 
     const header = [
-      "Idx".padEnd(4),
-      "Time".padEnd(12),
-      "Actual".padEnd(7),
-      "WaveC2".padEnd(10),
-      "C2".padEnd(3),
-      "WaveC3".padEnd(10),
-      "C3".padEnd(3),
-      "Prefix".padEnd(15),
-      "Res".padEnd(3),
+      "#".padEnd(3),
+      "Time".padEnd(8),
+      "Actual".padEnd(6),
+      "Wave-C2".padEnd(8),
+      "✓".padEnd(2),
+      "C2-Suggest".padEnd(25),
+      "Wave-C3".padEnd(8),
+      "✓".padEnd(2),
+      "C3-Suggest".padEnd(25),
+      "2str".padEnd(5),
+      "✓".padEnd(2),
+      "3str".padEnd(5),
+      "✓".padEnd(2),
     ].join(" ");
 
     lines.push(header);
-    lines.push("-".repeat(header.length));
+    lines.push("─".repeat(140));
 
-    // 🔥 MODIFIED TIMELINE SECTION:
+    // 🔥 COMPREHENSIVE TIMELINE SECTION:
     kiyoLogs.forEach((log, idx) => {
       const actual = log.actual || "---";
       const actualD2 = actual[1] || "-";
@@ -589,9 +603,11 @@ export default function DebugPanel({
       const c2Pred = prev?.waveData?.col2Prediction || null;
       const c3Pred = prev?.waveData?.col3Prediction || null;
 
+      // Format wave suggestions
       const waveC2 = c2Pred ? `[${c2Pred.join(",")}]` : "-";
       const waveC3 = c3Pred ? `[${c3Pred.join(",")}]` : "-";
 
+      // Check wave hits
       const c2Hit =
         c2Pred && actualD2 !== "-"
           ? c2Pred.includes(actualD2)
@@ -605,42 +621,50 @@ export default function DebugPanel({
             : "✗"
           : "-";
 
-      // Prefix prediction BEFORE this roll (comes from previous log)
-      let prefixMain = "-";
-      let prefixAlt = "-";
+      // Get wave card suggestions (what was recommended)
+      const col2Data = prev?.waveAnalysis?.columns?.[0];
+      const col3Data = prev?.waveAnalysis?.columns?.[1];
+      
+      const c2Suggest = col2Data?.message ? 
+        col2Data.message.substring(0, 25) : "-";
+      const c3Suggest = col3Data?.message ? 
+        col3Data.message.substring(0, 25) : "-";
 
-      if (prev?.livePrefix) {
-        prefixMain = prev.livePrefix.main || "-";
-        prefixAlt = prev.livePrefix.alt || "-";
-      } else if (prev?.smartPrefix) {
-        prefixMain = prev.smartPrefix.main || "-";
-        prefixAlt = prev.smartPrefix.alt || "-";
-      }
-
-      const prefixDisplay =
-        prefixAlt !== "-" ? `${prefixMain}/${prefixAlt}` : prefixMain;
-
-      // Result based on live prefix vs actual
-      const res =
-        actual === prefixMain
-          ? "M"
-          : prefixAlt !== "-" && actual === prefixAlt
-          ? "A"
-          : "✗";
+      // Get prefix predictions from smartRecommendation
+      const prevRec = prev?.smartPrefix;
+      
+      // 2-str prediction
+      const pred2str = prevRec?.prediction2str?.predicted || "-";
+      const hit2str = pred2str !== "-" && actual === pred2str ? "✓" : 
+                      pred2str !== "-" ? "✗" : "-";
+      
+      // 3-str prediction  
+      const pred3str = prevRec?.prediction3str?.predicted || "-";
+      const hit3str = pred3str !== "-" && actual === pred3str ? "✓" :
+                      pred3str !== "-" ? "✗" : "-";
 
       const row = [
-        String(idx + 1).padEnd(4),
-        formatTime(log.ts).padEnd(12),
-        actual.padEnd(7),
-        waveC2.padEnd(10),
-        c2Hit.padEnd(3),
-        waveC3.padEnd(10),
-        c3Hit.padEnd(3),
-        prefixDisplay.padEnd(15),
-        res.padEnd(3),
+        String(idx + 1).padEnd(3),
+        formatTime(log.ts).padEnd(8),
+        actual.padEnd(6),
+        waveC2.padEnd(8),
+        c2Hit.padEnd(2),
+        c2Suggest.padEnd(25),
+        waveC3.padEnd(8),
+        c3Hit.padEnd(2),
+        c3Suggest.padEnd(25),
+        pred2str.padEnd(5),
+        hit2str.padEnd(2),
+        pred3str.padEnd(5),
+        hit3str.padEnd(2),
       ].join(" ");
 
       lines.push(row);
+      
+      // 🔥 ADD 5-MINUTE WINDOW SEPARATOR (visual only, every 11 rolls)
+      if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
+        lines.push("─".repeat(140) + " ◄ 5-min window boundary");
+      }
     });
 
     lines.push("");
@@ -655,12 +679,10 @@ export default function DebugPanel({
     let combTotal = 0,
       combHits = 0;
 
-    let prefixAttempts = 0,
-      mainHits = 0,
-      altHits = 0;
-
-    let alignedTotal = 0,
-      alignedHits = 0;
+    let prefix2strTotal = 0,
+      prefix2strHits = 0;
+    let prefix3strTotal = 0,
+      prefix3strHits = 0;
 
     const isDash = (v) => !v || v === "-" || v === "--";
 
@@ -695,54 +717,35 @@ export default function DebugPanel({
         if (c2Hit && c3Hit) combHits++;
       }
 
-      // Prefix (use whatever your timeline uses: livePrefix or smartPrefix)
-      const pMain = prev?.livePrefix?.main ?? prev?.smartPrefix?.main ?? "-";
-      const pAlt = prev?.livePrefix?.alt ?? prev?.smartPrefix?.alt ?? "-";
-
-      const hasPrefix = !isDash(pMain) || !isDash(pAlt);
-      if (hasPrefix) {
-        prefixAttempts++;
-        if (!isDash(pMain) && actual === pMain) mainHits++;
-        else if (!isDash(pAlt) && actual === pAlt) altHits++;
+      // 2-str and 3-str prefix predictions
+      const prevRec = prev?.smartPrefix;
+      
+      const pred2str = prevRec?.prediction2str?.predicted;
+      if (pred2str && pred2str !== "-") {
+        prefix2strTotal++;
+        if (actual === pred2str) prefix2strHits++;
       }
-
-      // Aligned bets (both waves exist + at least one prefix candidate matches both wave digits)
-      const candidateAligned = (cand) => {
-        if (isDash(cand) || cand.length < 3) return false;
-        const cd2 = cand[1];
-        const cd3 = cand[2];
-        return hasC2 && hasC3 && c2Arr.includes(cd2) && c3Arr.includes(cd3);
-      };
-
-      const aligned =
-        hasPrefix &&
-        hasC2 &&
-        hasC3 &&
-        (candidateAligned(pMain) || candidateAligned(pAlt));
-      if (aligned) {
-        alignedTotal++;
-        if (
-          (!isDash(pMain) && actual === pMain) ||
-          (!isDash(pAlt) && actual === pAlt)
-        ) {
-          alignedHits++;
-        }
+      
+      const pred3str = prevRec?.prediction3str?.predicted;
+      if (pred3str && pred3str !== "-") {
+        prefix3strTotal++;
+        if (actual === pred3str) prefix3strHits++;
       }
     });
 
     // Summary
     lines.push("┌─────────────────────────────────────────────────────────┐");
-    lines.push("│  📈 SUMMARY (Calculate from table above)                 │");
+    lines.push("│  📈 ACCURACY SUMMARY                                     │");
     lines.push("└─────────────────────────────────────────────────────────┘");
     lines.push("");
 
     // Now print real numbers:
     lines.push("WAVE PERFORMANCE:");
     lines.push(
-      `  Column 2 Hits: ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`
+      `  Column 2: ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`
     );
     lines.push(
-      `  Column 3 Hits: ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`
+      `  Column 3: ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`
     );
     lines.push(
       `  Combined: ${combHits} / ${combTotal} (${pct(combHits, combTotal)}%)`
@@ -750,25 +753,12 @@ export default function DebugPanel({
     lines.push("");
 
     lines.push("PREFIX PERFORMANCE:");
-    lines.push(`  Main Hits: ${mainHits} (${pct(mainHits, prefixAttempts)}%)`);
-    lines.push(`  Alt Hits: ${altHits} (${pct(altHits, prefixAttempts)}%)`);
     lines.push(
-      `  Total: ${mainHits + altHits} / ${prefixAttempts} (${pct(
-        mainHits + altHits,
-        prefixAttempts
-      )}%)`
+      `  2-String: ${prefix2strHits} / ${prefix2strTotal} (${pct(prefix2strHits, prefix2strTotal)}%)`
     );
-    lines.push("");
-
-    lines.push("ALIGNED BETS (When both wave columns + prefix agree):");
-    lines.push(`  Total: ${alignedTotal}`);
     lines.push(
-      `  Hits: ${alignedHits} / ${alignedTotal} (${pct(
-        alignedHits,
-        alignedTotal
-      )}%)`
+      `  3-String: ${prefix3strHits} / ${prefix3strTotal} (${pct(prefix3strHits, prefix3strTotal)}%)`
     );
-
     lines.push("");
 
     // Pattern analysis
@@ -830,33 +820,186 @@ export default function DebugPanel({
       lines.push("");
     }
 
-    // Interpretation guide
-    lines.push("┌─────────────────────────────────────────────────────────┐");
-    lines.push("│  💡 INTERPRETATION GUIDE                                 │");
-    lines.push("└─────────────────────────────────────────────────────────┘");
-    lines.push("");
-    lines.push("WAVE PREDICTIONS:");
-    lines.push("  • WaveC2/C3 show which digits wave expects next");
-    lines.push("  • Look for patterns where both columns agree (ALIGNED)");
-    lines.push("  • 3+ consecutive in same category = flip likely");
-    lines.push("  • - means no prediction (cooldown or balanced)");
-    lines.push("");
-    lines.push("PREFIX PREDICTIONS:");
-    lines.push("  • Based on recent prefix patterns");
-    lines.push("  • Alt provides backup option");
-    lines.push("  • Higher confidence when live + training agree");
-    lines.push("");
-    lines.push("BETTING STRATEGY:");
-    lines.push("  1. BEST: Wave + Prefix AGREE (both predict same digits)");
-    lines.push("  2. GOOD: Wave shows 3+ consecutive run");
-    lines.push("  3. SKIP: Wave cooldown or conflict with prefix");
-    lines.push("  4. AVOID: High volatility (60%+ swap rate)");
-    lines.push("");
-    lines.push("ACCURACY GOALS:");
-    lines.push("  • 70%+ = Trust predictions");
-    lines.push("  • 60-70% = Use with caution");
-    lines.push("  • Below 60% = Pattern unstable, skip or adjust");
-    lines.push("");
+    // 🔥 NEW: Per-Window Breakdown
+    if (kiyoLogs.length > 0) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push("│  📊 PER-WINDOW ANALYSIS                                 │");
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+      
+      // Group logs by window (every 11 rolls)
+      const windows = [];
+      for (let i = 0; i < kiyoLogs.length; i += 11) {
+        const windowLogs = kiyoLogs.slice(i, Math.min(i + 11, kiyoLogs.length));
+        windows.push({
+          index: Math.floor(i / 11),
+          startRoll: i + 1,
+          endRoll: Math.min(i + 11, kiyoLogs.length),
+          logs: windowLogs
+        });
+      }
+      
+      windows.forEach((window, idx) => {
+        const { startRoll, endRoll, logs } = window;
+        
+        // Calculate accuracy for this window
+        let col2Hits = 0, col2Total = 0;
+        let col3Hits = 0, col3Total = 0;
+        let detectedCol2Pattern = null;
+        let detectedCol3Pattern = null;
+        
+        logs.forEach((log, i) => {
+          if (i === 0) return; // Skip first roll (no prediction)
+          
+          const prev = logs[i - 1];
+          const actual = log.roll;
+          const actualD2 = actual?.[1];
+          const actualD3 = actual?.[2];
+          
+          // Col2 accuracy
+          const c2Pred = prev?.waveData?.waveAnalysis?.columns?.[0]?.flipTarget;
+          if (c2Pred && actualD2) {
+            col2Total++;
+            if (c2Pred.includes(actualD2)) col2Hits++;
+          }
+          
+          // Col3 accuracy
+          const c3Pred = prev?.waveData?.waveAnalysis?.columns?.[1]?.flipTarget;
+          if (c3Pred && actualD3) {
+            col3Total++;
+            if (c3Pred.includes(actualD3)) col3Hits++;
+          }
+          
+          // Get pattern from last roll in window
+          if (i === logs.length - 1) {
+            detectedCol2Pattern = log?.waveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+            detectedCol3Pattern = log?.waveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+          }
+        });
+        
+        const col2Acc = col2Total > 0 ? ((col2Hits / col2Total) * 100).toFixed(1) : "N/A";
+        const col3Acc = col3Total > 0 ? ((col3Hits / col3Total) * 100).toFixed(1) : "N/A";
+        
+        // Check for pattern transition
+        let transitionMarker = "";
+        if (idx > 0) {
+          const prevWindow = windows[idx - 1];
+          const prevLogs = prevWindow.logs;
+          const prevLastLog = prevLogs[prevLogs.length - 1];
+          const prevCol2Pattern = prevLastLog?.waveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+          const prevCol3Pattern = prevLastLog?.waveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+          
+          const col2Changed = prevCol2Pattern?.type !== detectedCol2Pattern?.type;
+          const col3Changed = prevCol3Pattern?.type !== detectedCol3Pattern?.type;
+          
+          if (col2Changed || col3Changed) {
+            transitionMarker = " ⚠️ PATTERN CHANGED";
+          }
+        }
+        
+        lines.push(`Window ${idx + 1} (Rolls ${startRoll}-${endRoll}):${transitionMarker}`);
+        lines.push(`  Col2: ${detectedCol2Pattern?.type || 'no pattern'} - ${col2Hits}/${col2Total} (${col2Acc}%)`);
+        lines.push(`  Col3: ${detectedCol3Pattern?.type || 'no pattern'} - ${col3Hits}/${col3Total} (${col3Acc}%)`);
+        
+        if (detectedCol2Pattern || detectedCol3Pattern) {
+          if (detectedCol2Pattern) {
+            lines.push(`    → Col2: ${(detectedCol2Pattern.confidence * 100).toFixed(0)}% confidence`);
+          }
+          if (detectedCol3Pattern) {
+            lines.push(`    → Col3: ${(detectedCol3Pattern.confidence * 100).toFixed(0)}% confidence`);
+          }
+        }
+        
+        lines.push("");
+      });
+    }
+
+    // 🔥 NEW: Pattern Detection Status
+    const lastLog = kiyoLogs[kiyoLogs.length - 1];
+    if (lastLog?.waveData) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push("│  🎯 DETECTED PATTERNS                                   │");
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+      
+      // Get pattern info from wave columns
+      const col2Pattern = kiyoWaveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+      const col3Pattern = kiyoWaveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+      
+      lines.push("COLUMN 2 (Outer/Inner):");
+      if (col2Pattern) {
+        lines.push(`  🎯 Pattern: ${col2Pattern.type}`);
+        lines.push(`  📊 Confidence: ${(col2Pattern.confidence * 100).toFixed(0)}%`);
+        lines.push(`  📏 Expected run: ${col2Pattern.runLength}`);
+      } else {
+        lines.push("  ⚠️ No clear pattern detected (using fallback logic)");
+      }
+      
+      lines.push("");
+      lines.push("COLUMN 3 (Low/High):");
+      if (col3Pattern) {
+        lines.push(`  🎯 Pattern: ${col3Pattern.type}`);
+        lines.push(`  📊 Confidence: ${(col3Pattern.confidence * 100).toFixed(0)}%`);
+        lines.push(`  📏 Expected run: ${col3Pattern.runLength}`);
+      } else {
+        lines.push("  ⚠️ No clear pattern detected (using fallback logic)");
+      }
+      
+      lines.push("");
+      
+      // 🔥 NEW: Betting Recommendation
+      const recommendation = kiyoWaveData?.waveAnalysis?.bettingRecommendation;
+      if (recommendation) {
+        lines.push("┌─────────────────────────────────────────────────────────┐");
+        lines.push("│  🎯 BETTING RECOMMENDATION                              │");
+        lines.push("└─────────────────────────────────────────────────────────┘");
+        lines.push("");
+        
+        const col2Analysis = kiyoWaveData?.waveAnalysis?.columns?.[0];
+        const col3Analysis = kiyoWaveData?.waveAnalysis?.columns?.[1];
+        
+        // Column 2 Status
+        lines.push("COLUMN 2 (Outer/Inner):");
+        if (recommendation.col2Status === 'good') {
+          lines.push(`  ✅ BET - Clear pattern detected`);
+          lines.push(`     Pattern: ${col2Analysis?.patternDetected?.type || 'N/A'}`);
+          lines.push(`     Confidence: ${Math.round((col2Analysis?.confidence || 0) * 100)}%`);
+        } else if (recommendation.col2Status === 'bad') {
+          lines.push(`  ❌ SKIP - Chaotic pattern`);
+          lines.push(`     Confidence: ${Math.round((col2Analysis?.confidence || 0) * 100)}%`);
+          lines.push(`     Reason: Pattern too unstable`);
+        } else {
+          lines.push(`  ⚪ MONITOR - Building pattern`);
+        }
+        
+        lines.push("");
+        
+        // Column 3 Status
+        lines.push("COLUMN 3 (Low/High):");
+        if (recommendation.col3Status === 'good') {
+          lines.push(`  ✅ BET - Clear pattern detected`);
+          lines.push(`     Pattern: ${col3Analysis?.patternDetected?.type || 'N/A'}`);
+          lines.push(`     Confidence: ${Math.round((col3Analysis?.confidence || 0) * 100)}%`);
+        } else if (recommendation.col3Status === 'bad') {
+          lines.push(`  ❌ SKIP - Chaotic pattern`);
+          lines.push(`     Confidence: ${Math.round((col3Analysis?.confidence || 0) * 100)}%`);
+          lines.push(`     Reason: Pattern too unstable`);
+        } else {
+          lines.push(`  ⚪ MONITOR - Building pattern`);
+        }
+        
+        lines.push("");
+        
+        // Overall Suggestion
+        lines.push("OVERALL SUGGESTION:");
+        lines.push(`  💡 ${recommendation.suggestion}`);
+        lines.push(`     ${recommendation.message}`);
+        
+        lines.push("");
+      }
+    }
+
+    // Footer
     lines.push("═══════════════════════════════════════════════════════════");
     lines.push("Generated by Kiyo Mode v3.0 - Pattern Recognition System");
     lines.push("═══════════════════════════════════════════════════════════");
@@ -1035,6 +1178,43 @@ export default function DebugPanel({
                 </span>
               </div>
             </div>
+
+            {/* 🔥 NEW: Adaptive System Stats */}
+            {kiyoWaveData?.windowTracker && (
+              <div className="mt-4 bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border border-cyan-500/30 rounded-lg p-3">
+                <div className="text-sm font-semibold text-cyan-300 mb-2">
+                  🎯 Adaptive System Stats
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="bg-slate-900/40 rounded p-2">
+                    <div className="text-slate-400 mb-1">Window Accuracy</div>
+                    <div className="text-lg font-bold text-cyan-300">
+                      {(kiyoWaveData.windowTracker.getCurrentWindowStats().accuracy * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {kiyoWaveData.windowTracker.getCurrentWindowStats().rollCount || 0} rolls
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/40 rounded p-2">
+                    <div className="text-slate-400 mb-1">Best Predictor</div>
+                    <div className="text-lg font-bold text-cyan-300">
+                      {kiyoWaveData.windowTracker.getBestPredictor().predictor.toUpperCase()}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {(kiyoWaveData.windowTracker.getBestPredictor().accuracy * 100).toFixed(0)}% ({kiyoWaveData.windowTracker.getBestPredictor().confidence})
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  {Object.entries(kiyoWaveData.windowTracker.getWeights()).map(([pred, weight]) => (
+                    <div key={pred} className="bg-slate-900/40 rounded p-1.5 text-center">
+                      <div className="text-[10px] text-slate-400">{pred.toUpperCase()}</div>
+                      <div className="text-sm font-bold text-cyan-300">{(weight * 100).toFixed(0)}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-3 text-[11px] text-slate-500">
               Tip: If WaveC2/WaveC3 show “-” in export, it means the per-roll

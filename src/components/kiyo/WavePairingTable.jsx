@@ -97,24 +97,34 @@ export default function WavePairingTable({ pairingViz, splitIndex = null }) {
             {pairingViz?.flatMap((row, idx) => {
               const currWin = row?.windowStartMs;
               const prevWin = pairingViz[idx - 1]?.windowStartMs;
+              const currTs = row?.ts || 0;
+              const prevTs = pairingViz[idx - 1]?.ts || 0;
               const rows = [];
 
-              // Insert separator BEFORE the first row of the new 5-min window
-              if (
-                idx > 0 &&
-                currWin != null &&
-                prevWin != null &&
-                currWin !== prevWin
-              ) {
+              // Since table is newest-first, prevWin is actually NEWER than currWin
+              // Separator should show when we go BACK in time to an older window
+              // So check if prevWin > currWin (crossing boundary going backwards)
+              const windowsPassed = currWin && prevWin && prevWin > currWin
+                ? Math.floor((prevWin - currWin) / (5 * 60 * 1000))
+                : 0;
+              
+              // Insert separator(s) for each 5-minute window boundary that passed
+              if (idx > 0 && windowsPassed > 0) {
+                
+                // If multiple windows passed (e.g., 10+ minutes gap), show how many
+                const label = windowsPassed === 1 
+                  ? "◄ 5-MIN WINDOW BOUNDARY ►"
+                  : `◄ ${windowsPassed} WINDOW BOUNDARIES (${windowsPassed * 5} min gap) ►`;
+                
                 rows.push(
                   <tr key={`window-sep-${idx}`}>
                     <td colSpan={4} className="p-0">
-                      <div className="flex items-center gap-3 px-3 py-2 bg-slate-900/70 border-y border-cyan-500/40">
-                        <div className="h-[2px] flex-1 bg-cyan-400/40" />
-                        <div className="text-[11px] font-semibold text-cyan-200 tracking-wide">
-                          NEW 5-MIN WINDOW
+                      <div className="flex items-center gap-3 px-3 py-2 bg-cyan-900/30 border-y-2 border-cyan-500/60">
+                        <div className="h-[2px] flex-1 bg-cyan-400/60" />
+                        <div className="text-xs font-bold text-cyan-100 tracking-wide">
+                          {label}
                         </div>
-                        <div className="h-[2px] flex-1 bg-cyan-400/40" />
+                        <div className="h-[2px] flex-1 bg-cyan-400/60" />
                       </div>
                     </td>
                   </tr>

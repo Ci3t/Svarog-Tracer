@@ -1,0 +1,40 @@
+{
+  "window_analysis": {
+    "18:10": {
+      "best_predictor": "c3",
+      "best_accuracy": 53.16455696202531,
+      "all_accuracies": {
+        "c2": {
+          "accuracy": 35.9375,
+          "hits": 23,
+          "total": 64
+        },
+        "c3": {
+          "accuracy": 53.16455696202531,
+          "hits": 42,
+          "total": 79
+        },
+        "prefix": {
+          "accuracy": 9.63855421686747,
+          "hits": 8,
+          "total": 83
+        }
+      },
+      "pattern_type": "BALANCED",
+      "roll_count": 87,
+      "low_high_ratio": "35/52"
+    }
+  },
+  "summary": {
+    "c3_wins": 1,
+    "c2_wins": 0,
+    "prefix_wins": 0,
+    "pattern_correlation": {
+      "BALANCED": {
+        "c2": 0,
+        "c3": 1,
+        "prefix": 0
+      }
+    }
+  }
+}

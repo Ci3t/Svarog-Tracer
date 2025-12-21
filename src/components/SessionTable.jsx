@@ -100,7 +100,9 @@ export default function SessionTable({
                     {toTranslatedPadded(e.s5)}
                   </td>
                   <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
-                    {new Date(e.time).toLocaleTimeString()}
+                    {e.time && !isNaN(new Date(e.time).getTime()) 
+                      ? new Date(e.time).toLocaleTimeString() 
+                      : '--:--:--'}
                   </td>
                   <td className="py-3 px-4 sm:px-6 text-right">
                     <button
@@ -188,7 +190,9 @@ export default function SessionTable({
                           {toTranslatedPadded(e.s2)}
                         </td>
                         <td className="py-1 pr-2 text-slate-500">
-                          {new Date(e.time).toLocaleTimeString()}
+                          {e.time && !isNaN(new Date(e.time).getTime()) 
+                            ? new Date(e.time).toLocaleTimeString() 
+                            : '--:--:--'}
                         </td>
                       </tr>
                     ))}
@@ -240,7 +244,9 @@ export default function SessionTable({
                       {toTranslatedPadded(e.s5)}
                     </td>
                     <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
-                      {new Date(e.time).toLocaleTimeString()}
+                      {e.time && !isNaN(new Date(e.time).getTime()) 
+                        ? new Date(e.time).toLocaleTimeString() 
+                        : '--:--:--'}
                     </td>
                   </tr>
                 ))}

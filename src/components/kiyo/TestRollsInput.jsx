@@ -1,10 +1,72 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { translateTo4 } from "../../utils/stringHelpers";
+
+// Auto-test controls component (debug mode only)
+function AutoTestControls({ onRollsLoaded }) {
+  const fileInputRef = useRef(null);
+  const [fileName, setFileName] = useState("");
+
+  const handleFileLoad = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const rolls = text
+        .split(/[\n,\s]+/)
+        .map(r => r.trim())
+        .filter(r => /^[1-4]{3}$/.test(r));
+      
+      if (rolls.length === 0) {
+        alert('❌ No valid 3-digit rolls found in file!');
+        return;
+      }
+
+      setFileName(file.name);
+      alert(`✅ Loaded ${rolls.length} rolls from ${file.name}. Auto-playing now...`);
+      onRollsLoaded(rolls);
+    };
+
+    reader.readAsText(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="mt-2 flex gap-2 items-center">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt"
+        onChange={handleFileLoad}
+        className="hidden"
+      />
+      
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="px-3 py-1.5 text-xs bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 rounded border border-blue-500/30 transition"
+      >
+        📁 Load Test File
+      </button>
+      
+      {fileName && (
+        <span className="text-xs text-slate-400">
+          Last: {fileName}
+        </span>
+      )}
+    </div>
+  );
+}
+
 
 export default function TestRollsInput({
   testInput,
   setTestInput,
   handleTestRollSubmit,
   testRolls,
+  setTestRolls,
   translatedTestRolls,
   handleDeleteTestRoll,
   setActivePrefix,
@@ -59,12 +121,64 @@ export default function TestRollsInput({
         <input
           type="text"
           value={testInput}
-          onChange={(e) => setTestInput(e.target.value.replace(/[^1-4]/g, ""))}
+          onChange={(e) => {
+            const value = e.target.value.replace(/[^1-4]/g, "");
+            setTestInput(value);
+            
+            // 🔥 Real-time prefix tracking for predictions
+            // IMPORTANT: Translate to 4-space before setting prefix
+            if (value.length >= 2) {
+              const translated = translateTo4(value);
+              setActivePrefix(translated.slice(0, 2)); // 2-digit prefix for 3-str
+            } else if (value.length === 1) {
+              const translated = translateTo4(value);
+              setActivePrefix(translated[0]); // 1-digit prefix for 2-str
+            } else {
+              setActivePrefix(null); // Clear if empty
+            }
+          }}
           onKeyDown={handleTestRollSubmit}
           placeholder="Type 3-digit roll (e.g. 234)"
           maxLength={3}
           className="w-full bg-slate-900/50 border border-purple-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
         />
+        
+        {/* 🔥 AUTO-TEST FEATURE (Debug mode only) */}
+        {typeof window !== 'undefined' && window.location.search.includes('debug=true') && (
+          <AutoTestControls onRollsLoaded={(rolls) => {
+            // Auto-play rolls by directly adding them to testRolls
+            console.log(`[Auto-Test] Starting auto-play with ${rolls.length} rolls`);
+            
+            let index = 0;
+            const playNext = () => {
+              if (index >= rolls.length) {
+                setTimeout(() => {
+                  alert(`🎉 Auto-play complete! Added ${rolls.length} rolls. Check the debug panel for results.`);
+                }, 500);
+                return;
+              }
+              
+              const roll = rolls[index];
+              console.log(`[Auto-Test] Adding roll ${index + 1}/${rolls.length}: ${roll}`);
+              
+              // Validate roll
+              if (roll.length === 3 && /^[1-4]{3}$/.test(roll)) {
+                // Directly add to testRolls array (bypass input field)
+                setTestRolls((prev) => [...prev, roll]);
+                console.log(`[Auto-Test] ✓ Roll ${index + 1} added successfully`);
+              } else {
+                console.log(`[Auto-Test] ✗ Invalid roll: ${roll}`);
+              }
+              
+              // Move to next roll
+              index++;
+              setTimeout(playNext, 800); // 800ms between rolls
+            };
+            
+            // Start playing after a short delay
+            setTimeout(playNext, 500);
+          }} />
+        )}
       </div>
 
       {/* Added Test Rolls Section */}
@@ -100,7 +214,9 @@ export default function TestRollsInput({
                     Added test rolls:
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {testRolls.map((roll, idx) => (
+                    {testRolls.map((item, idx) => {
+                      const roll = typeof item === 'string' ? item : item.roll;
+                      return (
                       <div
                         key={idx}
                         className="flex items-center gap-2 bg-purple-900/30 border border-purple-500/40 rounded-lg px-3 py-1.5 relative"
@@ -124,7 +240,7 @@ export default function TestRollsInput({
                           ✕
                         </button>
                       </div>
-                    ))}
+                    )})}
                   </div>
 
                   {/* Prefix Buttons */}

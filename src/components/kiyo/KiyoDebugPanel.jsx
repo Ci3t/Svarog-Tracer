@@ -264,6 +264,7 @@ export default function KiyoDebugPanel({
   analyzeWavePatterns,
   smartPrefixPrediction,
   prediction,
+  windowTracker,
 }) {
   // 🔥 ADD: Safety check for null prediction
   if (!analyzeWavePatterns || !prediction) {
@@ -367,6 +368,54 @@ export default function KiyoDebugPanel({
       {showAccuracyTest && (
         <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-lg p-4 border border-blue-500/50 space-y-3">
           {/* ... existing accuracy test UI ... */}
+        </div>
+      )}
+
+      {/* 🔥 NEW: Adaptive Threshold & Window Stats */}
+      {windowTracker && (
+        <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-lg p-3 border border-cyan-500/50 mb-3">
+          <div className="text-cyan-300 font-semibold mb-2 flex items-center gap-2">
+            🎯 Adaptive System Stats
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-800/50 rounded p-2">
+              <div className="text-[10px] text-slate-400 mb-1">Window Accuracy</div>
+              <div className="text-sm font-bold text-cyan-300">
+                {(windowTracker.getCurrentWindowStats().accuracy * 100).toFixed(1)}%
+              </div>
+              <div className="text-[9px] text-slate-500">
+                {windowTracker.getCurrentWindowStats().rollCount || 0} rolls in window
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-2">
+              <div className="text-[10px] text-slate-400 mb-1">Best Predictor</div>
+              <div className="text-sm font-bold text-cyan-300">
+                {windowTracker.getBestPredictor().predictor.toUpperCase()}
+              </div>
+              <div className="text-[9px] text-slate-500">
+                {(windowTracker.getBestPredictor().accuracy * 100).toFixed(0)}% ({windowTracker.getBestPredictor().confidence})
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {Object.entries(windowTracker.getWeights()).map(([pred, weight]) => (
+              <div key={pred} className="bg-slate-800/50 rounded p-1.5 text-center">
+                <div className="text-[9px] text-slate-400">{pred.toUpperCase()}</div>
+                <div className="text-xs font-bold text-cyan-300">{(weight * 100).toFixed(0)}%</div>
+              </div>
+            ))}
+          </div>
+          {analyzeWavePatterns.columns && analyzeWavePatterns.columns.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {analyzeWavePatterns.columns.map((col, idx) => (
+                col.adaptiveThreshold && (
+                  <div key={idx} className="text-[10px] text-slate-400">
+                    {col.label}: Threshold={col.adaptiveThreshold}, Stable={col.isStable ? '✓' : '✗'}
+                  </div>
+                )
+              ))}
+            </div>
+          )}
         </div>
       )}
 

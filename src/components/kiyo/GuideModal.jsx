@@ -109,121 +109,207 @@ export default function GuideModal({ show, onClose }) {
             </div>
           </section>
 
-          {/* 3. Adaptive Learning (the brain) */}
+          {/* 3. NEW: Betting Recommendations */}
           <section className="bg-gradient-to-br from-fuchsia-900/40 to-pink-900/40 rounded-xl p-6 border-2 border-fuchsia-500/60">
             <h3 className="text-xl font-bold text-fuchsia-300 mb-4 flex items-center gap-3">
-              Adaptive Learning (The Magic!)
+              🎯 Smart Betting Recommendations (NEW!)
             </h3>
             <div className="bg-fuchsia-950/60 rounded-lg p-4 border border-fuchsia-500/30 space-y-3 text-xs text-fuchsia-100">
-              <p>
-                If your server flips early a lot (e.g., after only 2 instead of
-                5), the app learns it!
-              </p>
-              <div className="bg-black/40 rounded p-3 font-mono text-sm">
-                You’ll see: <strong>64% flip at 2 historically</strong>
-              </div>
               <p className="text-fuchsia-200 font-semibold">
-                → That 2-in-a-row now counts as ~75% instead of 55%!
-                <br />
-                You catch flips others miss
+                The system now tells you EXACTLY which columns to bet on!
+              </p>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="bg-emerald-900/40 rounded p-3 border border-emerald-500/30">
+                  <div className="text-emerald-300 font-bold mb-1">✅ BET</div>
+                  <div className="text-xs">Clear pattern detected</div>
+                  <div className="text-xs">Confidence ≥60%</div>
+                  <div className="text-xs">Accuracy tracked</div>
+                </div>
+                <div className="bg-red-900/40 rounded p-3 border border-red-500/30">
+                  <div className="text-red-300 font-bold mb-1">❌ SKIP</div>
+                  <div className="text-xs">Chaotic pattern</div>
+                  <div className="text-xs">Confidence &lt;50%</div>
+                  <div className="text-xs">System monitors</div>
+                </div>
+              </div>
+              <div className="bg-black/40 rounded p-3 mt-3">
+                <div className="text-yellow-300 font-bold mb-1">💡 Recommendations:</div>
+                <div className="text-xs space-y-1">
+                  <div>• "BET ON BOTH" - Both columns clear</div>
+                  <div>• "FOCUS ON COL3" - Only Col3 reliable</div>
+                  <div>• "SKIP SESSION" - Both chaotic</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 4. Per-Window Analysis */}
+          <section className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-xl p-6 border border-cyan-500/40">
+            <h3 className="text-xl font-bold text-cyan-300 mb-4">
+              📊 Per-Window Pattern Analysis (NEW!)
+            </h3>
+            <div className="space-y-3 text-xs text-cyan-100">
+              <p>
+                Patterns change every <strong>5 minutes</strong> in real games. 
+                The system now analyzes each window independently!
+              </p>
+              <div className="bg-cyan-950/60 rounded p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan-300">Window 1:</span>
+                  <span>Alternating pattern → 90% accuracy ✅</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan-300">Window 2:</span>
+                  <span className="text-yellow-300">⚠️ PATTERN CHANGED</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan-300">Window 2:</span>
+                  <span>Dominance pattern → 85% accuracy ✅</span>
+                </div>
+              </div>
+              <p className="text-cyan-200 font-semibold mt-3">
+                → System adapts to pattern changes automatically!<br/>
+                → Debug export shows per-window breakdown
               </p>
             </div>
           </section>
 
-          {/* 4. Decision Matrix */}
+          {/* 5. Understanding Accuracy */}
+          <section className="bg-gradient-to-br from-purple-900/40 to-violet-900/40 rounded-xl p-6 border border-purple-500/40">
+            <h3 className="text-xl font-bold text-purple-300 mb-4">
+              📈 Understanding Accuracy vs Confidence
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="bg-purple-950/60 rounded p-4 border border-purple-500/30">
+                <div className="text-purple-300 font-bold mb-2">Confidence</div>
+                <div className="text-purple-100 space-y-1">
+                  <div>= How sure the system is</div>
+                  <div>= Pattern strength</div>
+                  <div className="text-yellow-300 mt-2">Example: 77% confidence</div>
+                  <div className="text-xs">"I'm 77% sure this is a mixed-run pattern"</div>
+                </div>
+              </div>
+              <div className="bg-violet-950/60 rounded p-4 border border-violet-500/30">
+                <div className="text-violet-300 font-bold mb-2">Accuracy</div>
+                <div className="text-violet-100 space-y-1">
+                  <div>= How often predictions hit</div>
+                  <div>= Actual success rate</div>
+                  <div className="text-green-300 mt-2">Example: 73% accuracy</div>
+                  <div className="text-xs">"73% of my predictions were correct"</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-black/40 rounded p-3 mt-4 text-xs">
+              <div className="text-yellow-300 font-bold mb-2">⚠️ Important:</div>
+              <div className="space-y-1">
+                <div>• High confidence ≠ High accuracy</div>
+                <div>• Always check BOTH before betting</div>
+                <div>• Accuracy is tracked across your entire session</div>
+              </div>
+            </div>
+          </section>
+
+          {/* 6. Decision Matrix */}
           <section className="bg-gradient-to-br from-violet-900/60 to-purple-900/60 rounded-2xl p-7 border border-violet-500/70">
             <h2 className="text-2xl font-bold text-violet-200 text-center mb-6">
-              When Do I Bet?
+              When Do I Bet? (Updated!)
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
               <div className="bg-gradient-to-b from-emerald-800/70 to-emerald-900/70 rounded-xl p-5 border border-emerald-400 text-center">
                 <div className="text-2xl font-bold text-white mb-2">
-                  Bet Good Relics
+                  ✅ BET GOOD RELICS
                 </div>
                 <div className="text-4xl font-black text-emerald-300 mb-3">
-                  75–90%
+                  70%+
                 </div>
                 <div className="space-y-2 text-emerald-100">
-                  <div>• Sticky + 4+ run</div>
-                  <div>• Wave + Prefix agree</div>
-                  <div>• brain note on 2-run</div>
+                  <div>• Clear pattern detected</div>
+                  <div>• Accuracy ≥70%</div>
+                  <div>• Confidence ≥60%</div>
+                  <div>• Recommendation: BET</div>
                 </div>
               </div>
 
               <div className="bg-gradient-to-b from-amber-800/70 to-orange-900/70 rounded-xl p-5 border border-amber-400 text-center">
                 <div className="text-xl font-bold text-white mb-2">
-                  Bet Okay Relics
+                  ⚪ BET OKAY RELICS
                 </div>
-                <div className="text-3xl font-black text-amber-300">65–75%</div>
-                <div className="mt-3 text-amber-100">
-                  Moderate swap + 3–4 run
+                <div className="text-3xl font-black text-amber-300">60-70%</div>
+                <div className="mt-3 text-amber-100 space-y-1">
+                  <div>• Moderate pattern</div>
+                  <div>• Accuracy 60-70%</div>
+                  <div>• Use caution</div>
                 </div>
               </div>
 
               <div className="bg-gradient-to-b from-red-900/70 to-red-950/70 rounded-xl p-5 border border-red-400 text-center">
                 <div className="text-xl font-bold text-white mb-2">
-                  Skip / Trash Only
+                  ❌ SKIP / TRASH ONLY
                 </div>
                 <div className="text-3xl font-black text-red-300">&lt;60%</div>
-                <div className="mt-3 text-red-100">
-                  Volatile or run ≤2 (no brain note)
+                <div className="mt-3 text-red-100 space-y-1">
+                  <div>• Chaotic pattern</div>
+                  <div>• Low accuracy</div>
+                  <div>• Recommendation: SKIP</div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 5. Real Examples */}
+          {/* 7. Real Examples */}
           <section className="space-y-5">
-            <h2 className="text-xl font-bold text-purple-300">Real Examples</h2>
+            <h2 className="text-xl font-bold text-purple-300">Real Examples (Updated!)</h2>
             <div className="grid gap-4">
               <div className="bg-slate-800/80 rounded-xl p-5 border border-emerald-500/40">
-                <div className="font-bold text-emerald-300">Perfect Setup</div>
+                <div className="font-bold text-emerald-300">✅ Perfect Setup</div>
                 <div className="text-xs mt-2 space-y-1 text-slate-300">
-                  <div>• 6 consecutive High (Column 3)</div>
-                  <div>• Swap Rate: 21% (Sticky)</div>
+                  <div>• Pattern: Alternating (90% confidence)</div>
+                  <div>• Accuracy: 73% (tracked)</div>
+                  <div>• Recommendation: BET</div>
                 </div>
                 <div className="mt-3 text-lg font-bold text-emerald-300">
-                  → 85% → BET GOOD RELICS
+                  → Follow the recommendation!
                 </div>
               </div>
 
-              <div className="bg-slate-800/80 rounded-xl p-5 border border-fuchsia-500/40">
-                <div className="font-bold text-fuchsia-300">brain Magic</div>
+              <div className="bg-slate-800/80 rounded-xl p-5 border border-amber-500/40">
+                <div className="font-bold text-amber-300">⚪ Moderate Setup</div>
                 <div className="text-xs mt-2 space-y-1 text-slate-300">
-                  <div>• Only 2 consecutive Inner</div>
-                  <div>
-                    • App shows: <strong>brain 71% flip at 2</strong>
-                  </div>
+                  <div>• Pattern: Mixed-run (77% confidence)</div>
+                  <div>• Accuracy: 55% (tracked)</div>
+                  <div>• Recommendation: BET (with caution)</div>
                 </div>
-                <div className="mt-3 text-lg font-bold text-fuchsia-300">
-                  → Now 75% → BET OKAY/GOOD!
+                <div className="mt-3 text-lg font-bold text-amber-300">
+                  → Okay for decent relics
                 </div>
               </div>
 
               <div className="bg-slate-800/80 rounded-xl p-5 border border-red-500/40">
-                <div className="font-bold text-red-300">Skip This</div>
+                <div className="font-bold text-red-300">❌ Skip This</div>
                 <div className="text-xs mt-2 space-y-1 text-slate-300">
-                  <div>• 2 consecutive High</div>
-                  <div>• Swap Rate: 78% (Volatile)</div>
-                  <div>• No brain note</div>
+                  <div>• Pattern: Chaotic (35% confidence)</div>
+                  <div>• Status: SUPPRESSED</div>
+                  <div>• Recommendation: SKIP</div>
                 </div>
                 <div className="mt-3 text-lg font-bold text-red-300">
-                  → 54% → SKIP
+                  → System is monitoring - wait!
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 6. Quick Tips */}
+          {/* 8. Quick Tips */}
           <section className="bg-gradient-to-r from-slate-800/90 to-slate-900 rounded-xl p-6 border border-slate-600">
-            <h3 className="text-lg font-bold text-cyan-300 mb-4">Quick Tips</h3>
+            <h3 className="text-lg font-bold text-cyan-300 mb-4">Quick Tips (Updated!)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
               <div>
-                • Only ~25% of predictions are worth betting — be patient!
+                • Trust the betting recommendations - they're based on real accuracy!
               </div>
-              <div>• Import old rolls → app learns your server</div>
-              <div>• After big flip → skip 1–2 rolls</div>
-              <div>• Use Line Helper for Caesar shift</div>
+              <div>• Check both confidence AND accuracy before betting</div>
+              <div>• Patterns change every 5 minutes - system adapts automatically</div>
+              <div>• SKIP when both columns are chaotic</div>
+              <div>• Export debug to see per-window breakdown</div>
+              <div>• Accuracy is tracked across your entire session</div>
             </div>
           </section>
         </div>
