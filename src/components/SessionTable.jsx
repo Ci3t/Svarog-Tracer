@@ -76,7 +76,7 @@ export default function SessionTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/30">
-              {entries.map((e) => (
+              {[...entries].reverse().map((e) => (
                 <tr
                   key={e.id}
                   className="hover:bg-slate-800/20 transition-colors"
@@ -198,6 +198,57 @@ export default function SessionTable({
                     ))}
                   </tbody>
                 </table>
+                
+                {/* 🦁 BBP Mode Analysis for this session */}
+                {sess.beastAnalysis && sess.beastAnalysis.distribution && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      🦁 BBP Mode Analysis
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                      <div>
+                        <span className="text-slate-500">Commons:</span>{' '}
+                        <span className="text-green-400 font-mono">
+                          {sess.beastAnalysis.commons.join(', ')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Pattern:</span>{' '}
+                        <span className="text-violet-300">
+                          {sess.beastAnalysis.pattern}
+                        </span>
+                      </div>
+                    </div>
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="text-slate-500">
+                          <th className="text-left py-1 pr-2">Value</th>
+                          <th className="text-left py-1 pr-2">Count</th>
+                          <th className="text-left py-1 pr-2">%</th>
+                          <th className="text-left py-1 pr-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/20">
+                        {sess.beastAnalysis.distribution.map((item) => (
+                          <tr key={item.value} className={item.status === 'common' ? 'bg-green-500/5' : ''}>
+                            <td className="py-1 pr-2 font-mono font-bold">{item.value}</td>
+                            <td className="py-1 pr-2">{item.count}</td>
+                            <td className="py-1 pr-2">{item.pct.toFixed(1)}%</td>
+                            <td className="py-1 pr-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.status === 'common' 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : 'bg-slate-700/30 text-slate-500'
+                              }`}>
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </details>
           ))}

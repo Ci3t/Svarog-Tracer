@@ -1,0 +1,152 @@
+=== Svarog Tracer Debug Export ===
+
+--- 2-str ---
+[8:31:48 PM] 2-str → pred: 44 (58%) | alt: 41 (50%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 41, 43, 41, 44, 44, 41
+
+[8:31:31 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 41, 43, 41, 44, 44
+
+[8:31:25 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 41, 43, 41, 44
+
+[8:31:18 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 41, 43, 41
+
+[8:31:07 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 41, 43
+
+[8:30:56 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 41
+
+[8:30:26 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 
+
+[8:29:30 PM] 2-str → pred: 41 (58%) | alt: 44 (38%) | mode: opposite-pair (4/11 = 36%) | actual: 42 | ctx: 42, 42, 43, 44, 41, 44, 41, 44
+
+[8:29:23 PM] 2-str → pred: 44 (58%) | alt: 41 (30%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 43, 42, 42, 43, 44, 41, 44, 41
+
+[8:28:33 PM] 2-str → pred: 41 (62%) | alt: 44 (32%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 43, 43, 42, 42, 43, 44, 41, 44
+
+[8:28:26 PM] 2-str → pred: 43 (45%) | alt: 42 (27%) | mode: frequency-fallback (1/3 = 33%) | actual: 44 | ctx: 43, 43, 42, 42, 43, 44, 41
+
+[8:28:09 PM] 2-str → pred: 43 (56%) | alt: 42 (33%) | mode: phase-memory (0/1 = 0%) | actual: 41 | ctx: 43, 43, 42, 42, 43, 44
+
+[8:27:55 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 43, 43, 42, 42, 43
+
+[8:26:40 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 43, 43, 42, 42
+
+[8:26:33 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 43, 43, 42
+
+[8:25:59 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 43, 43
+
+[8:25:53 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 43
+
+[8:25:19 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 
+
+[8:25:05 PM] 2-str → pred: 41 (62%) | alt: 43 (35%) | mode: opposite-pair (4/11 = 36%) | actual: 42 | ctx: 42, 41, 41, 43, 43, 43, 44, 44
+
+[8:24:48 PM] 2-str → pred: 43 (48%) | alt: 41 (22%) | mode: frequency-fallback (1/3 = 33%) | actual: 44 | ctx: 41, 42, 41, 41, 43, 43, 43, 44
+
+[8:24:38 PM] 2-str → pred: 42 (62%) | alt: 43 (46%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 42, 41, 42, 41, 41, 43, 43, 43
+
+[8:24:12 PM] 2-str → pred: 42 (62%) | alt: 43 (37%) | mode: opposite-pair (4/11 = 36%) | actual: 43 | ctx: 44, 42, 41, 42, 41, 41, 43, 43
+
+[8:23:59 PM] 2-str → pred: 44 (49%) | alt: 42 (31%) | mode: smart-transition (0/1 = 0%) | actual: 43 | ctx: 43, 44, 42, 41, 42, 41, 41, 43
+
+[8:23:32 PM] 2-str → pred: 44 (62%) | alt: 41 (40%) | mode: opposite-pair (4/11 = 36%) | actual: 43 | ctx: 42, 43, 44, 42, 41, 42, 41, 41
+
+[8:23:17 PM] 2-str → pred: 44 (62%) | alt: 42 (42%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 43, 42, 43, 44, 42, 41, 42, 41
+
+[8:22:45 PM] 2-str → pred: 43 (62%) | alt: 42 (51%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 42, 43, 42, 43, 44, 42, 41, 42
+
+[8:22:30 PM] 2-str → pred: 42 (48%) | alt: 43 (25%) | mode: frequency-fallback (1/3 = 33%) | actual: 42 | ctx: 42, 43, 42, 43, 44, 42, 41
+
+[8:22:14 PM] 2-str → pred: 43 (62%) | alt: 42 (50%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 42, 43, 42, 43, 44, 42
+
+[8:22:01 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 42, 43, 42, 43, 44
+
+[8:21:47 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 42, 43, 42, 43
+
+[8:21:23 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 42, 43, 42
+
+[8:21:08 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 42, 43
+
+[8:20:49 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 42
+
+[8:20:34 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 
+
+
+--- 3-str ---
+(none)
+
+
+--- 4-str ---
+(none)
+
+
+--- merged (all) ---
+[8:31:48 PM] 2-str → pred: 44 (58%) | alt: 41 (50%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 41, 43, 41, 44, 44, 41
+
+[8:31:31 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 41, 43, 41, 44, 44
+
+[8:31:25 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 41, 43, 41, 44
+
+[8:31:18 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 41, 43, 41
+
+[8:31:07 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 41, 43
+
+[8:30:56 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 41
+
+[8:30:26 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 41 | ctx: 
+
+[8:29:30 PM] 2-str → pred: 41 (58%) | alt: 44 (38%) | mode: opposite-pair (4/11 = 36%) | actual: 42 | ctx: 42, 42, 43, 44, 41, 44, 41, 44
+
+[8:29:23 PM] 2-str → pred: 44 (58%) | alt: 41 (30%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 43, 42, 42, 43, 44, 41, 44, 41
+
+[8:28:33 PM] 2-str → pred: 41 (62%) | alt: 44 (32%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 43, 43, 42, 42, 43, 44, 41, 44
+
+[8:28:26 PM] 2-str → pred: 43 (45%) | alt: 42 (27%) | mode: frequency-fallback (1/3 = 33%) | actual: 44 | ctx: 43, 43, 42, 42, 43, 44, 41
+
+[8:28:09 PM] 2-str → pred: 43 (56%) | alt: 42 (33%) | mode: phase-memory (0/1 = 0%) | actual: 41 | ctx: 43, 43, 42, 42, 43, 44
+
+[8:27:55 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 43, 43, 42, 42, 43
+
+[8:26:40 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 43, 43, 42, 42
+
+[8:26:33 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 43, 43, 42
+
+[8:25:59 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 43, 43
+
+[8:25:53 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 43
+
+[8:25:19 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 
+
+[8:25:05 PM] 2-str → pred: 41 (62%) | alt: 43 (35%) | mode: opposite-pair (4/11 = 36%) | actual: 42 | ctx: 42, 41, 41, 43, 43, 43, 44, 44
+
+[8:24:48 PM] 2-str → pred: 43 (48%) | alt: 41 (22%) | mode: frequency-fallback (1/3 = 33%) | actual: 44 | ctx: 41, 42, 41, 41, 43, 43, 43, 44
+
+[8:24:38 PM] 2-str → pred: 42 (62%) | alt: 43 (46%) | mode: opposite-pair (4/11 = 36%) | actual: 44 | ctx: 42, 41, 42, 41, 41, 43, 43, 43
+
+[8:24:12 PM] 2-str → pred: 42 (62%) | alt: 43 (37%) | mode: opposite-pair (4/11 = 36%) | actual: 43 | ctx: 44, 42, 41, 42, 41, 41, 43, 43
+
+[8:23:59 PM] 2-str → pred: 44 (49%) | alt: 42 (31%) | mode: smart-transition (0/1 = 0%) | actual: 43 | ctx: 43, 44, 42, 41, 42, 41, 41, 43
+
+[8:23:32 PM] 2-str → pred: 44 (62%) | alt: 41 (40%) | mode: opposite-pair (4/11 = 36%) | actual: 43 | ctx: 42, 43, 44, 42, 41, 42, 41, 41
+
+[8:23:17 PM] 2-str → pred: 44 (62%) | alt: 42 (42%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 43, 42, 43, 44, 42, 41, 42, 41
+
+[8:22:45 PM] 2-str → pred: 43 (62%) | alt: 42 (51%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 42, 43, 42, 43, 44, 42, 41, 42
+
+[8:22:30 PM] 2-str → pred: 42 (48%) | alt: 43 (25%) | mode: frequency-fallback (1/3 = 33%) | actual: 42 | ctx: 42, 43, 42, 43, 44, 42, 41
+
+[8:22:14 PM] 2-str → pred: 43 (62%) | alt: 42 (50%) | mode: opposite-pair (4/11 = 36%) | actual: 41 | ctx: 42, 43, 42, 43, 44, 42
+
+[8:22:01 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 42, 43, 42, 43, 44
+
+[8:21:47 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 44 | ctx: 42, 43, 42, 43
+
+[8:21:23 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 42, 43, 42
+
+[8:21:08 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 42, 43
+
+[8:20:49 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 43 | ctx: 42
+
+[8:20:34 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/18 = 0%) | actual: 42 | ctx: 
+
+
+--- Long String (chronological) ---
+42343324341211312314133343424224134

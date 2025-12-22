@@ -1,4 +1,4 @@
-// FINAL: Ultra-Simple Beast Mode (Pure Frequency + Chaos Handling)
+// FINAL: Ultra-Simple BBP Mode (Pure Frequency + Chaos Handling)
 // Key insight: HSR RNG is CHAOTIC. Stop hunting patterns. Use frequency + smart tiebreaker.
 
 const PHASE_CACHE = [];

@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
+import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 NEW
 
 const LeftColumn = lazy(() => import("./components/LeftColumn"));
 const RollInputCard = lazy(() => import("./components/RollInputCard"));
@@ -35,7 +36,9 @@ import {
 } from "./utils/predictNext";
 import RelicPositionCard from "./components/RelicPositionCard";
 import KiyoModeCard from "./components/KiyoModeCard";
-import RegionHeatmap from "./components/RegionHeatmap";
+import LiveTrackingTable from "./components/LiveTrackingTable"; // 🔥 NEW
+import LiveTrackingTable3str from "./components/LiveTrackingTable3str"; // 🔥 NEW 3-str
+import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // 🔥 NEW 3-str
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
@@ -146,16 +149,15 @@ export default function App() {
     
     if (rollsToLog.length === 0) return;
 
-    rollsToLog.forEach((roll, idx) => {
-      const rollIndex = prevRolls.length + idx;
+    rollsToLog.forEach((actual3, idx) => {
+      // Build context for this prediction
+      const contextRolls = newRolls.slice(0, prevRolls.length + idx);
       
       // Need at least 3 rolls for context
-      if (rollIndex < 3) return;
+      if (contextRolls.length < 3) return;
       
-      const contextRolls = newRolls.slice(0, rollIndex);
-      const actual3 = String(roll).slice(0, 3);
-      
-      if (actual3.length !== 3) return;
+      // const actual3 = String(roll).slice(0, 3); // actual3 is already the roll value
+      if (String(actual3).slice(0, 3).length !== 3) return;
 
       const p = predictNext3(contextRolls);
       const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
@@ -173,7 +175,7 @@ export default function App() {
           confidence: p.confidence || 0,
           alt,
           mode: p.mode || "—",
-          actual: actual3,
+          actual: String(actual3).slice(0, 3),
           ctx: contextRolls.slice(-8),
           candidates,
           source: "kiyo",
@@ -184,6 +186,34 @@ export default function App() {
         };
 
         setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
+      }
+
+      // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
+      const rolls2 = contextRolls.map(r => String(r).slice(0, 2)).filter(r => r.length === 2);
+      if (rolls2.length >= 2) {
+        const p2 = predictNext2Smart(rolls2, { region });
+        const actual2 = String(actual3).slice(0, 2);
+        
+        if (
+          p2.prediction &&
+          p2.prediction !== "—" &&
+          !String(p2.prediction).toLowerCase().startsWith("insufficient")
+        ) {
+          const newLog2 = {
+            ts: Date.now() + idx + 0.5, // Slight offset
+            kind: "2",
+            prediction: p2.prediction,
+            confidence: p2.confidence || 0,
+            alt: p2.alt || null,
+            mode: p2.mode || "—",
+            actual: actual2,
+            ctx: rolls2.slice(-8),
+            candidates: p2.candidates || [],
+            source: "live", // Mark as live for accuracy tracking
+          };
+
+          setDebugLogs((prev) => [newLog2, ...prev].slice(0, 300));
+        }
       }
     });
 
@@ -272,6 +302,92 @@ export default function App() {
 
   function archiveCurrentSession() {
     if (entries.length > 0) {
+      // 🔥 Calculate BBP Mode frequency distribution for this session
+      const rollValues = entries
+        .map(e => (e.translated || e.s2 || '').slice(0, 2))
+        .filter(Boolean);
+      
+      let beastAnalysis = null;
+      if (rollValues.length >= 6) {
+        try {
+          const analysis = predictNext2BBPMode(rollValues);
+          
+          // Build frequency distribution
+          const freq = {};
+          rollValues.forEach(v => {
+            freq[v] = (freq[v] || 0) + 1;
+          });
+          
+          const total = rollValues.length;
+          const distribution = Object.entries(freq).map(([value, count]) => ({
+            value,
+            count,
+            pct: (count / total) * 100,
+            status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
+          }));
+          
+          distribution.sort((a, b) => {
+            // Commons first, then by count
+            if (a.status === 'common' && b.status !== 'common') return -1;
+            if (a.status !== 'common' && b.status === 'common') return 1;
+            return b.count - a.count;
+          });
+          
+          beastAnalysis = {
+            commons: analysis.commons || [],
+            noise: analysis.noise || [],
+            pattern: analysis.pattern,
+            confidence: analysis.commonsConfidence,
+            distribution
+          };
+        } catch (err) {
+          console.warn('BBP Mode analysis failed for session archive:', err);
+        }
+      }
+      
+      // 🔥 NEW: Calculate BBP Mode 3-str frequency distribution
+      const rollValues3str = entries
+        .map(e => (e.translated || '').slice(0, 3))
+        .filter(v => v && v.length === 3);
+      
+      let beastAnalysis3str = null;
+      if (rollValues3str.length >= 6) {
+        try {
+          const analysis = predictNext3BBPMode(rollValues3str);
+          
+          // Build frequency distribution
+          const freq = {};
+          rollValues3str.forEach(v => {
+            freq[v] = (freq[v] || 0) + 1;
+          });
+          
+          const total = rollValues3str.length;
+          const distribution = Object.entries(freq).map(([value, count]) => ({
+            value,
+            count,
+            pct: (count / total) * 100,
+            status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
+          }));
+          
+          distribution.sort((a, b) => {
+            // Commons first, then by count
+            if (a.status === 'common' && b.status !== 'common') return -1;
+            if (a.status !== 'common' && b.status === 'common') return 1;
+            return b.count - a.count;
+          });
+          
+          beastAnalysis3str = {
+            commons: analysis.commons || [],
+            noise: analysis.noise || [],
+            pattern: analysis.pattern,
+            confidence: analysis.commonsConfidence,
+            distribution
+          };
+        } catch (err) {
+          console.warn('BBP Mode 3-str analysis failed for session archive:', err);
+        }
+      }
+      
       setPrevSessions((prev) => [
         {
           id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
@@ -279,6 +395,8 @@ export default function App() {
           region,
           patch,
           entries,
+          beastAnalysis, // 🔥 NEW: Save BBP Mode analysis
+          beastAnalysis3str, // 🔥 NEW: Save BBP Mode 3-str analysis
         },
         ...prev,
       ]);
@@ -298,6 +416,13 @@ export default function App() {
     if (!value) return;
 
     const clean = sanitizeRollInput(value);
+    
+    // 🔥 NEW: Enforce minimum 2 digits
+    if (clean.length < 2) {
+      console.warn('Roll must be at least 2 digits');
+      return;
+    }
+    
     if (!clean) return;
 
     const { s2, s3, s4, s5 } = splitString(clean);
@@ -351,6 +476,27 @@ export default function App() {
       candidates: safeCandidates(p3),
       smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
+
+    // 🔥 NEW: Also log 2-str BBP predictions for Session Accuracy
+    const p2Smart = predictNext2Smart(rolls2, { region });
+    if (
+      p2Smart.prediction &&
+      p2Smart.prediction !== "—" &&
+      !String(p2Smart.prediction).toLowerCase().startsWith("insufficient")
+    ) {
+      newLogsToAdd.push({
+        ts: nowTs + 0.1, // Slight offset
+        kind: "2",
+        prediction: p2Smart.prediction,
+        confidence: p2Smart.confidence || 0,
+        alt: p2Smart.alt || null,
+        mode: p2Smart.mode || "—",
+        actual: actual2,
+        ctx: rolls2.slice(-8),
+        candidates: safeCandidates(p2Smart),
+        source: "live", // Mark as live for accuracy tracking
+      });
+    }
 
     setEntries((prev) => [...prev, { 
       id: `${nowTs}-${Math.random()}`,
@@ -556,6 +702,38 @@ export default function App() {
               onDeleteSession={handleDeleteSession}
             />
 
+            {/* 🦁 BBP Mode Live Tracking Table */}
+            {entries.length > 0 && (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">
+                  🦁 BBP Mode Live Tracking (2-str)
+                </h3>
+                <LiveTrackingTable 
+                  rolls={entries.map((entry, index) => ({
+                    value: (entry.translated || entry.s2 || '').slice(0, 2),
+                    timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
+                  })).reverse()}
+                />
+              </div>
+            )}
+
+            {/* 🦁 BBP Mode 3-str Live Tracking Table */}
+            {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl mt-6">
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">
+                  🦁 BBP Mode Live Tracking (3-str)
+                </h3>
+                <LiveTrackingTable3str 
+                  rolls={entries
+                    .filter(e => (e.translated || '').length >= 3)
+                    .map((entry, index) => ({
+                      value: (entry.translated || '').slice(0, 3),
+                      timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
+                    })).reverse()}
+                />
+              </div>
+            )}
+
             <NotesCard
               notes={notes}
               setNotes={setNotes}
@@ -579,9 +757,6 @@ export default function App() {
           <div className="col-span-12 lg:col-span-3 space-y-6">
             {/* 🔥 NEW: Accuracy Panel */}
             <AccuracyPanel debugLogs={debugLogs} />
-            {livePrediction?.regionMatch && (
-              <RegionHeatmap regionMatch={livePrediction.regionMatch} />
-            )}
             <FrequencyPanel
               freqTab={freqTab}
               setFreqTab={setFreqTab}

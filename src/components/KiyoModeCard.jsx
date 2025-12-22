@@ -1,4 +1,4 @@
-// KiyoModeCard.jsx - BEAST MODE v2 (Confidence-Aware, No BS)
+// KiyoModeCard.jsx - BBP Mode v2 (Confidence-Aware, No BS)
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { predictNext3EU, predictWithPrefix } from "../utils/predictNext";
 import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
@@ -70,7 +70,7 @@ const WAVE_SCHEMES = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🎯 BEAST MODE v2: CONFIDENCE-AWARE WAVE ANALYSIS
+// 🎯 BBP Mode v2: CONFIDENCE-AWARE WAVE ANALYSIS
 // ═══════════════════════════════════════════════════════════════════════════
 
 function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = null) {

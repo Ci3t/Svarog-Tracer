@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef } from "react";
 import PredictionCard from "./PredictionCard";
 import { predictNext3, predictNext4 } from "../utils/predictNext";
 import { predictNext2Smart } from "../utils/enhanced-2str-predictor";
+import { predictNext3BBPMode } from "../utils/bbp-mode-3str"; // 🔥 NEW
 import { get2StrPatchInfo } from "../utils/twoStrHistoricalData";
 
 export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
@@ -17,12 +18,18 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
   );
 
   // build each stream from session entries
+  // 🔥 CRITICAL FIX: Use TRANSLATED values for 2-str, not raw s2
   const rolls2 = useMemo(
-    () => ordered.map((e) => e.s2).filter((r) => r && r.length >= 2),
+    () => ordered
+      .map((e) => (e.translated || '').slice(0, 2)) // Use translated 4xxx format
+      .filter((r) => r && r.length === 2),
     [ordered]
   );
+  // 🔥 NEW: Use TRANSLATED values for 3-str as well
   const rolls3 = useMemo(
-    () => ordered.map((e) => e.s3).filter((r) => r && r.length >= 3),
+    () => ordered
+      .map((e) => (e.translated || '').slice(0, 3)) // Use translated 4xxx format
+      .filter((r) => r && r.length === 3),
     [ordered]
   );
   const rolls4 = useMemo(
@@ -60,7 +67,8 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
   const prediction = useMemo(() => {
     switch (suggestTab) {
       case "3":
-        return predictNext3(rolls3);
+        // 🔥 NEW: Use BBP Mode for 3-str
+        return predictNext3BBPMode(rolls3);
       case "4":
         return predictNext4(rolls4);
       default:

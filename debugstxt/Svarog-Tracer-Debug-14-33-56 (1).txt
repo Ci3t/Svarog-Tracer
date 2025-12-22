@@ -1,0 +1,128 @@
+=== Svarog Tracer Debug Export ===
+
+--- 2-str ---
+[2:33:45 PM] 2-str → pred: 42 (62%) | alt: 43 (44%) | mode: opposite-pair (2/5 = 40%) | actual: 43 | ctx: 44, 43, 42, 41, 42, 41, 43, 43
+
+[2:32:11 PM] 2-str → pred: 41 (68%) | alt: 43 (35%) | mode: cyclic-enhanced (2/2 = 100%) | actual: 43 | ctx: 43, 44, 43, 42, 41, 42, 41, 43
+
+[2:28:30 PM] 2-str → pred: 44 (62%) | alt: 41 (35%) | mode: opposite-pair (2/5 = 40%) | actual: 43 | ctx: 41, 43, 44, 43, 42, 41, 42, 41
+
+[2:23:43 PM] 2-str → pred: 43 (62%) | alt: 42 (37%) | mode: opposite-pair (2/5 = 40%) | actual: 41 | ctx: 42, 41, 43, 44, 43, 42, 41, 42
+
+[2:22:40 PM] 2-str → pred: 42 (68%) | alt: 43 (34%) | mode: cyclic-enhanced (2/2 = 100%) | actual: 42 | ctx: 43, 42, 41, 43, 44, 43, 42, 41
+
+[2:18:19 PM] 2-str → pred: 43 (58%) | alt: 42 (30%) | mode: opposite-pair (2/5 = 40%) | actual: 41 | ctx: 43, 42, 41, 43, 44, 43, 42
+
+[2:14:31 PM] 2-str → pred: 42 (62%) | alt: 43 (51%) | mode: opposite-pair (2/5 = 40%) | actual: 42 | ctx: 43, 42, 41, 43, 44, 43
+
+[2:12:55 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 43, 42, 41, 43, 44
+
+[2:12:52 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 44 | ctx: 43, 42, 41, 43
+
+[2:12:51 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 43, 42, 41
+
+[2:12:50 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 41 | ctx: 43, 42
+
+[2:12:49 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 42 | ctx: 43
+
+[2:12:48 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 
+
+
+--- 3-str ---
+[2:33:45 PM] 3-str → pred: 433 (45%) | alt: 431 (9%) | mode: frequency-3str (0/5 = 0%) | actual: 434 | ctx: 123, 141, 113, 144, 231, 133, 324, 211
+
+[2:32:11 PM] 3-str → pred: 431 (45%) | alt: 422 (10%) | mode: frequency-3str (0/5 = 0%) | actual: 433 | ctx: 132, 123, 141, 113, 144, 231, 133, 324
+
+[2:28:30 PM] 3-str → pred: 422 (45%) | alt: 413 (11%) | mode: frequency-3str (0/5 = 0%) | actual: 431 | ctx: 143, 132, 123, 141, 113, 144, 231, 133
+
+[2:22:40 PM] 3-str → pred: 413 (45%) | alt: 433 (13%) | mode: frequency-3str (0/5 = 0%) | actual: 422 | ctx: 143, 132, 123, 141, 113, 144, 231
+
+[2:18:19 PM] 3-str → pred: 433 (45%) | alt: 442 (15%) | mode: frequency-3str (0/5 = 0%) | actual: 413 | ctx: 143, 132, 123, 141, 113, 144
+
+[2:12:55 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 433 | ctx: 143, 132, 123, 141, 113
+
+[2:12:52 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 442 | ctx: 143, 132, 123, 141
+
+[2:12:51 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 434 | ctx: 143, 132, 123
+
+[2:12:50 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 412 | ctx: 143, 132
+
+[2:12:49 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 421 | ctx: 143
+
+
+--- 4-str ---
+[2:28:30 PM] 4-str → pred: 4222 (45%) | alt: 4132 (15%) | mode: frequency-4str (0/1 = 0%) | actual: 4313 | ctx: 1432, 1321, 1132, 1442, 2314, 1333
+
+[2:22:40 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4222 | ctx: 1432, 1321, 1132, 1442, 2314
+
+[2:18:19 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4132 | ctx: 1432, 1321, 1132, 1442
+
+[2:12:55 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4331 | ctx: 1432, 1321, 1132
+
+[2:12:52 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4421 | ctx: 1432, 1321
+
+[2:12:49 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4214 | ctx: 1432
+
+
+--- merged (all) ---
+[2:33:45 PM] 2-str → pred: 42 (62%) | alt: 43 (44%) | mode: opposite-pair (2/5 = 40%) | actual: 43 | ctx: 44, 43, 42, 41, 42, 41, 43, 43
+
+[2:33:45 PM] 3-str → pred: 433 (45%) | alt: 431 (9%) | mode: frequency-3str (0/5 = 0%) | actual: 434 | ctx: 123, 141, 113, 144, 231, 133, 324, 211
+
+[2:32:11 PM] 2-str → pred: 41 (68%) | alt: 43 (35%) | mode: cyclic-enhanced (2/2 = 100%) | actual: 43 | ctx: 43, 44, 43, 42, 41, 42, 41, 43
+
+[2:32:11 PM] 3-str → pred: 431 (45%) | alt: 422 (10%) | mode: frequency-3str (0/5 = 0%) | actual: 433 | ctx: 132, 123, 141, 113, 144, 231, 133, 324
+
+[2:28:30 PM] 2-str → pred: 44 (62%) | alt: 41 (35%) | mode: opposite-pair (2/5 = 40%) | actual: 43 | ctx: 41, 43, 44, 43, 42, 41, 42, 41
+
+[2:28:30 PM] 3-str → pred: 422 (45%) | alt: 413 (11%) | mode: frequency-3str (0/5 = 0%) | actual: 431 | ctx: 143, 132, 123, 141, 113, 144, 231, 133
+
+[2:28:30 PM] 4-str → pred: 4222 (45%) | alt: 4132 (15%) | mode: frequency-4str (0/1 = 0%) | actual: 4313 | ctx: 1432, 1321, 1132, 1442, 2314, 1333
+
+[2:23:43 PM] 2-str → pred: 43 (62%) | alt: 42 (37%) | mode: opposite-pair (2/5 = 40%) | actual: 41 | ctx: 42, 41, 43, 44, 43, 42, 41, 42
+
+[2:22:40 PM] 2-str → pred: 42 (68%) | alt: 43 (34%) | mode: cyclic-enhanced (2/2 = 100%) | actual: 42 | ctx: 43, 42, 41, 43, 44, 43, 42, 41
+
+[2:22:40 PM] 3-str → pred: 413 (45%) | alt: 433 (13%) | mode: frequency-3str (0/5 = 0%) | actual: 422 | ctx: 143, 132, 123, 141, 113, 144, 231
+
+[2:22:40 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4222 | ctx: 1432, 1321, 1132, 1442, 2314
+
+[2:18:19 PM] 2-str → pred: 43 (58%) | alt: 42 (30%) | mode: opposite-pair (2/5 = 40%) | actual: 41 | ctx: 43, 42, 41, 43, 44, 43, 42
+
+[2:18:19 PM] 3-str → pred: 433 (45%) | alt: 442 (15%) | mode: frequency-3str (0/5 = 0%) | actual: 413 | ctx: 143, 132, 123, 141, 113, 144
+
+[2:18:19 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4132 | ctx: 1432, 1321, 1132, 1442
+
+[2:14:31 PM] 2-str → pred: 42 (62%) | alt: 43 (51%) | mode: opposite-pair (2/5 = 40%) | actual: 42 | ctx: 43, 42, 41, 43, 44, 43
+
+[2:12:55 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 43, 42, 41, 43, 44
+
+[2:12:55 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 433 | ctx: 143, 132, 123, 141, 113
+
+[2:12:55 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4331 | ctx: 1432, 1321, 1132
+
+[2:12:52 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 44 | ctx: 43, 42, 41, 43
+
+[2:12:52 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 442 | ctx: 143, 132, 123, 141
+
+[2:12:52 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4421 | ctx: 1432, 1321
+
+[2:12:51 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 43, 42, 41
+
+[2:12:51 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 434 | ctx: 143, 132, 123
+
+[2:12:50 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 41 | ctx: 43, 42
+
+[2:12:50 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 412 | ctx: 143, 132
+
+[2:12:49 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 42 | ctx: 43
+
+[2:12:49 PM] 3-str → pred: — (0%) | mode: insufficient-data-3str (0/5 = 0%) | actual: 421 | ctx: 143
+
+[2:12:49 PM] 4-str → pred: — (0%) | mode: insufficient-data-4str (0/5 = 0%) | actual: 4214 | ctx: 1432
+
+[2:12:48 PM] 2-str → pred: — (0%) | mode: insufficient-data (0/6 = 0%) | actual: 43 | ctx: 
+
+
+--- Long String (chronological) ---
+43442344434211

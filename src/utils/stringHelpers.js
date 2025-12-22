@@ -23,9 +23,11 @@ export function padTo5(str = "") {
   return (str || "").padEnd(5, "0").slice(0, 5);
 }
 
-// keep only 1–4
+// keep only 1–4 and enforce min 2 digits, max 4 digits
 export function sanitizeRollInput(value = "") {
-  return value.replace(/[^1-4]/g, "");
+  const cleaned = value.replace(/[^1-4]/g, "");
+  // Cap at 4 digits max
+  return cleaned.slice(0, 4);
 }
 
 /**

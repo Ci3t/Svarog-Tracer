@@ -2,6 +2,7 @@
 // Kiyo-style smart predictor for 2-STR
 
 import { get2StrHistoricalRolls } from "./twoStrHistoricalData";
+import { predictNext2BBPMode } from "./bbp-mode-2str";
 
 /** Clean raw rolls into 2-digit strings in [1–4], e.g. "44", "41" */
 function cleanRolls(raw) {
@@ -115,18 +116,43 @@ function cosineSimilarity(a, b) {
 }
 
 /**
- * 🎯 Main Kiyo-style smart predictor for 2-STR.
- *
- *  - Uses last live roll as prefix
- *  - Builds transition distributions from:
- *      • live rolls (current session)
- *      • sheet rolls (recent patches, per region)
- *  - Chooses weights like Kiyo:
- *      • strong live (many matches) → live 75%, sheet 25%
- *      • moderate live → live 60%, sheet 40%
- *      • weak live → sheet primary
+ * 🎯 Main smart predictor for 2-STR.
+ * 
+ * 🦁 BBP Mode (Primary): Pattern-based prediction using "Virtual 2-Column" logic
+ *    - Identifies 2 dominant values (commons) per session
+ *    - Detects patterns: dominance, alternating, runs, noise recovery
+ *    - Confidence-based approach
+ * 
+ * 🔄 FALLBACK (Secondary): Original Kiyo-style transition predictor
+ *    - Uses last live roll as prefix
+ *    - Builds transition distributions from live + sheet data
+ *    - Used when BBP Mode has low confidence or insufficient data
  */
 export function predictNext2Smart(rawRolls = [], { region = "ALL" } = {}) {
+  // 🦁 Try BBP Mode first
+  const beastResult = predictNext2BBPMode(rawRolls, { region });
+  
+  // If BBP Mode has good confidence (>0.5), use it
+  if (beastResult.confidence >= 0.5) {
+    return {
+      ...beastResult,
+      // Add legacy fields for compatibility
+      liveMatchCount: rawRolls.length,
+      sheetMatchCount: 0,
+      liveShare: 1,
+      sheetShare: 0,
+      regionMatch: null,
+    };
+  }
+  
+  // 🔄 Fallback to original Kiyo-style predictor
+  return predictNext2SmartLegacy(rawRolls, { region });
+}
+
+/**
+ * 🔄 Legacy Kiyo-style transition predictor (fallback)
+ */
+function predictNext2SmartLegacy(rawRolls = [], { region = "ALL" } = {}) {
   const liveRolls = cleanRolls(rawRolls);
   const liveCount = liveRolls.length;
 

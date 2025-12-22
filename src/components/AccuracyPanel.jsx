@@ -25,8 +25,8 @@ export default function AccuracyPanel({ debugLogs }) {
     debugLogs.forEach((log) => {
       if (!log || !log.actual || log.prediction == null) return;
 
-      // 🔥 NEW: Skip Kiyo Mode logs (only count live/longString/imported)
-      if (log.source === "kiyo") return;
+      // 🔥 REMOVED: No longer skip Kiyo Mode logs - BBP predictions come through here
+      // if (log.source === "kiyo") return;
 
       const actualStr = String(log.actual);
       const predStr = String(log.prediction);
