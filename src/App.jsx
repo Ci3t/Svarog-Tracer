@@ -703,17 +703,9 @@ export default function App() {
             />
 
             {/* 🦁 BBP Mode Live Tracking Table */}
-            {entries.length > 0 && (
+            {sessionTab === 'current' && entries.length >= 6 && (
               <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
-                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">
-                  🦁 BBP Mode Live Tracking (2-str)
-                </h3>
-                <LiveTrackingTable 
-                  rolls={entries.map((entry, index) => ({
-                    value: (entry.translated || entry.s2 || '').slice(0, 2),
-                    timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
-                  })).reverse()}
-                />
+                <LiveTrackingTable rolls={entries.map(e => e.translated)} />
               </div>
             )}
 

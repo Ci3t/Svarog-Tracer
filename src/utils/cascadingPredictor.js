@@ -80,7 +80,14 @@ function analyzeDataset(rolls, decay = 0.85, lookback = null) {
   }
 
   const main = sorted[0];
-  const alt = sorted[1] || null;
+  // Ensure alt is different from main
+  let alt = null;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].value !== main.value) {
+      alt = sorted[i];
+      break;
+    }
+  }
   
   // Confidence based on dominance
   const dominance = main.pct / 100;

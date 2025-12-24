@@ -25,6 +25,9 @@ export default function AccuracyPanel({ debugLogs }) {
     debugLogs.forEach((log) => {
       if (!log || !log.actual || log.prediction == null) return;
 
+      // 🔥 FIXED: Only count 2-str predictions for Session Accuracy
+      if (log.kind !== "2") return;
+
       // 🔥 REMOVED: No longer skip Kiyo Mode logs - BBP predictions come through here
       // if (log.source === "kiyo") return;
 
@@ -168,63 +171,6 @@ export default function AccuracyPanel({ debugLogs }) {
         </div>
       </div>
 
-      {/* Live mode breakdown – same style as sandbox */}
-      {liveModeBreakdown && Object.keys(liveModeBreakdown).length > 0 && (
-        <div className="space-y-2 pt-3 border-t border-slate-700/30">
-          <div className="text-[10px] font-semibold text-slate-400 uppercase">
-            Live modes (current 2-str context)
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-            {Object.entries(liveModeBreakdown)
-              .map(([mode, info]) => ({
-                mode,
-                prediction: info.prediction,
-                alt: info.alt || null,
-                confidence: info.confidence || 0,
-              }))
-              .sort((a, b) => b.confidence - a.confidence) // highest first
-              .map((m, index) => {
-                const pct = Math.round(m.confidence * 100);
-                const strong = pct >= 60;
-
-                return (
-                  <div
-                    key={m.mode}
-                    className={`p-2 rounded-lg border ${
-                      strong
-                        ? "bg-emerald-900/30 border-emerald-600/60"
-                        : "bg-slate-950/60 border-slate-700/60"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-mono text-slate-200 truncate">
-                        {m.mode}
-                      </div>
-                      <div className="text-[10px] text-slate-400 ml-2">
-                        #{index + 1}
-                      </div>
-                    </div>
-
-                    <div className="text-violet-300">
-                      pred: <span className="font-mono">{m.prediction}</span>
-                    </div>
-
-                    {m.alt && (
-                      <div className="text-sky-300">
-                        alt: <span className="font-mono">{m.alt}</span>
-                      </div>
-                    )}
-
-                    <div className="text-amber-300">
-                      conf: <span className="font-mono">{pct}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

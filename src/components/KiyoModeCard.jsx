@@ -175,8 +175,8 @@ function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = null) {
   const totalAnalysisRolls = patternWindow.length;
   
   // 🔥 NEW WINDOW HANDLING - Now with cross-window context
-  // We need at least 3 rolls total (can be from prev + curr)
-  if (isNewWindow && totalAnalysisRolls < 3) {
+  // We need at least 4 rolls total (can be from prev + curr)
+  if (isNewWindow && totalAnalysisRolls < 4) {
     return {
       valid: true,
       currentSide,
@@ -189,7 +189,7 @@ function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = null) {
       confidence: 0.35,
       reliability: "BUILDING",
       betAdvice: "WAIT FOR PATTERN",
-      message: `🔄 New 5-min window - building pattern (${windowRollCount}/4 rolls)`,
+      message: `🔄 New 5-min window - building pattern (${windowRollCount}/4 rolls, recommended 5 if no clear pattern)`,
       flipTarget: null,
       flipLabel: "Wait",
       urgency: "low",
@@ -955,7 +955,7 @@ export default function KiyoModeCard({
     return [...entryEvents, ...importedEvents, ...testEvents, ...liveEvents];
   }, [entries, importedRolls, testRolls, liveRolls]);
 
-  const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 3);
+  const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 4);
   
   // 🔥 NEW: Per-window pattern analysis
   const windowAnalysis = useWindowPatternAnalysis(rollEvents, windowInfo);

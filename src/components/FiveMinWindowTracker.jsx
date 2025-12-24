@@ -131,8 +131,8 @@ export default function FiveMinWindowTracker({
 
       {isWarmup && (
         <div className="mt-2 text-xs text-yellow-100">
-          Warm-up: do {warmupRemaining} more trash roll(s) inside this window to
-          stabilize the model.
+          Warm-up: do {warmupRemaining} more roll(s) inside this window to
+          stabilize the model (recommended 5 if no clear pattern).
         </div>
       )}
     </div>

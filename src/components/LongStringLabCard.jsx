@@ -1,9 +1,9 @@
-// src/components/LongStringLabCard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { decodeLongString } from "../utils/stringHelpers.js";
 import { getModeBreakdown } from "../utils/predictNext.js";
 import { predictNext2Smart } from "../utils/enhanced-2str-predictor";
 import { get2StrPatchInfo } from "../utils/twoStrHistoricalData";
+import LiveTrackingTable from "./LiveTrackingTable";
 
 export default function LongStringLabCard({ onSendToDebug }) {
   const [input, setInput] = useState("");
@@ -251,6 +251,14 @@ export default function LongStringLabCard({ onSendToDebug }) {
           </div>
         </div>
       )}
+
+      {/* 🦁 BBP Mode Live Tracking for Sandbox */}
+      {allRolls.length >= 6 && (
+        <div className="mt-4">
+          <LiveTrackingTable rolls={allRolls} region={region} />
+        </div>
+      )}
+
     </div>
   );
 }

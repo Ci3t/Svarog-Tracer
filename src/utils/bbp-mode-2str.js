@@ -245,10 +245,74 @@ function detectPattern(rolls, commons, distribution, isChaotic = false) {
   const transitionMatrix = buildTransitionMatrix(recentWindow, commons);
   const flipAnalysis = analyzeFlipPattern(recentWindow, commons);
 
-  // 📉 Pattern 1: NOISE RECOVERY (last roll was noise) - HIGHEST PRIORITY
+  // 📉 Pattern 1: WAVE DETECTION (noise values alternating) - NEW!
   const isNoise = !commons.includes(lastRoll);
   if (isNoise) {
-    // 🔥 ADAPTIVE: Check if noise is forming a run (don't always snap-back)
+    // 🔥 NEW: Check if noise is forming an alternating wave pattern
+    const last5 = recentWindow.slice(-5);
+    const noiseValues = last5.filter(r => !commons.includes(r));
+    
+    // 🔥 IMPORTANT: Waves are SHORT (1-3 flips). If 4+, it's a transition!
+    if (noiseValues.length >= 4) {
+      // Too many noise flips - this is a transition, not a wave
+      // Skip prediction and let commons re-detection handle it
+      return {
+        pattern: "transition",
+        prediction: null,
+        confidence: 0,
+        reasoning: `Too many noise flips (${noiseValues.length}) - pattern transitioning`,
+        flipAnalysis,
+      };
+    }
+    
+    // If we have 2+ noise values, check if they're alternating
+    if (noiseValues.length >= 2) {
+      const uniqueNoise = [...new Set(noiseValues)];
+      
+      // Check if noise alternates between 2 values (e.g., 41 → 44 → 41)
+      if (uniqueNoise.length === 2) {
+        let isAlternating = true;
+        for (let i = 0; i < noiseValues.length - 1; i++) {
+          if (noiseValues[i] === noiseValues[i + 1]) {
+            isAlternating = false;
+            break;
+          }
+        }
+        
+        if (isAlternating) {
+          // Wave detected! Predict based on flip count
+          const otherNoise = uniqueNoise.find(v => v !== lastRoll);
+          
+          // After 3 flips, expect snap-back to common (wave ending)
+          if (noiseValues.length >= 3) {
+            // Find most recent common before wave
+            const lastCommon = recentWindow
+              .slice()
+              .reverse()
+              .find((r) => commons.includes(r));
+            
+            return {
+              pattern: "wave-ending",
+              prediction: lastCommon || commons[0],
+              confidence: 0.68,
+              reasoning: `Wave (${uniqueNoise.join('↔')}) ending after ${noiseValues.length} flips - snap to ${lastCommon || commons[0]}`,
+              flipAnalysis,
+            };
+          } else {
+            // 1-2 flips: Continue the wave
+            return {
+              pattern: "wave",
+              prediction: otherNoise,
+              confidence: 0.65,
+              reasoning: `Wave detected (${uniqueNoise.join('↔')}) - continuing to ${otherNoise}`,
+              flipAnalysis,
+            };
+          }
+        }
+      }
+    }
+    
+    // 🔥 Check if noise is forming a run (don't always snap-back)
     const last3 = recentWindow.slice(-3);
     const noiseRunLength = last3.filter(r => r === lastRoll).length;
     
@@ -271,9 +335,9 @@ function detectPattern(rolls, commons, distribution, isChaotic = false) {
     
     return {
       pattern: "noise-recovery",
-      prediction: lastCommon || common1, // Snap-back to common
+      prediction: lastCommon || commons[0], // Snap-back to common
       confidence: 0.70,
-      reasoning: `Last roll (${lastRoll}) was noise - snap-back to ${lastCommon || common1}`,
+      reasoning: `Last roll (${lastRoll}) was noise - snap-back to ${lastCommon || commons[0]}`,
       flipAnalysis,
     };
   }
@@ -509,18 +573,122 @@ export function predictNext2BBPMode(rolls, options = {}) {
     }
   }
 
+  // 🔥 NEW: Step 4 - Trend-Based Adjustment
+  // Calculate trend for the predicted value
+  const mid = Math.floor(cleanedRolls.length / 2);
+  const firstHalf = cleanedRolls.slice(0, mid);
+  const secondHalf = cleanedRolls.slice(mid);
+  
+  const predFirstHalf = firstHalf.filter(r => r === finalPrediction).length;
+  const predSecondHalf = secondHalf.filter(r => r === finalPrediction).length;
+  
+  let trendAdjustment = 0;
+  let trendNote = '';
+  
+  if (predSecondHalf > predFirstHalf * 1.5) {
+    // Rising trend - boost confidence
+    trendAdjustment = 0.08; // +8%
+    trendNote = ` | ${finalPrediction} rising (trend boost)`;
+  } else if (predSecondHalf < predFirstHalf * 0.5) {
+    // Falling trend - reduce confidence
+    trendAdjustment = -0.12; // -12%
+    trendNote = ` | ${finalPrediction} falling (trend penalty)`;
+  }
+  
+  if (trendAdjustment !== 0) {
+    finalConfidence = Math.max(0.3, Math.min(0.95, finalConfidence + trendAdjustment));
+    finalReasoning += trendNote;
+  }
+
   // Boost confidence if commons are strong
   if (commonsConfidence > 0.8) {
     finalConfidence = Math.min(0.95, finalConfidence * 1.05);
   }
+  
+  // 🔥 FIX: Be more conservative with new patterns (prevent 100% confidence too early)
+  const rollCount = cleanedRolls.length;
+  if (rollCount < 10) {
+    // New session - reduce confidence significantly
+    finalConfidence = Math.min(finalConfidence * 0.65, 0.70);
+    finalReasoning += ' (new session - low confidence)';
+  } else if (rollCount < 15 && commonsConfidence > 0.7) {
+    // Pattern emerging but not locked - moderate reduction
+    finalConfidence = Math.min(finalConfidence * 0.80, 0.80);
+    finalReasoning += ' (emerging pattern)';
+  }
 
-  // Choose alternate prediction (must be from commons)
-  const altPrediction = commons.find((c) => c !== finalPrediction) || commons[1];
+  // Choose alternate prediction (must be different from main)
+  let altPrediction = commons.find((c) => c !== finalPrediction);
+  // If no other common exists, use the highest noise value
+  if (!altPrediction || altPrediction === finalPrediction) {
+    altPrediction = noise[0] || commons[0];
+  }
+
+  // 🎯 MARK MODE: Calculate pattern stability
+  const last8Rolls = cleanedRolls.slice(-8);
+  const waveIntensity = calculateWaveIntensity(last8Rolls, commons);
+  const csi = calculateCSI(last8Rolls, commons, distribution);
+  const ntl = calculateNTL(last8Rolls, commons, noise, distribution);
+  
+  // Detect absent values (values that haven't appeared recently)
+  const absences = detectAbsentValues(cleanedRolls);
+  
+  // Calculate recent accuracy (approximation based on pattern confidence)
+  const recentAccuracy = finalConfidence;
+  const pc = calculatePC(last8Rolls, patternResult.pattern, recentAccuracy, waveIntensity);
+  
+  // Determine MARK state
+  const markState = determineMARKState(csi, ntl, pc, waveIntensity, absences);
+  const markSignals = generateMARKSignals(csi, ntl, pc, waveIntensity, commons, noise, distribution, absences);
+  const markRecommendation = getMARKRecommendation(markState, finalPrediction, commons);
+  
+  // Calculate overall stability score (weighted average of CSI, NTL, PC)
+  const stabilityScore = Math.round((csi * 0.4) + ((100 - ntl) * 0.3) + (pc * 0.3));
+  
+  // Adjust confidence based on MARK state
+  const markAdjustedConfidence = adjustConfidenceForMARK(finalConfidence, markState);
+
+  // 🎯 MEAN REVERSION: Add absent values to candidates if they're likely to reappear
+  const candidatesList = sortedValues.map((v) => ({
+    value: v.value,
+    pct: Math.round(v.pct),
+  }));
+  
+  // Check for mean reversion candidates (underrepresented values)
+  absences.forEach(absence => {
+    // If value is absent and underrepresented, add it to candidates with special flag
+    const alreadyInCandidates = candidatesList.find(c => c.value === absence.value);
+    if (!alreadyInCandidates) {
+      candidatesList.push({
+        value: absence.value,
+        pct: Math.round(absence.frequency),
+        meanReversion: true, // Flag to indicate this is a mean reversion candidate
+        rollsSince: absence.rollsSinceAppearance
+      });
+    } else if (alreadyInCandidates && absence.frequency < 20) {
+      // Mark existing candidate as mean reversion if underrepresented
+      alreadyInCandidates.meanReversion = true;
+      alreadyInCandidates.rollsSince = absence.rollsSinceAppearance;
+    }
+  });
+  
+
+  
+  // Sort candidates: commons first, then mean reversion candidates
+  candidatesList.sort((a, b) => {
+    // If both or neither are mean reversion, sort by percentage
+    if (a.meanReversion === b.meanReversion) {
+      return b.pct - a.pct;
+    }
+    // Commons (non-mean-reversion) come first
+    return a.meanReversion ? 1 : -1;
+  });
 
   return {
     prediction: finalPrediction,
     alt: altPrediction,
-    confidence: finalConfidence,
+    confidence: markAdjustedConfidence, // Use MARK-adjusted confidence
+    baseConfidence: finalConfidence, // Keep original for reference
     mode: "BBP-mode",
     pattern: patternResult.pattern,
     commons,
@@ -529,10 +697,19 @@ export function predictNext2BBPMode(rolls, options = {}) {
     reasoning: finalReasoning,
     commonsConfidence,
     tableAnalysis, // Include for debugging
-    candidates: sortedValues.map((v) => ({
-      value: v.value,
-      pct: Math.round(v.pct),
-    })),
+    candidates: candidatesList,
+    // 🎯 MARK Mode data
+    markData: {
+      state: markState,
+      stabilityScore,
+      csi,
+      ntl,
+      pc,
+      waveIntensity,
+      absences, // Values that haven't appeared recently
+      signals: markSignals,
+      recommendation: markRecommendation,
+    },
   };
 }
 
@@ -597,6 +774,324 @@ function analyzeTablePattern(rolls) {
     dominantPair: dominant.name,
     confidence: Math.min(95, 50 + (dominant.count / recent.length) * 50)
   };
+}
+
+/**
+ * 🎯 MARK MODE: Pattern Stability Detection
+ * Inspired by Clara/Svarog's "Mark of Counter" mechanic
+ */
+
+/**
+ * Calculate Wave Intensity - count flips between commons and noise
+ */
+function calculateWaveIntensity(rolls, commons) {
+  if (!rolls || rolls.length < 2) return 0;
+  
+  let flips = 0;
+  for (let i = 0; i < rolls.length - 1; i++) {
+    const currentIsCommon = commons.includes(rolls[i]);
+    const nextIsCommon = commons.includes(rolls[i + 1]);
+    if (currentIsCommon !== nextIsCommon) {
+      flips++;
+    }
+  }
+  return flips;
+}
+
+/**
+ * Calculate Commons Stability Index (CSI)
+ * Measures how stable the current commons are
+ */
+function calculateCSI(rolls, commons, distribution) {
+  if (!commons || commons.length < 2) return 0;
+  
+  // 1. Common Stability: How long have commons been stable?
+  let stabilityRolls = 0;
+  const recentCommons = new Set(commons);
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (recentCommons.has(rolls[i])) {
+      stabilityRolls++;
+    } else {
+      break;
+    }
+  }
+  const commonStability = Math.min(100, (stabilityRolls / 8) * 100);
+  
+  // 2. Common Frequency: How dominant are they?
+  const commonsPct = commons.reduce((sum, c) => {
+    return sum + (distribution[c]?.pct || 0);
+  }, 0);
+  const commonFrequency = Math.min(100, commonsPct);
+  
+  // 3. Common Trend: Are they rising, stable, or falling?
+  const recent3 = rolls.slice(-3);
+  const prev3 = rolls.slice(-6, -3);
+  
+  let trendScore = 60; // Default: stable
+  commons.forEach(common => {
+    const recentCount = recent3.filter(r => r === common).length;
+    const prevCount = prev3.filter(r => r === common).length;
+    
+    if (recentCount > prevCount) trendScore += 10; // Rising
+    else if (recentCount < prevCount) trendScore -= 20; // Falling
+  });
+  const commonTrend = Math.max(0, Math.min(100, trendScore));
+  
+  // Weighted average - prioritize frequency (how dominant) over stability (how long)
+  // If commons are 60%+, CSI should be high even if they just became commons
+  return Math.round(
+    (commonStability * 0.2) + (commonFrequency * 0.5) + (commonTrend * 0.3)
+  );
+}
+
+/**
+ * Calculate Noise Threat Level (NTL)
+ * Measures if noise values are rising and threatening commons
+ */
+function calculateNTL(rolls, commons, noise, distribution) {
+  if (!noise || noise.length === 0) return 0;
+  
+  const recent3 = rolls.slice(-3);
+  const prev3 = rolls.slice(-6, -3);
+  
+  // 1. Rising Noise Count: How many noise values are rising?
+  let risingCount = 0;
+  noise.forEach(n => {
+    const recentCount = recent3.filter(r => r === n).length;
+    const prevCount = prev3.filter(r => r === n).length;
+    if (recentCount > prevCount) risingCount++;
+  });
+  const risingNoiseCount = (risingCount / noise.length) * 100;
+  
+  // 2. Rising Noise Velocity: How fast are they rising?
+  let totalVelocity = 0;
+  noise.forEach(n => {
+    const recentCount = recent3.filter(r => r === n).length;
+    const prevCount = prev3.filter(r => r === n).length;
+    totalVelocity += (recentCount - prevCount) / 3;
+  });
+  const risingNoiseVelocity = Math.min(100, Math.abs(totalVelocity) * 100);
+  
+  // 3. Noise Frequency Gap: How close are noise values to commons?
+  const commonsPct = commons.reduce((sum, c) => sum + (distribution[c]?.pct || 0), 0) / commons.length;
+  const noisePct = noise.reduce((sum, n) => sum + (distribution[n]?.pct || 0), 0) / noise.length;
+  const gap = commonsPct - noisePct;
+  const noiseFrequencyGap = gap < 20 ? 100 : Math.max(0, 100 - gap);
+  
+  // Weighted average
+  return Math.round(
+    (risingNoiseCount * 0.5) + (risingNoiseVelocity * 0.3) + (noiseFrequencyGap * 0.2)
+  );
+}
+
+/**
+ * Calculate Pattern Coherence (PC)
+ * Measures if there's a clear, predictable pattern
+ */
+function calculatePC(rolls, patternType, recentAccuracy, waveIntensity) {
+  // 1. Pattern Type Score
+  const patternScores = {
+    'dominant': 90,
+    'dominance-run': 85,
+    'alternating': 80,
+    'run': 75,
+    'wave': 60,
+    'wave-ending': 55,
+    'transition': 30,
+    'noise-recovery': 50,
+    'default': 40
+  };
+  const patternTypeScore = patternScores[patternType] || patternScores['default'];
+  
+  // 2. Pattern Consistency (how many recent rolls follow the pattern)
+  // This is approximated by recent accuracy
+  const patternConsistency = recentAccuracy * 100;
+  
+  // 3. Wave penalty (high wave = low coherence)
+  const wavePenalty = Math.max(0, 100 - (waveIntensity * 15));
+  
+  // Weighted average
+  return Math.round(
+    (patternTypeScore * 0.3) + (patternConsistency * 0.4) + (wavePenalty * 0.3)
+  );
+}
+
+/**
+ * Detect absent values (values that haven't appeared recently and might be due)
+ */
+function detectAbsentValues(rolls, allValues = ['41', '42', '43', '44']) {
+  // Only look at recent rolls (last 12) for absence detection
+  const recentWindow = 12;
+  const recentRolls = rolls.slice(-recentWindow);
+  
+  if (recentRolls.length < 8) {
+    return []; // Not enough data
+  }
+  
+  const absences = [];
+  
+  // Count frequency of each value in recent window
+  const freq = {};
+  recentRolls.forEach(r => {
+    freq[r] = (freq[r] || 0) + 1;
+  });
+  
+  
+  allValues.forEach(value => {
+    const count = freq[value] || 0;
+    const pct = (count / recentRolls.length) * 100;
+    
+    // Find last occurrence
+    let lastIndex = -1;
+    for (let i = recentRolls.length - 1; i >= 0; i--) {
+      if (recentRolls[i] === value) {
+        lastIndex = i;
+        break;
+      }
+    }
+    
+    const rollsSince = lastIndex === -1 ? recentRolls.length : (recentRolls.length - 1 - lastIndex);
+    
+
+    
+    // Show warnings for underrepresented values (<18%) that haven't appeared in 3+ rolls
+    // This catches mean reversion candidates (values below expected 25%)
+    if (pct < 18 && rollsSince >= 3) {
+      absences.push({ value, rollsSinceAppearance: rollsSince, frequency: pct, severity: 'high' });
+    }
+  });
+  
+
+  
+  return absences;
+}
+
+/**
+ * Determine MARK State based on CSI, NTL, PC
+ */
+function determineMARKState(csi, ntl, pc, waveIntensity, absences = []) {
+  // 🟢 LOCKED: Pattern stable, high confidence
+  if (csi >= 70 && ntl <= 30 && pc >= 70) {
+    return 'LOCKED';
+  }
+  
+  // 🟡 WATCH: Pattern locked but noise rising (early warning)
+  if (csi >= 70 && ntl > 30 && ntl <= 60 && pc >= 50) {
+    return 'WATCH';
+  }
+  
+  // 🟡 WATCH: Commons stable, pattern emerging
+  if (csi >= 50 && ntl <= 30 && pc >= 50) {
+    return 'WATCH';
+  }
+  
+  // 🟡 UNCERTAIN: Multiple patterns competing
+  if (csi >= 50 && ntl > 30 && ntl <= 60 && pc >= 50) {
+    return 'UNCERTAIN';
+  }
+  
+  // 🟢 RECOVERY CHECK: If commons are strong (CSI >= 60) and noise is low (NTL <= 40),
+  // pattern has recovered even if there were recent waves
+  if (csi >= 60 && ntl <= 40 && pc >= 50) {
+    return 'WATCH'; // Pattern recovering, safe to bet with caution
+  }
+  
+  // 🟠 COUNTER: Pattern shifting (high noise threat or high wave)
+  // Increased wave threshold from 4 to 5, and check if commons haven't recovered
+  if ((ntl > 60 || waveIntensity >= 5) && csi < 60) {
+    return 'COUNTER';
+  }
+  
+  // 🟡 UNCERTAIN: Moderate wave activity but commons still present
+  if (waveIntensity >= 4 && csi >= 50) {
+    return 'UNCERTAIN';
+  }
+  
+  // 🔴 CHAOS: No clear pattern
+  if (csi < 50 && pc < 50) {
+    return 'CHAOS';
+  }
+  
+  // Default: UNCERTAIN
+  return 'UNCERTAIN';
+}
+
+/**
+ * Generate MARK signals (warnings/explanations)
+ */
+function generateMARKSignals(csi, ntl, pc, waveIntensity, commons, noise, distribution, absences = []) {
+  const signals = [];
+  
+  // Absence warnings (HIGHEST PRIORITY - these are actionable!)
+  if (absences && absences.length > 0) {
+    absences.forEach(absence => {
+      if (absence.severity === 'high') {
+        signals.push(`${absence.value} very rare (${absence.frequency?.toFixed(0) || '0'}%) - may reappear soon`);
+      } else if (absence.severity === 'medium') {
+        signals.push(`${absence.value} uncommon (${absence.frequency?.toFixed(0) || '0'}%) - watch for return`);
+      }
+    });
+  }
+  
+  // Wave warnings (most important)
+  if (waveIntensity >= 4) {
+    signals.push('Pattern is breaking down - too many flips between values');
+  } else if (waveIntensity >= 2) {
+    signals.push(`Pattern unstable - ${waveIntensity} flips detected`);
+  }
+  
+  // Noise warnings
+  if (ntl > 60) {
+    const risingNoise = noise.filter(n => {
+      const recent = distribution[n]?.pct || 0;
+      return recent > 15;
+    });
+    if (risingNoise.length > 0) {
+      signals.push(`${risingNoise.join(', ')} rising - may become new commons`);
+    }
+  }
+  
+  // Commons warnings - only show if CSI is very low
+  if (csi < 40) {
+    signals.push('Commons are unclear or changing');
+  }
+  
+  // Pattern warnings
+  if (pc < 50) {
+    signals.push('No clear pattern - too random');
+  }
+  
+  return signals;
+}
+
+/**
+ * Get MARK recommendation based on state
+ */
+function getMARKRecommendation(markState, prediction, commons) {
+  const commonsStr = commons ? commons.join(' or ') : 'commons';
+  
+  const recommendations = {
+    'LOCKED': `✅ Predict ${prediction} - Pattern is stable and reliable`,
+    'WATCH': `⚠️ Predict ${prediction} - Pattern weakening, bet carefully`,
+    'UNCERTAIN': `🎲 Predict ${commonsStr} - Use trash relics, multiple patterns active`,
+    'COUNTER': `⛔ Skip this roll - Pattern is shifting, too risky`,
+    'CHAOS': `🚫 Skip this roll - No clear pattern detected`
+  };
+  return recommendations[markState] || recommendations['UNCERTAIN'];
+}
+
+/**
+ * Adjust confidence based on MARK state
+ */
+function adjustConfidenceForMARK(baseConfidence, markState) {
+  const multipliers = {
+    'LOCKED': 1.0,
+    'WATCH': 0.9,
+    'UNCERTAIN': 0.6,
+    'COUNTER': 0.5,
+    'CHAOS': 0.3
+  };
+  return Math.round(baseConfidence * (multipliers[markState] || 0.6));
 }
 
 export default predictNext2BBPMode;

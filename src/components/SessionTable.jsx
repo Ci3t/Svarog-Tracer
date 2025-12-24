@@ -1,5 +1,6 @@
 import React from "react";
 import { translateTo4 } from "../utils/stringHelpers"; // 👈 use the shared one
+import LiveTrackingTable from "./LiveTrackingTable";
 
 export default function SessionTable({
   sessionTab,
@@ -179,23 +180,39 @@ export default function SessionTable({
                     <tr className="text-slate-500">
                       <th className="text-left py-1 pr-2">Raw</th>
                       <th className="text-left py-1 pr-2">2-str</th>
+                      <th className="text-left py-1 pr-2">Trend</th>
                       <th className="text-left py-1 pr-2">Time</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/20">
-                    {sess.entries.map((e) => (
-                      <tr key={e.id}>
-                        <td className="py-1 pr-2 font-mono">{e.raw}</td>
-                        <td className="py-1 pr-2 font-mono">
-                          {toTranslatedPadded(e.s2)}
-                        </td>
-                        <td className="py-1 pr-2 text-slate-500">
-                          {e.time && !isNaN(new Date(e.time).getTime()) 
-                            ? new Date(e.time).toLocaleTimeString() 
-                            : '--:--:--'}
-                        </td>
-                      </tr>
-                    ))}
+                    {sess.entries.map((e, idx) => {
+                      // Calculate trend for this value in this session
+                      const mid = Math.floor(sess.entries.length / 2);
+                      const firstHalf = sess.entries.slice(0, mid);
+                      const secondHalf = sess.entries.slice(mid);
+                      const value = toTranslatedPadded(e.s2).slice(0, 2);
+                      const firstCount = firstHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
+                      const secondCount = secondHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
+                      
+                      let trend = '→';
+                      if (secondCount > firstCount * 1.2) trend = '↑';
+                      else if (secondCount < firstCount * 0.8) trend = '↓';
+                      
+                      return (
+                        <tr key={e.id}>
+                          <td className="py-1 pr-2 font-mono">{e.raw}</td>
+                          <td className="py-1 pr-2 font-mono">
+                            {toTranslatedPadded(e.s2)}
+                          </td>
+                          <td className="py-1 pr-2 text-slate-400">{trend}</td>
+                          <td className="py-1 pr-2 text-slate-500">
+                            {e.time && !isNaN(new Date(e.time).getTime()) 
+                              ? new Date(e.time).toLocaleTimeString() 
+                              : '--:--:--'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 

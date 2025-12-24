@@ -29,25 +29,25 @@ const MODE_EXAMPLES = {
 
   "BBP-dominant": {
     title: "BBP Mode: Dominant",
-    description: "One common appears >60% of the time",
+    description: "One common appears >55% of the time",
     body: (
       <>
-        One value is clearly dominant (appears >60%).
+        One value is clearly dominant (appears &gt;55%).
         <br />
         <span className="text-slate-400">Distribution:</span>{" "}
-        <span className="text-violet-300">42 (65%), 41 (20%), 43 (10%), 44 (5%)</span>
+        <span className="text-violet-300">42 (60%), 41 (25%), 43 (10%), 44 (5%)</span>
         <br />
         <span className="text-slate-400">→ Commons:</span>{" "}
         <span className="text-green-400">42, 41</span>
         <br />
         <span className="text-slate-400">→ Dominant:</span>{" "}
-        <span className="text-violet-300">42 (65%)</span>
+        <span className="text-amber-400">42 (60%)</span> 🟡
         <br />
         <span className="text-slate-400">→ Predicts:</span>{" "}
         <span className="text-emerald-300 font-bold">42</span>
         <br />
         <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 75-90% | Pattern: dominant
+          Confidence: 75-90% | Pattern: dominant | Badge: DOMINANT (amber)
         </span>
       </>
     ),
@@ -78,12 +78,95 @@ const MODE_EXAMPLES = {
     ),
   },
 
-  "BBP-noise-run": {
-    title: "BBP Mode: Noise Run",
-    description: "Noise values (43/44) forming their own pattern",
+  "BBP-wave": {
+    title: "BBP Mode: Wave",
+    description: "Noise values alternating (1-2 flips)",
     body: (
       <>
-        Noise values appeared 2+ times, forming a temporary run.
+        Noise values are alternating instead of random (EU region common).
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 44, 41</span>
+        <br />
+        <span className="text-slate-400">→ Wave detected:</span>{" "}
+        <span className="text-amber-300">41 ↔ 44</span> (alternating)
+        <br />
+        <span className="text-slate-400">→ Last was 41</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span> (continue wave)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 65% | Pattern: wave (1-2 flips)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-wave-ending": {
+    title: "BBP Mode: Wave Ending",
+    description: "Wave ending after 3 flips → snap to common",
+    body: (
+      <>
+        After 3 wave flips, expect snap-back to commons.
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 44, 41, 44</span>
+        <br />
+        <span className="text-slate-400">→ Wave:</span>{" "}
+        <span className="text-amber-300">41 ↔ 44 ↔ 41</span> (3 flips)
+        <br />
+        <span className="text-slate-400">→ Wave ending</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span> (snap to common)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 68% | Pattern: wave-ending (3 flips)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-dominance-run": {
+    title: "BBP Mode: Dominance Run",
+    description: "One common running 4-7 times consecutively",
+    body: (
+      <>
+        Detected a dominance run (4-7 consecutive hits of same value).
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 41, 41, 41, 41</span>
+        <br />
+        <span className="text-slate-400">→ 41 running 5x (dominance)</span>
+        <br />
+        <span className="text-slate-400">→ Continues until 8+ hits</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41</span> (continue run)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 72% | Pattern: dominance-run (4-7 hits)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-noise-run": {
+    title: "BBP Mode: Noise Run",
+    description: "Noise values (43/44) repeating",
+    body: (
+      <>
+        Noise values appeared 2+ times consecutively.
         <br />
         <span className="text-slate-400">Commons:</span>{" "}
         <span className="text-green-400">41, 42</span>
@@ -94,13 +177,13 @@ const MODE_EXAMPLES = {
         <span className="text-slate-400">Recent:</span>{" "}
         <span className="text-violet-300">41, 42, 43, 43, 43</span>
         <br />
-        <span className="text-slate-400">→ Noise (43) running</span>
+        <span className="text-slate-400">→ Noise (43) running 3x</span>
         <br />
         <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41 or 42</span> (snap back to commons)
+        <span className="text-emerald-300 font-bold">43</span> (might continue)
         <br />
         <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 55-70% | Pattern: noise-run → recovery
+          Confidence: 60% | Pattern: noise-run
         </span>
       </>
     ),
@@ -225,7 +308,10 @@ const MODE_GROUPS = {
   "BBP Mode (2-str)": [
     "BBP-alternating",
     "BBP-dominant",
+    "BBP-dominance-run",
     "BBP-sticky",
+    "BBP-wave",
+    "BBP-wave-ending",
     "BBP-balanced",
     "BBP-noise-run",
     "BBP-chaotic",
