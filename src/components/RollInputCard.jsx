@@ -20,13 +20,13 @@ export default function RollInputCard({
   return (
     <div 
       className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl"
-      style={{
+      style={activeTab !== 'kiyo' ? {
         position: 'sticky',
         top: '0',
         zIndex: 1000,
         backdropFilter: 'blur(10px)',
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)'
-      }}
+      } : {}}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-4">
