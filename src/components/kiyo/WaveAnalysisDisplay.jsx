@@ -322,6 +322,109 @@ export default function WaveAnalysisDisplay({
 
   return (
     <div className="space-y-3">
+      {/* Compact Column Status + Recommendation */}
+      {hasData && analyzeWavePatterns?.bettingRecommendation && (
+        <>
+          {/* Column Status - Side by side with all info inline */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Column 2 Status */}
+            <div className={`border rounded-lg p-2 ${
+              analyzeWavePatterns.bettingRecommendation.col2Status === 'good'
+                ? 'bg-green-500/10 border-green-500/30'
+                : analyzeWavePatterns.bettingRecommendation.col2Status === 'bad'
+                ? 'bg-red-500/10 border-red-500/30'
+                : 'bg-slate-500/10 border-slate-500/30'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-white">Column 2</span>
+                <span className="text-sm">
+                  {analyzeWavePatterns.bettingRecommendation.col2Status === 'good' ? '✅' : 
+                   analyzeWavePatterns.bettingRecommendation.col2Status === 'bad' ? '❌' : '⚪'}
+                </span>
+              </div>
+              <div className={`text-[10px] mt-1 ${
+                analyzeWavePatterns.bettingRecommendation.col2Status === 'good'
+                  ? 'text-green-300'
+                  : analyzeWavePatterns.bettingRecommendation.col2Status === 'bad'
+                  ? 'text-red-300'
+                  : 'text-slate-300'
+              }`}>
+                {analyzeWavePatterns.bettingRecommendation.col2Status === 'good' ? (
+                  <div className="space-y-0.5">
+                    <div>Pattern: {analyzeWavePatterns.columnAnalysis?.col2?.patternDetected?.type || 'detected'}</div>
+                    <div>Conf: {Math.round((col2?.confidence || 0) * 100)}%</div>
+                  </div>
+                ) : analyzeWavePatterns.bettingRecommendation.col2Status === 'bad' ? (
+                  <div className="font-bold">Status: Chaotic - SKIP</div>
+                ) : (
+                  <div>Monitoring...</div>
+                )}
+              </div>
+            </div>
+
+            {/* Column 3 Status */}
+            <div className={`border rounded-lg p-2 ${
+              analyzeWavePatterns.bettingRecommendation.col3Status === 'good'
+                ? 'bg-green-500/10 border-green-500/30'
+                : analyzeWavePatterns.bettingRecommendation.col3Status === 'bad'
+                ? 'bg-red-500/10 border-red-500/30'
+                : 'bg-slate-500/10 border-slate-500/30'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-white">Column 3</span>
+                <span className="text-sm">
+                  {analyzeWavePatterns.bettingRecommendation.col3Status === 'good' ? '✅' : 
+                   analyzeWavePatterns.bettingRecommendation.col3Status === 'bad' ? '❌' : '⚪'}
+                </span>
+              </div>
+              <div className={`text-[10px] mt-1 ${
+                analyzeWavePatterns.bettingRecommendation.col3Status === 'good'
+                  ? 'text-green-300'
+                  : analyzeWavePatterns.bettingRecommendation.col3Status === 'bad'
+                  ? 'text-red-300'
+                  : 'text-slate-300'
+              }`}>
+                {analyzeWavePatterns.bettingRecommendation.col3Status === 'good' ? (
+                  <div className="space-y-0.5">
+                    <div>Pattern: {analyzeWavePatterns.columnAnalysis?.col3?.patternDetected?.type || 'detected'}</div>
+                    <div>Conf: {Math.round((col3?.confidence || 0) * 100)}%</div>
+                  </div>
+                ) : analyzeWavePatterns.bettingRecommendation.col3Status === 'bad' ? (
+                  <div className="font-bold">Status: Chaotic - SKIP</div>
+                ) : (
+                  <div>Monitoring...</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Recommendation - Smaller */}
+          <div className={`border rounded-lg p-2 ${
+            analyzeWavePatterns.bettingRecommendation.focus === 'none' 
+              ? 'bg-red-500/10 border-red-500/50' 
+              : analyzeWavePatterns.bettingRecommendation.focus === 'both'
+              ? 'bg-green-500/10 border-green-500/50'
+              : 'bg-yellow-500/10 border-yellow-500/50'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">💡</span>
+              <span className={`text-xs font-bold ${
+                analyzeWavePatterns.bettingRecommendation.focus === 'none' 
+                  ? 'text-red-400' 
+                  : analyzeWavePatterns.bettingRecommendation.focus === 'both'
+                  ? 'text-green-400'
+                  : 'text-yellow-400'
+              }`}>
+                {analyzeWavePatterns.bettingRecommendation.suggestion}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-300 mt-0.5 opacity-90">
+              {analyzeWavePatterns.bettingRecommendation.message}
+            </div>
+          </div>
+        </>
+      )}
+
       {hasData ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[col2, col3].map(renderColumnCard)}

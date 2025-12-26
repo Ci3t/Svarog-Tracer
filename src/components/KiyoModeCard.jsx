@@ -1793,29 +1793,40 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      <TestRollsInput
-        testInput={testInput}
-        setTestInput={setTestInput}
-        handleTestRollSubmit={handleTestRollSubmit}
-        testRolls={testRolls}
-        setTestRolls={setTestRolls}
-        translatedTestRolls={translatedTestRolls}
-        handleDeleteTestRoll={handleDeleteTestRoll}
-        setActivePrefix={setActivePrefix}
-      />
+      {/* Sticky Roll Input */}
+      <div style={{
+        position: 'sticky',
+        top: '0',
+        zIndex: 100,
+        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+        backdropFilter: 'blur(10px)',
+        paddingBottom: '16px',
+        marginBottom: '16px'
+      }}>
+        <TestRollsInput
+          testInput={testInput}
+          setTestInput={setTestInput}
+          handleTestRollSubmit={handleTestRollSubmit}
+          testRolls={testRolls}
+          setTestRolls={setTestRolls}
+          translatedTestRolls={translatedTestRolls}
+          handleDeleteTestRoll={handleDeleteTestRoll}
+          setActivePrefix={setActivePrefix}
+        />
+        
+        {/* 5-Minute Window Timer - Always visible with input */}
+        {combinedRolls.length >= 4 && analyzeWavePatterns && (
+          <div style={{ marginTop: '12px' }}>
+            <FiveMinWindowTracker
+              windowInfo={windowInfo}
+              analyzeWavePatterns={analyzeWavePatterns}
+            />
+          </div>
+        )}
+      </div>
 
       {combinedRolls.length >= 4 && analyzeWavePatterns && (
         <>
-          <FiveMinWindowTracker
-            windowInfo={windowInfo}
-            analyzeWavePatterns={analyzeWavePatterns}
-          />
-
-          <BettingRecommendationCard
-            waveAnalysis={analyzeWavePatterns}
-            persistentAccuracy={waveAccuracy}
-          />
-
           <WaveAnalysisDisplay
             analyzeWavePatterns={analyzeWavePatterns}
             smartPrefixPrediction={smartRecommendation?.prefixPrediction}
@@ -1833,12 +1844,23 @@ export default function KiyoModeCard({
         analyzeWavePatterns={analyzeWavePatterns}
       />
 
-      <AdvancedToolsSection
-        waveAccuracy={waveAccuracy}
-        kiyoAccuracy={kiyoAccuracy}
-        pairingViz={pairingViz}
-        combinedRolls={combinedRolls}
-      />
+      {/* Sticky Advanced Tools (Caesar Shift) */}
+      <div style={{
+        position: 'sticky',
+        top: '120px', // Below the input card
+        zIndex: 90,
+        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+        backdropFilter: 'blur(10px)',
+        paddingBottom: '16px',
+        marginBottom: '16px'
+      }}>
+        <AdvancedToolsSection
+          waveAccuracy={waveAccuracy}
+          kiyoAccuracy={kiyoAccuracy}
+          pairingViz={pairingViz}
+          combinedRolls={combinedRolls}
+        />
+      </div>
 
       {showDecisionGuide && (
         <GuideModal
