@@ -1,4 +1,3 @@
-// src/components/TopBar.jsx - REPLACE YOUR EXISTING FILE
 import svarog from "/svarog.png";
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
@@ -79,15 +78,37 @@ export default function TopBar({
   function handleExportCSV() {
     const rows = buildRows();
 
-    const headers = ["Day", "String", "Region", "Patch"];
+    // Import BBP Mode predictor
+    const { predictNext2BBPMode } = require("./utils/bbp-mode-2str");
+
+    const headers = ["Day", "String", "Region", "Patch", "MARK State", "CSI", "NTL", "PC", "Wave", "Commons", "Pattern"];
 
     const csv = [
       headers.join(","),
-      ...rows.map((r) =>
-        [r.day, r.string, r.region, r.patch]
+      ...rows.map((r, idx) => {
+        // Calculate MARK Mode for this roll (using previous rolls as context)
+        const contextRolls = rows.slice(Math.max(0, idx - 11), idx + 1).map(row => row.string.slice(0, 2));
+        let markState = "N/A", csi = "", ntl = "", pc = "", wave = "", commons = "", pattern = "";
+        
+        if (contextRolls.length >= 6) {
+          try {
+            const analysis = predictNext2BBPMode(contextRolls);
+            markState = analysis.markData?.state || "N/A";
+            csi = analysis.markData?.csi || "";
+            ntl = analysis.markData?.ntl || "";
+            pc = analysis.markData?.pc || "";
+            wave = analysis.markData?.waveIntensity || "";
+            commons = analysis.commons?.join("+") || "";
+            pattern = analysis.pattern || "";
+          } catch (e) {
+            // Skip if analysis fails
+          }
+        }
+
+        return [r.day, r.string, r.region, r.patch, markState, csi, ntl, pc, wave, commons, pattern]
           .map((v) => `"${v ?? ""}"`)
-          .join(",")
-      ),
+          .join(",");
+      }),
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

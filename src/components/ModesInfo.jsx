@@ -1,6 +1,243 @@
 import React, { useState } from "react";
 
 const MODE_EXAMPLES = {
+  // 🦁 BBP Mode PATTERNS (NEW)
+  "BBP-alternating": {
+    title: "BBP Mode: Alternating",
+    description: "Commons flip back and forth between 2 values",
+    body: (
+      <>
+        BBP Mode identified 2 commons (e.g., 41 & 42) and detected they're alternating.
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent pattern:</span>{" "}
+        <span className="text-violet-300">41, 42, 41, 42, 41</span>
+        <br />
+        <span className="text-slate-400">→ Last was 41</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span> (flip)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 70-85% | Pattern: alternating
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-dominant": {
+    title: "BBP Mode: Dominant",
+    description: "One common appears >55% of the time",
+    body: (
+      <>
+        One value is clearly dominant (appears &gt;55%).
+        <br />
+        <span className="text-slate-400">Distribution:</span>{" "}
+        <span className="text-violet-300">42 (60%), 41 (25%), 43 (10%), 44 (5%)</span>
+        <br />
+        <span className="text-slate-400">→ Commons:</span>{" "}
+        <span className="text-green-400">42, 41</span>
+        <br />
+        <span className="text-slate-400">→ Dominant:</span>{" "}
+        <span className="text-amber-400">42 (60%)</span> 🟡
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 75-90% | Pattern: dominant | Badge: DOMINANT (amber)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-sticky": {
+    title: "BBP Mode: Sticky",
+    description: "One common repeats 2-3 times in a row",
+    body: (
+      <>
+        Detected a "sticky" pattern where one common repeats consecutively.
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">42, 41</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">41, 42, 42, 42, 43</span>
+        <br />
+        <span className="text-slate-400">→ 42 repeated 3x (sticky run)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span> (continue run)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 65-80% | Pattern: sticky
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-wave": {
+    title: "BBP Mode: Wave",
+    description: "Noise values alternating (1-2 flips)",
+    body: (
+      <>
+        Noise values are alternating instead of random (EU region common).
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 44, 41</span>
+        <br />
+        <span className="text-slate-400">→ Wave detected:</span>{" "}
+        <span className="text-amber-300">41 ↔ 44</span> (alternating)
+        <br />
+        <span className="text-slate-400">→ Last was 41</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span> (continue wave)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 65% | Pattern: wave (1-2 flips)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-wave-ending": {
+    title: "BBP Mode: Wave Ending",
+    description: "Wave ending after 3 flips → snap to common",
+    body: (
+      <>
+        After 3 wave flips, expect snap-back to commons.
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 44, 41, 44</span>
+        <br />
+        <span className="text-slate-400">→ Wave:</span>{" "}
+        <span className="text-amber-300">41 ↔ 44 ↔ 41</span> (3 flips)
+        <br />
+        <span className="text-slate-400">→ Wave ending</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">42</span> (snap to common)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 68% | Pattern: wave-ending (3 flips)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-dominance-run": {
+    title: "BBP Mode: Dominance Run",
+    description: "One common running 4-7 times consecutively",
+    body: (
+      <>
+        Detected a dominance run (4-7 consecutive hits of same value).
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">42, 41, 41, 41, 41, 41</span>
+        <br />
+        <span className="text-slate-400">→ 41 running 5x (dominance)</span>
+        <br />
+        <span className="text-slate-400">→ Continues until 8+ hits</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41</span> (continue run)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 72% | Pattern: dominance-run (4-7 hits)
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-noise-run": {
+    title: "BBP Mode: Noise Run",
+    description: "Noise values (43/44) repeating",
+    body: (
+      <>
+        Noise values appeared 2+ times consecutively.
+        <br />
+        <span className="text-slate-400">Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span>
+        <br />
+        <span className="text-slate-400">Noise:</span>{" "}
+        <span className="text-slate-500">43, 44</span>
+        <br />
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">41, 42, 43, 43, 43</span>
+        <br />
+        <span className="text-slate-400">→ Noise (43) running 3x</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">43</span> (might continue)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 60% | Pattern: noise-run
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-balanced": {
+    title: "BBP Mode: Balanced",
+    description: "Commons are roughly equal in frequency",
+    body: (
+      <>
+        Both commons appear with similar frequency (balanced).
+        <br />
+        <span className="text-slate-400">Distribution:</span>{" "}
+        <span className="text-violet-300">41 (30%), 42 (30%), 43 (25%), 44 (15%)</span>
+        <br />
+        <span className="text-slate-400">→ Commons:</span>{" "}
+        <span className="text-green-400">41, 42</span> (both 30%)
+        <br />
+        <span className="text-slate-400">→ Pattern:</span>{" "}
+        <span className="text-violet-300">Balanced (no clear dominance)</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">41 or 42</span> (equal chance)
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 50-65% | Pattern: balanced
+        </span>
+      </>
+    ),
+  },
+
+  "BBP-chaotic": {
+    title: "BBP Mode: Chaotic",
+    description: "All values appear equally (no pattern)",
+    body: (
+      <>
+        Distribution is too flat - all values appear roughly equally.
+        <br />
+        <span className="text-slate-400">Distribution:</span>{" "}
+        <span className="text-violet-300">41 (25%), 42 (25%), 43 (25%), 44 (25%)</span>
+        <br />
+        <span className="text-slate-400">→ No clear commons detected</span>
+        <br />
+        <span className="text-slate-400">→ Result:</span>{" "}
+        <span className="text-slate-400">Skip prediction (chaotic)</span>
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">
+          Confidence: 0% | Pattern: chaotic (insufficient pattern)
+        </span>
+      </>
+    ),
+  },
+
+  // LEGACY MODES (kept for reference)
   mono: {
     title: "Mono",
     description: "Last 4 rolls are identical → predict repetition",
@@ -15,247 +252,30 @@ const MODE_EXAMPLES = {
         <span className="text-emerald-300 font-bold">42</span>
         <br />
         <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 85% | Uses decay-weighted frequency
-        </span>
-      </>
-    ),
-  },
-
-  wave: {
-    title: "Wave",
-    description: "Dominant number disappeared → expect it to return",
-    body: (
-      <>
-        Top 2 most frequent rolls; if the #1 is missing from recent 5, it's
-        about to return.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">42, 42, 42, 41, 43</span>
-        <br />
-        <span className="text-slate-400">→ Top 2:</span>{" "}
-        <span className="text-violet-300">42 (50%), 41 (20%)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">42</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 68% | Triggered when dominant disappears
+          Confidence: 85% | Legacy mode
         </span>
       </>
     ),
   },
 
   "smart-transition": {
-    title: "Smart Transition",
+    title: "Smart Transition (Legacy)",
     description: "Learn what follows the last roll with decay weighting",
     body: (
       <>
-        Finds all past occurrences of the last roll, sees what came next,
-        weights by recency.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">42, 44, 42, 43, 42, 44, 42, 41</span>
-        <br />
-        <span className="text-slate-400">→ Times 42 appeared:</span>{" "}
-        <span className="text-violet-300">
-          pos 0→44, pos 2→43, pos 4→44, pos 6→41
-        </span>
-        <br />
-        <span className="text-slate-400">→ After 42 came:</span>{" "}
-        <span className="text-violet-300">
-          44 (2x recent), 43 (1x), 41 (1x)
-        </span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">44</span> (weighted for
-        recency)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 45–72% | Requires confidence ≥ 0.5
-        </span>
-      </>
-    ),
-  },
-
-  "markov-3state": {
-    title: "Markov 3-State",
-    description: "Use last 3 rolls as a learned pattern key",
-    body: (
-      <>
-        Builds a table: for each sequence of 3 rolls, what came next? Looks up
-        the last 3.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">41, 42, 44, 43, 41, 42, 44</span>
-        <br />
-        <span className="text-slate-400">
-          → Pattern [41, 42, 44] seen before
-        </span>
-        <br />
-        <span className="text-slate-400">→ Next was:</span>{" "}
-        <span className="text-violet-300">43</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">43</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 50–76% | Requires ≥2 samples + 48% confidence
-        </span>
-      </>
-    ),
-  },
-
-  "cyclic-enhanced": {
-    title: "Cyclic Enhanced",
-    description: "Detect repeating loops of 2-4 rolls",
-    body: (
-      <>
-        Scans for repeating chunks (cycles). If last chunk matches a previous
-        one, predict the first element of that chunk.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">41, 42, 41, 42, 41, 42</span>
-        <br />
-        <span className="text-slate-400">→ Cycle detected:</span>{" "}
-        <span className="text-violet-300">[41, 42]</span>
-        <br />
-        <span className="text-slate-400">→ Last chunk:</span>{" "}
-        <span className="text-violet-300">[41, 42]</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 62–70%+ | Scales with cycle count
-        </span>
-      </>
-    ),
-  },
-
-  "opposite-pair": {
-    title: "Opposite Pair",
-    description: "Mirror logic: 41↔44, 42↔43",
-    body: (
-      <>
-        If the last roll repeated recently but its opposite hasn't, predict the
-        opposite.
-        <br />
-        <span className="text-slate-400">Opposites:</span>{" "}
-        <span className="text-violet-300">41 ↔ 44 | 42 ↔ 43</span>
-        <br />
-        <span className="text-slate-400">History (last 4):</span>{" "}
-        <span className="text-violet-300">41, 41, 43, 41</span>
-        <br />
-        <span className="text-slate-400">→ Last = 41 (appeared 3x)</span>
-        <br />
-        <span className="text-slate-400">→ Opposite 44 (appeared 0x)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">44</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 58–62% | Requires imbalance in recent 4
-        </span>
-      </>
-    ),
-  },
-
-  "phase-memory": {
-    title: "Phase Memory",
-    description: "Remember and repeat old roll 'phases'",
-    body: (
-      <>
-        Caches up to 4 unique 'phases' (sets of 2-3 distinct values). If current
-        phase matches a past one, predict based on that phase's history.
-        <br />
-        <span className="text-slate-400">Stored phase:</span>{" "}
-        <span className="text-violet-300">[41, 43, 42]</span>
-        <br />
-        <span className="text-slate-400">Current tail:</span>{" "}
-        <span className="text-violet-300">41, 43, 41, 42, 43</span>
-        <br />
-        <span className="text-slate-400">→ Matches phase!</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41 or 43</span> (most
-        common in tail)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 56% | Cache size: 4 phases
-        </span>
-      </>
-    ),
-  },
-
-  "transition-fallback": {
-    title: "Transition Fallback",
-    description: "Use smart-transition with lower confidence threshold",
-    body: (
-      <>
-        Weaker version of Smart Transition. Used when main patterns fail.
+        Finds all past occurrences of the last roll, sees what came next.
         <br />
         <span className="text-slate-400">History:</span>{" "}
         <span className="text-violet-300">42, 44, 42, 43, 42, 44, 42, 41</span>
         <br />
         <span className="text-slate-400">→ After 42 came:</span>{" "}
-        <span className="text-violet-300">44 (2x), 43 (1x), 41 (1x)</span>
+        <span className="text-violet-300">44 (2x recent), 43 (1x), 41 (1x)</span>
         <br />
-        <span className="text-slate-400">→ Main confidence was too low,</span>
-        <br />
-        <span className="text-slate-400">
-          → but fallback still predicts:
-        </span>{" "}
+        <span className="text-slate-400">→ Predicts:</span>{" "}
         <span className="text-emerald-300 font-bold">44</span>
         <br />
         <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 40–72% | Fallback layer (lower threshold)
-        </span>
-      </>
-    ),
-  },
-
-  "frequency-fallback": {
-    title: "Frequency Fallback",
-    description: "Predict the most common recent roll",
-    body: (
-      <>
-        When no pattern detected, fall back to frequency analysis with decay
-        weighting (recent rolls count more).
-        <br />
-        <span className="text-slate-400">Recent rolls:</span>{" "}
-        <span className="text-violet-300">41, 41, 42, 41, 44</span>
-        <br />
-        <span className="text-slate-400">→ Frequency (weighted):</span>{" "}
-        <span className="text-violet-300">41 (50%), 42 (20%), 44 (20%)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 42–66% | Decay factor: 0.9 (recent weighted higher)
-        </span>
-      </>
-    ),
-  },
-
-  "dominant-fallback": {
-    title: "Dominant Fallback",
-    description: "Absolute last resort → most common all-time",
-    body: (
-      <>
-        When absolutely nothing works, predict the most frequent value across
-        entire history.
-        <br />
-        <span className="text-slate-400">All history:</span>{" "}
-        <span className="text-violet-300">
-          42 (45%), 41 (30%), 43 (15%), 44 (10%)
-        </span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">42</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 42% | Final layer before giving up
+          Confidence: 45–72% | Fallback when BBP Mode confidence low
         </span>
       </>
     ),
@@ -282,188 +302,32 @@ const MODE_EXAMPLES = {
       </>
     ),
   },
-
-  // 3-STR modes
-  "mono-3str": {
-    title: "Mono (3-str)",
-    description: "Last 4 rolls are identical 3-digit values",
-    body: (
-      <>
-        Same as 2-str mono but for 3-digit rolls.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">421, 421, 421, 421</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">421</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 85%
-        </span>
-      </>
-    ),
-  },
-
-  "transition-3str": {
-    title: "Transition (3-str)",
-    description: "What follows the last 3-digit roll?",
-    body: (
-      <>
-        Smart transition logic adapted for 3-digit rolls.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">421, 443, 421, 432, 421</span>
-        <br />
-        <span className="text-slate-400">→ After 421 came:</span>{" "}
-        <span className="text-violet-300">443, 432</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">443</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 45–72%
-        </span>
-      </>
-    ),
-  },
-
-  "frequency-3str": {
-    title: "Frequency (3-str)",
-    description: "Most common 3-digit roll",
-    body: (
-      <>
-        Fallback frequency analysis for 3-digit rolls.
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">421, 421, 432, 421, 443</span>
-        <br />
-        <span className="text-slate-400">→ Frequency:</span>{" "}
-        <span className="text-violet-300">421 (60%)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">421</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 45–68%
-        </span>
-      </>
-    ),
-  },
-
-  // 4-STR modes
-  "mono-4str": {
-    title: "Mono (4-str)",
-    description: "Last 4 rolls are identical 4-digit values",
-    body: (
-      <>
-        Same as 2-str mono but for 4-digit rolls.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">4213, 4213, 4213, 4213</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">4213</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 85%
-        </span>
-      </>
-    ),
-  },
-
-  "transition-4str": {
-    title: "Transition (4-str)",
-    description: "What follows the last 4-digit roll?",
-    body: (
-      <>
-        Smart transition logic for 4-digit rolls.
-        <br />
-        <span className="text-slate-400">History:</span>{" "}
-        <span className="text-violet-300">4213, 4432, 4213, 4321, 4213</span>
-        <br />
-        <span className="text-slate-400">→ After 4213 came:</span>{" "}
-        <span className="text-violet-300">4432, 4321</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">4432</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 45–72%
-        </span>
-      </>
-    ),
-  },
-
-  "frequency-4str": {
-    title: "Frequency (4-str)",
-    description: "Most common 4-digit roll",
-    body: (
-      <>
-        Fallback frequency for 4-digit rolls.
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">4213, 4213, 4321, 4213, 4432</span>
-        <br />
-        <span className="text-slate-400">→ Frequency:</span>{" "}
-        <span className="text-violet-300">4213 (60%)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">4213</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 45–68%
-        </span>
-      </>
-    ),
-  },
 };
 
-const MODES = [
-  // 2-str (main)
-  "mono",
-  "wave",
-  "smart-transition",
-  "markov-3state",
-  "cyclic-enhanced",
-  "opposite-pair",
-  "phase-memory",
-  "transition-fallback",
-  "frequency-fallback",
-  "dominant-fallback",
-  "insufficient-data",
-  // 3-str
-  "mono-3str",
-  "transition-3str",
-  "frequency-3str",
-  // 4-str
-  "mono-4str",
-  "transition-4str",
-  "frequency-4str",
-];
-
 const MODE_GROUPS = {
-  "2-str": [
+  "BBP Mode (2-str)": [
+    "BBP-alternating",
+    "BBP-dominant",
+    "BBP-dominance-run",
+    "BBP-sticky",
+    "BBP-wave",
+    "BBP-wave-ending",
+    "BBP-balanced",
+    "BBP-noise-run",
+    "BBP-chaotic",
+  ],
+  "Legacy (2-str)": [
     "mono",
-    "wave",
     "smart-transition",
-    "markov-3state",
-    "cyclic-enhanced",
-    "opposite-pair",
-    "phase-memory",
-    "transition-fallback",
-    "frequency-fallback",
-    "dominant-fallback",
     "insufficient-data",
   ],
-  "3-str": ["mono-3str", "transition-3str", "frequency-3str"],
-  "4-str": ["mono-4str", "transition-4str", "frequency-4str"],
 };
 
 export default function ModesInfo() {
   const [active, setActive] = useState(null);
-  const [group, setGroup] = useState("2-str");
+  const [group, setGroup] = useState("BBP Mode (2-str)");
 
-  const currentModes = MODE_GROUPS[group] || MODE_GROUPS["2-str"];
+  const currentModes = MODE_GROUPS[group] || MODE_GROUPS["BBP Mode (2-str)"];
 
   return (
     <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 sm:p-5 space-y-3">
@@ -472,8 +336,7 @@ export default function ModesInfo() {
           Prediction Modes
         </h3>
         <p className="text-[11px] text-slate-500 mb-2">
-          Click a mode to see how the predictor works. Modes are organized by
-          roll type (2-str / 3-str / 4-str).
+          Click a mode to see how BBP Mode detects patterns. Organized by pattern type.
         </p>
       </div>
 

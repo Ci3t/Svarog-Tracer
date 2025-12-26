@@ -25,7 +25,15 @@ export default function LeftColumn({
       />
       {/* 🔮 New Long String Lab */}
       {/* <LongStringLabCard /> */}
-      <CaesarCard caesarInput={caesarInput} setCaesarInput={setCaesarInput} />
+      
+      {/* Sticky Caesar Card */}
+      <div style={{
+        position: 'sticky',
+        top: '0',
+        zIndex: 100
+      }}>
+        <CaesarCard caesarInput={caesarInput} setCaesarInput={setCaesarInput} />
+      </div>
 
       <ModesInfo />
     </div>

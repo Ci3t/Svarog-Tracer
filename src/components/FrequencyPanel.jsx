@@ -6,6 +6,7 @@ export default function FrequencyPanel({
   freq4,
   freq5,
 }) {
+  // freq3 already includes Kiyo rolls if passed correctly from App
   const list =
     freqTab === "2"
       ? freq2
@@ -40,6 +41,11 @@ export default function FrequencyPanel({
       <p className="text-xs text-slate-400 mb-4">
         All strings translated to 4xxx and padded to 5 digits so you can compare
         phases.
+        {freqTab === "3" && (
+          <span className="ml-2 text-emerald-300 font-semibold">
+            ✓ Includes Kiyo mode rolls
+          </span>
+        )}
       </p>
 
       <div className="space-y-3 max-h-56 sm:max-h-72 overflow-auto">

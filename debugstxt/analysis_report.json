@@ -1,0 +1,1252 @@
+{
+  "timestamp": "2025-12-20T19:05:35.219101",
+  "analysis": {
+    "overall_stats": {
+      "total_predictions": 87,
+      "wave_c2_hits": 23,
+      "wave_c2_total": 64,
+      "wave_c3_hits": 42,
+      "wave_c3_total": 79,
+      "prefix_hits": 8,
+      "prefix_total": 83,
+      "combined_hits": 11,
+      "combined_total": 64
+    },
+    "failure_patterns": {
+      "consecutive_misses": [
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "start_idx": 5,
+          "end_idx": 7,
+          "count": 3
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "start_idx": 5,
+          "end_idx": 7,
+          "count": 3
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "start_idx": 19,
+          "end_idx": 22,
+          "count": 4
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "start_idx": 5,
+          "end_idx": 7,
+          "count": 3
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "start_idx": 19,
+          "end_idx": 22,
+          "count": 4
+        }
+      ],
+      "wrong_flip_predictions": [
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 4,
+          "time": "06:12:12 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 4,
+          "time": "06:12:12 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 4,
+          "time": "06:12:12 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 20,
+          "time": "06:13:30 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 22,
+          "time": "06:13:33 PM",
+          "actual": "443",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 30,
+          "time": "06:13:58 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 4,
+          "time": "06:12:12 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 20,
+          "time": "06:13:30 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 22,
+          "time": "06:13:33 PM",
+          "actual": "443",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "[2,3]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 30,
+          "time": "06:13:58 PM",
+          "actual": "413",
+          "predicted": "[1,2]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 31,
+          "time": "06:14:12 PM",
+          "actual": "441",
+          "predicted": "[3,4]",
+          "column": "C3"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 32,
+          "time": "06:14:13 PM",
+          "actual": "421",
+          "predicted": "[1,4]",
+          "column": "C2"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 33,
+          "time": "06:14:14 PM",
+          "actual": "423",
+          "predicted": "[1,2]",
+          "column": "C3"
+        }
+      ],
+      "prefix_failures": [
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 2,
+          "time": "06:11:54 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "413/414"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (5).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 2,
+          "time": "06:11:54 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "413/414"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 8,
+          "time": "06:12:45 PM",
+          "actual": "442",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "441/443"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 10,
+          "time": "06:12:47 PM",
+          "actual": "421",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "423/424"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (6).txt",
+          "idx": 18,
+          "time": "06:13:21 PM",
+          "actual": "424",
+          "predicted": "421/422"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 2,
+          "time": "06:11:54 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "413/414"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 8,
+          "time": "06:12:45 PM",
+          "actual": "442",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "441/443"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 10,
+          "time": "06:12:47 PM",
+          "actual": "421",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "423/424"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 18,
+          "time": "06:13:21 PM",
+          "actual": "424",
+          "predicted": "421/422"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "424/422"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 20,
+          "time": "06:13:30 PM",
+          "actual": "413",
+          "predicted": "441/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "413/412"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 22,
+          "time": "06:13:33 PM",
+          "actual": "443",
+          "predicted": "424/421"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 23,
+          "time": "06:13:34 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 24,
+          "time": "06:13:35 PM",
+          "actual": "443",
+          "predicted": "431/433"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 25,
+          "time": "06:13:36 PM",
+          "actual": "414",
+          "predicted": "443/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 26,
+          "time": "06:13:39 PM",
+          "actual": "441",
+          "predicted": "413/412"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "443/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "433"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 29,
+          "time": "06:13:54 PM",
+          "actual": "412",
+          "predicted": "414/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (7).txt",
+          "idx": 30,
+          "time": "06:13:58 PM",
+          "actual": "413",
+          "predicted": "412/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 2,
+          "time": "06:11:54 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 3,
+          "time": "06:12:03 PM",
+          "actual": "412",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 5,
+          "time": "06:12:21 PM",
+          "actual": "421",
+          "predicted": "413/414"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 6,
+          "time": "06:12:31 PM",
+          "actual": "433",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 7,
+          "time": "06:12:44 PM",
+          "actual": "411",
+          "predicted": "434/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 8,
+          "time": "06:12:45 PM",
+          "actual": "442",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 9,
+          "time": "06:12:46 PM",
+          "actual": "431",
+          "predicted": "441/443"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 10,
+          "time": "06:12:47 PM",
+          "actual": "421",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 11,
+          "time": "06:12:50 PM",
+          "actual": "414",
+          "predicted": "423"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 13,
+          "time": "06:12:55 PM",
+          "actual": "423",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 14,
+          "time": "06:13:01 PM",
+          "actual": "412",
+          "predicted": "423/424"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 15,
+          "time": "06:13:10 PM",
+          "actual": "433",
+          "predicted": "413/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 16,
+          "time": "06:13:11 PM",
+          "actual": "443",
+          "predicted": "431/432"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 17,
+          "time": "06:13:16 PM",
+          "actual": "424",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 18,
+          "time": "06:13:21 PM",
+          "actual": "424",
+          "predicted": "421/422"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 19,
+          "time": "06:13:29 PM",
+          "actual": "441",
+          "predicted": "424/422"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 20,
+          "time": "06:13:30 PM",
+          "actual": "413",
+          "predicted": "441/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 21,
+          "time": "06:13:31 PM",
+          "actual": "422",
+          "predicted": "413/412"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 22,
+          "time": "06:13:33 PM",
+          "actual": "443",
+          "predicted": "424/421"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 23,
+          "time": "06:13:34 PM",
+          "actual": "433",
+          "predicted": "443/441"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 24,
+          "time": "06:13:35 PM",
+          "actual": "443",
+          "predicted": "431/433"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 25,
+          "time": "06:13:36 PM",
+          "actual": "414",
+          "predicted": "443/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 26,
+          "time": "06:13:39 PM",
+          "actual": "441",
+          "predicted": "413/412"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 27,
+          "time": "06:13:44 PM",
+          "actual": "433",
+          "predicted": "443/444"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 28,
+          "time": "06:13:47 PM",
+          "actual": "411",
+          "predicted": "433"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 29,
+          "time": "06:13:54 PM",
+          "actual": "412",
+          "predicted": "414/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 30,
+          "time": "06:13:58 PM",
+          "actual": "413",
+          "predicted": "412/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 31,
+          "time": "06:14:12 PM",
+          "actual": "441",
+          "predicted": "412/411"
+        },
+        {
+          "file": "Kiyo-Debug-v3-2025-12-20 (8).txt",
+          "idx": 32,
+          "time": "06:14:13 PM",
+          "actual": "421",
+          "predicted": "443/444"
+        }
+      ],
+      "pattern_changes": []
+    },
+    "insights": [
+      "Wave C2 Accuracy: 35.9% (23/64)",
+      "Wave C3 Accuracy: 53.2% (42/79)",
+      "Combined Wave Accuracy: 17.2% (11/64)",
+      "Prefix Accuracy: 9.6% (8/83)"
+    ]
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "issue": "Column 2 (Outer/Inner) predictions are unreliable (35.9%)",
+      "solution": "Disable Column 2 predictions or reduce their weight significantly",
+      "impact": "+10-15% overall accuracy"
+    },
+    {
+      "priority": "HIGH",
+      "issue": "Column 3 (Low/High) accuracy below target (53.2%)",
+      "solution": "Implement adaptive thresholds based on recent accuracy + pattern change detection",
+      "impact": "+15-20% overall accuracy"
+    },
+    {
+      "priority": "CRITICAL",
+      "issue": "Prefix predictions are catastrophically bad (9.6%)",
+      "solution": "Completely redesign prefix prediction algorithm - current approach is worse than random",
+      "impact": "+20-30% overall accuracy"
+    },
+    {
+      "priority": "CRITICAL",
+      "issue": "Combined predictions nearly useless (17.2%)",
+      "solution": "Focus on single-column predictions (C3 only) until accuracy improves",
+      "impact": "+25-35% overall accuracy"
+    },
+    {
+      "priority": "HIGH",
+      "issue": "Multiple consecutive miss streaks detected (5)",
+      "solution": "Implement pattern change detection to reset predictions when pattern shifts",
+      "impact": "+10-15% overall accuracy"
+    }
+  ],
+  "summary": {
+    "current_accuracy": {
+      "wave_c2": "35.9%",
+      "wave_c3": "53.2%",
+      "prefix": "9.6%",
+      "combined": "17.2%"
+    },
+    "target_accuracy": "80%+",
+    "gap_to_target": "26.8%"
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { runBacktest } from "../utils/backtester.js";
 
 const BASE_TABS = [
@@ -8,6 +8,7 @@ const BASE_TABS = [
   { id: "all", label: "Merged" },
   { id: "long", label: "Long String" },
   { id: "logs", label: "Live Logs" },
+  { id: "kiyo-debug", label: "KiyoDebug" },
 ];
 
 function formatTime(ts) {
@@ -18,7 +19,7 @@ function formatTime(ts) {
   }
 }
 
-// Manual long-string decoder helpers (1–4 digits -> 2-str rolls)
+// Manual long-string decoder helpers
 const CAESAR_GROUPS = {
   41: ["41", "34", "23", "12"],
   42: ["42", "31", "24", "13"],
@@ -32,44 +33,47 @@ const CAESAR_TO_BASE = Object.fromEntries(
   )
 );
 
-/**
- * Expand a long-string of digits (1–4) into:
- *  - pairs: Caesar line codes, e.g. "41 12 24 …"
- *  - rolls: decoded 2-str values, e.g. "41 41 42 …"
- *
- * Example:
- *   expandManualLongString("41242323")
- *   => {
- *        cleaned: "41242323",
- *        pairs: ["41","12","24","42","23","32","23"],
- *        rolls: ["41","41","42","42","41","43","41"]
- *      }
- */
 function expandManualLongString(longStr) {
   const cleaned = (longStr || "").replace(/[^1-4]/g, "");
-  if (cleaned.length < 2) {
-    return { cleaned, pairs: [], rolls: [] };
-  }
+  if (cleaned.length < 2) return { cleaned, pairs: [], rolls: [] };
 
   const digits = cleaned.split("");
   const pairs = [];
-  for (let i = 0; i < digits.length - 1; i++) {
-    pairs.push(digits[i] + digits[i + 1]);
+  const rolls = [];
+
+  let prevPair = digits[0] + digits[1];
+  pairs.push(prevPair);
+  rolls.push(CAESAR_TO_BASE[prevPair] || null);
+
+  for (let i = 2; i < digits.length; i++) {
+    const nextPair = prevPair[1] + digits[i];
+    pairs.push(nextPair);
+    const decoded = CAESAR_TO_BASE[nextPair] || null;
+    rolls.push(decoded);
+    prevPair = nextPair;
   }
 
-  const rolls = pairs.map((p) => CAESAR_TO_BASE[p] || null).filter(Boolean);
   return { cleaned, pairs, rolls };
 }
+
 export default function DebugPanel({
   debugLogs,
   onClearLogs,
   onImportLogs,
   isDebugMode = false,
+  kiyoWaveData = null,
 }) {
   const [activeTab, setActiveTab] = useState("logs");
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [sessionId, setSessionId] = useState(0); // Track session changes
+
+  const showToastMessage = (msg) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2500);
+  };
+
+  const [sessionId, setSessionId] = useState(0);
   const [manualLongInput, setManualLongInput] = useState("");
 
   const manualLong = useMemo(
@@ -77,7 +81,6 @@ export default function DebugPanel({
     [manualLongInput]
   );
 
-  // Dynamically build tabs — insert Backtest after "logs" only in debug mode
   const TABS = useMemo(() => {
     const tabs = [...BASE_TABS];
     if (isDebugMode) {
@@ -87,14 +90,12 @@ export default function DebugPanel({
     return tabs;
   }, [isDebugMode]);
 
-  // 📊 Per-session mode accuracy stats (resets on new session)
   const modeStats = useMemo(() => {
     if (!debugLogs?.length) return [];
 
-    // Detect session boundaries (big time gaps > 30 seconds)
     const sessions = [];
     let currentSession = [];
-    const SESSION_THRESHOLD = 30000; // 30 seconds
+    const SESSION_THRESHOLD = 30000;
 
     debugLogs.forEach((log, idx) => {
       if (idx === 0) {
@@ -115,9 +116,7 @@ export default function DebugPanel({
       sessions.push(currentSession);
     }
 
-    // Calculate accuracy for CURRENT (last) session only
     const currentSessionLogs = sessions[sessions.length - 1] || [];
-
     const stats = {};
 
     currentSessionLogs.forEach((log) => {
@@ -144,13 +143,11 @@ export default function DebugPanel({
       pct: s.total ? Math.round((s.hits / s.total) * 100) : 0,
     }));
 
-    // highest accuracy first
     rows.sort((a, b) => b.pct - a.pct);
 
     return rows;
   }, [debugLogs, sessionId]);
 
-  // Format a single log line with mode accuracy
   const formatLine = (log) => {
     const mainPct = Math.round((log.confidence || 0) * 100);
     let altPart = "";
@@ -181,13 +178,11 @@ export default function DebugPanel({
     } | ctx: ${(log.ctx || []).join(", ")}`;
   };
 
-  // BACKTEST: Only compute when debug mode + tab is active
   const backtestResults = useMemo(() => {
     if (!isDebugMode || activeTab !== "backtest") return null;
     return runBacktest(debugLogs);
   }, [debugLogs, activeTab, isDebugMode]);
 
-  // Latest session + per-roll stats
   const latestSessionStats = useMemo(() => {
     if (!backtestResults || !backtestResults.sessions?.length) return null;
 
@@ -206,18 +201,16 @@ export default function DebugPanel({
   const filtered = useMemo(() => {
     if (!debugLogs || !debugLogs.length) return [];
     if (activeTab === "all") return debugLogs;
-    if (activeTab === "long" || activeTab === "backtest") return [];
+    if (
+      activeTab === "long" ||
+      activeTab === "backtest" ||
+      activeTab === "kiyo-debug"
+    )
+      return [];
     return debugLogs.filter((l) => l.kind === activeTab);
   }, [debugLogs, activeTab]);
 
-  // 🔢 Long string builder
   const LONG_VALS = ["41", "42", "43", "44"];
-  const DIFF_TO_DIGIT = {
-    0: 1,
-    1: 3,
-    2: 2,
-    3: 4,
-  };
 
   function buildLongStringFromLogs(debugLogs) {
     if (!debugLogs || debugLogs.length === 0) return "";
@@ -230,24 +223,13 @@ export default function DebugPanel({
 
     if (rolls.length === 0) return "";
 
-    const firstIdx = LONG_VALS.indexOf(rolls[0]);
-    if (firstIdx === -1) return "";
-
-    const digits = [4, firstIdx + 1];
+    let longString = rolls[0];
 
     for (let i = 1; i < rolls.length; i++) {
-      const prevIdx = LONG_VALS.indexOf(rolls[i - 1]);
-      const currIdx = LONG_VALS.indexOf(rolls[i]);
-
-      if (prevIdx === -1 || currIdx === -1) continue;
-
-      const diff = (currIdx - prevIdx + 4) % 4;
-      const d = DIFF_TO_DIGIT[diff];
-
-      if (d) digits.push(d);
+      longString += rolls[i][1];
     }
 
-    return digits.join("");
+    return longString;
   }
 
   const longString = useMemo(() => {
@@ -256,17 +238,27 @@ export default function DebugPanel({
   }, [debugLogs]);
 
   const digitCounts = useMemo(() => {
-    if (!longString || longString === "—") {
-      return { 1: 0, 2: 0, 3: 0, 4: 0 };
+    // Combine auto-built long string + manual input for counting
+    let combinedString = "";
+    
+    // Add auto-built long string
+    if (longString && longString !== "—") {
+      combinedString += longString;
     }
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    for (const char of longString) {
+    
+    // Add manual decoder input (cleaned)
+    if (manualLong.cleaned && manualLong.cleaned.length >= 2) {
+      combinedString += manualLong.cleaned;
+    }
+    
+    // Count digits
+    const counts = { "1": 0, "2": 0, "3": 0, "4": 0 };
+    for (const char of combinedString) {
       if (counts.hasOwnProperty(char)) counts[char]++;
     }
     return counts;
-  }, [longString]);
+  }, [longString, manualLong]);
 
-  // Parse Svarog export format
   function parseSvarogExport(text) {
     const rawLines = text.split(/\r?\n/);
 
@@ -299,9 +291,8 @@ export default function DebugPanel({
 
       const first = parts[0];
 
-      // Parse timestamp
       let ts = Date.now();
-      const timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\]/);
+      let timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\]/);
       if (timeMatch) {
         let [, hh, mm, ss, ampm] = timeMatch;
         let h = parseInt(hh, 10);
@@ -314,29 +305,33 @@ export default function DebugPanel({
         const d = new Date();
         d.setHours(h, m, s, 0);
         ts = d.getTime();
+      } else {
+        timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\]/);
+        if (timeMatch) {
+          const [, hh, mm, ss] = timeMatch;
+          const d = new Date();
+          d.setHours(parseInt(hh, 10), parseInt(mm, 10), parseInt(ss, 10), 0);
+          ts = d.getTime();
+        }
       }
 
-      // Parse prediction & confidence
       const predMatch = first.match(/pred:\s*(\d{2}|—)\s*\((\d+)%\)/);
       if (!predMatch) continue;
       const predRaw = predMatch[1];
       const confPct = parseInt(predMatch[2], 10) || 0;
       const pred = predRaw === "—" ? "—" : predRaw;
 
-      // Parse alt
       const altPart = parts.find((p) => p.startsWith("alt:"));
       const altMatch = altPart
         ? altPart.match(/alt:\s*(\d{2})\s*\((\d+)%\)/)
         : null;
       const alt = altMatch ? altMatch[1] : null;
 
-      // Parse mode
       const modePart = parts.find((p) => p.startsWith("mode:"));
       const mode = modePart
         ? modePart.replace(/^mode:\s*/, "").trim()
         : "imported";
 
-      // Parse actual
       const actualPart = parts.find((p) => p.startsWith("actual:"));
       const actualMatch = actualPart
         ? actualPart.match(/actual:\s*(\d{2})/)
@@ -344,7 +339,6 @@ export default function DebugPanel({
       const actual = actualMatch ? actualMatch[1] : null;
       if (!actual) continue;
 
-      // Parse context
       const ctxPart = parts.find((p) => p.startsWith("ctx:"));
       let ctx = [];
       if (ctxPart) {
@@ -354,6 +348,11 @@ export default function DebugPanel({
           .map((x) => x.trim())
           .filter(Boolean);
       }
+
+      const sourcePart = parts.find((p) => p.startsWith("source:"));
+      const source = sourcePart
+        ? sourcePart.replace(/^source:\s*/, "").trim()
+        : "imported";
 
       logs.push({
         ts,
@@ -365,13 +364,13 @@ export default function DebugPanel({
         actual,
         ctx,
         candidates: [],
+        source,
       });
     }
 
     return logs;
   }
 
-  // Parse simple roll list
   function parseSimpleRollList(lines) {
     const rolls = [];
     for (const raw of lines) {
@@ -402,7 +401,6 @@ export default function DebugPanel({
     return logs;
   }
 
-  // Try Svarog export first, then simple list
   function parseDebugFile(text) {
     const logsFromExport = parseSvarogExport(text);
     if (logsFromExport.length) return logsFromExport;
@@ -427,7 +425,7 @@ export default function DebugPanel({
         }
 
         onImportLogs(logs);
-        setToastMessage(`✓ Imported ${logs.length} entries!`);
+        setToastMessage(`✔ Imported ${logs.length} entries!`);
         setShowToast(true);
         setTimeout(() => setShowToast(false), 2500);
       } catch (err) {
@@ -443,7 +441,7 @@ export default function DebugPanel({
   const handleCopyLongString = () => {
     if (!longString || longString === "—") return;
     navigator.clipboard.writeText(longString).then(() => {
-      setToastMessage("✓ Long string copied!");
+      setToastMessage("✔ Long string copied!");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2500);
     });
@@ -487,23 +485,553 @@ export default function DebugPanel({
     }
   };
 
+  // 🔥 IMPROVED KIYO DEBUG EXPORT
+
+  const handleDownloadKiyoDebug = () => {
+    const kiyoLogs = (debugLogs || [])
+      .filter((l) => l?.source === "kiyo" && l?.kind === "3" && l?.actual)
+      .slice()
+      .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+    if (!kiyoLogs.length && !kiyoWaveData) {
+      showToastMessage("No Kiyo debug data to download.");
+      return;
+    }
+
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const formatTime = (ts) => {
+      try {
+        return new Date(ts).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        });
+      } catch {
+        return "--:--:--";
+      }
+    };
+
+    const lines = [];
+    lines.push("╔═══════════════════════════════════════════════════════════╗");
+    lines.push("║         KIYO MODE DEBUG EXPORT v3.0                       ║");
+    lines.push("║         Clean Tracking & Analysis                         ║");
+    lines.push("╚═══════════════════════════════════════════════════════════╝");
+    lines.push("");
+    lines.push(`Generated: ${timestamp}`);
+    lines.push(`Total Rolls: ${kiyoWaveData?.combinedRolls?.length || 0}`);
+    lines.push("");
+
+    // 🔥 FIX 1: Format rolls in table (15 per row)
+    const allRollsFromLogs = kiyoLogs
+      .map((l) => l?.actual)
+      .filter(Boolean)
+      .map(String);
+    const allRolls = allRollsFromLogs.length
+      ? allRollsFromLogs
+      : kiyoWaveData?.combinedRolls || [];
+    if (allRolls.length > 0) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push(
+        "│  📋 ALL ROLLS (Session History)                          │"
+      );
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+
+      const rollsPerRow = 15;
+      for (let i = 0; i < allRolls.length; i += rollsPerRow) {
+        const chunk = allRolls.slice(i, i + rollsPerRow);
+        const formattedChunk = chunk.map(
+          (r, idx) => `${(i + idx + 1).toString().padStart(3)}. ${r}`
+        );
+        lines.push(formattedChunk.join("  "));
+      }
+
+      lines.push("");
+      lines.push("");
+    }
+
+    // Timeline with wave predictions
+    lines.push("┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐");
+    lines.push("│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │");
+    lines.push("└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘");
+    lines.push("");
+    lines.push("Legend:");
+    lines.push("  Actual = What you got in-game");
+    lines.push("  Wave-C2/C3 = Wave predictions (digits suggested)");
+    lines.push("  Suggest = What wave card recommended (message)");
+    lines.push("  2str/3str = Prefix predictions");
+    lines.push("  ✓ = Hit, ✗ = Miss, - = No prediction");
+    lines.push("");
+
+    const header = [
+      "#".padEnd(3),
+      "Time".padEnd(8),
+      "Actual".padEnd(6),
+      "Wave-C2".padEnd(8),
+      "✓".padEnd(2),
+      "C2-Suggest".padEnd(25),
+      "Wave-C3".padEnd(8),
+      "✓".padEnd(2),
+      "C3-Suggest".padEnd(25),
+      "2str".padEnd(5),
+      "✓".padEnd(2),
+      "3str".padEnd(5),
+      "✓".padEnd(2),
+    ].join(" ");
+
+    lines.push(header);
+    lines.push("─".repeat(140));
+
+    // 🔥 COMPREHENSIVE TIMELINE SECTION:
+    kiyoLogs.forEach((log, idx) => {
+      const actual = log.actual || "---";
+      const actualD2 = actual[1] || "-";
+      const actualD3 = actual[2] || "-";
+
+      // Wave predictions (prediction BEFORE this roll comes from previous log)
+      const prev = idx > 0 ? kiyoLogs[idx - 1] : null;
+      const c2Pred = prev?.waveData?.col2Prediction || null;
+      const c3Pred = prev?.waveData?.col3Prediction || null;
+
+      // Format wave suggestions
+      const waveC2 = c2Pred ? `[${c2Pred.join(",")}]` : "-";
+      const waveC3 = c3Pred ? `[${c3Pred.join(",")}]` : "-";
+
+      // Check wave hits
+      const c2Hit =
+        c2Pred && actualD2 !== "-"
+          ? c2Pred.includes(actualD2)
+            ? "✓"
+            : "✗"
+          : "-";
+      const c3Hit =
+        c3Pred && actualD3 !== "-"
+          ? c3Pred.includes(actualD3)
+            ? "✓"
+            : "✗"
+          : "-";
+
+      // Get wave card suggestions (what was recommended)
+      const col2Data = prev?.waveAnalysis?.columns?.[0];
+      const col3Data = prev?.waveAnalysis?.columns?.[1];
+      
+      const c2Suggest = col2Data?.message ? 
+        col2Data.message.substring(0, 25) : "-";
+      const c3Suggest = col3Data?.message ? 
+        col3Data.message.substring(0, 25) : "-";
+
+      // Get prefix predictions from smartRecommendation
+      const prevRec = prev?.smartPrefix;
+      
+      // 2-str prediction
+      const pred2str = prevRec?.prediction2str?.predicted || "-";
+      const hit2str = pred2str !== "-" && actual === pred2str ? "✓" : 
+                      pred2str !== "-" ? "✗" : "-";
+      
+      // 3-str prediction  
+      const pred3str = prevRec?.prediction3str?.predicted || "-";
+      const hit3str = pred3str !== "-" && actual === pred3str ? "✓" :
+                      pred3str !== "-" ? "✗" : "-";
+
+      const row = [
+        String(idx + 1).padEnd(3),
+        formatTime(log.ts).padEnd(8),
+        actual.padEnd(6),
+        waveC2.padEnd(8),
+        c2Hit.padEnd(2),
+        c2Suggest.padEnd(25),
+        waveC3.padEnd(8),
+        c3Hit.padEnd(2),
+        c3Suggest.padEnd(25),
+        pred2str.padEnd(5),
+        hit2str.padEnd(2),
+        pred3str.padEnd(5),
+        hit3str.padEnd(2),
+      ].join(" ");
+
+      lines.push(row);
+      
+      // 🔥 ADD 5-MINUTE WINDOW SEPARATOR (visual only, every 11 rolls)
+      if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
+        lines.push("─".repeat(140) + " ◄ 5-min window boundary");
+      }
+    });
+
+    lines.push("");
+    lines.push("");
+    // --- SUMMARY CALC (from table rows) ---
+    const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
+
+    let c2Total = 0,
+      c2Hits = 0;
+    let c3Total = 0,
+      c3Hits = 0;
+    let combTotal = 0,
+      combHits = 0;
+
+    let prefix2strTotal = 0,
+      prefix2strHits = 0;
+    let prefix3strTotal = 0,
+      prefix3strHits = 0;
+
+    const isDash = (v) => !v || v === "-" || v === "--";
+
+    kiyoLogs.forEach((log, idx) => {
+      const actual = String(log.actual || "");
+
+      const d2 = actual[1] || null;
+      const d3 = actual[2] || null;
+
+      const prev = idx > 0 ? kiyoLogs[idx - 1] : null;
+
+      const c2Arr = prev?.waveData?.col2Prediction || null;
+      const c3Arr = prev?.waveData?.col3Prediction || null;
+
+      const hasC2 = Array.isArray(c2Arr) && c2Arr.length > 0;
+      const hasC3 = Array.isArray(c3Arr) && c3Arr.length > 0;
+
+      const c2Hit = hasC2 && d2 ? c2Arr.includes(d2) : false;
+      const c3Hit = hasC3 && d3 ? c3Arr.includes(d3) : false;
+
+      if (hasC2) {
+        c2Total++;
+        if (c2Hit) c2Hits++;
+      }
+      if (hasC3) {
+        c3Total++;
+        if (c3Hit) c3Hits++;
+      }
+
+      if (hasC2 && hasC3) {
+        combTotal++;
+        if (c2Hit && c3Hit) combHits++;
+      }
+
+      // 2-str and 3-str prefix predictions
+      const prevRec = prev?.smartPrefix;
+      
+      const pred2str = prevRec?.prediction2str?.predicted;
+      if (pred2str && pred2str !== "-") {
+        prefix2strTotal++;
+        if (actual === pred2str) prefix2strHits++;
+      }
+      
+      const pred3str = prevRec?.prediction3str?.predicted;
+      if (pred3str && pred3str !== "-") {
+        prefix3strTotal++;
+        if (actual === pred3str) prefix3strHits++;
+      }
+    });
+
+    // Summary
+    lines.push("┌─────────────────────────────────────────────────────────┐");
+    lines.push("│  📈 ACCURACY SUMMARY                                     │");
+    lines.push("└─────────────────────────────────────────────────────────┘");
+    lines.push("");
+
+    // Now print real numbers:
+    lines.push("WAVE PERFORMANCE:");
+    lines.push(
+      `  Column 2: ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`
+    );
+    lines.push(
+      `  Column 3: ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`
+    );
+    lines.push(
+      `  Combined: ${combHits} / ${combTotal} (${pct(combHits, combTotal)}%)`
+    );
+    lines.push("");
+
+    lines.push("PREFIX PERFORMANCE:");
+    lines.push(
+      `  2-String: ${prefix2strHits} / ${prefix2strTotal} (${pct(prefix2strHits, prefix2strTotal)}%)`
+    );
+    lines.push(
+      `  3-String: ${prefix3strHits} / ${prefix3strTotal} (${pct(prefix3strHits, prefix3strTotal)}%)`
+    );
+    lines.push("");
+
+    // Pattern analysis
+    if (allRolls.length > 0) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push("│  🎨 PATTERN ANALYSIS (Last 12 Rolls)                    │");
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+      lines.push(
+        "Roll | Digit 2 | Digit 3 | Col2 (O/I) | Col3 (L/H) | Pattern"
+      );
+      lines.push(
+        "──────────────────────────────────────────────────────────────"
+      );
+
+      allRolls
+        .slice(-12)
+        .reverse()
+        .forEach((roll) => {
+          const d2 = roll[1];
+          const d3 = roll[2];
+          const col2 = ["1", "4"].includes(d2) ? "Outer" : "Inner";
+          const col3 = ["1", "2"].includes(d3) ? "Low  " : "High ";
+          const pattern = `${["1", "4"].includes(d2) ? "O" : "I"}-${
+            ["1", "2"].includes(d3) ? "L" : "H"
+          }`;
+
+          lines.push(
+            `${roll}  |    ${d2}    |    ${d3}    | ${col2.padEnd(
+              5
+            )}  | ${col3.padEnd(5)}  | ${pattern}`
+          );
+        });
+
+      lines.push("");
+
+      // Get current streaks from waveData if available
+      if (kiyoWaveData?.waveAnalysis?.columns) {
+        const col2 = kiyoWaveData.waveAnalysis.columns[0];
+        const col3 = kiyoWaveData.waveAnalysis.columns[1];
+        lines.push("Current Streaks:");
+        lines.push(
+          `  • Column 2: ${col2?.runLength || 0} consecutive ${
+            col2?.currentLabel || "?"
+          }`
+        );
+        lines.push(
+          `  • Column 3: ${col3?.runLength || 0} consecutive ${
+            col3?.currentLabel || "?"
+          }`
+        );
+      } else {
+        lines.push("Current Streaks:");
+        lines.push(`  • Column 2: ___ consecutive ___`);
+        lines.push(`  • Column 3: ___ consecutive ___`);
+      }
+
+      lines.push("");
+      lines.push("");
+    }
+
+    // 🔥 NEW: Per-Window Breakdown
+    if (kiyoLogs.length > 0) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push("│  📊 PER-WINDOW ANALYSIS                                 │");
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+      
+      // Group logs by window (every 11 rolls)
+      const windows = [];
+      for (let i = 0; i < kiyoLogs.length; i += 11) {
+        const windowLogs = kiyoLogs.slice(i, Math.min(i + 11, kiyoLogs.length));
+        windows.push({
+          index: Math.floor(i / 11),
+          startRoll: i + 1,
+          endRoll: Math.min(i + 11, kiyoLogs.length),
+          logs: windowLogs
+        });
+      }
+      
+      windows.forEach((window, idx) => {
+        const { startRoll, endRoll, logs } = window;
+        
+        // Calculate accuracy for this window
+        let col2Hits = 0, col2Total = 0;
+        let col3Hits = 0, col3Total = 0;
+        let detectedCol2Pattern = null;
+        let detectedCol3Pattern = null;
+        
+        logs.forEach((log, i) => {
+          if (i === 0) return; // Skip first roll (no prediction)
+          
+          const prev = logs[i - 1];
+          const actual = log.roll;
+          const actualD2 = actual?.[1];
+          const actualD3 = actual?.[2];
+          
+          // Col2 accuracy
+          const c2Pred = prev?.waveData?.waveAnalysis?.columns?.[0]?.flipTarget;
+          if (c2Pred && actualD2) {
+            col2Total++;
+            if (c2Pred.includes(actualD2)) col2Hits++;
+          }
+          
+          // Col3 accuracy
+          const c3Pred = prev?.waveData?.waveAnalysis?.columns?.[1]?.flipTarget;
+          if (c3Pred && actualD3) {
+            col3Total++;
+            if (c3Pred.includes(actualD3)) col3Hits++;
+          }
+          
+          // Get pattern from last roll in window
+          if (i === logs.length - 1) {
+            detectedCol2Pattern = log?.waveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+            detectedCol3Pattern = log?.waveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+          }
+        });
+        
+        const col2Acc = col2Total > 0 ? ((col2Hits / col2Total) * 100).toFixed(1) : "N/A";
+        const col3Acc = col3Total > 0 ? ((col3Hits / col3Total) * 100).toFixed(1) : "N/A";
+        
+        // Check for pattern transition
+        let transitionMarker = "";
+        if (idx > 0) {
+          const prevWindow = windows[idx - 1];
+          const prevLogs = prevWindow.logs;
+          const prevLastLog = prevLogs[prevLogs.length - 1];
+          const prevCol2Pattern = prevLastLog?.waveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+          const prevCol3Pattern = prevLastLog?.waveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+          
+          const col2Changed = prevCol2Pattern?.type !== detectedCol2Pattern?.type;
+          const col3Changed = prevCol3Pattern?.type !== detectedCol3Pattern?.type;
+          
+          if (col2Changed || col3Changed) {
+            transitionMarker = " ⚠️ PATTERN CHANGED";
+          }
+        }
+        
+        lines.push(`Window ${idx + 1} (Rolls ${startRoll}-${endRoll}):${transitionMarker}`);
+        lines.push(`  Col2: ${detectedCol2Pattern?.type || 'no pattern'} - ${col2Hits}/${col2Total} (${col2Acc}%)`);
+        lines.push(`  Col3: ${detectedCol3Pattern?.type || 'no pattern'} - ${col3Hits}/${col3Total} (${col3Acc}%)`);
+        
+        if (detectedCol2Pattern || detectedCol3Pattern) {
+          if (detectedCol2Pattern) {
+            lines.push(`    → Col2: ${(detectedCol2Pattern.confidence * 100).toFixed(0)}% confidence`);
+          }
+          if (detectedCol3Pattern) {
+            lines.push(`    → Col3: ${(detectedCol3Pattern.confidence * 100).toFixed(0)}% confidence`);
+          }
+        }
+        
+        lines.push("");
+      });
+    }
+
+    // 🔥 NEW: Pattern Detection Status
+    const lastLog = kiyoLogs[kiyoLogs.length - 1];
+    if (lastLog?.waveData) {
+      lines.push("┌─────────────────────────────────────────────────────────┐");
+      lines.push("│  🎯 DETECTED PATTERNS                                   │");
+      lines.push("└─────────────────────────────────────────────────────────┘");
+      lines.push("");
+      
+      // Get pattern info from wave columns
+      const col2Pattern = kiyoWaveData?.waveAnalysis?.columns?.[0]?.patternDetected;
+      const col3Pattern = kiyoWaveData?.waveAnalysis?.columns?.[1]?.patternDetected;
+      
+      lines.push("COLUMN 2 (Outer/Inner):");
+      if (col2Pattern) {
+        lines.push(`  🎯 Pattern: ${col2Pattern.type}`);
+        lines.push(`  📊 Confidence: ${(col2Pattern.confidence * 100).toFixed(0)}%`);
+        lines.push(`  📏 Expected run: ${col2Pattern.runLength}`);
+      } else {
+        lines.push("  ⚠️ No clear pattern detected (using fallback logic)");
+      }
+      
+      lines.push("");
+      lines.push("COLUMN 3 (Low/High):");
+      if (col3Pattern) {
+        lines.push(`  🎯 Pattern: ${col3Pattern.type}`);
+        lines.push(`  📊 Confidence: ${(col3Pattern.confidence * 100).toFixed(0)}%`);
+        lines.push(`  📏 Expected run: ${col3Pattern.runLength}`);
+      } else {
+        lines.push("  ⚠️ No clear pattern detected (using fallback logic)");
+      }
+      
+      lines.push("");
+      
+      // 🔥 NEW: Betting Recommendation
+      const recommendation = kiyoWaveData?.waveAnalysis?.bettingRecommendation;
+      if (recommendation) {
+        lines.push("┌─────────────────────────────────────────────────────────┐");
+        lines.push("│  🎯 BETTING RECOMMENDATION                              │");
+        lines.push("└─────────────────────────────────────────────────────────┘");
+        lines.push("");
+        
+        const col2Analysis = kiyoWaveData?.waveAnalysis?.columns?.[0];
+        const col3Analysis = kiyoWaveData?.waveAnalysis?.columns?.[1];
+        
+        // Column 2 Status
+        lines.push("COLUMN 2 (Outer/Inner):");
+        if (recommendation.col2Status === 'good') {
+          lines.push(`  ✅ BET - Clear pattern detected`);
+          lines.push(`     Pattern: ${col2Analysis?.patternDetected?.type || 'N/A'}`);
+          lines.push(`     Confidence: ${Math.round((col2Analysis?.confidence || 0) * 100)}%`);
+        } else if (recommendation.col2Status === 'bad') {
+          lines.push(`  ❌ SKIP - Chaotic pattern`);
+          lines.push(`     Confidence: ${Math.round((col2Analysis?.confidence || 0) * 100)}%`);
+          lines.push(`     Reason: Pattern too unstable`);
+        } else {
+          lines.push(`  ⚪ MONITOR - Building pattern`);
+        }
+        
+        lines.push("");
+        
+        // Column 3 Status
+        lines.push("COLUMN 3 (Low/High):");
+        if (recommendation.col3Status === 'good') {
+          lines.push(`  ✅ BET - Clear pattern detected`);
+          lines.push(`     Pattern: ${col3Analysis?.patternDetected?.type || 'N/A'}`);
+          lines.push(`     Confidence: ${Math.round((col3Analysis?.confidence || 0) * 100)}%`);
+        } else if (recommendation.col3Status === 'bad') {
+          lines.push(`  ❌ SKIP - Chaotic pattern`);
+          lines.push(`     Confidence: ${Math.round((col3Analysis?.confidence || 0) * 100)}%`);
+          lines.push(`     Reason: Pattern too unstable`);
+        } else {
+          lines.push(`  ⚪ MONITOR - Building pattern`);
+        }
+        
+        lines.push("");
+        
+        // Overall Suggestion
+        lines.push("OVERALL SUGGESTION:");
+        lines.push(`  💡 ${recommendation.suggestion}`);
+        lines.push(`     ${recommendation.message}`);
+        
+        lines.push("");
+      }
+    }
+
+    // Footer
+    lines.push("═══════════════════════════════════════════════════════════");
+    lines.push("Generated by Kiyo Mode v3.0 - Pattern Recognition System");
+    lines.push("═══════════════════════════════════════════════════════════");
+
+    // Download the file
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Kiyo-Debug-v3-${now.toISOString().split("T")[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToastMessage("✓ Debug file exported!");
+  };
   return (
     <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 sm:p-5 mt-4 relative">
-      {/* DEBUG MODE Badge */}
       {isDebugMode && (
         <div className="absolute top-2 right-2 text-xs bg-violet-600/80 text-white px-2 py-1 rounded-full font-bold border border-violet-500/50 z-10">
           DEBUG MODE
         </div>
       )}
 
-      {/* Toast Notification */}
       {showToast && (
         <div className="fixed bottom-4 right-4 bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-sm text-slate-200 shadow-lg z-50 animate-pulse">
           {toastMessage}
         </div>
       )}
 
-      {/* Header + Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
         <div>
           <h3 className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-300">
@@ -514,415 +1042,395 @@ export default function DebugPanel({
             digits.
           </p>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Import 2-str file */}
+          <label className="px-3 py-1.5 text-xs rounded-lg bg-slate-800/50 hover:bg-slate-700/60 border border-slate-600/50 text-slate-200 cursor-pointer">
+            📥 Import
+            <input
+              type="file"
+              accept=".txt"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+          </label>
+
           <button
             onClick={handleDownload}
-            className="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 transition cursor-pointer"
+            className="px-3 py-1.5 text-xs rounded-lg bg-slate-800/50 hover:bg-slate-700/60 border border-slate-600/50 text-slate-200 cursor-pointer"
           >
-            Download
+            ⬇ Export
           </button>
+
           <button
             onClick={handleClear}
-            className="px-3 py-1.5 text-xs rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-700/50 text-red-300 transition cursor-pointer"
+            className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-200 cursor-pointer"
           >
-            Clear
+            🗑 Clear
           </button>
+
+          {/* Only show Kiyo export in kiyo-debug tab */}
+          {activeTab === "kiyo-debug" && (
+            <button
+              onClick={handleDownloadKiyoDebug}
+              className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow"
+            >
+              📥 Download Kiyo
+            </button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1 mb-3 text-[11px]">
-        {TABS.map((tab) => (
+      <div className="flex flex-wrap gap-2 mb-3">
+        {TABS.map((t) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? "bg-violet-600 text-white border-violet-500 shadow-md"
-                : "bg-slate-900 text-slate-300 border-slate-600 hover:bg-slate-800"
-            }`}
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={[
+              "px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition",
+              activeTab === t.id
+                ? "bg-violet-600/20 border-violet-500/50 text-violet-200"
+                : "bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-800/70",
+            ].join(" ")}
           >
-            {tab.label}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* ═══ BACKTEST TAB ═══ */}
-      {activeTab === "backtest" && isDebugMode && (
-        <div className="space-y-4 p-4 bg-gradient-to-br from-emerald-900/20 to-sky-900/20 rounded-2xl border border-emerald-500/30">
-          <div className="text-center mb-4">
-            <h4 className="text-lg font-black text-emerald-400 mb-1">
-              Predictor Backtest
-            </h4>
-            <p className="text-xs text-slate-400">
-              Live accuracy on your historical ctx → actual
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <p className="text-[11px] text-slate-400">
-              Import Svarog debug export or simple list of rolls (1 per line)
-            </p>
-            <label className="inline-flex items-center px-3 py-1.5 text-xs rounded-lg bg-slate-800/80 border border-slate-600 cursor-pointer hover:bg-slate-700/80 transition">
-              <span className="mr-2 text-slate-100">Import .txt</span>
-              <input
-                type="file"
-                accept=".txt"
-                className="hidden"
-                onChange={handleImportFile}
-              />
-            </label>
-          </div>
-
-          {/* Overall Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40 text-center">
-              <div className="text-3xl font-black text-emerald-400">
-                {backtestResults?.overall.top2Pct?.toFixed(1) || 0}%
-              </div>
-              <div className="text-xs text-emerald-300 uppercase tracking-wider">
-                Top-2 Accuracy
-              </div>
-            </div>
-            <div className="bg-sky-900/40 p-3 rounded-xl border border-sky-500/40 text-center">
-              <div className="text-3xl font-black text-sky-400">
-                {backtestResults?.overall.top1Pct?.toFixed(1) || 0}%
-              </div>
-              <div className="text-xs text-sky-300 uppercase tracking-wider">
-                Top-1 Accuracy
-              </div>
-            </div>
-            <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40 text-center">
-              <div className="text-3xl font-bold text-violet-400">
-                {backtestResults?.overall.totalValid || 0}
-              </div>
-              <div className="text-xs text-violet-300 uppercase tracking-wider">
-                Valid Tests
-              </div>
-            </div>
-          </div>
-
-          {/* Sessions Table */}
-          <div className="overflow-x-auto max-h-40">
-            <table className="w-full text-xs border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
-              <thead className="bg-slate-900/80 sticky top-0">
-                <tr>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Session
-                  </th>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Tests
-                  </th>
-                  <th className="p-3 text-left font-bold text-slate-300 border-r border-slate-700/50">
-                    Valid
-                  </th>
-                  <th className="p-3 text-left font-bold text-emerald-400">
-                    Top-1 %
-                  </th>
-                  <th className="p-3 text-left font-bold text-sky-400">
-                    Top-2 %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {backtestResults?.sessions?.length ? (
-                  backtestResults.sessions.map((session, i) => (
-                    <tr
-                      key={i}
-                      className="hover:bg-slate-800/50 border-t border-slate-700/30 even:bg-slate-950/20"
-                    >
-                      <td className="p-3 font-mono">#{session.session}</td>
-                      <td className="p-3">{session.tests}</td>
-                      <td className="p-3 font-bold text-violet-400">
-                        {session.valid}
-                      </td>
-                      <td className="p-3 text-emerald-400 font-bold">
-                        {session.top1Pct.toFixed(1)}%
-                      </td>
-                      <td className="p-3 text-sky-400 font-bold">
-                        {session.top2Pct.toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="p-8 text-center text-slate-500 italic"
-                    >
-                      No historical data. Roll more!
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Latest Session Details */}
-          {latestSessionStats && (
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>
-                  Session #{latestSessionStats.session.session} – detailed view
-                </span>
-                <span>
-                  {latestSessionStats.session.valid} valid /{" "}
-                  {latestSessionStats.session.tests} total
-                </span>
-              </div>
-
-              {/* Summary boxes */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-violet-900/40 p-3 rounded-xl border border-violet-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
-                    Top-2 Accuracy
-                  </div>
-                  <div className="text-2xl font-black text-violet-300">
-                    {latestSessionStats.session.top2Pct.toFixed(1)}%
-                  </div>
-                </div>
-                <div className="bg-emerald-900/40 p-3 rounded-xl border border-emerald-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
-                    Main Hits
-                  </div>
-                  <div className="text-2xl font-black text-emerald-300">
-                    {latestSessionStats.mainHits}
-                  </div>
-                </div>
-                <div className="bg-amber-900/40 p-3 rounded-xl border border-amber-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">
-                    Alt Hits
-                  </div>
-                  <div className="text-2xl font-black text-amber-300">
-                    {latestSessionStats.altHits}
-                  </div>
-                </div>
-                <div className="bg-rose-900/40 p-3 rounded-xl border border-rose-500/40">
-                  <div className="text-[11px] text-slate-300 mb-1">Misses</div>
-                  <div className="text-2xl font-black text-rose-300">
-                    {latestSessionStats.misses}
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-roll detail table */}
-              <div className="overflow-x-auto max-h-52 text-[10px] font-mono">
-                <table className="w-full border-collapse bg-slate-950/50 rounded-lg overflow-hidden">
-                  <thead className="bg-slate-900/80 sticky top-0">
-                    <tr>
-                      <th className="p-2 text-left text-slate-300">#</th>
-                      <th className="p-2 text-left text-slate-300">
-                        Ctx (last 8)
-                      </th>
-                      <th className="p-2 text-left text-slate-300">Pred</th>
-                      <th className="p-2 text-left text-slate-300">Alt</th>
-                      <th className="p-2 text-left text-slate-300">Actual</th>
-                      <th className="p-2 text-left text-slate-300">Result</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {latestSessionStats.detailRows.map((row, i) => {
-                      const resultLabel = row.hitMain
-                        ? "MAIN"
-                        : row.hitAlt
-                        ? "ALT"
-                        : "MISS";
-                      const resultColor = row.hitMain
-                        ? "text-emerald-300"
-                        : row.hitAlt
-                        ? "text-amber-300"
-                        : "text-rose-300";
-
-                      return (
-                        <tr
-                          key={i}
-                          className="border-t border-slate-700/40 hover:bg-slate-800/40"
-                        >
-                          <td className="p-2 text-slate-400">{i + 1}</td>
-                          <td className="p-2 text-slate-200">
-                            {(row.rolls || []).join(", ")}
-                          </td>
-                          <td className="p-2 text-slate-200">
-                            {row.pred}{" "}
-                            {row.predConf != null && `(${row.predConf}%)`}
-                          </td>
-                          <td className="p-2 text-slate-200">
-                            {row.alt || "—"}
-                          </td>
-                          <td className="p-2 text-slate-200">{row.actual}</td>
-                          <td className={`p-2 font-bold ${resultColor}`}>
-                            {resultLabel}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ LONG STRING TAB ═══ */}
-      {/* ═══ LONG STRING TAB ═══ */}
-      {activeTab === "long" && (
-        <div className="space-y-4">
-          {/* auto-built long string from live debug logs */}
-          <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-40 overflow-y-auto">
-            {longString && longString !== "—" ? (
-              <div className="flex items-start justify-between gap-2">
-                <div className="text-slate-200 font-mono text-xs break-all leading-relaxed flex-1">
-                  {longString}
-                </div>
-                <button
-                  onClick={handleCopyLongString}
-                  className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 whitespace-nowrap mt-1 transition cursor-pointer"
-                >
-                  Copy
-                </button>
-              </div>
+      {/* Body */}
+      <div className="space-y-3">
+        {/* BACKTEST (debug mode only) */}
+        {activeTab === "backtest" && isDebugMode && (
+          <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3">
+            {!backtestResults ? (
+              <div className="text-sm text-slate-400">No backtest results.</div>
             ) : (
-              <div className="text-slate-500 text-xs">
-                No debug entries yet.
-              </div>
+              <>
+                <div className="text-sm text-slate-200 font-semibold mb-2">
+                  Backtest Summary
+                </div>
+
+                {latestSessionStats ? (
+                  <div className="text-xs text-slate-300 space-y-1">
+                    <div>
+                      Session #{backtestResults.sessions.length} — rows:{" "}
+                      {latestSessionStats.detailRows.length}
+                    </div>
+                    <div>
+                      Main: {latestSessionStats.mainHits} | Alt:{" "}
+                      {latestSessionStats.altHits} | Miss:{" "}
+                      {latestSessionStats.misses}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400">No session.</div>
+                )}
+              </>
             )}
           </div>
+        )}
 
-          {longString && longString !== "—" && (
-            <>
-              {/* what the digits mean */}
-              <p className="text-[11px] text-slate-400">
-                <span className="font-semibold text-violet-300">Hint:</span>{" "}
-                digits <span className="text-violet-300">1–4</span> mark the
-                line in the Caesar grid that each step landed on (
-                <span className="text-violet-300">1</span> = line 1,{" "}
-                <span className="text-violet-300">2</span> = line 2, etc.).
-              </p>
+        {/* KIYO DEBUG TAB (shows snapshot info + download button already in header) */}
+        {activeTab === "kiyo-debug" && (
+          <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-emerald-200">
+                  Kiyo Debug Snapshot
+                </div>
+                <div className="text-xs text-slate-400">
+                  Uses logs where <code>source="kiyo"</code> and{" "}
+                  <code>kind="3"</code>
+                </div>
+              </div>
+            </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                <div className="bg-slate-950/60 rounded-lg border border-violet-500/30 p-3">
-                  <div className="text-[11px] text-slate-400 mb-1">
-                    Total Length
+            <div className="mt-3 text-xs text-slate-200 space-y-1">
+              <div>
+                Latest combined rolls:{" "}
+                <span className="text-slate-400">
+                  {kiyoWaveData?.combinedRolls?.length ?? 0}
+                </span>
+              </div>
+              <div>
+                Latest prediction:{" "}
+                <span className="text-slate-400">
+                  {kiyoWaveData?.prediction?.prediction || "-"}{" "}
+                  {kiyoWaveData?.prediction?.confidence != null
+                    ? `(${Math.round(
+                        kiyoWaveData.prediction.confidence * 100
+                      )}%)`
+                    : ""}
+                </span>
+              </div>
+              <div>
+                Latest smart prefix:{" "}
+                <span className="text-slate-400">
+                  {kiyoWaveData?.smartPrefix?.prediction
+                    ? `${kiyoWaveData.smartPrefix.prediction}${
+                        kiyoWaveData.smartPrefix.alt
+                          ? ` / ${kiyoWaveData.smartPrefix.alt}`
+                          : ""
+                      }`
+                    : "-"}
+                </span>
+              </div>
+            </div>
+
+            {/* 🔥 NEW: Adaptive System Stats */}
+            {kiyoWaveData?.windowTracker && (
+              <div className="mt-4 bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border border-cyan-500/30 rounded-lg p-3">
+                <div className="text-sm font-semibold text-cyan-300 mb-2">
+                  🎯 Adaptive System Stats
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="bg-slate-900/40 rounded p-2">
+                    <div className="text-slate-400 mb-1">Window Accuracy</div>
+                    <div className="text-lg font-bold text-cyan-300">
+                      {(kiyoWaveData.windowTracker.getCurrentWindowStats().accuracy * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {kiyoWaveData.windowTracker.getCurrentWindowStats().rollCount || 0} rolls
+                    </div>
                   </div>
-                  <div className="text-2xl sm:text-3xl font-extrabold text-violet-300">
-                    {longString.length}
+                  <div className="bg-slate-900/40 rounded p-2">
+                    <div className="text-slate-400 mb-1">Best Predictor</div>
+                    <div className="text-lg font-bold text-cyan-300">
+                      {kiyoWaveData.windowTracker.getBestPredictor().predictor.toUpperCase()}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {(kiyoWaveData.windowTracker.getBestPredictor().accuracy * 100).toFixed(0)}% ({kiyoWaveData.windowTracker.getBestPredictor().confidence})
+                    </div>
                   </div>
                 </div>
-                {["1", "2", "3", "4"].map((digit) => (
-                  <div
-                    key={digit}
-                    className="bg-slate-950/60 rounded-lg border border-slate-700/50 p-3"
-                  >
-                    <div className="text-[11px] font-semibold text-violet-300 mb-1">
-                      Digit{" "}
-                      <span className="text-violet-200 font-bold">{digit}</span>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  {Object.entries(kiyoWaveData.windowTracker.getWeights()).map(([pred, weight]) => (
+                    <div key={pred} className="bg-slate-900/40 rounded p-1.5 text-center">
+                      <div className="text-[10px] text-slate-400">{pred.toUpperCase()}</div>
+                      <div className="text-sm font-bold text-cyan-300">{(weight * 100).toFixed(0)}%</div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-extrabold text-slate-50">
-                      {digitCounts[digit]}
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-1">
-                      {longString.length > 0
-                        ? `${Math.round(
-                            (digitCounts[digit] / longString.length) * 100
-                          )}%`
-                        : "0%"}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </>
-          )}
+            )}
 
-          {/* Manual decoder */}
-          <div className="mt-4 border-t border-slate-800/70 pt-3">
-            <h4 className="text-xs font-semibold text-slate-200 mb-2 uppercase tracking-wide">
-              Manual Long String Decoder
-            </h4>
-            <p className="text-[11px] text-slate-500 mb-2">
-              Type a long string like{" "}
-              <span className="font-mono text-violet-300">41242323</span> and
-              we&apos;ll expand it to 2-str lines using the Caesar card.
-            </p>
+            <div className="mt-3 text-[11px] text-slate-500">
+              Tip: If WaveC2/WaveC3 show “-” in export, it means the per-roll
+              log didn’t include <code>waveData</code> at that moment (not just
+              the latest snapshot).
+            </div>
+          </div>
+        )}
 
-            <div className="flex gap-2 items-center mb-3">
+        {/* LONG STRING TAB */}
+        {activeTab === "long" && (
+          <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-200">
+                  Long String
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Built from 2-str actuals (chronological).
+                </div>
+              </div>
+
+              <button
+                onClick={handleCopyLongString}
+                className="px-3 py-1.5 text-xs rounded-lg bg-slate-800/50 hover:bg-slate-700/60 border border-slate-600/50 text-slate-200 cursor-pointer"
+              >
+                📋 Copy
+              </button>
+            </div>
+
+            <div className="text-sm text-slate-200 font-mono break-all">
+              {longString}
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 text-xs">
+              {["1", "2", "3", "4"].map((k) => (
+                <div
+                  key={k}
+                  className="bg-slate-900/40 border border-slate-700/50 rounded-lg p-2 text-center"
+                >
+                  <div className="text-slate-400">#{k}</div>
+                  <div className="text-slate-200 font-semibold">
+                    {digitCounts[k]}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-700/50 pt-3">
+              <div className="text-sm font-semibold text-slate-200 mb-2">
+                Manual Decoder (paste long string)
+              </div>
               <input
-                type="text"
-                inputMode="numeric"
-                maxLength={64}
                 value={manualLongInput}
                 onChange={(e) => setManualLongInput(e.target.value)}
-                placeholder="Digits 1–4 only, e.g. 41242323"
-                className="flex-1 bg-slate-950/70 border border-slate-700/70 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"
+                placeholder="e.g. 413241..."
               />
-              {manualLongInput && (
-                <button
-                  onClick={() => setManualLongInput("")}
-                  className="px-2 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 cursor-pointer"
-                >
-                  Clear
-                </button>
+
+              {manualLong.cleaned && manualLong.cleaned.length >= 2 && (
+                <div className="mt-3 text-xs text-slate-200 space-y-2">
+                  <div className="text-slate-400">
+                    cleaned:{" "}
+                    <span className="text-slate-200 font-mono">
+                      {manualLong.cleaned}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/40 border border-slate-700/50 rounded-lg p-2">
+                    <div className="text-slate-400 mb-1">Pairs:</div>
+                    <div className="font-mono break-all">
+                      {manualLong.pairs.join(" ")}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/40 border border-slate-700/50 rounded-lg p-2">
+                    <div className="text-slate-400 mb-1">
+                      Decoded (41/42/43/44):
+                    </div>
+                    <div className="font-mono break-all">
+                      {manualLong.rolls.map((r) => r || "??").join(" ")}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-
-            {manualLong.cleaned.length > 1 ? (
-              <div className="space-y-2 text-[11px]">
-                <div>
-                  <div className="text-slate-400 mb-1">Caesar pairs</div>
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 font-mono text-xs text-violet-200 break-all">
-                    {manualLong.pairs.join(" ")}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-400 mb-1">Decoded 2-str rolls</div>
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 font-mono text-xs text-emerald-200 break-all">
-                    {manualLong.rolls.join(" ")}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-[11px] text-slate-500">
-                Enter at least{" "}
-                <span className="font-mono text-violet-300">2</span> digits to
-                decode.
-              </p>
-            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ LOGS / FILTERED TABS ═══ */}
-      {(activeTab === "logs" ||
-        activeTab === "2" ||
-        activeTab === "3" ||
-        activeTab === "4" ||
-        activeTab === "all") && (
-        <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 px-3 py-2 max-h-52 sm:max-h-64 overflow-y-auto text-[10px] sm:text-[11px] font-mono leading-relaxed">
-          {filtered.length === 0 ? (
-            <div className="text-slate-500">No debug entries yet.</div>
-          ) : (
-            filtered.map((log) => {
-              const isMainHit =
-                log.actual && String(log.actual) === String(log.prediction);
-              const isAltHit =
-                !isMainHit && log.alt && String(log.actual) === String(log.alt);
-
-              const color = isMainHit
-                ? "text-emerald-400"
-                : isAltHit
-                ? "text-amber-300"
-                : "text-slate-200";
-
-              return (
-                <div
-                  key={`${log.ts}-${log.kind}-${log.actual}`}
-                  className={color}
-                >
-                  {formatLine(log)}
+        {/* DEFAULT LOG LIST (2/3/4/all/logs) */}
+        {activeTab !== "long" &&
+          activeTab !== "backtest" &&
+          activeTab !== "kiyo-debug" && (
+            <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3">
+              {!filtered.length ? (
+                <div className="text-sm text-slate-400">No logs.</div>
+              ) : (
+                <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
+                  {[...filtered]
+                    .slice()
+                    .reverse()
+                    .slice(0, 200)
+                    .map((log, i) => (
+                      <div
+                        key={`${log.ts}-${i}`}
+                        className="text-[11px] text-slate-200 font-mono bg-slate-900/40 border border-slate-700/40 rounded-lg p-2"
+                      >
+                        {formatLine(log)}
+                      </div>
+                    ))}
                 </div>
-              );
-            })
+              )}
+            </div>
           )}
+      </div>
+
+      {/* --- SUMMARY CALC (from table rows) --- */}
+      {activeTab === "backtest" && isDebugMode && latestSessionStats && (
+        <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3 text-xs">
+          <div className="font-semibold text-slate-200 mb-2">
+            Summary (from Backtest Table)
+          </div>
+          {/* Extracted values for easier reference */}
+          {latestSessionStats.detailRows.length} rows total
+          <br />
+          Main hits: {latestSessionStats.mainHits} | Alt hits:{" "}
+          {latestSessionStats.altHits} | Misses: {latestSessionStats.misses}
+          <br />
+          <br />
+          {/* --- SUMMARY CALC (from table rows) --- */}
+          {`WAVE PERFORMANCE:`}
+          <br />
+          {`  Column 2 Hits: ${latestSessionStats.c2Hits} / ${
+            latestSessionStats.c2Total
+          } (${
+            latestSessionStats.c2Total
+              ? (
+                  (latestSessionStats.c2Hits / latestSessionStats.c2Total) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          {`  Column 3 Hits: ${latestSessionStats.c3Hits} / ${
+            latestSessionStats.c3Total
+          } (${
+            latestSessionStats.c3Total
+              ? (
+                  (latestSessionStats.c3Hits / latestSessionStats.c3Total) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          {`  Combined: ${latestSessionStats.combHits} / ${
+            latestSessionStats.combTotal
+          } (${
+            latestSessionStats.combTotal
+              ? (
+                  (latestSessionStats.combHits / latestSessionStats.combTotal) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          <br />
+          {`PREFIX PERFORMANCE:`}
+          <br />
+          {`  Main Hits: ${latestSessionStats.mainHits} (${
+            latestSessionStats.prefixAttempts
+              ? (
+                  (latestSessionStats.mainHits /
+                    latestSessionStats.prefixAttempts) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          {`  Alt Hits: ${latestSessionStats.altHits} (${
+            latestSessionStats.prefixAttempts
+              ? (
+                  (latestSessionStats.altHits /
+                    latestSessionStats.prefixAttempts) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          {`  Total: ${
+            latestSessionStats.mainHits + latestSessionStats.altHits
+          } / ${latestSessionStats.prefixAttempts} (${
+            latestSessionStats.prefixAttempts
+              ? (
+                  ((latestSessionStats.mainHits + latestSessionStats.altHits) /
+                    latestSessionStats.prefixAttempts) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
+          <br />
+          <br />
+          {`ALIGNED BETS (When both wave columns + prefix agree):`}
+          <br />
+          {`  Total: ${latestSessionStats.alignedTotal}`}
+          <br />
+          {`  Hits: ${latestSessionStats.alignedHits} / ${
+            latestSessionStats.alignedTotal
+          } (${
+            latestSessionStats.alignedTotal
+              ? (
+                  (latestSessionStats.alignedHits /
+                    latestSessionStats.alignedTotal) *
+                  100
+                ).toFixed(1)
+              : "0.0"
+          }%)`}
         </div>
       )}
     </div>

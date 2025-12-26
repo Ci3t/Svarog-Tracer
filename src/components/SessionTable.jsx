@@ -1,5 +1,6 @@
 import React from "react";
 import { translateTo4 } from "../utils/stringHelpers"; // 👈 use the shared one
+import LiveTrackingTable from "./LiveTrackingTable";
 
 export default function SessionTable({
   sessionTab,
@@ -76,7 +77,7 @@ export default function SessionTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/30">
-              {entries.map((e) => (
+              {[...entries].reverse().map((e) => (
                 <tr
                   key={e.id}
                   className="hover:bg-slate-800/20 transition-colors"
@@ -100,7 +101,9 @@ export default function SessionTable({
                     {toTranslatedPadded(e.s5)}
                   </td>
                   <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
-                    {new Date(e.time).toLocaleTimeString()}
+                    {e.time && !isNaN(new Date(e.time).getTime()) 
+                      ? new Date(e.time).toLocaleTimeString() 
+                      : '--:--:--'}
                   </td>
                   <td className="py-3 px-4 sm:px-6 text-right">
                     <button
@@ -177,23 +180,92 @@ export default function SessionTable({
                     <tr className="text-slate-500">
                       <th className="text-left py-1 pr-2">Raw</th>
                       <th className="text-left py-1 pr-2">2-str</th>
+                      <th className="text-left py-1 pr-2">Trend</th>
                       <th className="text-left py-1 pr-2">Time</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/20">
-                    {sess.entries.map((e) => (
-                      <tr key={e.id}>
-                        <td className="py-1 pr-2 font-mono">{e.raw}</td>
-                        <td className="py-1 pr-2 font-mono">
-                          {toTranslatedPadded(e.s2)}
-                        </td>
-                        <td className="py-1 pr-2 text-slate-500">
-                          {new Date(e.time).toLocaleTimeString()}
-                        </td>
-                      </tr>
-                    ))}
+                    {sess.entries.map((e, idx) => {
+                      // Calculate trend for this value in this session
+                      const mid = Math.floor(sess.entries.length / 2);
+                      const firstHalf = sess.entries.slice(0, mid);
+                      const secondHalf = sess.entries.slice(mid);
+                      const value = toTranslatedPadded(e.s2).slice(0, 2);
+                      const firstCount = firstHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
+                      const secondCount = secondHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
+                      
+                      let trend = '→';
+                      if (secondCount > firstCount * 1.2) trend = '↑';
+                      else if (secondCount < firstCount * 0.8) trend = '↓';
+                      
+                      return (
+                        <tr key={e.id}>
+                          <td className="py-1 pr-2 font-mono">{e.raw}</td>
+                          <td className="py-1 pr-2 font-mono">
+                            {toTranslatedPadded(e.s2)}
+                          </td>
+                          <td className="py-1 pr-2 text-slate-400">{trend}</td>
+                          <td className="py-1 pr-2 text-slate-500">
+                            {e.time && !isNaN(new Date(e.time).getTime()) 
+                              ? new Date(e.time).toLocaleTimeString() 
+                              : '--:--:--'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                
+                {/* 🦁 BBP Mode Analysis for this session */}
+                {sess.beastAnalysis && sess.beastAnalysis.distribution && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      🦁 BBP Mode Analysis
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                      <div>
+                        <span className="text-slate-500">Commons:</span>{' '}
+                        <span className="text-green-400 font-mono">
+                          {sess.beastAnalysis.commons.join(', ')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Pattern:</span>{' '}
+                        <span className="text-violet-300">
+                          {sess.beastAnalysis.pattern}
+                        </span>
+                      </div>
+                    </div>
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="text-slate-500">
+                          <th className="text-left py-1 pr-2">Value</th>
+                          <th className="text-left py-1 pr-2">Count</th>
+                          <th className="text-left py-1 pr-2">%</th>
+                          <th className="text-left py-1 pr-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/20">
+                        {sess.beastAnalysis.distribution.map((item) => (
+                          <tr key={item.value} className={item.status === 'common' ? 'bg-green-500/5' : ''}>
+                            <td className="py-1 pr-2 font-mono font-bold">{item.value}</td>
+                            <td className="py-1 pr-2">{item.count}</td>
+                            <td className="py-1 pr-2">{item.pct.toFixed(1)}%</td>
+                            <td className="py-1 pr-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.status === 'common' 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : 'bg-slate-700/30 text-slate-500'
+                              }`}>
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </details>
           ))}
@@ -240,7 +312,9 @@ export default function SessionTable({
                       {toTranslatedPadded(e.s5)}
                     </td>
                     <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
-                      {new Date(e.time).toLocaleTimeString()}
+                      {e.time && !isNaN(new Date(e.time).getTime()) 
+                        ? new Date(e.time).toLocaleTimeString() 
+                        : '--:--:--'}
                     </td>
                   </tr>
                 ))}

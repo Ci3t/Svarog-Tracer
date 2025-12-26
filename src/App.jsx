@@ -1,16 +1,25 @@
 // src/App.jsx - REPLACE YOUR EXISTING FILE
-import React, { useEffect, useState, useRef } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
+import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
+import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 NEW
 
-import LeftColumn from "./components/LeftColumn";
-import RollInputCard from "./components/RollInputCard";
-import SessionTable from "./components/SessionTable";
-import FrequencyPanel from "./components/FrequencyPanel";
-import NotesCard from "./components/NotesCard";
-import Footer from "./components/Footer";
-import StatsPanel from "./components/StatsPanel";
-import TopBar from "./components/TopBar";
-import DebugPanel from "./components/DebugPanel";
-import AccuracyPanel from "./components/AccuracyPanel"; // 🔥 NEW
+const LeftColumn = lazy(() => import("./components/LeftColumn"));
+const RollInputCard = lazy(() => import("./components/RollInputCard"));
+const SessionTable = lazy(() => import("./components/SessionTable"));
+const FrequencyPanel = lazy(() => import("./components/FrequencyPanel"));
+const NotesCard = lazy(() => import("./components/NotesCard"));
+const Footer = lazy(() => import("./components/Footer"));
+const StatsPanel = lazy(() => import("./components/StatsPanel"));
+const TopBar = lazy(() => import("./components/TopBar"));
+const DebugPanel = lazy(() => import("./components/DebugPanel"));
+const AccuracyPanel = lazy(() => import("./components/AccuracyPanel")); // 🔥 NEW
 
 import {
   translateTo4,
@@ -21,10 +30,15 @@ import {
 import {
   predictNext,
   predictNext3,
+  predictNext3EU,
   predictNext4,
   resetSessionStats,
 } from "./utils/predictNext";
 import RelicPositionCard from "./components/RelicPositionCard";
+import KiyoModeCard from "./components/KiyoModeCard";
+import LiveTrackingTable from "./components/LiveTrackingTable"; // 🔥 NEW
+import LiveTrackingTable3str from "./components/LiveTrackingTable3str"; // 🔥 NEW 3-str
+import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // 🔥 NEW 3-str
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
@@ -39,7 +53,7 @@ export default function App() {
   const [prevSessions, setPrevSessions] = useState([]);
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
-  const [patch, setPatch] = useState("3.7");
+  const [patch, setPatch] = useState("3.8");
 
   const [debugLogs, setDebugLogs] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
@@ -52,8 +66,162 @@ export default function App() {
   const [notes, setNotes] = useState("");
 
   const [isCustomPatch, setIsCustomPatch] = useState(false);
+  const [kiyoDebugData, setKiyoDebugData] = useState(null);
+  const pendingKiyoSnapshotsRef = useRef([]); // 👈 ADD
+  const lastSnapshotKeyRef = useRef(null); // 👈 ADD (dedupe)
   const timerRef = useRef(null);
   const longStringCtxRef = useRef([]);
+  const livePrefixPredictionRef = useRef(null);
+  const onSendKiyoDebugData = (debugData) => {
+    // keep latest snapshot for UI
+    setKiyoDebugData(debugData);
+
+    // 👇 ADD: push a frozen snapshot to queue
+    const snap = {
+      t: Date.now(),
+      waveC2: debugData?.waveData?.col2Prediction || null,
+      waveC3: debugData?.waveData?.col3Prediction || null,
+      prefixMain: debugData?.smartPrefix?.prediction || null,
+      prefixAlt: debugData?.smartPrefix?.alt || null,
+      tracerMain: debugData?.prediction?.prediction || null,
+      tracerAlt: debugData?.prediction?.alt || null,
+    };
+
+    const key = JSON.stringify(snap);
+    if (key !== lastSnapshotKeyRef.current) {
+      lastSnapshotKeyRef.current = key;
+      pendingKiyoSnapshotsRef.current.push(snap);
+    }
+  };
+  const handleKiyoDebugData = useCallback(
+    (data) => {
+      setKiyoDebugData(data);
+
+      // 🔥 NEW: Store the current prefix prediction for next roll
+      if (data.smartPrefix?.prediction) {
+        livePrefixPredictionRef.current = {
+          main: data.smartPrefix.prediction,
+          alt: data.smartPrefix.alt || null,
+          confidence: data.smartPrefix.confidence || 0,
+          timestamp: Date.now(),
+        };
+      }
+
+      // Merge waveData into debug logs (existing code)
+      if (data.waveData && debugLogs.length > 0) {
+        setDebugLogs((prev) => {
+          const logs = [...prev];
+
+          for (let i = 0; i < logs.length; i++) {
+            if (logs[i].source === "kiyo" && logs[i].kind === "3") {
+              if (
+                !logs[i].waveData ||
+                (!logs[i].waveData.col2Prediction &&
+                  !logs[i].waveData.col3Prediction)
+              ) {
+                logs[i] = {
+                  ...logs[i],
+                  waveData: { ...data.waveData },
+                  // 🔥 NEW: Attach the "live" prefix that was showing before this roll
+                  livePrefix: livePrefixPredictionRef.current
+                    ? { ...livePrefixPredictionRef.current }
+                    : null,
+                };
+                break;
+              }
+            }
+          }
+
+          return logs;
+        });
+      }
+    },
+    [debugLogs]
+  );
+
+  // 🔬 Kiyo Mode: Send predictions to debug
+  function handleKiyoToDebug(newRolls = [], kind = "3-str") {
+    if (!newRolls.length) return;
+
+    // 🔥 FIX: Log each NEW roll individually, not just the last one
+    const prevRolls = kiyoCtxRef.current || [];
+    const rollsToLog = newRolls.slice(prevRolls.length); // Only new rolls
+    
+    if (rollsToLog.length === 0) return;
+
+    rollsToLog.forEach((actual3, idx) => {
+      // Build context for this prediction
+      const contextRolls = newRolls.slice(0, prevRolls.length + idx);
+      
+      // Need at least 3 rolls for context
+      if (contextRolls.length < 3) return;
+      
+      // const actual3 = String(roll).slice(0, 3); // actual3 is already the roll value
+      if (String(actual3).slice(0, 3).length !== 3) return;
+
+      const p = predictNext3(contextRolls);
+      const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
+      const alt = p.alt || (candidates[1]?.value ?? null);
+
+      if (
+        p.prediction &&
+        p.prediction !== "—" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
+        const newLog = {
+          ts: Date.now() + idx, // Slight offset to maintain order
+          kind: "3",
+          prediction: p.prediction,
+          confidence: p.confidence || 0,
+          alt,
+          mode: p.mode || "—",
+          actual: String(actual3).slice(0, 3),
+          ctx: contextRolls.slice(-8),
+          candidates,
+          source: "kiyo",
+          waveData: null, // Will be filled by handleKiyoDebugData
+          livePrefix: livePrefixPredictionRef.current
+            ? { ...livePrefixPredictionRef.current }
+            : null,
+        };
+
+        setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
+      }
+
+      // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
+      const rolls2 = contextRolls.map(r => String(r).slice(0, 2)).filter(r => r.length === 2);
+      if (rolls2.length >= 2) {
+        const p2 = predictNext2Smart(rolls2, { region });
+        const actual2 = String(actual3).slice(0, 2);
+        
+        if (
+          p2.prediction &&
+          p2.prediction !== "—" &&
+          !String(p2.prediction).toLowerCase().startsWith("insufficient")
+        ) {
+          const newLog2 = {
+            ts: Date.now() + idx + 0.5, // Slight offset
+            kind: "2",
+            prediction: p2.prediction,
+            confidence: p2.confidence || 0,
+            alt: p2.alt || null,
+            mode: p2.mode || "—",
+            actual: actual2,
+            ctx: rolls2.slice(-8),
+            candidates: p2.candidates || [],
+            source: "live", // Mark as live for accuracy tracking
+          };
+
+          setDebugLogs((prev) => [newLog2, ...prev].slice(0, 300));
+        }
+      }
+    });
+
+    kiyoCtxRef.current = newRolls;
+  }
+  // 👇 ADD THIS NEW HANDLER FUNCTION
+
+  const kiyoCtxRef = useRef([]);
   /* ========= LOAD ========= */
   useEffect(() => {
     try {
@@ -75,6 +243,7 @@ export default function App() {
       setPrevSessions(parsed.prevSessions || []);
       setRegion(parsed.region || "America");
       setPatch(parsed.patch || "3.7");
+      setIsCustomPatch(parsed.isCustomPatch || false);
       setNotes(parsed.notes || "");
       setCaesarInput(parsed.caesarInput || "");
       setDebugLogs(parsed.debugLogs || []);
@@ -90,6 +259,7 @@ export default function App() {
       prevSessions,
       region,
       patch,
+      isCustomPatch,
       notes,
       caesarInput,
       debugLogs,
@@ -100,7 +270,16 @@ export default function App() {
     } catch (err) {
       console.warn("storage save error", err);
     }
-  }, [entries, prevSessions, region, patch, notes, caesarInput, debugLogs]);
+  }, [
+    entries,
+    prevSessions,
+    region,
+    patch,
+    isCustomPatch,
+    notes,
+    caesarInput,
+    debugLogs,
+  ]);
 
   /* ========= TIMER ========= */
   useEffect(() => {
@@ -123,6 +302,92 @@ export default function App() {
 
   function archiveCurrentSession() {
     if (entries.length > 0) {
+      // 🔥 Calculate BBP Mode frequency distribution for this session
+      const rollValues = entries
+        .map(e => (e.translated || e.s2 || '').slice(0, 2))
+        .filter(Boolean);
+      
+      let beastAnalysis = null;
+      if (rollValues.length >= 6) {
+        try {
+          const analysis = predictNext2BBPMode(rollValues);
+          
+          // Build frequency distribution
+          const freq = {};
+          rollValues.forEach(v => {
+            freq[v] = (freq[v] || 0) + 1;
+          });
+          
+          const total = rollValues.length;
+          const distribution = Object.entries(freq).map(([value, count]) => ({
+            value,
+            count,
+            pct: (count / total) * 100,
+            status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
+          }));
+          
+          distribution.sort((a, b) => {
+            // Commons first, then by count
+            if (a.status === 'common' && b.status !== 'common') return -1;
+            if (a.status !== 'common' && b.status === 'common') return 1;
+            return b.count - a.count;
+          });
+          
+          beastAnalysis = {
+            commons: analysis.commons || [],
+            noise: analysis.noise || [],
+            pattern: analysis.pattern,
+            confidence: analysis.commonsConfidence,
+            distribution
+          };
+        } catch (err) {
+          console.warn('BBP Mode analysis failed for session archive:', err);
+        }
+      }
+      
+      // 🔥 NEW: Calculate BBP Mode 3-str frequency distribution
+      const rollValues3str = entries
+        .map(e => (e.translated || '').slice(0, 3))
+        .filter(v => v && v.length === 3);
+      
+      let beastAnalysis3str = null;
+      if (rollValues3str.length >= 6) {
+        try {
+          const analysis = predictNext3BBPMode(rollValues3str);
+          
+          // Build frequency distribution
+          const freq = {};
+          rollValues3str.forEach(v => {
+            freq[v] = (freq[v] || 0) + 1;
+          });
+          
+          const total = rollValues3str.length;
+          const distribution = Object.entries(freq).map(([value, count]) => ({
+            value,
+            count,
+            pct: (count / total) * 100,
+            status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
+          }));
+          
+          distribution.sort((a, b) => {
+            // Commons first, then by count
+            if (a.status === 'common' && b.status !== 'common') return -1;
+            if (a.status !== 'common' && b.status === 'common') return 1;
+            return b.count - a.count;
+          });
+          
+          beastAnalysis3str = {
+            commons: analysis.commons || [],
+            noise: analysis.noise || [],
+            pattern: analysis.pattern,
+            confidence: analysis.commonsConfidence,
+            distribution
+          };
+        } catch (err) {
+          console.warn('BBP Mode 3-str analysis failed for session archive:', err);
+        }
+      }
+      
       setPrevSessions((prev) => [
         {
           id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
@@ -130,6 +395,8 @@ export default function App() {
           region,
           patch,
           entries,
+          beastAnalysis, // 🔥 NEW: Save BBP Mode analysis
+          beastAnalysis3str, // 🔥 NEW: Save BBP Mode 3-str analysis
         },
         ...prev,
       ]);
@@ -149,10 +416,14 @@ export default function App() {
     if (!value) return;
 
     const clean = sanitizeRollInput(value);
-    if (!clean) {
-      setRollInput("");
+    
+    // 🔥 NEW: Enforce minimum 2 digits
+    if (clean.length < 2) {
+      console.warn('Roll must be at least 2 digits');
       return;
     }
+    
+    if (!clean) return;
 
     const { s2, s3, s4, s5 } = splitString(clean);
     const nowIso = new Date().toISOString();
@@ -187,127 +458,107 @@ export default function App() {
 
     const newLogsToAdd = [];
 
+    // Capture live state of the smart predictor
+    const liveSmartPrefix = {
+      main: p3.prediction || "—",
+      alt: p3.alt || safeCandidates(p3)[1]?.value || null,
+    };
+
     newLogsToAdd.push({
       ts: nowTs,
-      kind: "2",
-      prediction: p2.prediction || "—",
-      confidence: p2.confidence || 0,
-      alt: p2.alt || safeCandidates(p2)[1]?.value || null,
-      mode: p2.mode || "—",
-      actual: actual2,
-      ctx: rolls2.slice(-8),
-      candidates: safeCandidates(p2),
+      kind: "3",
+      prediction: liveSmartPrefix.main,
+      confidence: p3.confidence || 0,
+      alt: liveSmartPrefix.alt,
+      mode: p3.mode || "—",
+      actual: actual3,
+      ctx: rolls3.slice(-8),
+      candidates: safeCandidates(p3),
+      smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
 
-    if (actual3.length === 3 && rolls3.length) {
+    // 🔥 NEW: Also log 2-str BBP predictions for Session Accuracy
+    const p2Smart = predictNext2Smart(rolls2, { region });
+    if (
+      p2Smart.prediction &&
+      p2Smart.prediction !== "—" &&
+      !String(p2Smart.prediction).toLowerCase().startsWith("insufficient")
+    ) {
       newLogsToAdd.push({
-        ts: nowTs,
-        kind: "3",
-        prediction: p3.prediction || "—",
-        confidence: p3.confidence || 0,
-        alt: p3.alt || safeCandidates(p3)[1]?.value || null,
-        mode: p3.mode || "—",
-        actual: actual3,
-        ctx: rolls3.slice(-8),
-        candidates: safeCandidates(p3),
+        ts: nowTs + 0.1, // Slight offset
+        kind: "2",
+        prediction: p2Smart.prediction,
+        confidence: p2Smart.confidence || 0,
+        alt: p2Smart.alt || null,
+        mode: p2Smart.mode || "—",
+        actual: actual2,
+        ctx: rolls2.slice(-8),
+        candidates: safeCandidates(p2Smart),
+        source: "live", // Mark as live for accuracy tracking
       });
     }
 
-    if (actual4.length === 4 && rolls4.length) {
-      newLogsToAdd.push({
-        ts: nowTs,
-        kind: "4",
-        prediction: p4.prediction || "—",
-        confidence: p4.confidence || 0,
-        alt: p4.alt || safeCandidates(p4)[1]?.value || null,
-        mode: p4.mode || "—",
-        actual: actual4,
-        ctx: rolls4.slice(-8),
-        candidates: safeCandidates(p4),
-      });
-    }
-
-    setEntries((prev) => {
-      const newEntry = {
-        id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
-        raw: clean,
-        translated,
-        time: nowIso,
-        s2,
-        s3,
-        s4,
-        s5,
-        region,
-        patch,
-      };
-      return [newEntry, ...prev];
-    });
-
+    setEntries((prev) => [...prev, { 
+      id: `${nowTs}-${Math.random()}`,
+      raw: value,
+      s2, 
+      s3, 
+      s4, 
+      s5, 
+      translated, 
+      time: nowIso  // Fixed: was 'ts', should be 'time'
+    }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
     setRollInput("");
   }
-  // 🔬 Long String sandbox → 2-str debug only (does NOT touch Current Session)
-  // 🔬 Long String sandbox → stream to 2-str debug (does NOT touch Current Session)
-  function handleLongStringToDebug(newRolls = []) {
+  // 🔬 Long String sandbox → stream to debug (supports both 2-str and 3-str)
+  function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
     if (!newRolls.length) return;
 
-    // Use the same newest-first context style as live logs
-    let ctx2 = [...longStringCtxRef.current];
+    const is3Str = targetStream === "3-str";
 
-    // If this is the first time we stream a long string, start from a clean session
-    if (ctx2.length === 0) {
-      resetSessionStats();
+    // 🔥 FIX: Don't send ALL rolls, only send the LAST roll as a single prediction
+    // This prevents sending 19 duplicate entries for 19 rolls
+
+    const lastRoll = newRolls[newRolls.length - 1];
+    const contextRolls = newRolls.slice(0, -1); // All except last
+
+    if (contextRolls.length < 6) {
+      // Not enough context to make a prediction
+      return;
     }
 
-    const baseTs = Date.now();
+    const actualStr = String(lastRoll).slice(0, is3Str ? 3 : 2);
+    if (actualStr.length !== (is3Str ? 3 : 2)) return;
 
+    const baseTs = Date.now();
     const safeCandidates = (p) =>
       Array.isArray(p?.candidates) ? p.candidates : [];
 
-    const logsToAdd = [];
+    const p = is3Str ? predictNext3EU(contextRolls) : predictNext(contextRolls);
+    const candidates = safeCandidates(p);
+    const alt = p.alt || (candidates[1]?.value ?? null);
 
-    newRolls.forEach((raw, idx) => {
-      const actual2 = String(raw).slice(0, 2);
-      if (actual2.length !== 2) return;
+    // Only log if we have a real prediction
+    if (
+      p.prediction &&
+      p.prediction !== "—" &&
+      !String(p.prediction).toLowerCase().startsWith("insufficient")
+    ) {
+      const newLog = {
+        ts: baseTs,
+        kind: is3Str ? "3" : "2",
+        prediction: p.prediction,
+        confidence: p.confidence || 0,
+        alt,
+        mode: p.mode || "—",
+        actual: actualStr,
+        ctx: contextRolls.slice(-8).reverse(), // Last 8 in reverse (newest first)
+        candidates,
+        source: is3Str ? "kiyoMode" : "longString",
+      };
 
-      // Context the predictor “sees” BEFORE this roll
-      const predictorCtx = [...ctx2];
-
-      const p = predictNext(predictorCtx);
-      const candidates = safeCandidates(p);
-      const alt = p.alt || (candidates[1]?.value ?? null);
-
-      // Only log real predictions (skip “insufficient data” / empty)
-      if (
-        p.prediction &&
-        p.prediction !== "—" &&
-        !String(p.prediction).toLowerCase().startsWith("insufficient")
-      ) {
-        logsToAdd.push({
-          ts: baseTs + idx,
-          kind: "2",
-          prediction: p.prediction,
-          confidence: p.confidence || 0,
-          alt,
-          mode: p.mode || "—",
-          actual: actual2,
-          // newest-first context snippet (like live)
-          ctx: predictorCtx.slice(0, 8),
-          candidates,
-          source: "longString",
-        });
-      }
-
-      // After we “observe” this roll, add it to context
-      ctx2.unshift(actual2);
-    });
-
-    // Save updated context for the next keystrokes in the lab
-    longStringCtxRef.current = ctx2;
-
-    // Prepend new long-string logs; keep everything else (live + imports)
-    if (logsToAdd.length) {
-      setDebugLogs((prev) => [...logsToAdd, ...prev].slice(0, 300));
+      setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
     }
   }
 
@@ -373,100 +624,157 @@ export default function App() {
     .filter((r) => r.length === 4)
     .reverse();
 
-  const livePrediction = predictNext(rolls2);
+  const livePrediction = predictNext2Smart(rolls2, { region });
+
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <TopBar
-        region={region}
-        setRegion={setRegion}
-        patch={patch}
-        setPatch={setPatch}
-        isCustomPatch={isCustomPatch}
-        setIsCustomPatch={setIsCustomPatch}
-        entries={entries}
-        prevSessions={prevSessions}
-      />
-
-      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6 xl:grid xl:grid-cols-12 xl:gap-6">
-        {/* left column */}
-        <LeftColumn
-          secondsLeft={secondsLeft}
-          onStart={handleStartSession}
-          suggestTab={suggestTab}
-          setSuggestTab={setSuggestTab}
-          caesarInput={caesarInput}
-          setCaesarInput={setCaesarInput}
+    <Suspense
+      fallback={
+        <div role="status">
+          <svg
+            aria-hidden="true"
+            className="inline w-8 h-8 text-neutral-tertiary animate-spin fill-purple"
+            viewBox="0 0 100 101"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+              fill="currentColor"
+            />
+            <path
+              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+              fill="currentFill"
+            />
+          </svg>
+          <span className="sr-only">Loading...</span>
+        </div>
+      }
+    >
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+        <TopBar
+          region={region}
+          setRegion={setRegion}
+          patch={patch}
+          setPatch={setPatch}
+          isCustomPatch={isCustomPatch}
+          setIsCustomPatch={setIsCustomPatch}
           entries={entries}
+          prevSessions={prevSessions}
         />
 
-        {/* middle */}
-        <div className="col-span-12 lg:col-span-6 space-y-6">
-          <RollInputCard
-            rollInput={rollInput}
-            setRollInput={setRollInput}
-            onAdd={handleAddRoll}
-            entriesCount={entries.length}
-            onSendLongStringToDebug={handleLongStringToDebug}
-          />
-          {/* 🔮 New Long String Lab */}
-
-          <SessionTable
-            sessionTab={sessionTab}
-            setSessionTab={setSessionTab}
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6 xl:grid xl:grid-cols-12 xl:gap-6">
+          {/* left column */}
+          <LeftColumn
+            secondsLeft={secondsLeft}
+            onStart={handleStartSession}
+            suggestTab={suggestTab}
+            setSuggestTab={setSuggestTab}
+            caesarInput={caesarInput}
+            setCaesarInput={setCaesarInput}
             entries={entries}
-            prevSessions={prevSessions}
-            onDeleteEntry={handleDeleteEntry}
-            onDeleteSession={handleDeleteSession}
+            disableNextPrediction={suggestTab === "kiyo"}
           />
 
-          <NotesCard
-            notes={notes}
-            setNotes={setNotes}
-            region={region}
-            patch={patch}
-            entries={entries}
-          />
+          {/* middle */}
+          <div className="col-span-12 lg:col-span-6 space-y-6">
+            <RollInputCard
+              rollInput={rollInput}
+              setRollInput={setRollInput}
+              onAdd={handleAddRoll}
+              entriesCount={entries.length}
+              onSendLongStringToDebug={handleLongStringToDebug}
+              entries={entries}
+              debugLogs={debugLogs}
+              onSendKiyoDebugData={handleKiyoDebugData}
+              onSendToDebug={handleKiyoToDebug}
+            />
+            {/* 🔮 New Long String Lab */}
 
-          {/* 🔥 UPDATED: Pass onClearLogs */}
-          <DebugPanel
-            debugLogs={debugLogs}
-            onClearLogs={handleClearDebugLogs}
-            isDebugMode={isDebugMode}
-            onImportLogs={handleImportDebugLogs}
-          />
+            <SessionTable
+              sessionTab={sessionTab}
+              setSessionTab={setSessionTab}
+              entries={entries}
+              prevSessions={prevSessions}
+              onDeleteEntry={handleDeleteEntry}
+              onDeleteSession={handleDeleteSession}
+            />
+
+            {/* 🦁 BBP Mode Live Tracking Table */}
+            {sessionTab === 'current' && entries.length >= 6 && (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
+                <LiveTrackingTable rolls={entries.map(e => e.translated)} />
+              </div>
+            )}
+
+            {/* 🦁 BBP Mode 3-str Live Tracking Table */}
+            {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl mt-6">
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">
+                  🦁 BBP Mode Live Tracking (3-str)
+                </h3>
+                <LiveTrackingTable3str 
+                  rolls={entries
+                    .filter(e => (e.translated || '').length >= 3)
+                    .map((entry, index) => ({
+                      value: (entry.translated || '').slice(0, 3),
+                      timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
+                    })).reverse()}
+                />
+              </div>
+            )}
+
+            <NotesCard
+              notes={notes}
+              setNotes={setNotes}
+              region={region}
+              patch={patch}
+              entries={entries}
+            />
+
+            {/* 🔥 UPDATED: Pass onClearLogs */}
+            <DebugPanel
+              debugLogs={debugLogs}
+              onClearLogs={handleClearDebugLogs}
+              isDebugMode={isDebugMode}
+              onImportLogs={handleImportDebugLogs}
+              kiyoWaveData={kiyoDebugData}
+              pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+            />
+          </div>
+
+          {/* right */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* 🔥 NEW: Accuracy Panel */}
+            <AccuracyPanel debugLogs={debugLogs} />
+            <FrequencyPanel
+              freqTab={freqTab}
+              setFreqTab={setFreqTab}
+              freq2={freq2}
+              freq3={freq3}
+              freq4={freq4}
+              freq5={freq5}
+            />
+            <StatsPanel
+              entries={entries}
+              prediction2={livePrediction}
+              prediction3={livePrediction3}
+              prediction4={livePrediction4}
+              currentRegion={region}
+              currentPatch={patch}
+            />
+            {/* ✅ REGION MATCH HEATMAP (FROM 2-STR SMART) */}
+
+            <RelicPositionCard />
+          </div>
         </div>
 
-        {/* right */}
-        <div className="col-span-12 lg:col-span-3 space-y-6">
-          {/* 🔥 NEW: Accuracy Panel */}
-          <AccuracyPanel debugLogs={debugLogs} />
-
-          <FrequencyPanel
-            freqTab={freqTab}
-            setFreqTab={setFreqTab}
-            freq2={freq2}
-            freq3={freq3}
-            freq4={freq4}
-            freq5={freq5}
-          />
-          <StatsPanel
-            entries={entries}
-            prediction2={livePrediction}
-            prediction3={livePrediction3}
-            prediction4={livePrediction4}
-            currentRegion={region}
-            currentPatch={patch}
-          />
-          <RelicPositionCard />
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 pb-6">
+          <Footer />
         </div>
       </div>
-
-      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 pb-6">
-        <Footer />
-      </div>
-    </div>
+    </Suspense>
   );
 }

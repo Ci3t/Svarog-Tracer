@@ -23,9 +23,11 @@ export function padTo5(str = "") {
   return (str || "").padEnd(5, "0").slice(0, 5);
 }
 
-// keep only 1–4
+// keep only 1–4 and enforce min 2 digits, max 4 digits
 export function sanitizeRollInput(value = "") {
-  return value.replace(/[^1-4]/g, "");
+  const cleaned = value.replace(/[^1-4]/g, "");
+  // Cap at 4 digits max
+  return cleaned.slice(0, 4);
 }
 
 /**
@@ -115,7 +117,18 @@ const LONG_CAESAR_DECODE = {
  *        rolls: ["41","41","42","42","41","43","41"] }
  */
 export function decodeLongString(longStrRaw = "") {
-  const cleaned = String(longStrRaw).replace(/[^1-4]/g, ""); // keep only 1–4
+  const digits = String(longStrRaw)
+    .split("")
+    .map((d) => {
+      const n = parseInt(d, 10);
+      if (isNaN(n)) return null;
+      // ✅ MAP 1–9 → 1–4 USING MODULO (GAME-NATIVE)
+      return ((n - 1) % 4) + 1;
+    })
+    .filter(Boolean)
+    .map(String);
+
+  const cleaned = digits.join("");
 
   if (cleaned.length < 2) {
     return { cleaned, pairs: [], rolls: [] };
@@ -125,9 +138,10 @@ export function decodeLongString(longStrRaw = "") {
   const rolls = [];
 
   for (let i = 0; i < cleaned.length - 1; i++) {
-    const pair = cleaned.slice(i, i + 2); // sliding window
+    const pair = cleaned.slice(i, i + 2);
     pairs.push(pair);
 
+    // ✅ SAME CAESAR DECODE TABLE AS BEFORE
     const roll = LONG_CAESAR_DECODE[pair];
     if (roll) {
       rolls.push(roll);
