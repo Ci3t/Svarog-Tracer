@@ -190,8 +190,8 @@ export default function App() {
 
       // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
       const rolls2 = contextRolls.map(r => String(r).slice(0, 2)).filter(r => r.length === 2);
-      if (rolls2.length >= 2) {
-        const p2 = predictNext2Smart(rolls2, { region });
+      if (rolls2.length >= 6) { // BBP needs at least 6 rolls
+        const p2 = predictNext2BBPMode(rolls2); // 🔥 Use BBP mode for enhanced data
         const actual2 = String(actual3).slice(0, 2);
         
         if (
@@ -204,12 +204,22 @@ export default function App() {
             kind: "2",
             prediction: p2.prediction,
             confidence: p2.confidence || 0,
+            baseConfidence: p2.baseConfidence || p2.confidence || 0, // 🔥 NEW
             alt: p2.alt || null,
             mode: p2.mode || "—",
             actual: actual2,
             ctx: rolls2.slice(-8),
             candidates: p2.candidates || [],
             source: "live", // Mark as live for accuracy tracking
+            // 🔥 NEW: Enhanced BBP data
+            pattern: p2.pattern,
+            patternStrength: p2.patternStrength,
+            patternSequence: p2.patternSequence,
+            commons: p2.commons,
+            noise: p2.noise,
+            distribution: p2.distribution,
+            waveFlipData: p2.waveFlipData,
+            commonsStability: p2.commonsStability,
           };
 
           setDebugLogs((prev) => [newLog2, ...prev].slice(0, 300));
@@ -429,24 +439,27 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    const rolls2 = entries
+    // 🔥 CRITICAL FIX: Capture the CURRENT live prediction BEFORE adding the roll
+    // This is what the user SAW on screen before typing
+    const rolls2Before = entries
       .map((e) => (e.translated || "").slice(0, 2))
       .filter(Boolean)
       .reverse();
 
-    const rolls3 = entries
+    const rolls3Before = entries
       .map((e) => (e.s3 || "").replace(/0+$/, ""))
       .filter((r) => r.length === 3)
       .reverse();
 
-    const rolls4 = entries
+    const rolls4Before = entries
       .map((e) => (e.s4 || "").replace(/0+$/, ""))
       .filter((r) => r.length === 4)
       .reverse();
 
-    const p2 = predictNext(rolls2);
-    const p3 = predictNext3(rolls3);
-    const p4 = predictNext4(rolls4);
+    // 🔥 CAPTURE: The predictions that were SHOWING before this roll
+    const p2Before = rolls2Before.length >= 6 ? predictNext2BBPMode(rolls2Before) : null;
+    const p3Before = predictNext3(rolls3Before);
+    const p4Before = predictNext4(rolls4Before);
 
     const actual2 = translated.slice(0, 2);
     const actual3 = translated.slice(0, 3);
@@ -460,41 +473,47 @@ export default function App() {
 
     // Capture live state of the smart predictor
     const liveSmartPrefix = {
-      main: p3.prediction || "—",
-      alt: p3.alt || safeCandidates(p3)[1]?.value || null,
+      main: p3Before.prediction || "—",
+      alt: p3Before.alt || safeCandidates(p3Before)[1]?.value || null,
     };
 
     newLogsToAdd.push({
       ts: nowTs,
       kind: "3",
       prediction: liveSmartPrefix.main,
-      confidence: p3.confidence || 0,
+      confidence: p3Before.confidence || 0,
       alt: liveSmartPrefix.alt,
-      mode: p3.mode || "—",
+      mode: p3Before.mode || "—",
       actual: actual3,
-      ctx: rolls3.slice(-8),
-      candidates: safeCandidates(p3),
+      ctx: rolls3Before.slice(-8),
+      candidates: safeCandidates(p3Before),
       smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
 
-    // 🔥 NEW: Also log 2-str BBP predictions for Session Accuracy
-    const p2Smart = predictNext2Smart(rolls2, { region });
-    if (
-      p2Smart.prediction &&
-      p2Smart.prediction !== "—" &&
-      !String(p2Smart.prediction).toLowerCase().startsWith("insufficient")
-    ) {
+    // 🔥 FIXED: Use the prediction that was SHOWING (p2Before), not a new one
+    if (p2Before && p2Before.prediction && p2Before.prediction !== "—" &&
+        !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
       newLogsToAdd.push({
         ts: nowTs + 0.1, // Slight offset
         kind: "2",
-        prediction: p2Smart.prediction,
-        confidence: p2Smart.confidence || 0,
-        alt: p2Smart.alt || null,
-        mode: p2Smart.mode || "—",
+        prediction: p2Before.prediction,
+        confidence: p2Before.confidence || 0,
+        baseConfidence: p2Before.baseConfidence || p2Before.confidence || 0,
+        alt: p2Before.alt || null,
+        mode: p2Before.mode || "—",
         actual: actual2,
-        ctx: rolls2.slice(-8),
-        candidates: safeCandidates(p2Smart),
+        ctx: rolls2Before.slice(-8),
+        candidates: safeCandidates(p2Before),
         source: "live", // Mark as live for accuracy tracking
+        // 🔥 Enhanced BBP data
+        pattern: p2Before.pattern,
+        patternStrength: p2Before.patternStrength,
+        patternSequence: p2Before.patternSequence,
+        commons: p2Before.commons,
+        noise: p2Before.noise,
+        distribution: p2Before.distribution,
+        waveFlipData: p2Before.waveFlipData,
+        commonsStability: p2Before.commonsStability,
       });
     }
 
@@ -621,10 +640,11 @@ export default function App() {
 
   const rolls4 = entries
     .map((e) => (e.s4 || "").replace(/0+$/, ""))
-    .filter((r) => r.length === 4)
+    .filter((r) => r.length >= 4)
     .reverse();
 
-  const livePrediction = predictNext2Smart(rolls2, { region });
+  // 🔥 UPDATED: Use BBP mode for live prediction display
+  const livePrediction = rolls2.length >= 6 ? predictNext2BBPMode(rolls2) : { prediction: "—", confidence: 0 };
 
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);
@@ -703,11 +723,15 @@ export default function App() {
             />
 
             {/* 🦁 BBP Mode Live Tracking Table */}
-            {sessionTab === 'current' && entries.length >= 6 && (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
-                <LiveTrackingTable rolls={entries.map(e => e.translated)} />
-              </div>
-            )}
+            {sessionTab === 'current' && entries.length >= 6 && (() => {
+              // 🔥 FIX: Sort entries oldest→newest to match NextPrediction
+              const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
+              return (
+                <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
+                  <LiveTrackingTable rolls={sortedEntries.map(e => e.translated)} />
+                </div>
+              );
+            })()}
 
             {/* 🦁 BBP Mode 3-str Live Tracking Table */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (

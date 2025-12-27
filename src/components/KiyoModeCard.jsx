@@ -1797,7 +1797,7 @@ export default function KiyoModeCard({
       <div style={{
         position: 'sticky',
         top: '0',
-        zIndex: 100,
+        zIndex: 10,
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
         backdropFilter: 'blur(10px)',
         paddingBottom: '16px',
@@ -1848,7 +1848,7 @@ export default function KiyoModeCard({
       <div style={{
         position: 'sticky',
         top: '120px', // Below the input card
-        zIndex: 90,
+        zIndex: 9,
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
         backdropFilter: 'blur(10px)',
         paddingBottom: '16px',

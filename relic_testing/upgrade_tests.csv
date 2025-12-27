@@ -1,0 +1,6 @@
+Test #,Phase (+/-),Upgrade Level,Main Relic Type,Main Relic Position,Target Stat,Main Relic Subs,Fodder Type,Fodder Position,Fodder Stat,Fodder Upgraded?,Result (Hit/Miss),What Upgraded,Notes
+1,?,+0→+3,Helmet,Slot 1,CDMG,"CDMG, SPD, ATK%",Helmet,Slot 2,CDMG,No,Hit,CDMG,
+2,?,+0→+3,Helmet,Slot 1,CDMG,"CDMG, SPD, DEF%",Helmet,Slot 3,CDMG,No,Miss,Flat DEF,
+3,?,+0→+3,Helmet,Slot 1,CDMG,"CDMG, CRate, HP%",Body,Slot 4,BE,No,Hit,CDMG,Testing BE link
+4,?,+3→+6,Helmet,Slot 1,CDMG,"CDMG, SPD, ATK%, Flat HP",Orb,Slot 5,CDMG,+3,Miss,SPD,Planar fodder
+5,?,+0→+3,Hand,Slot 2,CRate,"CRate, SPD, ATK%",Hand,Slot 3,ERes,No,Hit,CRate,Testing ERes link

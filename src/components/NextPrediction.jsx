@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef } from "react";
 import PredictionCard from "./PredictionCard";
 import { predictNext3, predictNext4 } from "../utils/predictNext";
-import { predictNext2Smart } from "../utils/enhanced-2str-predictor";
+import { predictNext2BBPMode } from "../utils/bbp-mode-2str"; // 🔥 UPDATED: Use BBP mode
 import { predictNext3BBPMode } from "../utils/bbp-mode-3str"; // 🔥 NEW
 import { get2StrPatchInfo } from "../utils/twoStrHistoricalData";
 
@@ -72,9 +72,10 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
       case "4":
         return predictNext4(rolls4);
       default:
-        return predictNext2Smart(all2Rolls, { region });
+        // 🔥 UPDATED: Use BBP Mode for 2-str instead of predictNext2Smart
+        return predictNext2BBPMode(all2Rolls);
     }
-  }, [suggestTab, rolls3, rolls4, all2Rolls, region]);
+  }, [suggestTab, rolls3, rolls4, all2Rolls]);
 
   // --- export s2 to txt ---
   const handleExportTxt = () => {
@@ -186,6 +187,8 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
         prediction={prediction}
         suggestTab={suggestTab}
         setSuggestTab={setSuggestTab}
+        rollCount={suggestTab === "2" ? all2Rolls.length : suggestTab === "3" ? rolls3.length : rolls4.length}
+        minRolls={6}
       />
     </div>
   );

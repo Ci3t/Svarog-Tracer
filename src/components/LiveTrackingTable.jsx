@@ -23,7 +23,14 @@ export function LiveTrackingTable({ rolls = [] }) {
   }
 
   // Get BBP Mode analysis to identify commons
-  const rollValues = rolls.map(r => r.value || r);
+  // 🔥 FIX: Filter to only 2-digit rolls (exclude 3-digit like 413)
+  const rollValues = rolls
+    .map(r => {
+      const val = r.value || r;
+      return String(val).slice(0, 2); // Take only first 2 digits
+    })
+    .filter(v => v && v.length === 2); // Only keep 2-digit rolls
+  
   const beastAnalysis = predictNext2BBPMode(rollValues);
   
   // Count occurrences of each value

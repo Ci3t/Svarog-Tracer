@@ -2,6 +2,8 @@ export default function PredictionCard({
   prediction,
   suggestTab,
   setSuggestTab,
+  rollCount = 0,
+  minRolls = 6,
 }) {
   const tabs = ["2", "3", "4"];
 
@@ -43,6 +45,40 @@ export default function PredictionCard({
   const hasPrediction = Boolean(mainValue);
   const mode = prediction?.mode || "—";
 
+  // 🔥 FIXED: Show highest common as main, second as alt (not combined)
+  const commons = prediction?.commons || [];
+  const distribution = prediction?.distribution || {};
+  
+  let displayValue = mainValue;
+  let displayConfidence = confidencePct;
+  
+  // For 2-str, find the highest common from distribution
+  if (commons.length >= 2 && suggestTab === "2") {
+    // 🔥 FIX: Distribution is an OBJECT, not an array!
+    // Convert object to array: {41: {pct: 18}, 42: {pct: 36}} → [{value: '41', pct: 18}, {value: '42', pct: 36}]
+    const distributionArray = Object.entries(distribution).map(([value, data]) => ({
+      value,
+      pct: data.pct,
+      count: data.count
+    }));
+    
+    if (distributionArray.length > 0) {
+      // Find commons in distribution and sort by percentage
+      const commonsWithPct = distributionArray
+        .filter(d => commons.includes(d.value))
+        .sort((a, b) => b.pct - a.pct);
+      
+      if (commonsWithPct.length > 0) {
+        // Main prediction = highest common
+        displayValue = commonsWithPct[0].value;
+        displayConfidence = Math.round(commonsWithPct[0].pct);
+      }
+    } else {
+      // Fallback: Show first common if distribution not available
+      displayValue = commons[0];
+    }
+  }
+
   // little subtitle under the mode
   const activeLabel =
     suggestTab === "2"
@@ -54,6 +90,9 @@ export default function PredictionCard({
   // pick class for the pill
   const modeClass =
     MODE_COLORS[mode] || "bg-slate-700/30 text-slate-100 border-slate-500/20";
+
+  // 🔥 NEW: Check if we have enough rolls
+  const hasEnoughRolls = rollCount >= minRolls;
 
   return (
     <div className="bg-gradient-to-br from-violet-900/20 to-purple-900/20 rounded-2xl p-4 sm:p-6 border border-violet-500/20 shadow-2xl">
@@ -78,18 +117,27 @@ export default function PredictionCard({
         </div>
       </div>
 
-      {hasPrediction ? (
+      {!hasEnoughRolls ? (
+        <div className="text-center py-8">
+          <p className="text-sm text-slate-400 mb-2">
+            Need at least {minRolls} rolls for accurate predictions
+          </p>
+          <p className="text-xs text-slate-500">
+            Current: {rollCount} / {minRolls} rolls
+          </p>
+        </div>
+      ) : hasPrediction ? (
         <div className="space-y-4">
           {/* main block */}
           <div className="bg-slate-950/30 rounded-xl p-4 border border-violet-500/10">
             <p className="text-xs text-slate-400 mb-1">Next roll</p>
             <div className="flex items-center justify-between gap-4">
               <span className="text-3xl sm:text-4xl font-mono bg-gradient-to-r from-violet-300 to-purple-300 bg-clip-text text-transparent">
-                {mainValue}
+                {displayValue}
               </span>
               <div className="flex flex-col items-end gap-0.5">
                 <span className="text-xs font-medium text-violet-100">
-                  {confidencePct}% confidence
+                  {displayConfidence}% confidence
                 </span>
                 {suggestTab === "2" &&
                   typeof prediction?.liveShare === "number" &&
@@ -104,24 +152,31 @@ export default function PredictionCard({
           </div>
 
           {/* alternatives */}
-          {prediction?.candidates && prediction.candidates.length > 1 && (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500 uppercase tracking-widest">
-                Alternatives
-              </p>
-              {prediction.candidates.slice(1, 3).map((c) => (
-                <div
-                  key={c.value}
-                  className="flex items-center justify-between bg-slate-900/30 rounded-lg px-3 py-2 border border-slate-700/20"
-                >
-                  <span className="font-mono text-sm text-slate-200">
-                    {c.value}
-                  </span>
-                  <span className="text-xs text-slate-400">{c.pct}%</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {prediction?.candidates && prediction.candidates.length > 1 && (() => {
+            // 🔥 FIX: Filter out the DISPLAY value (not mainValue) to avoid duplicates
+            const alternatives = prediction.candidates
+              .filter(c => String(c.value) !== String(displayValue))
+              .slice(0, 2); // Take top 2 alternatives
+            
+            return alternatives.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500 uppercase tracking-widest">
+                  Alternatives
+                </p>
+                {alternatives.map((c) => (
+                  <div
+                    key={c.value}
+                    className="flex items-center justify-between bg-slate-900/30 rounded-lg px-3 py-2 border border-slate-700/20"
+                  >
+                    <span className="font-mono text-sm text-slate-200">
+                      {c.value}
+                    </span>
+                    <span className="text-xs text-slate-400">{c.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : null;
+          })()}
 
           {/* mode pill */}
           <div className="flex items-center gap-2 flex-wrap">

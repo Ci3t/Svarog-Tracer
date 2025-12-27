@@ -466,6 +466,214 @@ function detectPattern(rolls, commons, distribution, isChaotic = false) {
 }
 
 /**
+ * 🔥 ENHANCED: Identify Commons with Weighted Recent Rolls
+ * Recent rolls get higher weight for faster adaptation
+ * 
+ * @param {Array} rolls - Array of rolls
+ * @param {Number} windowSize - How many recent rolls to prioritize (default 20)
+ * @returns {Object} Enhanced commons data with stability metrics
+ */
+function identifyCommonsWeighted(rolls, windowSize = 20) {
+  if (!rolls || rolls.length < 3) {
+    return identifyCommons(rolls);
+  }
+
+  // Use sliding window for recent rolls
+  const recentRolls = rolls.slice(-windowSize);
+  
+  // Weight calculation: recent rolls get 2x weight
+  const weightedFreq = {};
+  
+  rolls.forEach((roll, idx) => {
+    const isRecent = idx >= rolls.length - 5; // Last 5 rolls
+    const weight = isRecent ? 2 : 1;
+    weightedFreq[roll] = (weightedFreq[roll] || 0) + weight;
+  });
+
+  // Calculate total weight
+  const totalWeight = Object.values(weightedFreq).reduce((sum, w) => sum + w, 0);
+
+  // Sort by weighted frequency
+  const sorted = Object.entries(weightedFreq)
+    .map(([value, weight]) => ({
+      value,
+      weight,
+      pct: (weight / totalWeight) * 100,
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  // Get commons (top 2 with >15% weighted frequency)
+  const validCommons = sorted.filter(x => x.pct > 15);
+  
+  if (validCommons.length < 2) {
+    return identifyCommons(rolls); // Fallback to regular
+  }
+
+  const commons = validCommons.slice(0, 2).map(x => x.value);
+  const noise = sorted.slice(2).map(x => x.value);
+
+  // Calculate commons stability (how consistent are they)
+  const commonsInRecent = recentRolls.filter(r => commons.includes(r)).length;
+  const stability = commonsInRecent / recentRolls.length;
+
+  return {
+    commons,
+    noise,
+    distribution: Object.fromEntries(sorted.map(x => [x.value, { count: x.weight, pct: x.pct }])),
+    totalRolls: rolls.length,
+    isChaotic: stability < 0.5,
+    commonsConfidence: Math.min(0.95, stability),
+    sortedValues: sorted,
+    stability, // 0-1 score
+    recentWindow: recentRolls,
+  };
+}
+
+/**
+ * 🌊 WAVE FLIP DETECTION
+ * Predicts when commons are about to change
+ * 
+ * @param {Array} rolls - Array of rolls
+ * @param {Array} currentCommons - Current commons
+ * @param {Array} currentNoise - Current noise
+ * @returns {Object|null} Wave flip warning or null
+ */
+function detectWaveFlip(rolls, currentCommons, currentNoise) {
+  if (!rolls || rolls.length < 10 || !currentCommons || currentCommons.length < 2) {
+    return null;
+  }
+
+  const recent10 = rolls.slice(-10);
+  const recent5 = rolls.slice(-5);
+
+  // Count commons vs noise in recent windows
+  const commonsIn10 = recent10.filter(r => currentCommons.includes(r)).length;
+  const commonsIn5 = recent5.filter(r => currentCommons.includes(r)).length;
+  
+  const noiseIn10 = recent10.filter(r => currentNoise.includes(r)).length;
+  const noiseIn5 = recent5.filter(r => currentNoise.includes(r)).length;
+
+  // Calculate trend
+  const commonsTrend = (commonsIn5 / 5) - (commonsIn10 / 10);
+  const noiseTrend = (noiseIn5 / 5) - (noiseIn10 / 10);
+
+  // FLIP WARNING: Commons declining AND noise rising
+  if (commonsTrend < -0.2 && noiseTrend > 0.2) {
+    // Find which noise values are rising
+    const noiseFreq = {};
+    currentNoise.forEach(n => {
+      noiseFreq[n] = recent5.filter(r => r === n).length;
+    });
+
+    const risingNoise = Object.entries(noiseFreq)
+      .filter(([_, count]) => count >= 2)
+      .map(([value]) => value);
+
+    if (risingNoise.length > 0) {
+      // Predict new commons will be: 1 current common + 1 rising noise
+      const stableCommon = currentCommons.find(c => 
+        recent5.filter(r => r === c).length >= 2
+      ) || currentCommons[0];
+
+      const newCommons = [stableCommon, risingNoise[0]];
+
+      return {
+        warning: true,
+        probability: Math.min(0.9, Math.abs(commonsTrend) + noiseTrend),
+        rollsUntil: 2, // Estimate 2-3 rolls
+        currentCommons,
+        predictedNewCommons: newCommons,
+        reason: `Commons declining (${(commonsIn5/5*100).toFixed(0)}% in last 5 vs ${(commonsIn10/10*100).toFixed(0)}% in last 10), Noise rising`,
+      };
+    }
+  }
+
+  // STABILITY CHECK: Commons very stable
+  if (commonsIn10 >= 7) {
+    return {
+      warning: false,
+      stable: true,
+      stability: commonsIn10 / 10,
+      reason: `Commons stable (${commonsIn10}/10 recent rolls)`,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * 📊 CALCULATE PATTERN STRENGTH
+ * How strong/reliable is the detected pattern
+ * 
+ * @param {String} patternType - ALT, RUN, DOM, etc.
+ * @param {Array} rolls - Recent rolls
+ * @param {Array} commons - Commons values
+ * @returns {Number} Strength 0-100
+ */
+function calculatePatternStrength(patternType, rolls, commons) {
+  if (!rolls || rolls.length < 5 || !commons || commons.length < 2) {
+    return 0;
+  }
+
+  const recent10 = rolls.slice(-10);
+  const commonsRolls = recent10.filter(r => commons.includes(r));
+
+  // Base strength = commons rate
+  const commonsRate = commonsRolls.length / recent10.length;
+  let strength = commonsRate * 100;
+
+  // Boost for specific patterns
+  if (patternType === 'alternating') {
+    // Check if actually alternating
+    let alternations = 0;
+    for (let i = 1; i < commonsRolls.length; i++) {
+      if (commonsRolls[i] !== commonsRolls[i-1]) {
+        alternations++;
+      }
+    }
+    const altRate = alternations / (commonsRolls.length - 1);
+    strength = strength * (0.5 + altRate * 0.5); // Boost if truly alternating
+  } else if (patternType === 'run') {
+    // Check for run consistency
+    let runs = 0;
+    let currentRun = 1;
+    for (let i = 1; i < commonsRolls.length; i++) {
+      if (commonsRolls[i] === commonsRolls[i-1]) {
+        currentRun++;
+      } else {
+        if (currentRun >= 2) runs++;
+        currentRun = 1;
+      }
+    }
+    const runRate = runs / (commonsRolls.length / 3);
+    strength = strength * (0.5 + runRate * 0.5);
+  } else if (patternType === 'dominance') {
+    // Already strong if one common dominates
+    strength = Math.min(100, strength * 1.2);
+  }
+
+  return Math.round(Math.min(100, Math.max(0, strength)));
+}
+
+/**
+ * 🎯 GET PATTERN SEQUENCE
+ * Show last 4 commons in sequence
+ * 
+ * @param {Array} rolls - All rolls
+ * @param {Array} commons - Commons values
+ * @returns {String} Sequence like "41→43→41→43"
+ */
+function getPatternSequence(rolls, commons) {
+  if (!rolls || !commons || commons.length < 2) {
+    return "";
+  }
+
+  const commonsOnly = rolls.filter(r => commons.includes(r)).slice(-4);
+  return commonsOnly.join("→");
+}
+
+
+/**
  * 🦁 Main BBP Mode Predictor
  * 🦁 BBP Mode 2-STR PREDICTOR
  * Main prediction function with table analysis integration
@@ -484,8 +692,9 @@ export function predictNext2BBPMode(rolls, options = {}) {
     };
   }
 
-  // Step 1: Identify commons
-  const { commons, noise, distribution, sortedValues, isChaotic, commonsConfidence } = identifyCommons(cleanedRolls);
+  // Step 1: Identify commons (using weighted recent rolls for better accuracy)
+  const commonsData = identifyCommonsWeighted(cleanedRolls);
+  const { commons, noise, distribution, sortedValues, isChaotic, commonsConfidence, stability } = commonsData;
 
   if (isChaotic) {
     return {
@@ -541,6 +750,15 @@ export function predictNext2BBPMode(rolls, options = {}) {
 
   // Step 2: Detect pattern using BBP Mode logic
   const patternResult = detectPattern(cleanedRolls, commons, distribution, isChaotic);
+  
+  // 🔥 NEW: Calculate pattern strength
+  const patternStrength = calculatePatternStrength(patternResult.pattern, cleanedRolls, commons);
+  
+  // 🔥 NEW: Get pattern sequence
+  const patternSequence = getPatternSequence(cleanedRolls, commons);
+  
+  // 🌊 NEW: Detect wave flip
+  const waveFlipData = detectWaveFlip(cleanedRolls, commons, noise);
 
   // 🔥 NEW: Step 3 - Table Analysis Integration (Visual Pattern Detection)
   const tableAnalysis = analyzeTablePattern(cleanedRolls);
@@ -684,12 +902,30 @@ export function predictNext2BBPMode(rolls, options = {}) {
     return a.meanReversion ? 1 : -1;
   });
 
+  // 🔥 FIX: Use user-friendly mode name based on actual pattern
+  let userFriendlyMode = "BBP-mode";
+  
+  // Map technical patterns to simple user-friendly names
+  if (waveIntensity >= 2) {
+    userFriendlyMode = "Wave"; // Pattern is unstable/flipping
+  } else if (patternResult.pattern === "alternating") {
+    userFriendlyMode = "Alternating";
+  } else if (patternResult.pattern === "dominance" || patternResult.pattern === "dominance-run") {
+    userFriendlyMode = "Dominance";
+  } else if (patternResult.pattern === "run-continue") {
+    userFriendlyMode = "Run";
+  } else if (patternResult.pattern === "noise-recovery") {
+    userFriendlyMode = "Noise-Recovery";
+  } else if (patternResult.pattern === "balanced") {
+    userFriendlyMode = "Balanced";
+  }
+
   return {
     prediction: finalPrediction,
     alt: altPrediction,
     confidence: markAdjustedConfidence, // Use MARK-adjusted confidence
     baseConfidence: finalConfidence, // Keep original for reference
-    mode: "BBP-mode",
+    mode: userFriendlyMode, // 🔥 Use pattern-based mode name
     pattern: patternResult.pattern,
     commons,
     noise,
@@ -698,6 +934,12 @@ export function predictNext2BBPMode(rolls, options = {}) {
     commonsConfidence,
     tableAnalysis, // Include for debugging
     candidates: candidatesList,
+    // 🔥 NEW: Enhanced pattern data
+    patternStrength, // 0-100 score
+    patternSequence, // e.g., "41→43→41→43"
+    commonsStability: stability, // 0-1 score from weighted detection
+    // 🌊 NEW: Wave flip detection
+    waveFlipData, // null or {warning, probability, rollsUntil, predictedNewCommons}
     // 🎯 MARK Mode data
     markData: {
       state: markState,
@@ -1033,32 +1275,46 @@ function generateMARKSignals(csi, ntl, pc, waveIntensity, commons, noise, distri
     });
   }
   
-  // Wave warnings (most important)
+  // 🔥 ENHANCED: Wave flip warnings with clear predictions
   if (waveIntensity >= 4) {
-    signals.push('Pattern is breaking down - too many flips between values');
+    signals.push('⚠️ PATTERN BREAKING - Too many flips! Wait 2-3 rolls for new pattern');
   } else if (waveIntensity >= 2) {
-    signals.push(`Pattern unstable - ${waveIntensity} flips detected`);
+    // More detailed warning with prediction
+    const risingNoise = noise.filter(n => {
+      const recent = distribution[n]?.pct || 0;
+      return recent > 15;
+    });
+    
+    if (risingNoise.length > 0) {
+      // Predict new commons
+      const stableCommon = commons[0]; // Most frequent common
+      const newCommon = risingNoise[0]; // Rising noise
+      signals.push(`⚠️ WAVE FLIP DETECTED - ${waveIntensity} flips! Next commons likely: ${stableCommon}, ${newCommon}`);
+    } else {
+      signals.push(`⚠️ Pattern unstable - ${waveIntensity} flips detected. Wait for stabilization`);
+    }
   }
   
-  // Noise warnings
+  // 🔥 ENHANCED: Noise rising warnings with clear action
   if (ntl > 60) {
     const risingNoise = noise.filter(n => {
       const recent = distribution[n]?.pct || 0;
       return recent > 15;
     });
     if (risingNoise.length > 0) {
-      signals.push(`${risingNoise.join(', ')} rising - may become new commons`);
+      const currentPct = risingNoise.map(n => `${n}(${distribution[n]?.pct?.toFixed(0) || 0}%)`).join(', ');
+      signals.push(`🔄 ${risingNoise.join(', ')} rising to ${currentPct} - Will become new commons in 2-3 rolls`);
     }
   }
   
   // Commons warnings - only show if CSI is very low
   if (csi < 40) {
-    signals.push('Commons are unclear or changing');
+    signals.push('⚠️ Commons unclear - Pattern changing, skip betting until stable');
   }
   
   // Pattern warnings
   if (pc < 50) {
-    signals.push('No clear pattern - too random');
+    signals.push('❌ No clear pattern - Too random, skip this session');
   }
   
   return signals;
@@ -1091,7 +1347,8 @@ function adjustConfidenceForMARK(baseConfidence, markState) {
     'COUNTER': 0.5,
     'CHAOS': 0.3
   };
-  return Math.round(baseConfidence * (multipliers[markState] || 0.6));
+  // 🔥 FIX: Return decimal (0-1), not rounded integer
+  return baseConfidence * (multipliers[markState] || 0.6);
 }
 
 export default predictNext2BBPMode;

@@ -148,10 +148,78 @@ export default function DebugPanel({
     return rows;
   }, [debugLogs, sessionId]);
 
-  const formatLine = (log) => {
-    const mainPct = Math.round((log.confidence || 0) * 100);
-    let altPart = "";
 
+  // Helper: Classify failure reason
+  const classifyFailure = (pred, actual, commons, noise) => {
+    if (!actual || !pred) return null;
+    if (actual === pred) return null; // Not a failure
+    
+    if (noise && noise.includes(actual)) {
+      return `NOISE(${actual})`;
+    }
+    if (commons && commons.includes(actual)) {
+      return `WRONG_COMMON(${actual})`;
+    }
+    return `UNPREDICTABLE(${actual})`;
+  };
+
+  // Helper: Get streak info
+  const getStreakInfo = (logs, currentIndex) => {
+    if (!logs || currentIndex < 0) return { current: 0, max: 0 };
+    
+    let current = 0;
+    let max = 0;
+    let tempStreak = 0;
+
+    for (let i = currentIndex; i >= 0; i--) {
+      const log = logs[i];
+      if (!log.actual || !log.prediction) continue;
+      
+      const hit = String(log.actual) === String(log.prediction) ||
+                  (log.alt && String(log.actual) === String(log.alt));
+      
+      if (hit) {
+        tempStreak++;
+        if (i === currentIndex) current = tempStreak;
+      } else {
+        if (i === currentIndex) current = 0;
+        max = Math.max(max, tempStreak);
+        tempStreak = 0;
+      }
+    }
+    max = Math.max(max, tempStreak);
+    
+    return { current, max };
+  };
+
+  // Helper: Get last 5 visual
+  const getLast5Visual = (logs, currentIndex) => {
+    if (!logs || currentIndex < 0) return "";
+    
+    const symbols = [];
+    for (let i = Math.max(0, currentIndex - 4); i <= currentIndex; i++) {
+      const log = logs[i];
+      if (!log.actual || !log.prediction) {
+        symbols.push("-");
+        continue;
+      }
+      
+      const hit = String(log.actual) === String(log.prediction) ||
+                  (log.alt && String(log.actual) === String(log.alt));
+      symbols.push(hit ? "✅" : "❌");
+    }
+    
+    return symbols.join("");
+  };
+
+  const formatLine = (log, logIndex) => {
+    const mainPct = Math.round((log.confidence || 0) * 100);
+    const basePct = log.baseConfidence ? Math.round(log.baseConfidence * 100) : mainPct;
+    
+    // Calibrated confidence display
+    const confDisplay = basePct !== mainPct ? `${basePct}%→${mainPct}%` : `${mainPct}%`;
+    
+    let altPart = "";
     if (log.alt) {
       const altCandidate = (log.candidates || []).find(
         (c) => c.value === log.alt
@@ -171,12 +239,81 @@ export default function DebugPanel({
       ? `(${modeStat.hits}/${modeStat.total} = ${modeStat.pct}%)`
       : "";
 
+    // Pattern info
+    let patternInfo = "";
+    if (log.pattern && log.commons && log.commons.length >= 2) {
+      const patternType = log.pattern.toUpperCase().substring(0, 3);
+      const commonsStr = log.commons.join("↔");
+      const strength = log.patternStrength || 0;
+      const sequence = log.patternSequence || "";
+      
+      patternInfo = ` | Pattern: ${patternType}(${commonsStr}) ${strength}%`;
+      if (sequence) {
+        patternInfo += ` [${sequence}]`;
+      }
+    }
+
+    // Commons breakdown
+    let commonsBreakdown = "";
+    if (log.distribution && log.commons) {
+      const parts = [];
+      Object.entries(log.distribution).forEach(([val, data]) => {
+        const pct = Math.round(data.pct || 0);
+        parts.push(`${val}:${pct}%`);
+      });
+      if (parts.length > 0) {
+        commonsBreakdown = ` | Dist: ${parts.join(",")}`;
+      }
+    }
+
+    // Failure analysis
+    let failureInfo = "";
+    const isCorrect = String(log.actual) === String(log.prediction) ||
+                     (log.alt && String(log.actual) === String(log.alt));
+    
+    if (!isCorrect && log.actual) {
+      const reason = classifyFailure(log.prediction, log.actual, log.commons, log.noise);
+      if (reason) {
+        failureInfo = ` | ❌ ${reason}`;
+      }
+    } else if (isCorrect) {
+      failureInfo = ` | ✅`;
+    }
+
+    // Streak info
+    const currentLogIndex = debugLogs?.findIndex(l => l.ts === log.ts) ?? -1;
+    const streak = getStreakInfo(debugLogs, currentLogIndex);
+    let streakInfo = "";
+    if (streak.current > 0) {
+      const fire = "🔥".repeat(Math.min(3, Math.floor(streak.current / 2)));
+      streakInfo = ` | Streak: ${streak.current}${fire}`;
+    } else if (streak.max > 0) {
+      streakInfo = ` | Max: ${streak.max}`;
+    }
+
+    // Last 5 visual
+    const last5 = getLast5Visual(debugLogs, currentLogIndex);
+    const last5Info = last5 ? ` | Last5: ${last5}` : "";
+
+    // Wave flip warning
+    let waveFlipInfo = "";
+    if (log.waveFlipData?.warning) {
+      const flip = log.waveFlipData;
+      const prob = Math.round(flip.probability * 100);
+      const newCommons = flip.predictedNewCommons?.join(",") || "?";
+      waveFlipInfo = ` | ⚠️ WAVE FLIP in ~${flip.rollsUntil} rolls! New: ${newCommons} (${prob}%)`;
+    } else if (log.waveFlipData?.stable) {
+      const stab = Math.round(log.waveFlipData.stability * 100);
+      waveFlipInfo = ` | ✓ Stable ${stab}%`;
+    }
+
     return `[${formatTime(log.ts)}] ${log.kind}-str → pred: ${
       log.prediction
-    } (${mainPct}%)${altPart} | mode: ${log.mode} ${modeAccuracy} | actual: ${
+    } (${confDisplay})${altPart} | mode: ${log.mode} ${modeAccuracy}${patternInfo}${commonsBreakdown}${failureInfo}${streakInfo}${last5Info}${waveFlipInfo} | actual: ${
       log.actual
     } | ctx: ${(log.ctx || []).join(", ")}`;
   };
+
 
   const backtestResults = useMemo(() => {
     if (!isDebugMode || activeTab !== "backtest") return null;

@@ -5,7 +5,7 @@ export default function Footer() {
         <p>
           <strong>Svarog Tracer</strong> • Relic RNG Observation Engine{" "}
           <span className="text-violet-400 hover:text-violet-300 transition-colors">
-            Version - 3.8.1
+            Version - 3.8.2
           </span>
         </p>
         <p>© {new Date().getFullYear()} Ciet</p>
