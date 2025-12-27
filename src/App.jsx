@@ -7,8 +7,17 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { Routes, Route } from "react-router-dom";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 NEW
+
+// Layout Component
+import Layout from "./components/Layout";
+
+// Page Components
+import LiveSessionPage from "./pages/LiveSessionPage";
+import LongStringPage from "./pages/LongStringPage";
+import KiyoModePage from "./pages/KiyoModePage";
 
 const LeftColumn = lazy(() => import("./components/LeftColumn"));
 const RollInputCard = lazy(() => import("./components/RollInputCard"));
@@ -612,6 +621,104 @@ export default function App() {
     }
   }
 
+  // 🔥 CSV Export Handler
+  function handleExportCSV() {
+    const allEntries = [];
+
+    // Helper functions
+    function translateTo4(str = "") {
+      if (!str) return "";
+      const digits = str.split("").map((d) => Number(d));
+      if (digits.some((d) => isNaN(d) || d < 1 || d > 4)) return "";
+      const shift = (4 - digits[0] + 4) % 4;
+      return digits
+        .map((d) => {
+          const z = d - 1;
+          const s = (z + shift) % 4;
+          return (s + 1).toString();
+        })
+        .join("");
+    }
+
+    function pad5(s = "") {
+      return s.padEnd(5, "0").slice(0, 5);
+    }
+
+    function toWeekday(dateStr) {
+      const d = dateStr ? new Date(dateStr) : new Date();
+      return d.toLocaleDateString(undefined, { weekday: "long" });
+    }
+
+    // Add current session entries
+    entries.forEach((e) => {
+      const base = (e.s2 || e.translated || e.raw || "").toString();
+      const translated = translateTo4(base.replace(/0+$/, "")) || base;
+      allEntries.push({
+        day: toWeekday(e.time),
+        string: pad5(translated),
+        region: e.region || region,
+        patch: e.patch || patch,
+        time: e.time,
+      });
+    });
+
+    // Add all previous sessions entries
+    prevSessions.forEach((sess) => {
+      (sess.entries || []).forEach((e) => {
+        const base = (e.s2 || e.translated || e.raw || "").toString();
+        const translated = translateTo4(base.replace(/0+$/, "")) || base;
+        allEntries.push({
+          day: toWeekday(e.time),
+          string: pad5(translated),
+          region: sess.region || region,
+          patch: sess.patch || patch,
+          time: e.time,
+        });
+      });
+    });
+
+    // Sort by time (newest first)
+    allEntries.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    const headers = ["Day", "String", "Region", "Patch", "MARK State", "CSI", "NTL", "PC", "Wave", "Commons", "Pattern"];
+
+    const csv = [
+      headers.join(","),
+      ...allEntries.map((r, idx) => {
+        // Calculate MARK Mode for this roll (using previous rolls as context)
+        const contextRolls = allEntries.slice(Math.max(0, idx - 11), idx + 1).map(row => row.string.slice(0, 2));
+        let markState = "N/A", csi = "", ntl = "", pc = "", wave = "", commons = "", pattern = "";
+        
+        if (contextRolls.length >= 6) {
+          try {
+            const analysis = predictNext2BBPMode(contextRolls);
+            markState = analysis.markData?.state || "N/A";
+            csi = analysis.markData?.csi || "";
+            ntl = analysis.markData?.ntl || "";
+            pc = analysis.markData?.pc || "";
+            wave = analysis.markData?.waveIntensity || "";
+            commons = analysis.commons?.join("+") || "";
+            pattern = analysis.pattern || "";
+          } catch (e) {
+            // Skip if analysis fails
+          }
+        }
+
+        return [r.day, r.string, r.region, r.patch, markState, csi, ntl, pc, wave, commons, pattern]
+          .map((v) => `"${v ?? ""}"`)
+          .join(",");
+      }),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `HSR_RNG_All_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // 🔥 NEW: Clear debug logs handler
   function handleClearDebugLogs() {
     setDebugLogs([]);
@@ -649,6 +756,19 @@ export default function App() {
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);
 
+  // Calculate session accuracy for header
+  const sessionAccuracy = debugLogs.length > 0
+    ? Math.round(
+        (debugLogs.filter((log) => {
+          const pred = String(log.prediction);
+          const actual = String(log.actual);
+          return pred === actual || pred === actual.slice(0, pred.length);
+        }).length /
+          debugLogs.length) *
+          100
+      )
+    : 0;
+
   return (
     <Suspense
       fallback={
@@ -673,132 +793,109 @@ export default function App() {
         </div>
       }
     >
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-        <TopBar
-          region={region}
-          setRegion={setRegion}
-          patch={patch}
-          setPatch={setPatch}
-          isCustomPatch={isCustomPatch}
-          setIsCustomPatch={setIsCustomPatch}
-          entries={entries}
-          prevSessions={prevSessions}
-        />
-
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6 xl:grid xl:grid-cols-12 xl:gap-6">
-          {/* left column */}
-          <LeftColumn
-            secondsLeft={secondsLeft}
-            onStart={handleStartSession}
-            suggestTab={suggestTab}
-            setSuggestTab={setSuggestTab}
-            caesarInput={caesarInput}
-            setCaesarInput={setCaesarInput}
+      <Routes>
+        {/* Wrap all routes with Layout for navigation */}
+        <Route element={
+          <Layout 
+            region={region}
+            setRegion={setRegion}
+            patch={patch}
+            setPatch={setPatch}
+            isCustomPatch={isCustomPatch}
+            setIsCustomPatch={setIsCustomPatch}
             entries={entries}
-            disableNextPrediction={suggestTab === "kiyo"}
+            prevSessions={prevSessions}
+            onExportCSV={handleExportCSV}
           />
-
-          {/* middle */}
-          <div className="col-span-12 lg:col-span-6 space-y-6">
-            <RollInputCard
-              rollInput={rollInput}
-              setRollInput={setRollInput}
-              onAdd={handleAddRoll}
-              entriesCount={entries.length}
-              onSendLongStringToDebug={handleLongStringToDebug}
-              entries={entries}
-              debugLogs={debugLogs}
-              onSendKiyoDebugData={handleKiyoDebugData}
-              onSendToDebug={handleKiyoToDebug}
-            />
-            {/* 🔮 New Long String Lab */}
-
-            <SessionTable
-              sessionTab={sessionTab}
-              setSessionTab={setSessionTab}
-              entries={entries}
-              prevSessions={prevSessions}
-              onDeleteEntry={handleDeleteEntry}
-              onDeleteSession={handleDeleteSession}
-            />
-
-            {/* 🦁 BBP Mode Live Tracking Table */}
-            {sessionTab === 'current' && entries.length >= 6 && (() => {
-              // 🔥 FIX: Sort entries oldest→newest to match NextPrediction
-              const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
-              return (
-                <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl">
-                  <LiveTrackingTable rolls={sortedEntries.map(e => e.translated)} />
-                </div>
-              );
-            })()}
-
-            {/* 🦁 BBP Mode 3-str Live Tracking Table */}
-            {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-slate-700/50 shadow-2xl mt-6">
-                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">
-                  🦁 BBP Mode Live Tracking (3-str)
-                </h3>
-                <LiveTrackingTable3str 
-                  rolls={entries
-                    .filter(e => (e.translated || '').length >= 3)
-                    .map((entry, index) => ({
-                      value: (entry.translated || '').slice(0, 3),
-                      timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
-                    })).reverse()}
-                />
-              </div>
-            )}
-
-            <NotesCard
-              notes={notes}
-              setNotes={setNotes}
-              region={region}
-              patch={patch}
-              entries={entries}
-            />
-
-            {/* 🔥 UPDATED: Pass onClearLogs */}
-            <DebugPanel
-              debugLogs={debugLogs}
-              onClearLogs={handleClearDebugLogs}
-              isDebugMode={isDebugMode}
-              onImportLogs={handleImportDebugLogs}
-              kiyoWaveData={kiyoDebugData}
-              pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
-            />
-          </div>
-
-          {/* right */}
-          <div className="col-span-12 lg:col-span-3 space-y-6">
-            {/* 🔥 NEW: Accuracy Panel */}
-            <AccuracyPanel debugLogs={debugLogs} />
-            <FrequencyPanel
-              freqTab={freqTab}
-              setFreqTab={setFreqTab}
-              freq2={freq2}
-              freq3={freq3}
-              freq4={freq4}
-              freq5={freq5}
-            />
-            <StatsPanel
-              entries={entries}
-              prediction2={livePrediction}
-              prediction3={livePrediction3}
-              prediction4={livePrediction4}
-              currentRegion={region}
-              currentPatch={patch}
-            />
-            {/* ✅ REGION MATCH HEATMAP (FROM 2-STR SMART) */}
-
-            <RelicPositionCard />
-          </div>
-        </div>
-
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 pb-6">
-          <Footer />
-        </div>
-      </div>
+        }>
+          <Route
+            path="/"
+            element={
+              <LiveSessionPage
+                // State
+                entries={entries}
+                prevSessions={prevSessions}
+                rollInput={rollInput}
+                setRollInput={setRollInput}
+                region={region}
+                setRegion={setRegion}
+                patch={patch}
+                setPatch={setPatch}
+                isCustomPatch={isCustomPatch}
+                setIsCustomPatch={setIsCustomPatch}
+                debugLogs={debugLogs}
+                secondsLeft={secondsLeft}
+                freqTab={freqTab}
+                setFreqTab={setFreqTab}
+                sessionTab={sessionTab}
+                setSessionTab={setSessionTab}
+                suggestTab={suggestTab}
+                setSuggestTab={setSuggestTab}
+                caesarInput={caesarInput}
+                setCaesarInput={setCaesarInput}
+                notes={notes}
+                setNotes={setNotes}
+                // Computed
+                freq2={freq2}
+                freq3={freq3}
+                freq4={freq4}
+                freq5={freq5}
+                livePrediction={livePrediction}
+                livePrediction3={livePrediction3}
+                livePrediction4={livePrediction4}
+                // Handlers
+                handleAddRoll={handleAddRoll}
+                handleStartSession={handleStartSession}
+                handleDeleteEntry={handleDeleteEntry}
+                handleDeleteSession={handleDeleteSession}
+                handleClearDebugLogs={handleClearDebugLogs}
+                handleImportDebugLogs={handleImportDebugLogs}
+                // Refs
+                pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+                // Other
+                isDebugMode={isDebugMode}
+                kiyoDebugData={kiyoDebugData}
+              />
+            }
+          />
+          <Route
+            path="/long-string"
+            element={
+              <LongStringPage
+                region={region}
+                setRegion={setRegion}
+                patch={patch}
+                setPatch={setPatch}
+                isCustomPatch={isCustomPatch}
+                setIsCustomPatch={setIsCustomPatch}
+                entries={entries}
+                prevSessions={prevSessions}
+                handleLongStringToDebug={handleLongStringToDebug}
+              />
+            }
+          />
+          <Route
+            path="/kiyo"
+            element={
+              <KiyoModePage
+                region={region}
+                setRegion={setRegion}
+                patch={patch}
+                setPatch={setPatch}
+                isCustomPatch={isCustomPatch}
+                setIsCustomPatch={setIsCustomPatch}
+                entries={entries}
+                prevSessions={prevSessions}
+                debugLogs={debugLogs}
+                kiyoDebugData={kiyoDebugData}
+                handleKiyoToDebug={handleKiyoToDebug}
+                handleKiyoDebugData={handleKiyoDebugData}
+                pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+              />
+            }
+          />
+        </Route>
+      </Routes>
     </Suspense>
   );
 }
