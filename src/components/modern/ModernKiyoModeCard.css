@@ -1,0 +1,30 @@
+/* Modern Kiyo Mode Card - Layout Overrides */
+/* This CSS reorganizes the KiyoModeCard layout to be full-width and modern */
+
+.modern-kiyo-wrapper {
+  /* Full width container */
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+}
+
+/* Make the wave analysis display use a 3-column grid instead of 2 */
+.modern-kiyo-wrapper .grid.grid-cols-1.md\\:grid-cols-2 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .modern-kiyo-wrapper .grid.grid-cols-1.md\\:grid-cols-2 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Increase spacing between cards */
+.modern-kiyo-wrapper .space-y-3 > * + * {
+  margin-top: 1.5rem;
+}
+
+/* Make cards more prominent */
+.modern-kiyo-wrapper .rounded-2xl {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}

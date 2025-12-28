@@ -397,7 +397,12 @@ export default function WaveAnalysisDisplay({
               </div>
             </div>
           </div>
+        </>
+      )}
 
+      {/* Betting Recommendation Banner */}
+      {analyzeWavePatterns?.bettingRecommendation && (
+        <>
           {/* Compact Recommendation - Smaller */}
           <div className={`border rounded-lg p-2 ${
             analyzeWavePatterns.bettingRecommendation.focus === 'none' 
@@ -425,28 +430,25 @@ export default function WaveAnalysisDisplay({
         </>
       )}
 
+      {/* 2x2 GRID LAYOUT: All 4 Cards Together */}
       {hasData ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[col2, col3].map(renderColumnCard)}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-6 text-slate-300">
-          ⏳ Waiting for wave data…
-        </div>
-      )}
+          {/* Column 2 Card */}
+          {renderColumnCard(col2)}
+          
+          {/* Column 3 Card */}
+          {renderColumnCard(col3)}
 
-      {/* 2-STR and 3-STR Predictions Side by Side */}
-      {smartRecommendation && (smartRecommendation.prediction2str || smartRecommendation.prediction3str) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* 2-STR Card */}
-          {smartRecommendation.prediction2str && (
-            <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-              <div className="flex items-start justify-between gap-3 mb-3">
+          {/* 2-String Circular Predictor - Compact */}
+          {smartRecommendation?.prediction2str && (
+            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 border border-slate-700/50 shadow-xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="text-sm font-bold text-slate-100">2-String Predictor</div>
-                  <div className="text-xs text-slate-400">Next 2nd digit</div>
+                  <h3 className="text-xs font-semibold text-slate-300">🎯 2-String Predictor</h3>
+                  <p className="text-[10px] text-slate-500">Next 2nd digit</p>
                 </div>
-                <div className={`rounded-full border px-2 py-1 text-xs ${
+                <div className={`rounded-full border px-2 py-0.5 text-[10px] ${
                   smartRecommendation.prediction2str.source === 'live' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30' :
                   smartRecommendation.prediction2str.source === 'import' ? 'bg-cyan-500/15 text-cyan-200 border-cyan-500/30' :
                   'bg-amber-500/15 text-amber-200 border-amber-500/30'
@@ -456,45 +458,57 @@ export default function WaveAnalysisDisplay({
                    '⚠️ Sheet'}
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
-                  <div className="text-xs text-slate-400">Main</div>
-                  <div className="text-lg font-extrabold text-white">
-                    {smartRecommendation.prediction2str.prediction ?? "—"}{" "}
-                    <span className="text-xs font-normal text-slate-300">
-                      ({fmtPct(smartRecommendation.prediction2str.confidence)})
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
-                  <div className="text-xs text-slate-400">Alt</div>
-                  <div className="text-lg font-extrabold text-white">
-                    {smartRecommendation.prediction2str.alt ?? "—"}
+
+              {/* Circular Progress - Smaller */}
+              <div className="flex flex-col items-center justify-center mb-2">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-800" />
+                    <circle 
+                      cx="64" cy="64" r="50" 
+                      stroke="url(#gradient2str)" strokeWidth="6" fill="none" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 50}
+                      strokeDashoffset={2 * Math.PI * 50 - (Math.round((smartRecommendation.prediction2str.confidence || 0) * 100) / 100) * 2 * Math.PI * 50}
+                      className="transition-all duration-1000 ease-out"
+                    />
+                    <defs>
+                      <linearGradient id="gradient2str" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={smartRecommendation.prediction2str.source === 'live' ? '#10b981' : smartRecommendation.prediction2str.source === 'import' ? '#06b6d4' : '#f59e0b'} />
+                        <stop offset="100%" stopColor={smartRecommendation.prediction2str.source === 'live' ? '#059669' : smartRecommendation.prediction2str.source === 'import' ? '#0891b2' : '#d97706'} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <div className="text-3xl font-bold text-white mb-0.5">{smartRecommendation.prediction2str.prediction ?? "—"}</div>
+                    <div className="text-sm font-semibold text-purple-400">{Math.round((smartRecommendation.prediction2str.confidence || 0) * 100)}%</div>
                   </div>
                 </div>
               </div>
-              
-              {smartRecommendation.prediction2str.reasoning && (
-                <div className="mt-3 text-xs text-cyan-300 italic">
-                  {smartRecommendation.prediction2str.reasoning}
+
+              {/* Alternative - Compact */}
+              {smartRecommendation.prediction2str.alt && (
+                <div className="flex items-center justify-center">
+                  <div className="px-3 py-1 rounded-lg bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm">
+                    <span className="text-[10px] text-slate-500 mr-1">Alt:</span>
+                    <span className="text-sm font-bold text-slate-300">{smartRecommendation.prediction2str.alt}</span>
+                  </div>
                 </div>
               )}
             </div>
           )}
-          
-          {/* 3-STR Card */}
-          {smartRecommendation.prediction3str && (
-            <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-              <div className="flex items-start justify-between gap-3 mb-3">
+
+          {/* 3-String Circular Predictor - Compact */}
+          {smartRecommendation?.prediction3str && (
+            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 border border-slate-700/50 shadow-xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="text-sm font-bold text-slate-100">3-String Predictor</div>
-                  <div className="text-xs text-slate-400">
+                  <h3 className="text-xs font-semibold text-slate-300">🎯 3-String Predictor</h3>
+                  <p className="text-[10px] text-slate-500">
                     {smartRecommendation.prediction3str.prefix ? `Analyzing: ${smartRecommendation.prediction3str.prefix}` : 'Next 3rd digit'}
-                  </div>
+                  </p>
                 </div>
-                <div className={`rounded-full border px-2 py-1 text-xs ${
+                <div className={`rounded-full border px-2 py-0.5 text-[10px] ${
                   smartRecommendation.prediction3str.source === 'live' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30' :
                   smartRecommendation.prediction3str.source === 'import' ? 'bg-cyan-500/15 text-cyan-200 border-cyan-500/30' :
                   'bg-amber-500/15 text-amber-200 border-amber-500/30'
@@ -504,33 +518,48 @@ export default function WaveAnalysisDisplay({
                    '⚠️ Sheet'}
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
-                  <div className="text-xs text-slate-400">Main</div>
-                  <div className="text-lg font-extrabold text-white">
-                    {smartRecommendation.prediction3str.prediction ?? "—"}{" "}
-                    <span className="text-xs font-normal text-slate-300">
-                      ({fmtPct(smartRecommendation.prediction3str.confidence)})
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="rounded-xl border border-slate-700/40 bg-slate-950/20 p-3">
-                  <div className="text-xs text-slate-400">Alt</div>
-                  <div className="text-lg font-extrabold text-white">
-                    {smartRecommendation.prediction3str.alt ?? "—"}
+
+              {/* Circular Progress - Smaller */}
+              <div className="flex flex-col items-center justify-center mb-2">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-800" />
+                    <circle 
+                      cx="64" cy="64" r="50" 
+                      stroke="url(#gradient3str)" strokeWidth="6" fill="none" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 50}
+                      strokeDashoffset={2 * Math.PI * 50 - (Math.round((smartRecommendation.prediction3str.confidence || 0) * 100) / 100) * 2 * Math.PI * 50}
+                      className="transition-all duration-1000 ease-out"
+                    />
+                    <defs>
+                      <linearGradient id="gradient3str" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={smartRecommendation.prediction3str.source === 'live' ? '#10b981' : smartRecommendation.prediction3str.source === 'import' ? '#06b6d4' : '#f59e0b'} />
+                        <stop offset="100%" stopColor={smartRecommendation.prediction3str.source === 'live' ? '#059669' : smartRecommendation.prediction3str.source === 'import' ? '#0891b2' : '#d97706'} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <div className="text-3xl font-bold text-white mb-0.5">{smartRecommendation.prediction3str.prediction ?? "—"}</div>
+                    <div className="text-sm font-semibold text-purple-400">{Math.round((smartRecommendation.prediction3str.confidence || 0) * 100)}%</div>
                   </div>
                 </div>
               </div>
-              
-              {smartRecommendation.prediction3str.reasoning && (
-                <div className="mt-3 text-xs text-cyan-300 italic">
-                  {smartRecommendation.prediction3str.reasoning}
+
+              {/* Alternative - Compact */}
+              {smartRecommendation.prediction3str.alt && (
+                <div className="flex items-center justify-center">
+                  <div className="px-3 py-1 rounded-lg bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm">
+                    <span className="text-[10px] text-slate-500 mr-1">Alt:</span>
+                    <span className="text-sm font-bold text-slate-300">{smartRecommendation.prediction3str.alt}</span>
+                  </div>
                 </div>
               )}
             </div>
           )}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-6 text-slate-300">
+          ⏳ Waiting for wave data…
         </div>
       )}
     </div>

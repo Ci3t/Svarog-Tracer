@@ -1,0 +1,78 @@
+/* Modern Kiyo Mode Page - Unified Panel Layout */
+
+.modern-kiyo-page {
+    min-height: 100vh;
+    background: linear-gradient(to bottom right, #020617, #0f172a, #020617);
+    color: #f1f5f9;
+}
+
+.modern-kiyo-container {
+    max-width: 1920px;
+    margin: 0 auto;
+    padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .modern-kiyo-container {
+        padding: 1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .modern-kiyo-container {
+        padding: 1.5rem;
+    }
+}
+
+/* Accuracy header bar + Region selector - sticky offsets moved to components */
+/*.modern-kiyo-container .flex.flex-col.sm\:flex-row.sm\:items-center ... removed ... */
+
+/* Main content spacing */
+.modern-kiyo-content-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Base styles for the kiyo mode page elements */
+.kiyo-card-base {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%);
+    backdrop-filter: blur(12px);
+    border-radius: 1rem;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+.modern-kiyo-container ::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modern-kiyo-container ::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 4px;
+}
+
+.modern-kiyo-container ::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 4px;
+}
+
+.modern-kiyo-container ::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 92, 246, 0.7);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 3px;
+}

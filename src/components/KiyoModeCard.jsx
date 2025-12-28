@@ -30,7 +30,8 @@ import { predictWithCascadingPriority } from "../utils/cascadingPredictor";
 import { getSmartRecommendation } from "../utils/smartDecisionSystem";
 import { analyzePatternWithWindow } from "../utils/patternRecognition";
 
-import TestRollsInput from "./kiyo/TestRollsInput";
+import RollInput from "./kiyo/RollInput";
+import AddedRollsPanel from "./kiyo/AddedRollsPanel";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import PrefixPredictors from "./kiyo/PrefixPredictors";
@@ -41,6 +42,7 @@ import AdvancedToolsSection from "./AdvancedToolsSection";
 import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
 import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
 import RecommendationPanel from "./kiyo/RecommendationPanel";
+import CompactCaesarShift from "./kiyo/CompactCaesarShift";
 
 const WAVE_SCHEMES = {
   col1: {
@@ -910,6 +912,7 @@ export default function KiyoModeCard({
   const [importedRolls, setImportedRolls] = useState([]);
   const [showImportStats, setShowImportStats] = useState(false);
   const fileInputRef = useRef(null);
+  const [caesarInput, setCaesarInput] = useState(""); // Caesar shift state
 
   const [persistentWaveAccuracy, setPersistentWaveAccuracy] = useState({
     col2: { hits: 0, total: 0 },
@@ -1186,13 +1189,13 @@ export default function KiyoModeCard({
     const col2WindowContext = {
       ...baseWindowContext,
       windowStates: windowAnalysis?.currentWindowStates?.col2 || null,
-      previousStates: windowAnalysis?.previousContext?.col2States || null // NEW
+      previousStates: windowAnalysis?.previousContext?.col2States || null
     };
     
     const col3WindowContext = {
       ...baseWindowContext,
       windowStates: windowAnalysis?.currentWindowStates?.col3 || null,
-      previousStates: windowAnalysis?.previousContext?.col3States || null // NEW
+      previousStates: windowAnalysis?.previousContext?.col3States || null
     };
 
     const col2Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col2, 1, col2WindowContext);
@@ -1291,11 +1294,11 @@ export default function KiyoModeCard({
         col2Status: "good",
         col3Status: "bad"
       };
-    } else if (col2Analysis.isChaotic && col3Analysis.isChaotic) {
+    } else {
       bettingRecommendation = {
         suggestion: "SKIP SESSION",
         focus: "none",
-        message: "Both columns chaotic - wait for clearer patterns to emerge",
+        message: "Both columns chaotic - wait for patterns",
         col2Status: "bad",
         col3Status: "bad"
       };
@@ -1793,47 +1796,56 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      {/* Sticky Roll Input */}
-      <div style={{
-        position: 'sticky',
-        top: '0',
-        zIndex: 10,
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
-        backdropFilter: 'blur(10px)',
-        paddingBottom: '16px',
-        marginBottom: '16px'
-      }}>
-        <TestRollsInput
-          testInput={testInput}
-          setTestInput={setTestInput}
-          handleTestRollSubmit={handleTestRollSubmit}
-          testRolls={testRolls}
-          setTestRolls={setTestRolls}
-          translatedTestRolls={translatedTestRolls}
-          handleDeleteTestRoll={handleDeleteTestRoll}
-          setActivePrefix={setActivePrefix}
-        />
-        
-        {/* 5-Minute Window Timer - Always visible with input */}
-        {combinedRolls.length >= 4 && analyzeWavePatterns && (
-          <div style={{ marginTop: '12px' }}>
-            <FiveMinWindowTracker
-              windowInfo={windowInfo}
-              analyzeWavePatterns={analyzeWavePatterns}
+      {/* Sticky Input + Timer Cards */}
+      <div className="sticky top-[80px] sm:top-[70px] z-10 pb-4 mb-4 mt-2">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+          {/* Left: Roll Input */}
+          <div className="flex-1 min-w-0">
+            <RollInput
+              testInput={testInput}
+              setTestInput={setTestInput}
+              handleTestRollSubmit={handleTestRollSubmit}
+              setActivePrefix={setActivePrefix}
             />
           </div>
-        )}
+          
+          {/* Middle: Compact Caesar Shift */}
+          <div className="flex-1 min-w-0">
+            <CompactCaesarShift
+              caesarInput={caesarInput}
+              setCaesarInput={setCaesarInput}
+            />
+          </div>
+          
+          {/* Right: 5-Minute Window Timer */}
+          {combinedRolls.length >= 4 && analyzeWavePatterns && (
+            <div className="flex-1 lg:flex-[1.25] min-w-0">
+              <FiveMinWindowTracker
+                windowInfo={windowInfo}
+                analyzeWavePatterns={analyzeWavePatterns}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      {combinedRolls.length >= 4 && analyzeWavePatterns && (
-        <>
+      {/* Added Rolls Panel - Separate component for sidebar */}
+      <AddedRollsPanel
+        testRolls={testRolls}
+        setTestRolls={setTestRolls}
+        translatedTestRolls={translatedTestRolls}
+        handleDeleteTestRoll={handleDeleteTestRoll}
+        setActivePrefix={setActivePrefix}
+      >
+        {/* Pass WaveAnalysisDisplay as child to render on the right side */}
+        {combinedRolls.length >= 4 && analyzeWavePatterns && (
           <WaveAnalysisDisplay
             analyzeWavePatterns={analyzeWavePatterns}
             smartPrefixPrediction={smartRecommendation?.prefixPrediction}
             smartRecommendation={smartRecommendation}
           />
-        </>
-      )}
+        )}
+      </AddedRollsPanel>
 
       <RecommendationPanel
         waveAccuracy={waveAccuracy}

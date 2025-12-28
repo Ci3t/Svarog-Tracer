@@ -20,6 +20,7 @@ import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW M
 import LongStringPage from "./pages/LongStringPage";
 import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
 import KiyoModePage from "./pages/KiyoModePage";
+import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
 
 const LeftColumn = lazy(() => import("./components/LeftColumn"));
 const RollInputCard = lazy(() => import("./components/RollInputCard"));
@@ -879,7 +880,7 @@ export default function App() {
           <Route
             path="/kiyo"
             element={
-              <KiyoModePage
+              <ModernKiyoModePage
                 region={region}
                 setRegion={setRegion}
                 patch={patch}

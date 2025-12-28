@@ -123,41 +123,52 @@ export default function ModernLongStringPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <div className="max-w-[1920px] mx-auto px-6 py-6">
+      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
         {/* Top Section: Input + Prediction */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-3 sm:mb-4 lg:mb-6">
           {/* Input Area (60% / 3 columns) */}
           <div className="lg:col-span-3">
-            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-purple-500/30 shadow-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">
-                  🧪 Long String Lab
-                </h2>
+            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-purple-500/30 shadow-2xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.344l-3.118-.624A5 5 0 012 10.122V4a2 2 0 012-2h12a2 2 0 012 2v11.428l2.428 2.428a2 2 0 003.414-1.414V4a2 2 0 00-2-2h-3.428" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xs sm:text-sm font-black text-purple-400 uppercase tracking-[0.2em]">
+                    Long String Lab
+                  </h2>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <select
                     value={region}
                     onChange={(e) => setRegion(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 appearance-none min-w-[100px]"
                   >
                     <option>Global</option>
                     <option>CN</option>
                     <option>Asia</option>
                   </select>
-                  <button 
-                    onClick={handleDownload}
-                    className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
-                  >
-                    Download
-                  </button>
-                  <label className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors cursor-pointer">
-                    Import
-                    <input
-                      type="file"
-                      accept=".txt"
-                      onChange={handleImport}
-                      className="hidden"
-                    />
-                  </label>
+                  
+                  <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                    <button
+                      onClick={handleDownload}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold transition-all active:scale-95"
+                    >
+                      DOWNLOAD
+                    </button>
+                    <label className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer text-center">
+                      IMPORT
+                      <input
+                        type="file"
+                        accept=".txt"
+                        onChange={handleImport}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 

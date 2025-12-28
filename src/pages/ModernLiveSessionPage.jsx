@@ -80,9 +80,9 @@ export default function ModernLiveSessionPage({
         entriesCount={entries.length}
       />
 
-      <div className="max-w-[1920px] mx-auto p-4">
+      <div className="max-w-[1920px] mx-auto p-2 sm:p-3 lg:p-4">
         {/* 3-Column Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
           
           {/* LEFT COLUMN - Prediction, Caesar, Modes */}
           <div className="lg:col-span-3 space-y-4">

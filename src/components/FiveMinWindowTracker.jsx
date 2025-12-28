@@ -69,7 +69,7 @@ export default function FiveMinWindowTracker({
       : "text-rose-200";
 
   return (
-    <div className="sticky top-4 z-10 mb-3 rounded-2xl border border-cyan-500/30 bg-slate-950/95 backdrop-blur-sm p-3 shadow-lg">
+    <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/95 backdrop-blur-sm p-3 shadow-lg h-full">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-semibold text-cyan-200">
           🕐 5-Minute Window
