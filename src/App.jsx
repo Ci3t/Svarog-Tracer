@@ -16,6 +16,7 @@ import Layout from "./components/Layout";
 
 // Page Components
 import LiveSessionPage from "./pages/LiveSessionPage";
+import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
 import LongStringPage from "./pages/LongStringPage";
 import KiyoModePage from "./pages/KiyoModePage";
 
@@ -429,6 +430,16 @@ export default function App() {
     setTimerRunning(true);
   }
 
+  function handleStopSession() {
+    setTimerRunning(false);
+  }
+
+  function handleRestartSession() {
+    archiveCurrentSession(); // Archive current session to history
+    setSecondsLeft(SESSION_SECONDS);
+    setTimerRunning(true);
+  }
+
   /* ========= ADD ROLL ========= */
   function handleAddRoll() {
     const value = rollInput.trim();
@@ -511,7 +522,7 @@ export default function App() {
         alt: p2Before.alt || null,
         mode: p2Before.mode || "—",
         actual: actual2,
-        ctx: rolls2Before.slice(-8),
+        ctx: [...rolls2Before].reverse(), // 🔥 CHANGED: Reverse back to chronological order (oldest→newest)
         candidates: safeCandidates(p2Before),
         source: "live", // Mark as live for accuracy tracking
         // 🔥 Enhanced BBP data
@@ -811,7 +822,7 @@ export default function App() {
           <Route
             path="/"
             element={
-              <LiveSessionPage
+              <ModernLiveSessionPage
                 // State
                 entries={entries}
                 prevSessions={prevSessions}
@@ -846,6 +857,8 @@ export default function App() {
                 // Handlers
                 handleAddRoll={handleAddRoll}
                 handleStartSession={handleStartSession}
+                handleStopSession={handleStopSession}
+                handleRestartSession={handleRestartSession}
                 handleDeleteEntry={handleDeleteEntry}
                 handleDeleteSession={handleDeleteSession}
                 handleClearDebugLogs={handleClearDebugLogs}

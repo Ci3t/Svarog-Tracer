@@ -127,22 +127,55 @@ export default function PredictionCard({
           </p>
         </div>
       ) : hasPrediction ? (
-        <div className="space-y-4">
-          {/* main block */}
-          <div className="bg-slate-950/30 rounded-xl p-4 border border-violet-500/10">
-            <p className="text-xs text-slate-400 mb-1">Next roll</p>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-3xl sm:text-4xl font-mono bg-gradient-to-r from-violet-300 to-purple-300 bg-clip-text text-transparent">
-                {displayValue}
-              </span>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="text-xs font-medium text-violet-100">
-                  {displayConfidence}% confidence
-                </span>
+        <div className="space-y-6">
+          {/* Circular Progress Ring */}
+          <div className="flex flex-col items-center justify-center py-4">
+            <div className="relative w-56 h-56">
+              {/* SVG Circle */}
+              <svg className="w-full h-full transform -rotate-90">
+                {/* Background Circle */}
+                <circle
+                  cx="112"
+                  cy="112"
+                  r="90"
+                  stroke="currentColor"
+                  strokeWidth="10"
+                  fill="none"
+                  className="text-slate-800"
+                />
+                {/* Progress Circle */}
+                <circle
+                  cx="112"
+                  cy="112"
+                  r="90"
+                  stroke="url(#predictionGradient)"
+                  strokeWidth="10"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 90}
+                  strokeDashoffset={2 * Math.PI * 90 * (1 - displayConfidence / 100)}
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="predictionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#a855f7" />
+                    <stop offset="100%" stopColor="#ec4899" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              {/* Center Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="text-6xl font-bold text-white mb-1">
+                  {displayValue}
+                </div>
+                <div className="text-xl font-semibold text-purple-400">
+                  {displayConfidence}%
+                </div>
                 {suggestTab === "2" &&
                   typeof prediction?.liveShare === "number" &&
                   typeof prediction?.sheetShare === "number" && (
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-500 mt-1">
                       {Math.round((prediction.liveShare || 0) * 100)}% live /{" "}
                       {Math.round((prediction.sheetShare || 0) * 100)}% sheet
                     </span>
@@ -159,19 +192,18 @@ export default function PredictionCard({
               .slice(0, 2); // Take top 2 alternatives
             
             return alternatives.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs text-slate-500 uppercase tracking-widest">
-                  Alternatives
-                </p>
+              <div className="flex items-center justify-center gap-3">
                 {alternatives.map((c) => (
                   <div
                     key={c.value}
-                    className="flex items-center justify-between bg-slate-900/30 rounded-lg px-3 py-2 border border-slate-700/20"
+                    className="px-5 py-2 rounded-2xl bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm"
                   >
-                    <span className="font-mono text-sm text-slate-200">
+                    <span className="text-2xl font-bold text-slate-300 mr-2">
                       {c.value}
                     </span>
-                    <span className="text-xs text-slate-400">{c.pct}%</span>
+                    <span className="text-sm text-slate-500">
+                      ({c.pct}%)
+                    </span>
                   </div>
                 ))}
               </div>
