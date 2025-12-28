@@ -57,13 +57,11 @@ export default function ModernLiveTrackingTable({ rolls = [] }) {
       }
     }
     
-    // Get last 5 pattern
-    const last5Pattern = rollValues
-      .map((v, i) => ({ v, i }))
-      .filter(({ v }) => v === value)
+    // Get last 5 count (how many times this value appears in last 5 rolls)
+    const last5Count = rollValues
       .slice(-5)
-      .map(({ v }) => v)
-      .join('-') || '—';
+      .filter(v => v === value)
+      .length;
     
     return {
       value,
@@ -72,7 +70,7 @@ export default function ModernLiveTrackingTable({ rolls = [] }) {
       trend,
       status,
       isDominant,
-      last5Pattern,
+      last5Count,
       sortKey: isDominant ? 2000 + count : status === 'common' ? 1000 + count : count
     };
   });
@@ -145,8 +143,19 @@ export default function ModernLiveTrackingTable({ rolls = [] }) {
                   <td className={`py-3 px-4 text-center text-xl font-bold ${getTrendColor(item.trend)}`}>
                     {item.trend}
                   </td>
-                  <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400">
-                    {item.last5Pattern}
+                  <td className="py-3 px-4">
+                    <div className="flex gap-1 justify-center">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-3 h-3 rounded-full ${
+                            i < item.last5Count
+                              ? 'bg-purple-500'
+                              : 'bg-slate-700/30'
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-2">

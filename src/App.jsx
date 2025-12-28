@@ -18,6 +18,7 @@ import Layout from "./components/Layout";
 import LiveSessionPage from "./pages/LiveSessionPage";
 import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
 import LongStringPage from "./pages/LongStringPage";
+import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
 import KiyoModePage from "./pages/KiyoModePage";
 
 const LeftColumn = lazy(() => import("./components/LeftColumn"));
@@ -873,19 +874,7 @@ export default function App() {
           />
           <Route
             path="/long-string"
-            element={
-              <LongStringPage
-                region={region}
-                setRegion={setRegion}
-                patch={patch}
-                setPatch={setPatch}
-                isCustomPatch={isCustomPatch}
-                setIsCustomPatch={setIsCustomPatch}
-                entries={entries}
-                prevSessions={prevSessions}
-                handleLongStringToDebug={handleLongStringToDebug}
-              />
-            }
+            element={<ModernLongStringPage />}
           />
           <Route
             path="/kiyo"
