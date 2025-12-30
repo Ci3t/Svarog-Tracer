@@ -20,23 +20,11 @@ import {
 import Layout from "./components/Layout";
 
 // Page Components
-import LiveSessionPage from "./pages/LiveSessionPage";
 import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
-import LongStringPage from "./pages/LongStringPage";
 import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
-import KiyoModePage from "./pages/KiyoModePage";
 import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
 
-const LeftColumn = lazy(() => import("./components/LeftColumn"));
-const RollInputCard = lazy(() => import("./components/RollInputCard"));
-const SessionTable = lazy(() => import("./components/SessionTable"));
-const FrequencyPanel = lazy(() => import("./components/FrequencyPanel"));
-const NotesCard = lazy(() => import("./components/NotesCard"));
-const Footer = lazy(() => import("./components/Footer"));
-const StatsPanel = lazy(() => import("./components/StatsPanel"));
-const TopBar = lazy(() => import("./components/TopBar"));
-const DebugPanel = lazy(() => import("./components/DebugPanel"));
-const AccuracyPanel = lazy(() => import("./components/AccuracyPanel")); // 🔥 NEW
+
 
 import {
   translateTo4,
@@ -51,10 +39,7 @@ import {
   predictNext4,
   resetSessionStats,
 } from "./utils/predictNext";
-import RelicPositionCard from "./components/RelicPositionCard";
 import KiyoModeCard from "./components/KiyoModeCard";
-import LiveTrackingTable from "./components/LiveTrackingTable"; // 🔥 NEW
-import LiveTrackingTable3str from "./components/LiveTrackingTable3str"; // 🔥 NEW 3-str
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // 🔥 NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";

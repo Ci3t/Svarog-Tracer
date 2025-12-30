@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import RawInputHelper from "./kiyo/RawInputHelper";
 import WavePairingTable from "./kiyo/WavePairingTable";
-import WaveAccuracyDisplay from "./kiyo/WaveAccuracyDisplay";
+
 
 export default function AdvancedToolsSection({
   waveAccuracy,

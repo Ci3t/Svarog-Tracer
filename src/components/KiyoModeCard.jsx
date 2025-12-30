@@ -674,13 +674,17 @@ export default function KiyoModeCard({
       // Search backwards from the end to get the most recent occurrence
       const rollEventIdx = rollEvents.length - 1 - vizIdx;
       const ts = rollEvents[rollEventIdx]?.ts || Date.now();
+      const rawRoll = rollEvents[rollEventIdx]?.roll || r; 
 
-      const col1Digit = r[0];
+      // Col 1 uses FIRST digit of RAW roll (user request)
+      const col1Digit = rawRoll[0];
+      // Col 2 and 3 use translated roll
       const col2Digit = r[1];
       const col3Digit = r[2];
 
       return {
         roll: r,
+        raw: rawRoll,
         ts,
         windowStartMs: bucket5m(ts),
 

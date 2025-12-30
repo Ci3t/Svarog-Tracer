@@ -530,16 +530,14 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
         </div>
 
         {/* Debug Panel */}
-        {isDebugMode && (
-          <div className="mt-6">
-            <ModernDebugPanel
-              debugLogs={debugLogs}
-              onClearLogs={onClearLogs}
-              onImportLogs={onImportLogs}
-              isDebugMode={isDebugMode}
-            />
-          </div>
-        )}
+        <div className="mt-6">
+          <ModernDebugPanel
+            debugLogs={debugLogs}
+            onClearLogs={onClearLogs}
+            onImportLogs={onImportLogs}
+            isDebugMode={isDebugMode}
+          />
+        </div>
       </div>
     </div>
   );
