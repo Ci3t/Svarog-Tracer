@@ -20,7 +20,7 @@ export default function RollInput({
         type="text"
         value={testInput}
         onChange={(e) => {
-          const value = e.target.value.replace(/[^1-4]/g, "");
+          const value = e.target.value.replace(/[^1-8]/g, "");
           setTestInput(value);
           
           // Real-time prefix tracking for predictions

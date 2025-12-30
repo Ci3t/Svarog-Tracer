@@ -143,7 +143,7 @@ export default function WavePairingTable({ pairingViz, splitIndex = null }) {
                         : "bg-amber-900/40 text-amber-300"
                     }`}
                   >
-                    {row?.col1?.label ?? "—"} ( <span className="opacity-50 font-normal">{row.roll}</span> | <span className={`font-bold text-[10px] ${row?.col1?.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.raw}</span> )
+                    {row?.col1?.label ?? "—"} ( <span className={`font-bold text-[10px] ${row?.col1?.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.raw}</span> )
                   </td>
                   <td
                     className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
@@ -152,7 +152,7 @@ export default function WavePairingTable({ pairingViz, splitIndex = null }) {
                         : "bg-amber-900/40 text-amber-300"
                     }`}
                   >
-                    {row.col2.label} ( <span className={`font-bold text-[10px] ${row.col2.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.roll}</span> | <span className="opacity-50 font-normal">{row.raw}</span> )
+                    {row.col2.label} ( <span className={`font-bold text-[10px] ${row.col2.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.roll}</span> )
                   </td>
                   <td
                     className={`py-2 px-3 text-center font-semibold text-[9px] border border-slate-700/30 ${
@@ -161,7 +161,7 @@ export default function WavePairingTable({ pairingViz, splitIndex = null }) {
                         : "bg-amber-900/40 text-amber-300"
                     }`}
                   >
-                    {row.col3.label} ( <span className={`font-bold text-[10px] ${row.col3.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.roll}</span> | <span className="opacity-50 font-normal">{row.raw}</span> )
+                    {row.col3.label} ( <span className={`font-bold text-[10px] ${row.col3.isA ? 'text-amber-400' : 'text-emerald-400'}`}>{row.roll}</span> )
                   </td>
                 </tr>
               );

@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import { translateTo4 } from '../utils/stringHelpers';
 
 /**
  * Per-window pattern analysis hook
@@ -64,14 +65,34 @@ export function useWindowPatternAnalysis(rollEvents, windowInfo) {
     const windowData = windowDataRef.current[windowKey];
     windowData.rolls = currentWindowRolls.map(e => e.roll);
     
+    
     // Extract column states for pattern analysis
+    windowData.col1RawStates = currentWindowRolls.map(e => {
+      // 🔥 CRITICAL: Use RAW roll for Col 1 (Raw), not translated
+      const rawRoll = e.raw || e.roll;
+      const digit1 = rawRoll[0];
+      // Support digits 1-8 (1,3,5,7 = Odd, 2,4,6,8 = Even)
+      return ['1', '3', '5', '7'].includes(digit1) ? 'A' : 'B';
+    });
+
+    windowData.col1TransStates = windowData.rolls.map(roll => {
+      // Translate roll to 4xxx for Col 1 (4xxx)
+      const trans = translateTo4(roll);
+      const digit1 = trans[0];
+      return ['1', '3'].includes(digit1) ? 'A' : 'B';
+    });
+    
     windowData.col2States = windowData.rolls.map(roll => {
-      const digit2 = roll[1];
+      // Column 2 always uses translated 4xxx logic
+      const trans = translateTo4(roll);
+      const digit2 = trans[1];
       return ['1', '4'].includes(digit2) ? 'A' : 'B';
     });
     
     windowData.col3States = windowData.rolls.map(roll => {
-      const digit3 = roll[2];
+      // Column 3 always uses translated 4xxx logic
+      const trans = translateTo4(roll);
+      const digit3 = trans[2];
       return ['1', '2'].includes(digit3) ? 'A' : 'B';
     });
     
@@ -140,6 +161,8 @@ export function useWindowPatternAnalysis(rollEvents, windowInfo) {
       currentWindowKey: windowKey,
       currentWindowRolls: windowData.rolls,
       currentWindowStates: {
+        col1Raw: windowData.col1RawStates,
+        col1Trans: windowData.col1TransStates,
         col2: windowData.col2States,
         col3: windowData.col3States
       },

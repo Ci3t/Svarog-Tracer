@@ -83,12 +83,17 @@ export default function App() {
     // 👇 ADD: push a frozen snapshot to queue
     const snap = {
       t: Date.now(),
+      latestRawRoll: debugData?.waveData?.latestRawRoll || null, // 🔥 NEW: Raw roll for Col 1
+      waveC1: debugData?.waveData?.col1RawPrediction || null,
       waveC2: debugData?.waveData?.col2Prediction || null,
       waveC3: debugData?.waveData?.col3Prediction || null,
+      col1Expected: debugData?.waveData?.col1Expected || null,
       col2Expected: debugData?.waveData?.col2Expected || null,
       col3Expected: debugData?.waveData?.col3Expected || null,
+      col1Confidence: debugData?.waveData?.col1RawConfidence || 0,
       col2Confidence: debugData?.waveData?.col2Confidence || 0,
       col3Confidence: debugData?.waveData?.col3Confidence || 0,
+      col1Status: debugData?.waveData?.col1RawStatus || null,
       col2Status: debugData?.waveData?.col2Status || null,
       col3Status: debugData?.waveData?.col3Status || null,
       prefixMain: debugData?.smartPrefix?.prediction || null,
@@ -131,13 +136,19 @@ export default function App() {
                 logs[i] = {
                   ...logs[i],
                   waveData: { ...data.waveData },
+                  // 🔥 NEW: Raw roll for Column 1 analysis
+                  rawActual: data.waveData?.latestRawRoll || null,
                   // Fill root fields as well for display/export
+                  waveC1: data.waveData?.col1RawPrediction || null,
                   waveC2: data.waveData?.col2Prediction || null,
                   waveC3: data.waveData?.col3Prediction || null,
+                  col1Expected: data.waveData?.col1Expected || null,
                   col2Expected: data.waveData?.col2Expected || null,
                   col3Expected: data.waveData?.col3Expected || null,
+                  col1Confidence: data.waveData?.col1RawConfidence || 0,
                   col2Confidence: data.waveData?.col2Confidence || 0,
                   col3Confidence: data.waveData?.col3Confidence || 0,
+                  col1Status: data.waveData?.col1RawStatus || null,
                   col2Status: data.waveData?.col2Status || null,
                   col3Status: data.waveData?.col3Status || null,
                   // 🔥 NEW: Attach the "live" prefix that was showing before this roll
@@ -201,6 +212,7 @@ export default function App() {
           candidates: p.candidates,
           source: "kiyo",
           time: new Date().toLocaleTimeString(),
+          rawActual: latestSnapshot?.latestRawRoll || null, // 🔥 NEW: Raw roll for Column 1
           
           // 🔥 NEW: Accurate 2str and 3str predictions (Main + Alt)
           // 2str: Predict 2nd digit using 1-digit prefix
@@ -210,6 +222,15 @@ export default function App() {
           // 3str: Predict 3rd digit using 2-digit prefix
           pred3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').prediction,
           alt3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').alt,
+          
+          // 🔥 NEW: Column 1 wave analysis (uses raw roll first digit from snapshot)
+          // Use latest snapshot data if available, otherwise calculate from context
+          waveC1: latestSnapshot?.waveC1 || analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).flipTarget || [],
+          col1Expected: latestSnapshot?.col1Expected || getExpectedLabel(
+            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).flipTarget, 
+            WAVE_SCHEMES.col1
+          ),
+          col1Confidence: latestSnapshot?.col1Confidence || analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).confidence || 0,
           
           // 🔥 NEW: Calculate wave predictions directly for consistent logs
           waveC2: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget || [],
@@ -691,8 +712,15 @@ export default function App() {
     // Helper functions
     function translateTo4(str = "") {
       if (!str) return "";
-      const digits = str.split("").map((d) => Number(d));
-      if (digits.some((d) => isNaN(d) || d < 1 || d > 4)) return "";
+      const digits = str.split("").map((d) => {
+        const n = parseInt(d, 10);
+        if (isNaN(n)) return null;
+        // ✅ MAP 1–8 → 1–4 USING MODULO (GAME-NATIVE)
+        return ((n - 1) % 4) + 1;
+      }).filter(Boolean);
+
+      if (digits.length === 0) return "";
+
       const shift = (4 - digits[0] + 4) % 4;
       return digits
         .map((d) => {

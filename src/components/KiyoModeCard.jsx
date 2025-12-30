@@ -94,26 +94,36 @@ export default function KiyoModeCard({
       .map((e) => {
         const ts = e?.time ? new Date(e.time).getTime() : 0;
         const roll = String(e?.s3 ?? "").trim();
-        return { roll, ts };
+        const raw = String(e?.raw ?? roll).trim(); // 🔥 Capture raw roll for Col 1
+        return { roll, raw, ts };
       })
       .filter((x) => x.ts > 0 && x.roll.length >= 3)
       .reverse();
 
     const importedEvents = importedRolls.map((roll, i) => ({
       roll,
+      raw: roll, // 🔥 Imported rolls are already in their raw form
       ts: Date.now() + i * 10,
     }));
     
-    // testRolls now stores {roll, ts} objects with actual window timestamps
+    // testRolls now stores {roll, raw, ts} objects
     const testEvents = testRolls.map((item) => {
       if (typeof item === 'string') {
-        // Fallback for old string format
-        return { roll: item, ts: Date.now() };
+        const translated = translateTo4(item);
+        return { roll: translated || item, raw: item, ts: Date.now() };
       }
-      return { roll: item.roll, ts: item.ts };
+      return { 
+        roll: item.roll, 
+        raw: item.raw || item.roll, 
+        ts: item.ts 
+      };
     });
     
-    const liveEvents = liveRolls;
+    // 🔥 Ensure liveEvents have raw field
+    const liveEvents = liveRolls.map(e => ({
+      ...e,
+      raw: e.raw || e.roll // Fallback to roll if raw is missing
+    }));
 
     return [...entryEvents, ...importedEvents, ...testEvents, ...liveEvents];
   }, [entries, importedRolls, testRolls, liveRolls]);
@@ -202,8 +212,8 @@ export default function KiyoModeCard({
     return [...translatedImportedRolls, ...translatedTestRolls, ...live3Rolls];
   }, [translatedImportedRolls, translatedTestRolls, live3Rolls]);
 
-  // 🔄 Window pattern analysis (uses translated rolls)
-  const windowAnalysis = useWindowPatternAnalysis(combinedRolls, windowInfo);
+  // 🔄 Window pattern analysis (uses raw rolls for time-tracking and state extraction)
+  const windowAnalysis = useWindowPatternAnalysis(rollEvents, windowInfo);
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
@@ -336,7 +346,12 @@ export default function KiyoModeCard({
     // 🔥 5-MINUTE WINDOW OPTIMIZATION: Use shorter lookback for small sessions
     const is5MinWindow = combinedRolls.length <= 15;
     const lookbackSize = is5MinWindow ? Math.min(10, combinedRolls.length) : 18;
+    
+    // Translated rolls for Col 2/3
     const baseRolls = combinedRolls.slice(-lookbackSize);
+
+    // Raw rolls for Col 1 (Raw) - Extract from rollEvents which are raw
+    const rawBaseRolls = rollEvents.map(e => e.raw || e.roll).slice(-lookbackSize);
 
     // 🔥 Get window analysis for per-window pattern detection
     const baseWindowContext = {
@@ -346,7 +361,12 @@ export default function KiyoModeCard({
       rollCount: windowAnalysis?.rollCount || 0
     };
 
-    // Create column-specific window context with cross-window data
+    const col1RawWindowContext = {
+      ...baseWindowContext,
+      windowStates: windowAnalysis?.currentWindowStates?.col1Raw || null,
+      previousStates: windowAnalysis?.previousContext?.col1RawStates || null
+    };
+
     const col2WindowContext = {
       ...baseWindowContext,
       windowStates: windowAnalysis?.currentWindowStates?.col2 || null,
@@ -359,10 +379,28 @@ export default function KiyoModeCard({
       previousStates: windowAnalysis?.previousContext?.col3States || null
     };
 
+    const col1RawAnalysis = analyzeColumnWave(rawBaseRolls, WAVE_SCHEMES.col1, 0, col1RawWindowContext);
     const col2Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col2, 1, col2WindowContext);
     const col3Analysis = analyzeColumnWave(baseRolls, WAVE_SCHEMES.col3, 2, col3WindowContext);
 
     const columns = [
+      {
+        column: "col1raw",
+        name: "Column 1 (Raw)",
+        label: "Odds/Evens",
+        scheme: WAVE_SCHEMES.col1,
+        ...col1RawAnalysis,
+        runAnalysis: {
+          pair: col1RawAnalysis.currentSide,
+          length: col1RawAnalysis.runLength,
+          label: col1RawAnalysis.currentLabel,
+        },
+        status: col1RawAnalysis.action === "FLIP" ? "due_to_flip" : col1RawAnalysis.action === "SKIP" ? "suppressed" : "likely_continue",
+        expected: col1RawAnalysis.flipTarget && col1RawAnalysis.flipTarget.length > 0
+          ? (WAVE_SCHEMES.col1.pairA.some(d => col1RawAnalysis.flipTarget.includes(d)) ? WAVE_SCHEMES.col1.pairALabel : WAVE_SCHEMES.col1.pairBLabel)
+          : "—",
+        message: col1RawAnalysis.message,
+      },
       {
         column: "col2",
         name: "Column 2",
@@ -442,6 +480,7 @@ export default function KiyoModeCard({
         suggestion: "BET ON BOTH",
         focus: "both",
         message: "Both columns have clear patterns - bet on both!",
+        col1RawStatus: !col1RawAnalysis.isChaotic && col1RawAnalysis.confidence >= 0.6 ? "good" : "neutral",
         col2Status: "good",
         col3Status: "good"
       };
@@ -450,6 +489,7 @@ export default function KiyoModeCard({
         suggestion: "FOCUS ON COL3",
         focus: "col3",
         message: "Col3 has clear pattern, Col2 is chaotic - focus on Col3 only",
+        col1RawStatus: !col1RawAnalysis.isChaotic && col1RawAnalysis.confidence >= 0.6 ? "good" : "neutral",
         col2Status: "bad",
         col3Status: "good"
       };
@@ -458,6 +498,7 @@ export default function KiyoModeCard({
         suggestion: "FOCUS ON COL2",
         focus: "col2",
         message: "Col2 has clear pattern, Col3 is chaotic - focus on Col2 only",
+        col1RawStatus: !col1RawAnalysis.isChaotic && col1RawAnalysis.confidence >= 0.6 ? "good" : "neutral",
         col2Status: "good",
         col3Status: "bad"
       };
@@ -466,6 +507,7 @@ export default function KiyoModeCard({
         suggestion: "SKIP SESSION",
         focus: "none",
         message: "Both columns chaotic - wait for patterns",
+        col1RawStatus: !col1RawAnalysis.isChaotic && col1RawAnalysis.confidence >= 0.6 ? "good" : "neutral",
         col2Status: "bad",
         col3Status: "bad"
       };
@@ -474,8 +516,9 @@ export default function KiyoModeCard({
     return {
       columns,
       columnAnalysis: {
-        col2: columns[0],
-        col3: columns[1],
+        col1Raw: columns[0],
+        col2: columns[1],
+        col3: columns[2],
       },
       avgSwapRate: avgSwapRate.toFixed(2),
       flipColumns,
@@ -674,7 +717,7 @@ export default function KiyoModeCard({
       // Search backwards from the end to get the most recent occurrence
       const rollEventIdx = rollEvents.length - 1 - vizIdx;
       const ts = rollEvents[rollEventIdx]?.ts || Date.now();
-      const rawRoll = rollEvents[rollEventIdx]?.roll || r; 
+      const rawRoll = rollEvents[rollEventIdx]?.raw || r;  // 🔥 Use .raw for Col 1
 
       // Col 1 uses FIRST digit of RAW roll (user request)
       const col1Digit = rawRoll[0];
@@ -789,22 +832,32 @@ export default function KiyoModeCard({
       windowTracker: getWindowTracker(), // 🔥 NEW: Add window tracker
 
       waveData: {
-        col2Prediction: analyzeWavePatterns?.columns?.[0]?.flipTarget || [],
-        col3Prediction: analyzeWavePatterns?.columns?.[1]?.flipTarget || [],
-        col2Confidence: analyzeWavePatterns?.columns?.[0]?.confidence || 0,
-        col3Confidence: analyzeWavePatterns?.columns?.[1]?.confidence || 0,
-        col2Status: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
-        col3Status: analyzeWavePatterns?.columns?.[1]?.status || "unknown",
+        // 🔥 NEW: Latest raw roll for Column 1 analysis
+        latestRawRoll: pairingViz?.[0]?.raw || null,
+        
+        // Column 1 Raw (Odds/Evens based on raw first digit)
+        col1RawPrediction: analyzeWavePatterns?.columns?.[0]?.flipTarget || [],
+        col1RawConfidence: analyzeWavePatterns?.columns?.[0]?.confidence || 0,
+        col1RawStatus: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
+        col1Expected: analyzeWavePatterns?.columns?.[0]?.flipLabel || "—",
+        
+        // Column 2 (Outer/Inner) - now at index 2
+        col2Prediction: analyzeWavePatterns?.columns?.[2]?.flipTarget || [],
+        col3Prediction: analyzeWavePatterns?.columns?.[3]?.flipTarget || [],
+        col2Confidence: analyzeWavePatterns?.columns?.[2]?.confidence || 0,
+        col3Confidence: analyzeWavePatterns?.columns?.[3]?.confidence || 0,
+        col2Status: analyzeWavePatterns?.columns?.[2]?.status || "unknown",
+        col3Status: analyzeWavePatterns?.columns?.[3]?.status || "unknown",
         
         // 🔥 NEW: Pattern analysis fields
-        col2PatternStatus: analyzeWavePatterns?.columns?.[0]?.patternStatus || null,
-        col3PatternStatus: analyzeWavePatterns?.columns?.[1]?.patternStatus || null,
-        col2WindowBoundary: analyzeWavePatterns?.columns?.[0]?.windowBoundary || false,
-        col3WindowBoundary: analyzeWavePatterns?.columns?.[1]?.windowBoundary || false,
-        col2PatternBroke: analyzeWavePatterns?.columns?.[0]?.patternBroke || false,
-        col3PatternBroke: analyzeWavePatterns?.columns?.[1]?.patternBroke || false,
-        col2Expected: analyzeWavePatterns?.columns?.[0]?.expected || "—",
-        col3Expected: analyzeWavePatterns?.columns?.[1]?.expected || "—",
+        col2PatternStatus: analyzeWavePatterns?.columns?.[2]?.patternStatus || null,
+        col3PatternStatus: analyzeWavePatterns?.columns?.[3]?.patternStatus || null,
+        col2WindowBoundary: analyzeWavePatterns?.columns?.[2]?.windowBoundary || false,
+        col3WindowBoundary: analyzeWavePatterns?.columns?.[3]?.windowBoundary || false,
+        col2PatternBroke: analyzeWavePatterns?.columns?.[2]?.patternBroke || false,
+        col3PatternBroke: analyzeWavePatterns?.columns?.[3]?.patternBroke || false,
+        col2Expected: analyzeWavePatterns?.columns?.[2]?.flipLabel || "—",
+        col3Expected: analyzeWavePatterns?.columns?.[3]?.flipLabel || "—",
       },
     };
 
@@ -823,10 +876,11 @@ export default function KiyoModeCard({
       e.preventDefault();
       const value = testInput.trim();
 
-      if (value.length === 3 && /^[1-4]{3}$/.test(value)) {
-        // Store roll with current 5-minute window start time
+      if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
+        // Store both raw and translated
+        const translated = translateTo4(value);
         const ts = windowInfo?.startMs || Date.now();
-        setTestRolls((prev) => [...prev, { roll: value, ts }]);
+        setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
         setTestInput("");
       } else {
         setTestInput("");

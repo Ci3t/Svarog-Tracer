@@ -281,6 +281,7 @@ export default function ModernDebugPanel({
                     lines.push("");
                     lines.push("Legend:");
                     lines.push("  Actual = What you got in-game");
+                    lines.push("  Wave-C1 = Column 1 (Odds/Evens) - based on raw first digit");
                     lines.push("  Wave-C2/C3 = Wave predictions (digits suggested)");
                     lines.push("  Suggest = What wave card recommended (message)");
                     lines.push("  2str/3str = Prefix predictions");
@@ -291,29 +292,39 @@ export default function ModernDebugPanel({
                       "#".padEnd(3),
                       "Time".padEnd(12),
                       "Actual".padEnd(8),
+                      "Wave-C1".padEnd(10),
+                      "✓".padEnd(2),
+                      "C1-Suggest".padEnd(12),
                       "Wave-C2".padEnd(10),
                       "✓".padEnd(2),
-                      "C2-Suggest".padEnd(25),
+                      "C2-Suggest".padEnd(12),
                       "Wave-C3".padEnd(10),
                       "✓".padEnd(2),
-                      "C3-Suggest".padEnd(25),
-                      "2str-M".padEnd(8),
+                      "C3-Suggest".padEnd(12),
+                      "2str-M".padEnd(6),
                       "✓".padEnd(2),
-                      "2str-A".padEnd(8),
+                      "2str-A".padEnd(6),
                       "✓".padEnd(2),
-                      "3str-M".padEnd(8),
+                      "3str-M".padEnd(6),
                       "✓".padEnd(2),
-                      "3str-A".padEnd(8),
+                      "3str-A".padEnd(6),
                       "✓".padEnd(2),
                     ].join(" ");
 
                     lines.push(header);
-                    lines.push("─".repeat(140));
+                    lines.push("─".repeat(160));
 
                     kiyoLogs.forEach((log, idx) => {
                       const actual = log.actual || "---";
-                      const actualD2 = actual[1] || "-";
-                      const actualD3 = actual[2] || "-";
+                      const rawActual = log.rawActual || actual; // Use raw roll for Col 1
+                      const rawD1 = rawActual[0] || "-"; // Raw first digit for Col 1
+                      const actualD2 = actual[1] || "-"; // Translated for Col 2
+                      const actualD3 = actual[2] || "-"; // Translated for Col 3
+
+                      // Column 1 predictions (Odds/Evens based on RAW first digit)
+                      const waveC1 = log.waveC1 ? `[${log.waveC1.join(",")}]` : "-";
+                      const c1Hit = log.waveC1 && rawD1 !== "-" ? (log.waveC1.includes(rawD1) ? "✓" : "✗") : "-";
+                      const c1Suggest = log.col1Expected ? log.col1Expected.substring(0, 12) : "-";
 
                       // Wave predictions
                       const waveC2 = log.waveC2 ? `[${log.waveC2.join(",")}]` : "-";
@@ -324,8 +335,8 @@ export default function ModernDebugPanel({
                       const c3Hit = log.waveC3 && actualD3 !== "-" ? (log.waveC3.includes(actualD3) ? "✓" : "✗") : "-";
 
                       // Suggestions
-                      const c2Suggest = log.col2Expected ? log.col2Expected.substring(0, 25) : "-";
-                      const c3Suggest = log.col3Expected ? log.col3Expected.substring(0, 25) : "-";
+                      const c2Suggest = log.col2Expected ? log.col2Expected.substring(0, 12) : "-";
+                      const c3Suggest = log.col3Expected ? log.col3Expected.substring(0, 12) : "-";
 
                       // Prefix predictions: 2str
                       const p2m = log.pred2 || "-";
@@ -343,19 +354,22 @@ export default function ModernDebugPanel({
                         String(idx + 1).padEnd(3),
                         (log.time || "—").padEnd(12),
                         actual.padEnd(8),
+                        waveC1.padEnd(10),
+                        c1Hit.padEnd(2),
+                        c1Suggest.padEnd(12),
                         waveC2.padEnd(10),
                         c2Hit.padEnd(2),
-                        c2Suggest.padEnd(25),
+                        c2Suggest.padEnd(12),
                         waveC3.padEnd(10),
                         c3Hit.padEnd(2),
-                        c3Suggest.padEnd(25),
-                        p2m.padEnd(8),
+                        c3Suggest.padEnd(12),
+                        p2m.padEnd(6),
                         h2m.padEnd(2),
-                        p2a.padEnd(8),
+                        p2a.padEnd(6),
                         h2a.padEnd(2),
-                        p3m.padEnd(8),
+                        p3m.padEnd(6),
                         h3m.padEnd(2),
-                        p3a.padEnd(8),
+                        p3a.padEnd(6),
                         h3a.padEnd(2),
                       ].join(" ");
 
@@ -363,25 +377,32 @@ export default function ModernDebugPanel({
                       
                       // 5-minute window separator
                       if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
-                        lines.push("─".repeat(140) + " ◄ 5-min window boundary");
+                        lines.push("─".repeat(160) + " ◄ 5-min window boundary");
                       }
                     });
 
                     lines.push("");
                     lines.push("");
 
-                    // Accuracy Summary
                     const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
-                    let c2Total = 0, c2Hits = 0, c3Total = 0, c3Hits = 0;
+                    let c1Total = 0, c1Hits = 0, c2Total = 0, c2Hits = 0, c3Total = 0, c3Hits = 0;
                     let p2mTotal = 0, p2mHits = 0, p2aHits = 0;
                     let p3mTotal = 0, p3mHits = 0, p3aHits = 0;
 
                     kiyoLogs.forEach(log => {
                       const actual = String(log.actual || "");
-                      const d2 = actual[1];
-                      const d3 = actual[2];
+                      const rawActual = String(log.rawActual || actual); // Raw for Col 1
+                      const rawD1 = rawActual[0]; // Raw first digit
+                      const d2 = actual[1]; // Translated for Col 2
+                      const d3 = actual[2]; // Translated for Col 3
                       
-                      // Wave Accuracy
+                      // Column 1 Accuracy (Odds/Evens using RAW roll)
+                      if (log.waveC1 && Array.isArray(log.waveC1) && log.waveC1.length > 0) {
+                        c1Total++;
+                        if (log.waveC1.includes(rawD1)) c1Hits++;
+                      }
+                      
+                      // Wave Accuracy (using translated rolls)
                       if (log.waveC2 && Array.isArray(log.waveC2) && log.waveC2.length > 0) { 
                         c2Total++; 
                         if (log.waveC2.includes(d2)) c2Hits++; 
@@ -411,8 +432,9 @@ export default function ModernDebugPanel({
                     lines.push("└─────────────────────────────────────────────────────────┘");
                     lines.push("");
                     lines.push("WAVE PERFORMANCE:");
-                    lines.push(`  Column 2 (V-Wave): ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`);
-                    lines.push(`  Column 3 (V-Wave): ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`);
+                    lines.push(`  Column 1 (Odds/Evens): ${c1Hits} / ${c1Total} (${pct(c1Hits, c1Total)}%)`);
+                    lines.push(`  Column 2 (Outer/Inner): ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`);
+                    lines.push(`  Column 3 (Low/High): ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`);
                     lines.push("");
 
                     lines.push("PREFIX PERFORMANCE:");
@@ -423,6 +445,24 @@ export default function ModernDebugPanel({
                     lines.push(`  3-Str Main: ${p3mHits} / ${p3mTotal} (${pct(p3mHits, p3mTotal)}%)`);
                     lines.push(`  3-Str Alt:  ${p3aHits} / ${p3mTotal} (${pct(p3aHits, p3mTotal)}%)`);
                     lines.push(`  3-Str Top2: ${(p3mHits + p3aHits)} / ${p3mTotal} (${pct(p3mHits + p3aHits, p3mTotal)}%)`);
+                    lines.push("");
+
+                    // Translated Rolls Section (4xx format)
+                    lines.push("┌─────────────────────────────────────────────────────────┐");
+                    lines.push("│  🎲 ALL ROLLS (Translated 4xx)                           │");
+                    lines.push("└─────────────────────────────────────────────────────────┘");
+                    lines.push("");
+                    const allRolls = kiyoLogs.map(log => log.actual || "---").join(", ");
+                    lines.push(allRolls);
+                    lines.push("");
+
+                    // Raw Rolls Section (original input)
+                    lines.push("┌─────────────────────────────────────────────────────────┐");
+                    lines.push("│  🎰 ALL ROLLS (Raw Input)                                │");
+                    lines.push("└─────────────────────────────────────────────────────────┘");
+                    lines.push("");
+                    const allRawRolls = kiyoLogs.map(log => log.rawActual || log.actual || "---").join(", ");
+                    lines.push(allRawRolls);
                     lines.push("");
 
                     lines.push("═══════════════════════════════════════════════════════════");
@@ -456,7 +496,10 @@ export default function ModernDebugPanel({
                     >
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-slate-500">{log.time || "—"}</span>
-                        <span className="text-cyan-400 font-bold border-r border-slate-700 pr-2">ROLL: {log.actual}</span>
+                        <span className="text-cyan-400 font-bold pr-2">ROLL: {log.actual}</span>
+                        {log.rawActual && (
+                          <span className="text-amber-400 font-bold border-r border-slate-700 pr-2">Raw: {log.rawActual}</span>
+                        )}
                         
                         {/* 2str Info */}
                         <div className="flex items-center gap-1 px-2 border-r border-slate-700">
@@ -474,8 +517,31 @@ export default function ModernDebugPanel({
                       </div>
                       
                       {/* Column Predictions */}
-                      {(log.col2Expected || log.col3Expected) && (
-                        <div className="grid grid-cols-2 gap-2 mb-2">
+                      {(log.col1Expected || log.col2Expected || log.col3Expected) && (
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2">
+                            <div className="text-[10px] text-slate-500 mb-1">Column 1 (Odds/Evens) {log.rawActual && <span className="text-amber-400">Raw: {log.rawActual}</span>}</div>
+                            <div className="text-emerald-300">
+                              Suggest: {log.col1Expected || "—"}
+                              {log.col1Confidence && (
+                                <span className="text-[10px] text-slate-500 ml-1">
+                                  ({Math.round(log.col1Confidence * 100)}%)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] mt-1 text-slate-400">
+                              {log.rawActual ? (
+                                <>
+                                  Result: {["1", "3", "5", "7"].includes(String(log.rawActual[0])) ? "Odd" : "Even"}
+                                  {log.waveC1 && log.waveC1.length > 0 && (
+                                    log.waveC1.includes(log.rawActual[0]) 
+                                      ? <span className="text-green-400 font-bold ml-1">✓</span> 
+                                      : <span className="text-red-400 font-bold ml-1">✗</span>
+                                  )}
+                                </>
+                              ) : "—"}
+                            </div>
+                          </div>
                           <div className="bg-blue-500/10 border border-blue-500/30 rounded p-2">
                             <div className="text-[10px] text-slate-500 mb-1">Column 2 (Outer/Inner)</div>
                             <div className="text-blue-300">

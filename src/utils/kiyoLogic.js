@@ -7,8 +7,9 @@ export const WAVE_SCHEMES = {
   col1: {
     name: "Column 1",
     label: "Odds/Evens",
-    pairA: ["1", "3"],
-    pairB: ["2", "4"],
+    // 🔥 EXPANDED: Support raw digits 1-8 (5=1, 6=2, 7=3, 8=4 in game logic)
+    pairA: ["1", "3", "5", "7"], // Odd digits
+    pairB: ["2", "4", "6", "8"], // Even digits
     pairALabel: "Odd",
     pairBLabel: "Even",
   },
@@ -117,8 +118,13 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
   
   const isNewWindow = windowContext?.isNewWindow || false;
   const windowRollCount = windowContext?.rollCount || 0;
+  const hasPreviousWindow = windowContext?.previousStates?.length > 0;
   
-  if (isNewWindow && patternWindow.length < 4) {
+  // First window of session requires 6 rolls, subsequent windows require 4
+  const minRollsRequired = hasPreviousWindow ? 4 : 6;
+  const buildingLabel = hasPreviousWindow ? `(${windowRollCount}/4)` : `(${windowRollCount}/6)`;
+  
+  if (patternWindow.length < minRollsRequired) {
     return {
       valid: true,
       currentSide,
@@ -131,7 +137,7 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
       confidence: 0.35,
       reliability: "BUILDING",
       betAdvice: "WAIT FOR PATTERN",
-      message: `🔄 New window - building (${windowRollCount}/4)`,
+      message: `🔄 Building pattern ${buildingLabel}`,
       flipTarget: null,
       flipLabel: "Wait",
       urgency: "low",
@@ -140,23 +146,28 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
     };
   }
 
-  // Detect pattern
+  // Detect pattern - now works with 4+ rolls for faster detection
   let detectedPattern = null;
   let patternConfidence = 0;
   
-  if (patternWindow.length >= 6) {
+  if (patternWindow.length >= 4) {
     const aCountP = patternWindow.filter(s => s === 'A').length;
-    const dominanceRate = Math.max(aCountP, patternWindow.length - aCountP) / patternWindow.length;
+    const bCountP = patternWindow.length - aCountP;
+    const dominanceRate = Math.max(aCountP, bCountP) / patternWindow.length;
     
-    if (dominanceRate >= 0.70) {
+    // Lower threshold for small windows (4-5 rolls use 60%, 6+ use 70%)
+    const domThreshold = patternWindow.length <= 5 ? 0.60 : 0.70;
+    
+    if (dominanceRate >= domThreshold) {
       detectedPattern = {
         type: 'dominance',
-        dominantSide: aCountP >= (patternWindow.length - aCountP) ? 'A' : 'B',
+        dominantSide: aCountP >= bCountP ? 'A' : 'B',
         dominanceRate: dominanceRate,
         confidence: dominanceRate
       };
       patternConfidence = dominanceRate;
     } else {
+      // Run pattern detection (alternating, 2x-run, etc.)
       const runs = [];
       let cVal = patternWindow[0], cLen = 1;
       for (let i = 1; i < patternWindow.length; i++) {
@@ -171,7 +182,9 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
       
       if (sorted.length > 0) {
         const freq = sorted[0][1] / runs.length;
-        if (freq >= 0.5) {
+        // Lower threshold for small windows
+        const runThreshold = patternWindow.length <= 5 ? 0.40 : 0.50;
+        if (freq >= runThreshold) {
           detectedPattern = { type: parseInt(sorted[0][0]) === 1 ? 'alternating' : `${sorted[0][0]}x-run`, runLength: parseInt(sorted[0][0]), confidence: freq };
           patternConfidence = freq;
         }
@@ -200,12 +213,17 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
   // Final prediction
   const expectedRunLength = detectedPattern.runLength;
   if (detectedPattern.type === 'dominance') {
+    // Use the DETECTED dominant side, not the current roll's side
+    const domSide = detectedPattern.dominantSide;
+    const domLabel = domSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
+    const domTarget = domSide === "A" ? scheme.pairA : scheme.pairB;
+    
     return {
       valid: true, currentSide, currentLabel, runLength, dominance, dominantSide, swapRate,
-      action: "CONTINUE", confidence: 0.85, reliability: "HIGH",
-      message: `🔥 ${currentLabel} dominance`,
-      flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
-      flipLabel: currentLabel,
+      action: "CONTINUE", confidence: detectedPattern.dominanceRate, reliability: "HIGH",
+      message: `🔥 ${domLabel} dominance`,
+      flipTarget: domTarget,
+      flipLabel: domLabel,
       icon: "🔥", patternDetected: detectedPattern
     };
   }

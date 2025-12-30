@@ -3,11 +3,16 @@
 // shift whole string so it starts with 4 (your caesar-style translate)
 export function translateTo4(str = "") {
   if (!str) return "";
-  const digits = str.split("").map((d) => parseInt(d, 10));
-  // if there's anything not 1..4 -> treat as invalid
-  if (digits.some((d) => isNaN(d) || d < 1 || d > 4)) {
-    return "";
-  }
+  const digits = str.split("").map((d) => {
+    const n = parseInt(d, 10);
+    if (isNaN(n)) return null;
+    // ✅ MAP 1–8 → 1–4 USING MODULO (GAME-NATIVE)
+    // 1-4 stay 1-4, 5-8 map to 1-4
+    return ((n - 1) % 4) + 1;
+  }).filter(Boolean);
+
+  if (digits.length === 0) return "";
+
   const shift = (4 - digits[0] + 4) % 4;
   return digits
     .map((d) => {
@@ -23,9 +28,9 @@ export function padTo5(str = "") {
   return (str || "").padEnd(5, "0").slice(0, 5);
 }
 
-// keep only 1–4 and enforce min 2 digits, max 4 digits
+// keep only 1–8 and enforce min 2 digits, max 4 digits
 export function sanitizeRollInput(value = "") {
-  const cleaned = value.replace(/[^1-4]/g, "");
+  const cleaned = value.replace(/[^1-8]/g, "");
   // Cap at 4 digits max
   return cleaned.slice(0, 4);
 }
