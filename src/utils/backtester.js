@@ -1,6 +1,5 @@
-// src/utils/backtester.js — FIXED: Now counts ALL 34 valid + exact hits (your 6 mains → shown correctly)
-import { predictNext } from "./predictNext.js";
-import { predictNextAggressive } from "./predictNextAggressive.js";
+// src/utils/backtester.js — Updated to use current BBP mode predictor
+import { predictNext2BBPMode } from "./bbp-mode-2str.js";
 
 export function runBacktest(debugLogs) {
   // 🔥 FIXED: Include ALL 2-str with prediction !== '—' / null / insufficient
@@ -13,7 +12,7 @@ export function runBacktest(debugLogs) {
       !String(log.prediction).startsWith("insufficient")
   );
 
-  console.log(`🔍 Found ${validLogs.length} valid 2-str logs (expected ~34)`); // DEBUG
+  console.log(`🔍 Found ${validLogs.length} valid 2-str logs`); // DEBUG
 
   // Group sessions (5+ min gap = new session)
   const sessions = [];
@@ -43,17 +42,22 @@ export function runBacktest(debugLogs) {
     const details = [];
 
     sessionLogs.forEach((log) => {
-      const rolls = log.ctx || []; // Already 2-str ["41","42",...]
+      const rolls = log.ctx || []; // Already 2-str ["41","42",...] in chronological order (oldest→newest)
       const actualStr = String(log.actual);
 
       if (rolls.length < 6) {
-        // 🔥 FIXED: Don't skip, predictor handles gracefully
+        // Skip if not enough context for BBP mode
         details.push({ rolls: rolls.slice(-8), skip: true, actual: actualStr });
         return;
       }
 
-      const pred = predictNext(rolls); // Run predictor on ctx
-      //   const pred = predictNextAggressive(rolls); // Run predictor on ctx
+      // 🔥 CRITICAL FIX: Reverse context to match live session order (newest→oldest)
+      // Live session passes rolls2.reverse() to BBP predictor
+      // Debug logs store ctx in chronological order, so we must reverse it here
+      const reversedRolls = [...rolls].reverse();
+      
+      // 🔥 USE CURRENT BBP MODE PREDICTOR (same as live session)
+      const pred = predictNext2BBPMode(reversedRolls);
       const predStr = String(pred.prediction);
       const altStr = pred.alt ? String(pred.alt) : null;
 
@@ -71,6 +75,7 @@ export function runBacktest(debugLogs) {
         hitTop2,
         conf: Math.round(pred.confidence * 100),
         mode: pred.mode,
+        log: log, // Include original log for advanced analysis
       });
 
       // 🔥 FIXED: Count ONLY if predictor gave prediction (not insufficient)

@@ -77,10 +77,13 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
     }
   }, [suggestTab, rolls3, rolls4, all2Rolls]);
 
-  // --- export s2 to txt ---
+  // --- export TRANSLATED rolls to txt (chronological order: oldest → newest) ---
   const handleExportTxt = () => {
-    if (!all2Rolls.length) return;
-    const text = all2Rolls.join("\n");
+    if (!rolls2.length) return; // Only export current session translated rolls
+    
+    // rolls2 is already in chronological order (oldest → newest)
+    // because we build it from ordered entries
+    const text = rolls2.join("\n");
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
@@ -93,7 +96,7 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
     URL.revokeObjectURL(url);
   };
 
-  // --- import s2 from txt ---
+  // --- import s2 from txt (preserves chronological order) ---
   const handleImportChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
@@ -104,6 +107,9 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
       const lines = text.split(/\r?\n/).map((l) => l.trim());
       const valid = lines.filter((l) => /^[1-4]{2}$/.test(l));
       if (!valid.length) return;
+      
+      // Append imported rolls in the order they appear in the file
+      // (which should be chronological: oldest → newest)
       setImportedRolls((prev) => [...prev, ...valid]);
     };
 
@@ -142,7 +148,7 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
                 onClick={handleExportTxt}
                 className="text-[11px] px-2 py-1 rounded-md border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-violet-400 hover:text-violet-100 transition-colors"
               >
-                Download s2 txt
+                Download Translated Rolls
               </button>
 
               <button
@@ -150,7 +156,7 @@ export default function NextPrediction({ entries, suggestTab, setSuggestTab }) {
                 onClick={() => fileInputRef.current?.click()}
                 className="text-[11px] px-2 py-1 rounded-md border border-violet-600/70 bg-violet-700/30 text-violet-50 hover:bg-violet-600/40 transition-colors"
               >
-                Import s2 txt
+                Import Rolls
               </button>
 
               {importedRolls.length > 0 && (

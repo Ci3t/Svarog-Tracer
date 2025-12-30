@@ -10,6 +10,11 @@ import React, {
 import { Routes, Route } from "react-router-dom";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 NEW
+import { 
+  WAVE_SCHEMES, 
+  analyzeColumnWave, 
+  getExpectedLabel 
+} from "./utils/kiyoLogic";
 
 // Layout Component
 import Layout from "./components/Layout";
@@ -51,6 +56,8 @@ import KiyoModeCard from "./components/KiyoModeCard";
 import LiveTrackingTable from "./components/LiveTrackingTable"; // 🔥 NEW
 import LiveTrackingTable3str from "./components/LiveTrackingTable3str"; // 🔥 NEW 3-str
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // 🔥 NEW 3-str
+import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
+import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const SESSION_SECONDS = 5 * 60;
@@ -93,6 +100,12 @@ export default function App() {
       t: Date.now(),
       waveC2: debugData?.waveData?.col2Prediction || null,
       waveC3: debugData?.waveData?.col3Prediction || null,
+      col2Expected: debugData?.waveData?.col2Expected || null,
+      col3Expected: debugData?.waveData?.col3Expected || null,
+      col2Confidence: debugData?.waveData?.col2Confidence || 0,
+      col3Confidence: debugData?.waveData?.col3Confidence || 0,
+      col2Status: debugData?.waveData?.col2Status || null,
+      col3Status: debugData?.waveData?.col3Status || null,
       prefixMain: debugData?.smartPrefix?.prediction || null,
       prefixAlt: debugData?.smartPrefix?.alt || null,
       tracerMain: debugData?.prediction?.prediction || null,
@@ -127,13 +140,21 @@ export default function App() {
           for (let i = 0; i < logs.length; i++) {
             if (logs[i].source === "kiyo" && logs[i].kind === "3") {
               if (
-                !logs[i].waveData ||
-                (!logs[i].waveData.col2Prediction &&
-                  !logs[i].waveData.col3Prediction)
-              ) {
+              !logs[i].col2Expected &&
+              !logs[i].col3Expected
+            ) {
                 logs[i] = {
                   ...logs[i],
                   waveData: { ...data.waveData },
+                  // Fill root fields as well for display/export
+                  waveC2: data.waveData?.col2Prediction || null,
+                  waveC3: data.waveData?.col3Prediction || null,
+                  col2Expected: data.waveData?.col2Expected || null,
+                  col3Expected: data.waveData?.col3Expected || null,
+                  col2Confidence: data.waveData?.col2Confidence || 0,
+                  col3Confidence: data.waveData?.col3Confidence || 0,
+                  col2Status: data.waveData?.col2Status || null,
+                  col3Status: data.waveData?.col3Status || null,
                   // 🔥 NEW: Attach the "live" prefix that was showing before this roll
                   livePrefix: livePrefixPredictionRef.current
                     ? { ...livePrefixPredictionRef.current }
@@ -180,24 +201,68 @@ export default function App() {
         p.prediction !== "—" &&
         !String(p.prediction).toLowerCase().startsWith("insufficient")
       ) {
+        // Get latest Kiyo snapshot for column data
+        const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
+        
         const newLog = {
           ts: Date.now() + idx, // Slight offset to maintain order
           kind: "3",
           prediction: p.prediction,
           confidence: p.confidence || 0,
-          alt,
+          alt: p.alt,
           mode: p.mode || "—",
           actual: String(actual3).slice(0, 3),
           ctx: contextRolls.slice(-8),
-          candidates,
+          candidates: p.candidates,
           source: "kiyo",
-          waveData: null, // Will be filled by handleKiyoDebugData
+          time: new Date().toLocaleTimeString(),
+          
+          // 🔥 NEW: Accurate 2str and 3str predictions (Main + Alt)
+          // 2str: Predict 2nd digit using 1-digit prefix
+          pred2: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_2STR_RECENT, String(actual3)[0], '2str').prediction,
+          alt2: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_2STR_RECENT, String(actual3)[0], '2str').alt,
+          
+          // 3str: Predict 3rd digit using 2-digit prefix
+          pred3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').prediction,
+          alt3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').alt,
+          
+          // 🔥 NEW: Calculate wave predictions directly for consistent logs
+          waveC2: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget || [],
+          waveC3: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).flipTarget || [],
+          col2Expected: getExpectedLabel(
+            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget, 
+            WAVE_SCHEMES.col2
+          ),
+          col3Expected: getExpectedLabel(
+            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).flipTarget, 
+            WAVE_SCHEMES.col3
+          ),
+          col2Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).confidence || 0,
+          col3Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).confidence || 0,
+          col2Status: "unknown", // Will be updated by next roll
+          col3Status: "unknown", // Will be updated by next roll
+          
           livePrefix: livePrefixPredictionRef.current
             ? { ...livePrefixPredictionRef.current }
             : null,
         };
 
-        setDebugLogs((prev) => [newLog, ...prev].slice(0, 300));
+        setDebugLogs((prev) => {
+          const next = [...prev];
+          // Find the newest kind "3" log to update its status with current roll
+          const lastKiyoLog = next.find(l => l.kind === "3");
+          if (lastKiyoLog) {
+            const digit2 = String(actual3)[1];
+            const digit3 = String(actual3)[2];
+            if (lastKiyoLog.waveC2 && lastKiyoLog.waveC2.length > 0) {
+              lastKiyoLog.col2Status = lastKiyoLog.waveC2.includes(digit2) ? "hit" : "miss";
+            }
+            if (lastKiyoLog.waveC3 && lastKiyoLog.waveC3.length > 0) {
+              lastKiyoLog.col3Status = lastKiyoLog.waveC3.includes(digit3) ? "hit" : "miss";
+            }
+          }
+          return [newLog, ...next].slice(0, 300);
+        });
       }
 
       // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
@@ -769,13 +834,17 @@ export default function App() {
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);
 
-  // Calculate session accuracy for header
+  // Calculate session accuracy for header (Main + Alt hits)
   const sessionAccuracy = debugLogs.length > 0
     ? Math.round(
         (debugLogs.filter((log) => {
           const pred = String(log.prediction);
+          const alt = log.alt ? String(log.alt) : null;
           const actual = String(log.actual);
-          return pred === actual || pred === actual.slice(0, pred.length);
+          // Count as hit if main prediction matches OR alt prediction matches
+          const mainHit = pred === actual || pred === actual.slice(0, pred.length);
+          const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
+          return mainHit || altHit;
         }).length /
           debugLogs.length) *
           100
@@ -875,7 +944,14 @@ export default function App() {
           />
           <Route
             path="/long-string"
-            element={<ModernLongStringPage />}
+            element={
+              <ModernLongStringPage
+                debugLogs={debugLogs}
+                onClearLogs={handleClearDebugLogs}
+                onImportLogs={handleImportDebugLogs}
+                isDebugMode={isDebugMode}
+              />
+            }
           />
           <Route
             path="/kiyo"
@@ -894,6 +970,9 @@ export default function App() {
                 handleKiyoToDebug={handleKiyoToDebug}
                 handleKiyoDebugData={handleKiyoDebugData}
                 pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+                onClearLogs={handleClearDebugLogs}
+                onImportLogs={handleImportDebugLogs}
+                isDebugMode={isDebugMode}
               />
             }
           />

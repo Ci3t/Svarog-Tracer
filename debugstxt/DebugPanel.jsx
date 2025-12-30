@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { runBacktest } from "../utils/backtester.js";
-import BacktestComparison from "./BacktestComparison";
 
 const BASE_TABS = [
-  { id: "logs", label: "📋 Live Logs" },
-  { id: "2", label: "2️⃣ 2-str" },
-  { id: "3", label: "3️⃣ 3-str" },
+  { id: "2", label: "2-str" },
+  { id: "3", label: "3-str" },
   { id: "4", label: "4-str" },
   { id: "all", label: "Merged" },
-  { id: "long", label: "📃 Long String" },
+  { id: "long", label: "Long String" },
+  { id: "logs", label: "Live Logs" },
   { id: "kiyo-debug", label: "KiyoDebug" },
 ];
 
@@ -149,78 +148,10 @@ export default function DebugPanel({
     return rows;
   }, [debugLogs, sessionId]);
 
-
-  // Helper: Classify failure reason
-  const classifyFailure = (pred, actual, commons, noise) => {
-    if (!actual || !pred) return null;
-    if (actual === pred) return null; // Not a failure
-    
-    if (noise && noise.includes(actual)) {
-      return `NOISE(${actual})`;
-    }
-    if (commons && commons.includes(actual)) {
-      return `WRONG_COMMON(${actual})`;
-    }
-    return `UNPREDICTABLE(${actual})`;
-  };
-
-  // Helper: Get streak info
-  const getStreakInfo = (logs, currentIndex) => {
-    if (!logs || currentIndex < 0) return { current: 0, max: 0 };
-    
-    let current = 0;
-    let max = 0;
-    let tempStreak = 0;
-
-    for (let i = currentIndex; i >= 0; i--) {
-      const log = logs[i];
-      if (!log.actual || !log.prediction) continue;
-      
-      const hit = String(log.actual) === String(log.prediction) ||
-                  (log.alt && String(log.actual) === String(log.alt));
-      
-      if (hit) {
-        tempStreak++;
-        if (i === currentIndex) current = tempStreak;
-      } else {
-        if (i === currentIndex) current = 0;
-        max = Math.max(max, tempStreak);
-        tempStreak = 0;
-      }
-    }
-    max = Math.max(max, tempStreak);
-    
-    return { current, max };
-  };
-
-  // Helper: Get last 5 visual
-  const getLast5Visual = (logs, currentIndex) => {
-    if (!logs || currentIndex < 0) return "";
-    
-    const symbols = [];
-    for (let i = Math.max(0, currentIndex - 4); i <= currentIndex; i++) {
-      const log = logs[i];
-      if (!log.actual || !log.prediction) {
-        symbols.push("-");
-        continue;
-      }
-      
-      const hit = String(log.actual) === String(log.prediction) ||
-                  (log.alt && String(log.actual) === String(log.alt));
-      symbols.push(hit ? "✅" : "❌");
-    }
-    
-    return symbols.join("");
-  };
-
-  const formatLine = (log, logIndex) => {
+  const formatLine = (log) => {
     const mainPct = Math.round((log.confidence || 0) * 100);
-    const basePct = log.baseConfidence ? Math.round(log.baseConfidence * 100) : mainPct;
-    
-    // Calibrated confidence display
-    const confDisplay = basePct !== mainPct ? `${basePct}%→${mainPct}%` : `${mainPct}%`;
-    
     let altPart = "";
+
     if (log.alt) {
       const altCandidate = (log.candidates || []).find(
         (c) => c.value === log.alt
@@ -240,81 +171,12 @@ export default function DebugPanel({
       ? `(${modeStat.hits}/${modeStat.total} = ${modeStat.pct}%)`
       : "";
 
-    // Pattern info
-    let patternInfo = "";
-    if (log.pattern && log.commons && log.commons.length >= 2) {
-      const patternType = log.pattern.toUpperCase().substring(0, 3);
-      const commonsStr = log.commons.join("↔");
-      const strength = log.patternStrength || 0;
-      const sequence = log.patternSequence || "";
-      
-      patternInfo = ` | Pattern: ${patternType}(${commonsStr}) ${strength}%`;
-      if (sequence) {
-        patternInfo += ` [${sequence}]`;
-      }
-    }
-
-    // Commons breakdown
-    let commonsBreakdown = "";
-    if (log.distribution && log.commons) {
-      const parts = [];
-      Object.entries(log.distribution).forEach(([val, data]) => {
-        const pct = Math.round(data.pct || 0);
-        parts.push(`${val}:${pct}%`);
-      });
-      if (parts.length > 0) {
-        commonsBreakdown = ` | Dist: ${parts.join(",")}`;
-      }
-    }
-
-    // Failure analysis
-    let failureInfo = "";
-    const isCorrect = String(log.actual) === String(log.prediction) ||
-                     (log.alt && String(log.actual) === String(log.alt));
-    
-    if (!isCorrect && log.actual) {
-      const reason = classifyFailure(log.prediction, log.actual, log.commons, log.noise);
-      if (reason) {
-        failureInfo = ` | ❌ ${reason}`;
-      }
-    } else if (isCorrect) {
-      failureInfo = ` | ✅`;
-    }
-
-    // Streak info
-    const currentLogIndex = debugLogs?.findIndex(l => l.ts === log.ts) ?? -1;
-    const streak = getStreakInfo(debugLogs, currentLogIndex);
-    let streakInfo = "";
-    if (streak.current > 0) {
-      const fire = "🔥".repeat(Math.min(3, Math.floor(streak.current / 2)));
-      streakInfo = ` | Streak: ${streak.current}${fire}`;
-    } else if (streak.max > 0) {
-      streakInfo = ` | Max: ${streak.max}`;
-    }
-
-    // Last 5 visual
-    const last5 = getLast5Visual(debugLogs, currentLogIndex);
-    const last5Info = last5 ? ` | Last5: ${last5}` : "";
-
-    // Wave flip warning
-    let waveFlipInfo = "";
-    if (log.waveFlipData?.warning) {
-      const flip = log.waveFlipData;
-      const prob = Math.round(flip.probability * 100);
-      const newCommons = flip.predictedNewCommons?.join(",") || "?";
-      waveFlipInfo = ` | ⚠️ WAVE FLIP in ~${flip.rollsUntil} rolls! New: ${newCommons} (${prob}%)`;
-    } else if (log.waveFlipData?.stable) {
-      const stab = Math.round(log.waveFlipData.stability * 100);
-      waveFlipInfo = ` | ✓ Stable ${stab}%`;
-    }
-
     return `[${formatTime(log.ts)}] ${log.kind}-str → pred: ${
       log.prediction
-    } (${confDisplay})${altPart} | mode: ${log.mode} ${modeAccuracy}${patternInfo}${commonsBreakdown}${failureInfo}${streakInfo}${last5Info}${waveFlipInfo} | actual: ${
+    } (${mainPct}%)${altPart} | mode: ${log.mode} ${modeAccuracy} | actual: ${
       log.actual
     } | ctx: ${(log.ctx || []).join(", ")}`;
   };
-
 
   const backtestResults = useMemo(() => {
     if (!isDebugMode || activeTab !== "backtest") return null;
@@ -333,75 +195,12 @@ export default function DebugPanel({
     const altHits = detailRows.filter((d) => !d.hitMain && d.hitAlt).length;
     const misses = detailRows.length - mainHits - altHits;
 
-    // 🔥 NEW: Advanced Stats (Wave & Prefix Alignment)
-    let c2Total = 0, c2Hits = 0;
-    let c3Total = 0, c3Hits = 0;
-    let combTotal = 0, combHits = 0;
-    let prefixAttempts = 0;
-    let alignedTotal = 0, alignedHits = 0;
-
-    // Helper: Find log index in parent debugLogs for context
-    detailRows.forEach((row) => {
-      if (!row.log) return;
-      const currentIdx = debugLogs.findIndex(l => l.ts === row.log.ts);
-      if (currentIdx <= 0) return;
-
-      const prev = debugLogs[currentIdx - 1];
-      const actual = String(row.log.actual || "");
-      const d2 = actual[1] || null;
-      const d3 = actual[2] || null;
-
-      // Wave predictions from PREVIOUS log
-      const c2Pred = prev?.waveData?.col2Prediction || null;
-      const c3Pred = prev?.waveData?.col3Prediction || null;
-
-      const hasC2 = Array.isArray(c2Pred) && c2Pred.length > 0;
-      const hasC3 = Array.isArray(c3Pred) && c3Pred.length > 0;
-
-      if (hasC2) {
-        c2Total++;
-        if (d2 && c2Pred.includes(d2)) c2Hits++;
-      }
-      if (hasC3) {
-        c3Total++;
-        if (d3 && c3Pred.includes(d3)) c3Hits++;
-      }
-      if (hasC2 && hasC3) {
-        combTotal++;
-        if (d2 && d3 && c2Pred.includes(d2) && c3Pred.includes(d3)) combHits++;
-      }
-
-      // Prefix Performance
-      const prevRec = prev?.smartPrefix;
-      const pred2str = prevRec?.prediction2str?.predicted;
-      if (pred2str && pred2str !== "-") {
-        prefixAttempts++;
-      }
-
-      // Aligned Bets: Both wave columns + prefix pred exist
-      if (hasC2 && hasC3 && pred2str && pred2str !== "-") {
-        alignedTotal++;
-        if (row.hitMain || row.hitAlt) alignedHits++;
-      }
-    });
-
-    return { 
-      session, 
-      detailRows, 
-      mainHits, 
-      altHits, 
-      misses,
-      c2Total, c2Hits,
-      c3Total, c3Hits,
-      combTotal, combHits,
-      prefixAttempts,
-      alignedTotal, alignedHits
-    };
-  }, [backtestResults, debugLogs]);
+    return { session, detailRows, mainHits, altHits, misses };
+  }, [backtestResults]);
 
   const filtered = useMemo(() => {
     if (!debugLogs || !debugLogs.length) return [];
-    if (activeTab === "all" || activeTab === "logs") return debugLogs;
+    if (activeTab === "all") return debugLogs;
     if (
       activeTab === "long" ||
       activeTab === "backtest" ||
@@ -1245,23 +1044,9 @@ export default function DebugPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleDownload}
-            className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg transition-all active:scale-95 flex items-center gap-2"
-          >
-            📥 Export Logs
-          </button>
-
-          <button
-            onClick={handleClear}
-            className="px-4 py-2 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-500 text-white cursor-pointer shadow-lg transition-all active:scale-95"
-          >
-            Clear Logs
-          </button>
-
           {/* Import 2-str file */}
-          <label className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-600 hover:bg-violet-500 text-white cursor-pointer shadow-lg transition-all active:scale-95">
-            Import Logs
+          <label className="px-3 py-1.5 text-xs rounded-lg bg-slate-800/50 hover:bg-slate-700/60 border border-slate-600/50 text-slate-200 cursor-pointer">
+            📥 Import
             <input
               type="file"
               accept=".txt"
@@ -1270,11 +1055,25 @@ export default function DebugPanel({
             />
           </label>
 
+          <button
+            onClick={handleDownload}
+            className="px-3 py-1.5 text-xs rounded-lg bg-slate-800/50 hover:bg-slate-700/60 border border-slate-600/50 text-slate-200 cursor-pointer"
+          >
+            ⬇ Export
+          </button>
+
+          <button
+            onClick={handleClear}
+            className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-200 cursor-pointer"
+          >
+            🗑 Clear
+          </button>
+
           {/* Only show Kiyo export in kiyo-debug tab */}
           {activeTab === "kiyo-debug" && (
             <button
               onClick={handleDownloadKiyoDebug}
-              className="px-4 py-2 text-xs font-bold rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer shadow-lg transition-all active:scale-95"
+              className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow"
             >
               📥 Download Kiyo
             </button>
@@ -1282,16 +1081,17 @@ export default function DebugPanel({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-3">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={[
-              "px-4 py-2 text-xs font-bold rounded-xl border transition-all active:scale-95 cursor-pointer flex items-center gap-2",
+              "px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition",
               activeTab === t.id
-                ? "bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-900/20"
-                : "bg-slate-800/60 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200",
+                ? "bg-violet-600/20 border-violet-500/50 text-violet-200"
+                : "bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-800/70",
             ].join(" ")}
           >
             {t.label}
@@ -1303,119 +1103,30 @@ export default function DebugPanel({
       <div className="space-y-3">
         {/* BACKTEST (debug mode only) */}
         {activeTab === "backtest" && isDebugMode && (
-          <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-4 space-y-4">
-            <div>
-              <div className="text-sm font-semibold text-violet-200 mb-2 uppercase tracking-wider flex items-center gap-2">
-                🔬 Backtest Mode
-                {backtestResults && (
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30">
-                    Re-simulation Active
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mb-4">
-                Import historical rolls to re-run the <strong>current predictor</strong> and compare accuracy.
-                <br />
-                <span className="text-slate-500">Format: Same as 2-str Export (Svarog Tracer Debug Export)</span>
-              </p>
-              
-              <label className="block">
-                <div className="w-full px-6 py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white rounded-xl cursor-pointer text-center font-bold text-sm transition-all active:scale-95 shadow-lg">
-                  📁 Import File
-                </div>
-                <input
-                  type="file"
-                  accept=".txt"
-                  className="hidden"
-                  onChange={handleImportFile}
-                />
-              </label>
-            </div>
-
+          <div className="bg-slate-950/40 border border-slate-700/50 rounded-xl p-3">
             {!backtestResults ? (
-              <div className="text-sm text-slate-500 text-center py-8 border border-dashed border-slate-700 rounded-lg">
-                <div className="text-4xl mb-2">📊</div>
-                <div>No backtest results yet.</div>
-                <div className="text-xs text-slate-600 mt-1">Import a file to begin re-simulation.</div>
-              </div>
+              <div className="text-sm text-slate-400">No backtest results.</div>
             ) : (
               <>
-                <div className="border-t border-slate-700/50 pt-4">
-                  <div className="text-sm text-slate-200 font-semibold mb-3 flex items-center gap-2">
-                    📊 Re-Simulation Results
-                    <span className="text-xs text-slate-500 font-normal">
-                      (Current Predictor vs Historical Rolls)
-                    </span>
-                  </div>
-
-                  {latestSessionStats ? (
-                    <div className="space-y-3">
-                      {/* Session Info */}
-                      <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
-                        <div className="text-slate-400 text-xs mb-1">Session Info:</div>
-                        <div className="font-mono text-sm text-slate-200">
-                          Session #{backtestResults.sessions.length} — {latestSessionStats.detailRows.length} predictions re-run
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          ✨ Predictor re-analyzed each roll with current algorithm
-                        </div>
-                      </div>
-                      
-                      {/* Main Stats Grid */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
-                          <div className="text-green-400 font-bold text-2xl">{latestSessionStats.mainHits}</div>
-                          <div className="text-slate-400 text-[10px] uppercase tracking-wider mt-1">Main Hits</div>
-                          <div className="text-green-300 text-xs mt-1">
-                            {latestSessionStats.detailRows.length > 0 
-                              ? Math.round((latestSessionStats.mainHits / latestSessionStats.detailRows.length) * 100)
-                              : 0}%
-                          </div>
-                        </div>
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
-                          <div className="text-blue-400 font-bold text-2xl">{latestSessionStats.altHits}</div>
-                          <div className="text-slate-400 text-[10px] uppercase tracking-wider mt-1">Alt Hits</div>
-                          <div className="text-blue-300 text-xs mt-1">
-                            {latestSessionStats.detailRows.length > 0
-                              ? Math.round((latestSessionStats.altHits / latestSessionStats.detailRows.length) * 100)
-                              : 0}%
-                          </div>
-                        </div>
-                        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
-                          <div className="text-red-400 font-bold text-2xl">{latestSessionStats.misses}</div>
-                          <div className="text-slate-400 text-[10px] uppercase tracking-wider mt-1">Misses</div>
-                          <div className="text-red-300 text-xs mt-1">
-                            {latestSessionStats.detailRows.length > 0
-                              ? Math.round((latestSessionStats.misses / latestSessionStats.detailRows.length) * 100)
-                              : 0}%
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Combined Accuracy */}
-                      <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/30 rounded-lg p-3">
-                        <div className="text-xs text-slate-400 mb-1">Combined Accuracy (Main + Alt):</div>
-                        <div className="flex items-baseline gap-2">
-                          <div className="text-3xl font-black bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
-                            {latestSessionStats.detailRows.length > 0
-                              ? Math.round(((latestSessionStats.mainHits + latestSessionStats.altHits) / latestSessionStats.detailRows.length) * 100)
-                              : 0}%
-                          </div>
-                          <div className="text-sm text-slate-400">
-                            ({latestSessionStats.mainHits + latestSessionStats.altHits}/{latestSessionStats.detailRows.length})
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-400">No session data available.</div>
-                  )}
-                  
-                  {/* Roll-by-Roll Comparison */}
-                  {latestSessionStats && (
-                    <BacktestComparison sessionStats={latestSessionStats} />
-                  )}
+                <div className="text-sm text-slate-200 font-semibold mb-2">
+                  Backtest Summary
                 </div>
+
+                {latestSessionStats ? (
+                  <div className="text-xs text-slate-300 space-y-1">
+                    <div>
+                      Session #{backtestResults.sessions.length} — rows:{" "}
+                      {latestSessionStats.detailRows.length}
+                    </div>
+                    <div>
+                      Main: {latestSessionStats.mainHits} | Alt:{" "}
+                      {latestSessionStats.altHits} | Miss:{" "}
+                      {latestSessionStats.misses}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400">No session.</div>
+                )}
               </>
             )}
           </div>

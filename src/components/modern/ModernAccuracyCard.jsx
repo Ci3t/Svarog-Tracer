@@ -10,8 +10,12 @@ export default function ModernAccuracyCard({ debugLogs }) {
     ? Math.round(
         (recentLogs.filter((log) => {
           const pred = String(log.prediction);
+          const alt = log.alt ? String(log.alt) : null;
           const actual = String(log.actual);
-          return pred === actual || pred === actual.slice(0, pred.length);
+          // Count as hit if main prediction matches OR alt prediction matches
+          const mainHit = pred === actual || pred === actual.slice(0, pred.length);
+          const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
+          return mainHit || altHit;
         }).length /
           recentLogs.length) *
           100

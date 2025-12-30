@@ -2,8 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import { decodeLongString } from '../utils/stringHelpers.js';
 import { predictNext2BBPMode } from '../utils/bbp-mode-2str.js';
+import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 
-export default function ModernLongStringPage() {
+export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onImportLogs, isDebugMode = false }) {
   const [longString, setLongString] = useState('');
   const [region, setRegion] = useState('Global');
 
@@ -527,6 +528,18 @@ export default function ModernLongStringPage() {
             </div>
           )}
         </div>
+
+        {/* Debug Panel */}
+        {isDebugMode && (
+          <div className="mt-6">
+            <ModernDebugPanel
+              debugLogs={debugLogs}
+              onClearLogs={onClearLogs}
+              onImportLogs={onImportLogs}
+              isDebugMode={isDebugMode}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

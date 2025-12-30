@@ -22,6 +22,36 @@ export default function ModernSessionTable({
     return padTo5(t);
   }
 
+  // Download current session as TXT (same format as debug export)
+  const handleDownloadCurrentSession = () => {
+    if (entries.length === 0) return;
+
+    const lines = ["=== Session Data Export ===", "", "--- Current Session ---"];
+    
+    entries.forEach((e) => {
+      const timeStr = e.time && !isNaN(new Date(e.time).getTime())
+        ? new Date(e.time).toLocaleTimeString()
+        : "--:--:--";
+      
+      lines.push(
+        `[${timeStr}] RAW: ${e.raw} | TRANSLATED: ${e.translated} | ` +
+        `2-str: ${toTranslatedPadded(e.s2)} | 3-str: ${toTranslatedPadded(e.s3)} | ` +
+        `4-str: ${toTranslatedPadded(e.s4)} | 5-str: ${toTranslatedPadded(e.s5)}`
+      );
+    });
+
+    const txtContent = lines.join("\n");
+    const blob = new Blob([txtContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `session_rolls_${new Date().toISOString().split("T")[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden">
       {/* Header with Tabs */}
@@ -29,37 +59,50 @@ export default function ModernSessionTable({
         <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
           Session Data
         </h3>
-        <div className="flex gap-1 bg-slate-900/50 rounded-xl p-1">
-          <button
-            onClick={() => setSessionTab("current")}
-            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-              sessionTab === "current"
-                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
-                : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
-            }`}
-          >
-            Current
-          </button>
-          <button
-            onClick={() => setSessionTab("previous")}
-            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-              sessionTab === "previous"
-                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
-                : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
-            }`}
-          >
-            History
-          </button>
-          <button
-            onClick={() => setSessionTab("all")}
-            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-              sessionTab === "all"
-                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
-                : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
-            }`}
-          >
-            All
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-slate-900/50 rounded-xl p-1">
+            <button
+              onClick={() => setSessionTab("current")}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                sessionTab === "current"
+                  ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
+                  : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
+              }`}
+            >
+              Current
+            </button>
+            <button
+              onClick={() => setSessionTab("previous")}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                sessionTab === "previous"
+                  ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
+                  : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
+              }`}
+            >
+              History
+            </button>
+            <button
+              onClick={() => setSessionTab("all")}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                sessionTab === "all"
+                  ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
+                  : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/50"
+              }`}
+            >
+              All
+            </button>
+          </div>
+          {sessionTab === "current" && entries.length > 0 && (
+            <button
+              onClick={handleDownloadCurrentSession}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-all duration-200 active:scale-95 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download TXT
+            </button>
+          )}
         </div>
       </div>
 

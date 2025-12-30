@@ -1,6 +1,7 @@
 // Modern Kiyo Mode Page - 2-Column Layout
 import React from 'react';
 import KiyoModeCard from '../components/KiyoModeCard';
+import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import './ModernKiyoModePage.css';
 
 export default function ModernKiyoModePage({
@@ -17,6 +18,9 @@ export default function ModernKiyoModePage({
   handleKiyoToDebug,
   handleKiyoDebugData,
   pendingKiyoSnapshotsRef,
+  onClearLogs,
+  onImportLogs,
+  isDebugMode = false,
 }) {
   return (
     <div className="modern-kiyo-page">
@@ -31,6 +35,18 @@ export default function ModernKiyoModePage({
           pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
         />
       </div>
+
+      {/* Debug Panel */}
+      {isDebugMode && (
+        <div className="mt-6 px-4">
+          <ModernDebugPanel
+            debugLogs={debugLogs}
+            onClearLogs={onClearLogs}
+            onImportLogs={onImportLogs}
+            isDebugMode={isDebugMode}
+          />
+        </div>
+      )}
     </div>
   );
 }

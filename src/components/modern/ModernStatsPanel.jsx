@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
 
-// Detect line from last entry's RAW input (last digit)
-function detectLineFromEntry(entry) {
-  if (!entry?.raw) return null;
-  const lastDigit = Number(entry.raw[entry.raw.length - 1]);
+// Detect line from raw input string (last digit 1-4)
+function detectLineFromRaw(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  const clean = raw.replace(/[^1-4]/g, "");
+  if (!clean) return null;
+  const lastDigit = Number(clean[clean.length - 1]);
   return [1, 2, 3, 4].includes(lastDigit) ? lastDigit : null;
 }
 
@@ -58,10 +60,13 @@ export default function ModernStatsPanel({
   const alt = prediction?.alt || null;
   const mode = prediction?.mode || "—";
 
-  // Auto-detect line from last roll's LAST DIGIT (from RAW)
+  // Auto-detect line: strictly from the LATEST submitted roll
   const autoLine = useMemo(() => {
-    if (!entries || !entries.length) return null;
-    return detectLineFromEntry(entries[0]); // newest first
+    if (entries && entries.length > 0) {
+      const latestEntry = entries[entries.length - 1];
+      return detectLineFromRaw(latestEntry.raw);
+    }
+    return null;
   }, [entries]);
 
   // For MAIN/ALT display: always use auto-detected line
@@ -122,8 +127,9 @@ export default function ModernStatsPanel({
           <div className="text-4xl font-mono font-bold bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent mb-2">
             {autoShiftedMain ?? "—"}
           </div>
-          <div className="text-[11px] text-slate-400">
-            Confidence: <span className="text-violet-300 font-semibold">{mainPct}%</span>
+          <div className="text-[11px] text-slate-400 flex justify-between items-center">
+            <span>Confidence: <span className="text-violet-300 font-semibold">{mainPct}%</span></span>
+            {autoLine && <span className="text-[10px] text-slate-500 font-mono italic">Line {autoLine} hit</span>}
           </div>
         </div>
 
@@ -138,13 +144,7 @@ export default function ModernStatsPanel({
         </div>
       </div>
 
-      {/* Auto-shift indicator */}
-      {autoLine && mainPred && (
-        <div className="text-[10px] text-amber-400 bg-amber-950/20 rounded-lg px-3 py-2 border border-amber-900/30 mb-6">
-          ✨ Auto: Last line {autoLine} • {mainPred} → {autoShiftedMain}
-          {alt && ` • ${alt} → ${autoShiftedAlt}`}
-        </div>
-      )}
+
 
       {/* LINE HELPER SECTION */}
       <div className="pt-6 border-t border-slate-700/30">
@@ -245,9 +245,9 @@ export default function ModernStatsPanel({
             you override for different lines.
           </p>
           <p className="text-[9px]">
-            Example: Predictor says <span className="font-mono">42</span>, last
-            roll was <span className="font-mono">31</span> (line 1) → shows{" "}
-            <span className="font-mono text-violet-300">13</span>.
+            Example: Predictor says <span className="font-mono text-slate-200">42 43</span> (Commons), last
+            roll was <span className="font-mono">31</span> (line 1) → Auto says{" "}
+            <span className="font-mono text-amber-300 font-bold">13 14</span>.
           </p>
         </div>
       </div>
