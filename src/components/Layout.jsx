@@ -147,9 +147,68 @@ export default function Layout({
       </header>
 
       {/* Page Content */}
-      <main className="max-w-[1920px] mx-auto p-4">
+      <main className="max-w-[1920px] mx-auto p-4 flex-grow">
         <Outlet />
       </main>
+
+      {/* GLOBAL FOOTER */}
+      <footer className="mt-auto border-t border-slate-800/50 bg-slate-900/30 backdrop-blur-md py-8 px-4">
+        <div className="max-w-[1920px] mx-auto flex flex-col items-center gap-6">
+          
+          {/* Brand & Version */}
+          <div className="text-center">
+            <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
+              Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
+                Ver 3.8.3
+              </span>
+            </h4>
+            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2025 Ciet</p>
+          </div>
+
+          {/* Social Links */}
+          <div className="flex flex-wrap justify-center gap-6 text-[11px] font-medium text-slate-400">
+            <a 
+              href="https://twitch.tv/iciet" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-purple-400 transition-colors group"
+            >
+              <span className="text-purple-500/50 group-hover:text-purple-400">Twitch:</span> twitch.tv/iciet
+            </a>
+            <a 
+              href="https://discord.gg/AtGzKP7qnZ" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-indigo-400 transition-colors group"
+            >
+              <span className="text-indigo-500/50 group-hover:text-indigo-400">Discord:</span> My Personal Discord
+            </a>
+            <a 
+              href="https://discord.gg/YqAeBjpbE4" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-blue-400 transition-colors group"
+            >
+              <span className="text-blue-500/50 group-hover:text-blue-400">Contact:</span> @Ciet in The Genius Society
+            </a>
+          </div>
+
+          {/* Safety Disclaimer */}
+          <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 max-w-3xl text-center">
+            <p className="text-[10px] sm:text-xs text-amber-200/70 leading-relaxed uppercase tracking-tight">
+              <span className="text-amber-400">⚠️ Svarog Tracer</span> is an independent observation and analysis tool. It does not modify, interact with, or access any game files or data — it is entirely safe and non-intrusive.
+            </p>
+          </div>
+
+          {/* Special Attribution (StarRailStation for Warp Data) */}
+          <div className="pt-4 border-t border-slate-800/30 w-full text-center">
+             <p className="text-[10px] text-slate-600 italic uppercase tracking-widest">
+                Pattern Analysis Engine Powered by Svarog • May your pulls be lucky and your pities be short. ✦
+             </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -156,6 +156,9 @@ export default function ModernPredictionCard({ prediction }) {
               const hasWaveFlip = waveFlipData?.warning === true;
               if (!hasWaveFlip) return null;
               
+              let nextCommons = null;
+              let rollsUntil = null;
+
               if (waveFlipData?.predictedNewCommons) {
                 nextCommons = waveFlipData.predictedNewCommons;
                 rollsUntil = waveFlipData.rollsUntil;
