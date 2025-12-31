@@ -120,6 +120,18 @@ export default function Layout({
                 >
                   🌊 Kiyo
                 </NavLink>
+                <NavLink
+                  to="/warp-analyzer"
+                  className={({ isActive }) =>
+                    `flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all text-center ${
+                      isActive
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                    }`
+                  }
+                >
+                  📊 Warp
+                </NavLink>
               </nav>
 
               {/* Export Button */}

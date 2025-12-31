@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:beta": "cross-env VITE_BASE_PATH=/Svarog-Tracer-Beta/ vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "update-banners": "python scripts/update_banners.py"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.17",

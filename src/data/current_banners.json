@@ -1,0 +1,30 @@
+[
+  {
+    "id": "2099",
+    "name": "The Dahlia",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png",
+    "type": "character",
+    "characterId": "1321"
+  },
+  {
+    "id": "2100",
+    "name": "Firefly",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png",
+    "type": "character",
+    "characterId": "1310"
+  },
+  {
+    "id": "3099",
+    "name": "Never Forget Her Flame",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23050.png",
+    "type": "light_cone",
+    "characterId": "23050"
+  },
+  {
+    "id": "3100",
+    "name": "Whereabouts Should Dreams Rest",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23025.png",
+    "type": "light_cone",
+    "characterId": "23025"
+  }
+]

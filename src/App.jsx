@@ -23,6 +23,7 @@ import Layout from "./components/Layout";
 import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
 import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
 import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
+import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // 🔥 NEW Warp Analyzer
 
 
 
@@ -989,6 +990,7 @@ export default function App() {
               />
             }
           />
+          <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
         </Route>
       </Routes>
     </Suspense>
