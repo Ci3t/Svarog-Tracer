@@ -11,6 +11,76 @@
 
 const VALUES = ['41', '42', '43', '44'];
 
+// =========================================================================
+// 🧠 META-PATTERN: Property Map for Secondary Characteristics
+// Used for "Split-Common Breaker" when top 2 candidates are tied
+// =========================================================================
+const PROPERTIES = {
+  '41': { parity: 'odd',  position: 'outer', range: 'low' },
+  '42': { parity: 'even', position: 'inner', range: 'low' },
+  '43': { parity: 'odd',  position: 'inner', range: 'high' },
+  '44': { parity: 'even', position: 'outer', range: 'high' }
+};
+
+/**
+ * Analyze meta-streams (Parity, Position, Range) from recent rolls
+ * Returns expectation for next roll based on each stream
+ */
+function analyzeMetaStreams(rolls) {
+  if (!rolls || rolls.length < 3) {
+    return { parity: null, position: null, range: null };
+  }
+  
+  const last6 = rolls.slice(-6);
+  
+  // Count occurrences in each stream
+  const parityCount = { odd: 0, even: 0 };
+  const positionCount = { inner: 0, outer: 0 };
+  const rangeCount = { low: 0, high: 0 };
+  
+  last6.forEach(val => {
+    const props = PROPERTIES[val];
+    if (props) {
+      parityCount[props.parity]++;
+      positionCount[props.position]++;
+      rangeCount[props.range]++;
+    }
+  });
+  
+  // Determine expectation (inverse of dominance - expect balance)
+  const expectParity = parityCount.odd > parityCount.even + 1 ? 'even' : 
+                       parityCount.even > parityCount.odd + 1 ? 'odd' : null;
+  const expectPosition = positionCount.inner > positionCount.outer + 1 ? 'outer' :
+                         positionCount.outer > positionCount.inner + 1 ? 'inner' : null;
+  const expectRange = rangeCount.low > rangeCount.high + 1 ? 'high' :
+                      rangeCount.high > rangeCount.low + 1 ? 'low' : null;
+  
+  return {
+    parity: expectParity,
+    position: expectPosition,
+    range: expectRange,
+    counts: { parityCount, positionCount, rangeCount }
+  };
+}
+
+/**
+ * Score a candidate value against meta-stream expectations
+ * Returns a boost score (0 to 0.3) based on matches
+ */
+function scoreMetaMatch(value, metaExpect) {
+  if (!value || !metaExpect) return 0;
+  
+  const props = PROPERTIES[value];
+  if (!props) return 0;
+  
+  let score = 0;
+  if (metaExpect.parity && props.parity === metaExpect.parity) score += 0.15;
+  if (metaExpect.position && props.position === metaExpect.position) score += 0.10;
+  if (metaExpect.range && props.range === metaExpect.range) score += 0.05;
+  
+  return score;
+}
+
 /**
  * Build ENHANCED pair transition matrix with 2-gram support
  * 
@@ -627,13 +697,21 @@ export function predictWithPairs(rolls) {
     }
   }
   // 🔥 NEW: PATTERN SHIFT - When noise is becoming common, predict it!
-  else if (patternShifted && shiftedToValue) {
+  if (patternShifted && shiftedToValue) {
     prediction = shiftedToValue;
     alt = commons[0]; // Original common as backup
     method = 'pattern-shift';
     confidence = 0.65;
   }
-  // Step 0: RUN BREAK - If 3+ consecutive same value, predict a break
+  // Step 0: WAVE-INVERSE - When flip probability is HIGH, swap
+  else if (waveSignals.waveFlipProbability >= 50) {
+    // Use pair matrix but swap
+    prediction = pairAlt || freqAlt;
+    alt = pairPrediction || freqPrediction;
+    method = 'wave-inverse';
+    confidence = Math.min(waveSignals.waveFlipProbability + 10, 85) / 100;
+  }
+  // Step 1: RUN BREAK - If 3+ consecutive same value, predict a break
   else if (runBreakLikely) {
     // After 3+ of same value, predict the OTHER common
     const otherCommon = commons.find(c => c !== lastRoll);
@@ -644,20 +722,12 @@ export function predictWithPairs(rolls) {
       confidence = 0.70;
     }
   }
-  // Step 1: USE 2-GRAM if available (more context = better)
+  // Step 2: USE 2-GRAM if available (more context = better)
   else if (has2gramData && gram2Confidence >= 40) {
     prediction = gram2Prediction;
     alt = gram2Alt;
     confidence = gram2Confidence / 100;
     method = '2-gram';
-  }
-  // Step 2: WAVE-INVERSE - When flip probability is HIGH, swap
-  else if (waveSignals.waveFlipProbability >= 50) {
-    // Use pair matrix but swap
-    prediction = pairAlt || freqAlt;
-    alt = pairPrediction || freqPrediction;
-    method = 'wave-inverse';
-    confidence = Math.min(waveSignals.waveFlipProbability + 10, 85) / 100;
   }
   // Step 3: 🔥 NOISE DOUBLE-TAP - If noise tends to pair, predict repeat!
   else if (noiseDoubleTapLikely && doubleTapValue) {
@@ -782,6 +852,8 @@ export function predictWithPairs(rolls) {
   // If distribution is too flat, mark as uncertain and reduce confidence
   // =========================================================================
   let isUncertainResult = isUncertain;
+  const topFreq = distribution[prediction] || fullDistribution[prediction] || 0;
+  const confidenceMultiplier = 1.0; // Placeholder for future dynamic adjustment
   if (isUncertain && !usedTieBreaker && method !== 'alternating' && method !== '2-gram' && method !== 'pattern-shift' && method !== 'double-tap') {
     confidence = Math.min(confidence, 0.40);
     method = method + ' (uncertain)';
