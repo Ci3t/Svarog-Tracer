@@ -1,0 +1,59 @@
+=== Svarog Tracer Debug Export ===
+
+--- 2-str ---
+[12:38:13 AM] 2-str → pred: 42 (51%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:45%,43:36%,44:18% | ❌ MISS | actual: 43 | ctx: 43, 43, 42, 44, 42, 42 | Commons: [42, 43] | Noise: [44]
+
+[12:38:14 AM] 2-str → pred: 42 (46%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:42%,43:42%,44:17% | ❌ MISS | actual: 44 | ctx: 43, 43, 42, 44, 42, 42, 43 | Commons: [42, 43] | Noise: [44]
+
+[12:38:15 AM] 2-str → pred: 42 (29%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:38%,43:38%,44:23% | ❌ MISS | actual: 43 | ctx: 43, 43, 42, 44, 42, 42, 43, 44 | Commons: [42, 43] | Noise: [44]
+
+
+--- 🧪 EXPERIMENTAL PREDICTOR (Pair Matrix) ---
+(Replaying each roll with experimental predictor)
+
+[12:38:13 AM] 🧪 EXP → pred: 44 (55%) | alt: 42 | method: pair-matrix+anti-repeat
+         ↳ actual: 43 | ❌ MISS
+
+[12:38:14 AM] 🧪 EXP → pred: 42 (67%) | alt: 43 | method: pair-matrix
+         ↳ actual: 44 | ❌ MISS
+
+[12:38:15 AM] 🧪 EXP → pred: 42 (100%) | alt: 41 | method: pair-matrix
+         ↳ actual: 43 | ❌ MISS
+
+--- EXPERIMENTAL SUMMARY ---
+Hits (main):    0/3 = 0%
+Top-2 (±alt):   0/3 = 0%
+
+
+--- 4-str ---
+(none)
+
+
+--- merged (all) ---
+[12:38:09 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:38:09 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:38:10 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[12:38:11 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:38:11 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[12:38:12 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[12:38:13 AM] 2-str → pred: 42 (51%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:45%,43:36%,44:18% | ❌ MISS | actual: 43 | ctx: 43, 43, 42, 44, 42, 42 | Commons: [42, 43] | Noise: [44]
+
+[12:38:13 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:38:14 AM] 2-str → pred: 42 (46%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:42%,43:42%,44:17% | ❌ MISS | actual: 44 | ctx: 43, 43, 42, 44, 42, 42, 43 | Commons: [42, 43] | Noise: [44]
+
+[12:38:14 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:38:15 AM] 2-str → pred: 42 (29%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 42:38%,43:38%,44:23% | ❌ MISS | actual: 43 | ctx: 43, 43, 42, 44, 42, 42, 43, 44 | Commons: [42, 43] | Noise: [44]
+
+[12:38:15 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+
+--- Long String (chronological) ---
+434344444343424244424343

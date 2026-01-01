@@ -1,6 +1,7 @@
 // Modern Live Session Page - Complete Modern UI
 import React from 'react';
 import ModernPredictionCard from '../components/modern/ModernPredictionCard';
+import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernAccuracyCard from '../components/modern/ModernAccuracyCard';
 import ModernFrequencyCard from '../components/modern/ModernFrequencyCard';
 import ModernStickyHeader from '../components/modern/ModernStickyHeader';
@@ -89,6 +90,9 @@ export default function ModernLiveSessionPage({
 
             {/* Next Prediction */}
             <ModernPredictionCard prediction={livePrediction} />
+
+            {/* Experimental Pair Predictor */}
+            <ModernPairPredictorCard entries={entries} />
 
             {/* Caesar Shift */}
             <ModernCaesarCard

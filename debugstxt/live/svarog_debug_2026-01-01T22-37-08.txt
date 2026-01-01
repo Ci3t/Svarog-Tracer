@@ -1,0 +1,90 @@
+=== Svarog Tracer Debug Export ===
+
+--- 2-str ---
+[12:36:48 AM] 2-str → pred: 42 (35%) | alt: 43 | mode: BBP-mode | Pattern: transition-based | Dist: 41:18%,42:36%,43:36%,44:9% | ❌ MISS | actual: 41 | ctx: 43, 42, 42, 43, 41, 44 | Commons: [42, 43] | Noise: [41, 44]
+
+[12:36:49 AM] 2-str → pred: 42 (35%) | alt: 43 | mode: BBP-mode | Pattern: transition-based | Dist: 41:25%,42:33%,43:33%,44:8% | ❌ MISS | actual: 43 | ctx: 43, 42, 42, 43, 41, 44, 41 | Commons: [42, 43] | Noise: [41, 44]
+
+[12:36:52 AM] 2-str → pred: 42 (25%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:23%,42:31%,43:38%,44:8% | ❌ MISS | actual: 44 | ctx: 43, 42, 42, 43, 41, 44, 41, 43 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:36:59 AM] 2-str → pred: 42 (25%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:21%,42:29%,43:36%,44:14% | ❌ MISS | actual: 44 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:37:00 AM] 2-str → pred: 42 (39%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:20%,42:27%,43:33%,44:20% | ❌ MISS | actual: 43 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44, 44 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:37:05 AM] 2-str → pred: 43 (38%) | alt: 42 | mode: Wave | Pattern: balanced | Dist: 41:19%,42:25%,43:38%,44:19% | ❌ MISS | actual: 42 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44, 44, 43 | Commons: [43, 42] | Noise: [41, 44]
+
+
+--- 🧪 EXPERIMENTAL PREDICTOR (Pair Matrix) ---
+(Replaying each roll with experimental predictor)
+
+[12:36:48 AM] 🧪 EXP → pred: 42 (40%) | alt: 43 | method: noise-snapback (uncertain)
+         ↳ actual: 41 | ❌ MISS
+         ⚠️ UNCERTAIN (gap: 0%)
+
+[12:36:49 AM] 🧪 EXP → pred: 41 (40%) | alt: 44 | method: wave-inverse (uncertain)
+         ↳ actual: 43 | ❌ MISS
+         ⚠️ UNCERTAIN (gap: 0%)
+
+[12:36:52 AM] 🧪 EXP → pred: 41 (40%) | alt: 42 | method: pair-matrix (uncertain)
+         ↳ actual: 44 | ❌ MISS
+         ⚠️ UNCERTAIN (gap: 0%)
+
+[12:36:59 AM] 🧪 EXP → pred: 42 (40%) | alt: 41 | method: wave-inverse (uncertain)
+         ↳ actual: 44 | ❌ MISS
+         ⚠️ UNCERTAIN (gap: 0%)
+
+[12:37:00 AM] 🧪 EXP → pred: 44 (60%) | alt: 41 | method: pair-matrix
+         ↳ actual: 43 | ❌ MISS
+
+[12:37:05 AM] 🧪 EXP → pred: 44 (50%) | alt: 41 | method: pair-matrix
+         ↳ actual: 42 | ❌ MISS
+
+--- EXPERIMENTAL SUMMARY ---
+Hits (main):    0/6 = 0%
+Top-2 (±alt):   0/6 = 0%
+
+
+--- 4-str ---
+(none)
+
+
+--- merged (all) ---
+[12:36:42 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:36:43 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[12:36:44 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[12:36:45 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:36:46 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[12:36:47 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:36:48 AM] 2-str → pred: 42 (35%) | alt: 43 | mode: BBP-mode | Pattern: transition-based | Dist: 41:18%,42:36%,43:36%,44:9% | ❌ MISS | actual: 41 | ctx: 43, 42, 42, 43, 41, 44 | Commons: [42, 43] | Noise: [41, 44]
+
+[12:36:48 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[12:36:49 AM] 2-str → pred: 42 (35%) | alt: 43 | mode: BBP-mode | Pattern: transition-based | Dist: 41:25%,42:33%,43:33%,44:8% | ❌ MISS | actual: 43 | ctx: 43, 42, 42, 43, 41, 44, 41 | Commons: [42, 43] | Noise: [41, 44]
+
+[12:36:49 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:36:52 AM] 2-str → pred: 42 (25%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:23%,42:31%,43:38%,44:8% | ❌ MISS | actual: 44 | ctx: 43, 42, 42, 43, 41, 44, 41, 43 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:36:52 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:36:59 AM] 2-str → pred: 42 (25%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:21%,42:29%,43:36%,44:14% | ❌ MISS | actual: 44 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:36:59 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:37:00 AM] 2-str → pred: 42 (39%) | alt: 43 | mode: Wave | Pattern: transition-based | Dist: 41:20%,42:27%,43:33%,44:20% | ❌ MISS | actual: 43 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44, 44 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:37:00 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:37:05 AM] 2-str → pred: 43 (38%) | alt: 42 | mode: Wave | Pattern: balanced | Dist: 41:19%,42:25%,43:38%,44:19% | ❌ MISS | actual: 42 | ctx: 43, 42, 42, 43, 41, 44, 41, 43, 44, 44, 43 | Commons: [43, 42] | Noise: [41, 44]
+
+[12:37:05 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+
+--- Long String (chronological) ---
+424243434444444443434141444143424243

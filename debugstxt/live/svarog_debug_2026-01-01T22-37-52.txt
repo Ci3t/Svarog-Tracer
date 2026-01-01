@@ -1,0 +1,23 @@
+=== Svarog Tracer Debug Export ===
+
+
+--- 4-str ---
+(none)
+
+
+--- merged (all) ---
+[12:37:25 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[12:37:26 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[12:37:27 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:37:28 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:37:32 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[12:37:33 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+
+--- Long String (chronological) ---
+444343434441

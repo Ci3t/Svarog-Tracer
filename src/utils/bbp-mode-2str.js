@@ -761,7 +761,7 @@ export function predictNext2BBPMode(rolls, options = {}) {
   const waveFlipData = detectWaveFlip(cleanedRolls, commons, noise);
 
   // 🔥 NEW: Step 3 - Table Analysis Integration (Visual Pattern Detection)
-  const tableAnalysis = analyzeTablePattern(cleanedRolls);
+  const tableAnalysis = analyzeTablePattern(cleanedRolls, commons);
   
   let finalPrediction = patternResult.prediction;
   let finalConfidence = patternResult.confidence;
@@ -956,28 +956,43 @@ export function predictNext2BBPMode(rolls, options = {}) {
 }
 
 /**
- * 🔥 NEW: Table Analysis - Visual Pattern Detection
- * Analyzes pair columns like the LiveTrackingTable
+ * 🔥 FIXED: Table Analysis - Visual Pattern Detection
+ * Analyzes ALL pair columns, not just 41-based pairs
  */
-function analyzeTablePattern(rolls) {
+function analyzeTablePattern(rolls, commons = []) {
   if (rolls.length < 6) return null;
   
   const recent = rolls.slice(-12); // Last 12 rolls
   
-  // Count occurrences in each pair column
-  const pair4142 = recent.filter(r => r === '41' || r === '42').length;
-  const pair4143 = recent.filter(r => r === '41' || r === '43').length;
-  const pair4144 = recent.filter(r => r === '41' || r === '44').length;
-  
-  // Find dominant pair
-  const pairs = [
-    { name: '41/42', count: pair4142, values: ['41', '42'] },
-    { name: '41/43', count: pair4143, values: ['41', '43'] },
-    { name: '41/44', count: pair4144, values: ['41', '44'] }
+  // 🔥 FIX: Analyze ALL possible pairs, not just 41-based
+  const allPairs = [
+    { name: '41/42', values: ['41', '42'] },
+    { name: '41/43', values: ['41', '43'] },
+    { name: '41/44', values: ['41', '44'] },
+    { name: '42/43', values: ['42', '43'] },
+    { name: '42/44', values: ['42', '44'] },
+    { name: '43/44', values: ['43', '44'] },
   ];
   
-  pairs.sort((a, b) => b.count - a.count);
-  const dominant = pairs[0];
+  // Count occurrences for each pair
+  const pairStats = allPairs.map(pair => ({
+    ...pair,
+    count: recent.filter(r => pair.values.includes(r)).length,
+    isCommonsPair: commons.length >= 2 && 
+                   pair.values.includes(commons[0]) && 
+                   pair.values.includes(commons[1])
+  }));
+  
+  // 🔥 FIX: Prioritize commons pair if it exists
+  const commonsPair = pairStats.find(p => p.isCommonsPair);
+  const sortedPairs = pairStats.sort((a, b) => {
+    // Commons pair gets priority boost
+    if (a.isCommonsPair && !b.isCommonsPair) return -1;
+    if (b.isCommonsPair && !a.isCommonsPair) return 1;
+    return b.count - a.count;
+  });
+  
+  const dominant = sortedPairs[0];
   
   if (dominant.count < 4) return null; // Not enough data
   
@@ -1010,10 +1025,24 @@ function analyzeTablePattern(rolls) {
     pattern = `Dominant ${dominant.name}`;
   }
   
+  // 🔥 FIX: If suggestion is a noise value but commons exist, prefer commons
+  if (suggestion && commons.length >= 2 && !commons.includes(suggestion)) {
+    // Suggestion is noise - check if we should override
+    const suggestionInPair = dominant.values.includes(suggestion);
+    const commonsInPair = dominant.values.filter(v => commons.includes(v));
+    
+    if (commonsInPair.length > 0) {
+      // There's a common in this pair - use it instead of noise
+      suggestion = commonsInPair[0];
+      pattern += ' (commons-adjusted)';
+    }
+  }
+  
   return {
     suggestion,
     pattern,
     dominantPair: dominant.name,
+    isCommonsPair: dominant.isCommonsPair,
     confidence: Math.min(95, 50 + (dominant.count / recent.length) * 50)
   };
 }
