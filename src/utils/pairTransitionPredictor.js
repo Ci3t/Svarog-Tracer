@@ -493,6 +493,22 @@ export function predictWithPairs(rolls) {
   const trends = calculateTrends(rolls);
 
   // =========================================================================
+  // 🔥 CHAOS DETECTION: When session is too noisy, use simpler logic
+  // =========================================================================
+  const last10 = rolls.slice(-10);
+  const noiseInLast10 = last10.filter(r => noise.includes(r)).length;
+  const noiseRate = noiseInLast10 / Math.min(10, rolls.length);
+  
+  // Also check if distribution is too flat (no clear pattern)
+  const distValues = Object.values(distribution);
+  const maxDist = Math.max(...distValues);
+  const minDist = Math.min(...distValues);
+  const isFlat = (maxDist - minDist) < 15; // Less than 15% difference = flat
+  
+  // Chaos = high noise rate OR flat distribution
+  const isChaotic = noiseRate >= 0.40 || isFlat;
+
+  // =========================================================================
   // 🔥 BEAST MODE: MOMENTUM FLOW (Strategy 3)
   // Calculate momentum score for each value using exponential decay
   // Score = Sum(1 / (Distance + 1)^2) - higher = more recent/frequent
@@ -699,9 +715,30 @@ export function predictWithPairs(rolls) {
   // 🔥 ENHANCED PREDICTION LOGIC (Standard v3.7 Priority)
   // =========================================================================
 
-  // Step 1: ALTERNATING PATTERN - Highest priority
-  // 🔧 FIX: Use momentum to pick the right value from the pair
-  if (isAlternating && alternatingPair) {
+  // 🆕 CHAOS MODE: When session is chaotic, skip complex patterns
+  // Use simple pair matrix + frequency approach
+  if (isChaotic) {
+    // In chaos, just use pair matrix from last roll
+    const lastRollRow = matrix[lastRoll] || {};
+    const pairSorted = VALUES
+      .map(v => ({ value: v, pct: lastRollRow[v]?.pct || 0 }))
+      .sort((a, b) => b.pct - a.pct);
+    
+    if (pairSorted[0].pct > 0) {
+      prediction = pairSorted[0].value;
+      alt = pairSorted[1]?.value || freqSorted[1]?.value;
+      method = 'chaos-pair';
+      confidence = Math.min(pairSorted[0].pct / 100, 0.55); // Cap at 55% in chaos
+    } else {
+      // Fallback to frequency
+      prediction = freqSorted[0].value;
+      alt = freqSorted[1]?.value;
+      method = 'chaos-freq';
+      confidence = 0.35;
+    }
+  }
+  // Standard logic when NOT chaotic
+  else if (isAlternating && alternatingPair) {
     // Sort pair by momentum - pick the HOTTER one
     const sortedPair = [...alternatingPair].sort((a, b) => 
       (momentumScores[b] || 0) - (momentumScores[a] || 0)
@@ -713,7 +750,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 2: PATTERN SHIFT - When noise is becoming common
-  // 🔧 FIX: Swapped pred/alt - analysis showed alt was hitting 83% of the time
+  // Keep it simple - predict the king, alt is the rising value
   else if (patternShifted && shiftedToValue) {
     const kingMomentum = momentumScores[commons[0]] || 0;
     const rebelMomentum = momentumScores[shiftedToValue] || 0;
@@ -721,7 +758,6 @@ export function predictWithPairs(rolls) {
 
     // Guard: 0.7x threshold
     if (rebelMomentum > kingMomentum * 0.7 || isRebelHot) {
-      // SWAPPED: King (common) is now prediction, rebel (shifted) is alt
       prediction = commons[0];
       alt = shiftedToValue;
       method = 'pattern-shift';
@@ -731,14 +767,28 @@ export function predictWithPairs(rolls) {
   
   // Step 2b: OVERDUE WAVE - Individual wave cycle detection
   // 🔧 User insight: When a value hasn't appeared in 4+ rolls, it tends to return
-  // 🔧 FIX: Add momentum filter - don't predict "dead" overdue values
-  // 🔧 FIX: Use pair matrix % as tiebreaker when multiple overdue have similar low momentum
+  // 🔧 FIX: Raised momentum threshold from 0.15 to 0.35 to avoid "dead" predictions
+  // 🔧 FIX: Skip overdue if commons are hot and alternating - trust the pattern instead
   else if (mostOverdue && lastSeen[mostOverdue] >= OVERDUE_THRESHOLD) {
     const overdueMomentum = momentumScores[mostOverdue] || 0;
     const isOnlyOverdue = overdueValues.length <= 1;
     
-    // Only predict overdue if it has SOME momentum (> 0.15) OR it's the only overdue option
-    if (overdueMomentum >= 0.15 || isOnlyOverdue) {
+    // 🔧 NEW: Check if commons are alternating hot - if so, skip overdue entirely
+    const commonsAreBothHot = commons.length >= 2 && 
+      hotValues.includes(commons[0]) && 
+      hotValues.includes(commons[1]);
+    const lastTwoAreCommons = rolls.length >= 2 && 
+      commons.includes(rolls[rolls.length - 1]) && 
+      commons.includes(rolls[rolls.length - 2]) &&
+      rolls[rolls.length - 1] !== rolls[rolls.length - 2]; // And they alternated
+    
+    // Skip overdue if commons are hot and alternating
+    if (commonsAreBothHot && lastTwoAreCommons) {
+      // Let the commons alternating pattern handle this - don't override with dead noise
+      // Fall through to next step
+    }
+    // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
+    else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
       prediction = mostOverdue;
       // Alt is the next most overdue, or the hottest value
       const secondOverdue = VALUES
@@ -750,9 +800,9 @@ export function predictWithPairs(rolls) {
     } else {
       // Multiple overdue with low momentum - use pair matrix % as tiebreaker
       // Get pair matrix percentages for overdue values
-      const lastRollMatrix = pairMatrix[lastRoll] || {};
+      const lastRollMatrix = matrix[lastRoll] || {};
       const overdueWithPairPct = overdueValues
-        .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD)
+        .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD && (momentumScores[v] || 0) >= 0.20)
         .map(v => ({
           value: v,
           pct: lastRollMatrix[v]?.pct || 0,
@@ -833,7 +883,8 @@ export function predictWithPairs(rolls) {
   else {
     prediction = freqPrediction;
     alt = freqAlt;
-    confidence = distribution[prediction] / 100;
+    // 🔧 FIX: Ensure minimum confidence of 30% for frequency predictions
+    confidence = Math.max((distribution[prediction] || 30) / 100, 0.30);
     method = 'frequency';
   }
   
@@ -942,6 +993,9 @@ export function predictWithPairs(rolls) {
     isUncertainResult = true;
   }
 
+  // 🔧 FINAL SAFETY: Ensure confidence is never 0%
+  confidence = Math.max(confidence, 0.25);
+
   return {
     prediction,
     alt,
@@ -990,7 +1044,11 @@ export function predictWithPairs(rolls) {
     // 🔄 COMMONS FLIP data
     commonsFlipDetected,
     newCommons,
-    flipConfidence
+    flipConfidence,
+    // 🆕 CHAOS data
+    isChaotic,
+    noiseRate: Math.round(noiseRate * 100),
+    isFlat
   };
 }
 

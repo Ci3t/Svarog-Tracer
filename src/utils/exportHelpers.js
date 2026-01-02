@@ -167,7 +167,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     const expTop2Acc = expTotal > 0 ? Math.round((expTop2 / expTotal) * 100) : 0;
     content += `--- EXPERIMENTAL SUMMARY ---\n`;
     content += `Hits (main):    ${expHits}/${expTotal} = ${expAcc}%\n`;
-    content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n\n`;
+    content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n`;
+    content += `\n`;
+    content += `🎯 EXP SUGGESTS: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
+
     
     // =========================================================================
     // 📊 COMMONS SUB-PATTERN ANALYSIS

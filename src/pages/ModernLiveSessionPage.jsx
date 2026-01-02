@@ -58,6 +58,7 @@ export default function ModernLiveSessionPage({
   handleDeleteSession,
   handleClearDebugLogs,
   handleImportDebugLogs,
+  handleImportRolls, // NEW: Import rolls from file
   
   // Refs
   pendingKiyoSnapshotsRef,
@@ -65,6 +66,7 @@ export default function ModernLiveSessionPage({
   // Other
   isDebugMode,
   kiyoDebugData,
+  isAutoImporting, // NEW
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -114,6 +116,8 @@ export default function ModernLiveSessionPage({
               prevSessions={prevSessions}
               onDeleteEntry={handleDeleteEntry}
               onDeleteSession={handleDeleteSession}
+              onImportRolls={handleImportRolls}
+              isAutoImporting={isAutoImporting}
             />
 
             {/* Live Tracking Tables - MOVED UP under session table */}
@@ -153,6 +157,7 @@ export default function ModernLiveSessionPage({
             {/* Debug Panel */}
             <ModernDebugPanel
               debugLogs={debugLogs}
+              entries={entries} // 🔥 NEW
               onClearLogs={handleClearDebugLogs}
               onImportLogs={handleImportDebugLogs}
               isDebugMode={isDebugMode}

@@ -8,6 +8,8 @@ export default function ModernSessionTable({
   prevSessions,
   onDeleteEntry,
   onDeleteSession,
+  onImportRolls, // NEW: Callback to import rolls from file
+  isAutoImporting = false, // NEW: Track if import is in progress
 }) {
   // pad 4/3/2 digit translated strings to 5 digits like 41 -> 41000
   function padTo5(str = "") {
@@ -92,17 +94,78 @@ export default function ModernSessionTable({
               All
             </button>
           </div>
-          {sessionTab === "current" && entries.length > 0 && (
-            <button
-              onClick={handleDownloadCurrentSession}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-all duration-200 active:scale-95 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download TXT
-            </button>
-          )}
+            {sessionTab === "current" && entries.length > 0 && (
+              <button
+                onClick={handleDownloadCurrentSession}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-all duration-200 active:scale-95 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download TXT
+              </button>
+            )}
+            {/* Import File Button (debug mode only) */}
+            {sessionTab === "current" && onImportRolls && (
+              <label 
+                className={`px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-all duration-200 flex items-center gap-2 ${
+                  isAutoImporting 
+                    ? "bg-slate-700 text-slate-400 cursor-not-allowed" 
+                    : "bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
+                }`}
+              >
+                <svg className={`w-4 h-4 ${isAutoImporting ? "animate-bounce" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {isAutoImporting ? "Importing..." : "Import TXT"}
+                <input
+                  type="file"
+                  accept=".txt"
+                  className="hidden"
+                  disabled={isAutoImporting}
+                  onChange={(e) => {
+                    if (isAutoImporting) return;
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        try {
+                          const text = String(reader.result || '');
+                          // Parse: extract TRANSLATED values from Session Data Export
+                          const lines = text.split('\n');
+                          const rolls = [];
+                          
+                          for (const line of lines) {
+                            // Match: [time] RAW: XX | TRANSLATED: XX | ...
+                            const match = line.match(/TRANSLATED:\s*(\d{2,5})/);
+                            if (match) {
+                              // Take first 2 digits as the 2-str value
+                              const value = match[1].slice(0, 2);
+                              if (value.length === 2 && value.startsWith('4')) {
+                                rolls.push(value);
+                              }
+                            }
+                          }
+                          
+                          if (rolls.length === 0) {
+                            alert('No valid TRANSLATED rolls found in file');
+                            return;
+                          }
+                          
+                          // Call the import handler with the rolls
+                          onImportRolls(rolls);
+                          alert(`Loaded ${rolls.length} rolls! They will be added one by one.`);
+                        } catch (err) {
+                          console.error('Import failed:', err);
+                          alert('Failed to parse file: ' + err.message);
+                        }
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
+                />
+              </label>
+            )}
         </div>
       </div>
 

@@ -60,6 +60,11 @@ export default function App() {
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("3.8");
 
+  const entriesRef = useRef([]); // 👈 ADD: Ref for calculations to avoid stale closures
+  useEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
+
   const [debugLogs, setDebugLogs] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -515,8 +520,8 @@ export default function App() {
   }
 
   /* ========= ADD ROLL ========= */
-  function handleAddRoll() {
-    const value = rollInput.trim();
+  function handleAddRoll(manualValue = null) {
+    const value = manualValue !== null ? String(manualValue) : rollInput.trim();
     if (!value) return;
 
     const clean = sanitizeRollInput(value);
@@ -533,22 +538,21 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    // 🔥 CRITICAL FIX: Capture the CURRENT live prediction BEFORE adding the roll
-    // This is what the user SAW on screen before typing
-    const rolls2Before = entries
+    // 🔥 FIXED: Capture the CURRENT live prediction BEFORE adding the roll
+    // Use entriesRef.current to avoid stale closures during auto-import
+    const currentEntries = entriesRef.current;
+
+    const rolls2Before = currentEntries
       .map((e) => (e.translated || "").slice(0, 2))
-      .filter(Boolean)
-      .reverse();
+      .filter(Boolean); // Chronological (oldest → newest)
 
-    const rolls3Before = entries
-      .map((e) => (e.s3 || "").replace(/0+$/, ""))
-      .filter((r) => r.length === 3)
-      .reverse();
+    const rolls3Before = currentEntries
+      .map((e) => (e.translated || "").slice(0, 3))
+      .filter((r) => r.length === 3); // Chronological
 
-    const rolls4Before = entries
-      .map((e) => (e.s4 || "").replace(/0+$/, ""))
-      .filter((r) => r.length === 4)
-      .reverse();
+    const rolls4Before = currentEntries
+      .map((e) => (e.translated || "").slice(0, 4))
+      .filter((r) => r.length === 4); // Chronological
 
     // 🔥 CAPTURE: The predictions that were SHOWING before this roll
     const p2Before = rolls2Before.length >= 6 ? predictNext2BBPMode(rolls2Before) : null;
@@ -596,7 +600,7 @@ export default function App() {
         alt: p2Before.alt || null,
         mode: p2Before.mode || "—",
         actual: actual2,
-        ctx: [...rolls2Before].reverse(), // 🔥 CHANGED: Reverse back to chronological order (oldest→newest)
+        ctx: [...rolls2Before], // Chronological (oldest→newest)
         candidates: safeCandidates(p2Before),
         source: "live", // Mark as live for accuracy tracking
         // 🔥 Enhanced BBP data
@@ -622,7 +626,9 @@ export default function App() {
       time: nowIso  // Fixed: was 'ts', should be 'time'
     }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
-    setRollInput("");
+    if (manualValue === null) {
+      setRollInput("");
+    }
   }
   // 🔬 Long String sandbox → stream to debug (supports both 2-str and 3-str)
   function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
@@ -821,6 +827,46 @@ export default function App() {
     // Put imported logs on top, keep at most 200
     setDebugLogs((old) => [...newLogs, ...old].slice(0, 200));
   }
+  // NEW: Import rolls from Session Data Export file for sequential testing
+  const importQueueRef = useRef([]);
+  const isImportingRef = useRef(false);
+  const [isAutoImporting, setIsAutoImporting] = useState(false);
+  
+  function handleImportRolls(rolls) {
+    if (!Array.isArray(rolls) || rolls.length === 0) return;
+    importQueueRef.current = rolls;
+    
+    if (!isImportingRef.current) {
+      isImportingRef.current = true;
+      setIsAutoImporting(true);
+      processNextImport(0);
+    }
+  }
+  
+  function processNextImport(idx) {
+    const rolls = importQueueRef.current;
+    if (idx >= rolls.length) {
+      isImportingRef.current = false;
+      setIsAutoImporting(false);
+      importQueueRef.current = [];
+      setRollInput("");
+      return;
+    }
+    
+    const roll = rolls[idx];
+    
+    // 1. Show in input bar
+    setRollInput(roll);
+    
+    // 2. Add to session (using manualValue we added earlier)
+    handleAddRoll(roll);
+    
+    // 3. Schedule next with enough delay for UI to update
+    setTimeout(() => {
+      processNextImport(idx + 1);
+    }, 800); // 800ms for rock-solid stability
+  }
+
 
   const freq2 = buildPrefixFreq(entries, 2, { translateAll: true });
   const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
@@ -948,6 +994,8 @@ export default function App() {
                 handleDeleteSession={handleDeleteSession}
                 handleClearDebugLogs={handleClearDebugLogs}
                 handleImportDebugLogs={handleImportDebugLogs}
+                handleImportRolls={handleImportRolls}
+                isAutoImporting={isAutoImporting}
                 // Refs
                 pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
                 // Other

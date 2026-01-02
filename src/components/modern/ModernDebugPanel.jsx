@@ -11,6 +11,7 @@ import { KiyoBacktestResults } from "./KiyoBacktestResults";
 
 export default function ModernDebugPanel({
   debugLogs,
+  entries = [], // 🔥 NEW
   onClearLogs,
   onImportLogs,
   isDebugMode = false,
