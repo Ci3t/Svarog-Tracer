@@ -157,6 +157,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
         if (expData.isUncertain) content += `         ⚠️ UNCERTAIN (gap: ${expData.confidenceGap}%)\n`;
         if (expData.isAlternating) content += `         🔄 ALTERNATING: ${expData.alternatingPair?.join('↔')}\n`;
         if (expData.patternShifted) content += `         🔀 PATTERN SHIFT: ${expData.shiftedToValue} is rising!\n`;
+        if (expData.commonsFlipDetected) content += `         🔄 COMMONS FLIP: New commons [${expData.newCommons?.join(', ')}] (${expData.flipConfidence}%)\n`;
         content += '\n';
       }
     });
@@ -167,6 +168,95 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     content += `--- EXPERIMENTAL SUMMARY ---\n`;
     content += `Hits (main):    ${expHits}/${expTotal} = ${expAcc}%\n`;
     content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n\n`;
+    
+    // =========================================================================
+    // 📊 COMMONS SUB-PATTERN ANALYSIS
+    // =========================================================================
+    const allRolls = logs2str.map(log => String(log.actual)).filter(Boolean);
+    
+    if (allRolls.length >= 6) {
+      content += `--- 📊 COMMONS SUB-PATTERN ANALYSIS ---\n\n`;
+      
+      // Identify commons and noise for this session
+      const rollCounts = {};
+      allRolls.forEach(r => { rollCounts[r] = (rollCounts[r] || 0) + 1; });
+      const sortedRolls = Object.entries(rollCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([val]) => val);
+      
+      const commons = sortedRolls.slice(0, 2);
+      const noise = sortedRolls.slice(2);
+      
+      content += `COMMONS: [${commons.join(', ')}]\n`;
+      content += `NOISE:   [${noise.join(', ')}]\n\n`;
+      
+      // Build sequence with A/B/N markers
+      const markers = allRolls.map(r => {
+        if (r === commons[0]) return 'A';
+        if (r === commons[1]) return 'B';
+        return 'N';
+      });
+      
+      // Show last 20 rolls as a table
+      const displayCount = Math.min(20, allRolls.length);
+      const displayRolls = allRolls.slice(-displayCount);
+      const displayMarkers = markers.slice(-displayCount);
+      
+      content += `ROLL SEQUENCE (last ${displayCount}):\n`;
+      content += `Roll: ${displayRolls.map(r => r.padStart(2)).join(' | ')}\n`;
+      content += `Type: ${displayMarkers.map(m => m.padStart(2)).join(' | ')}\n\n`;
+      
+      // Analyze pair transitions within commons
+      const pairCounts = { 'A→A': 0, 'A→B': 0, 'B→A': 0, 'B→B': 0, 'N→A': 0, 'N→B': 0, 'A→N': 0, 'B→N': 0 };
+      for (let i = 0; i < markers.length - 1; i++) {
+        const from = markers[i];
+        const to = markers[i + 1];
+        const key = `${from}→${to}`;
+        if (pairCounts[key] !== undefined) {
+          pairCounts[key]++;
+        }
+      }
+      
+      content += `PAIR TRANSITIONS:\n`;
+      content += `  ${commons[0]} → ${commons[0]}: ${pairCounts['A→A']}x (run)\n`;
+      content += `  ${commons[0]} → ${commons[1]}: ${pairCounts['A→B']}x (alt)\n`;
+      content += `  ${commons[1]} → ${commons[0]}: ${pairCounts['B→A']}x (alt)\n`;
+      content += `  ${commons[1]} → ${commons[1]}: ${pairCounts['B→B']}x (run)\n`;
+      content += `  Noise → ${commons[0]}: ${pairCounts['N→A']}x\n`;
+      content += `  Noise → ${commons[1]}: ${pairCounts['N→B']}x\n`;
+      content += `  ${commons[0]} → Noise: ${pairCounts['A→N']}x\n`;
+      content += `  ${commons[1]} → Noise: ${pairCounts['B→N']}x\n\n`;
+      
+      // Detect dominant pattern
+      const altCount = pairCounts['A→B'] + pairCounts['B→A'];
+      const runCount = pairCounts['A→A'] + pairCounts['B→B'];
+      const noiseInsertions = pairCounts['A→N'] + pairCounts['B→N'];
+      
+      let patternType = 'mixed';
+      if (altCount > runCount * 1.5) patternType = 'ALTERNATING (A-B-A-B)';
+      else if (runCount > altCount * 1.5) patternType = 'RUNS (A-A-B-B)';
+      else if (altCount > 0 || runCount > 0) patternType = 'MIXED';
+      
+      content += `PATTERN DETECTED: ${patternType}\n`;
+      content += `  Alternating transitions: ${altCount}\n`;
+      content += `  Run transitions: ${runCount}\n`;
+      content += `  Noise insertions: ${noiseInsertions}\n`;
+      
+      // Calculate average noise frequency
+      if (noiseInsertions > 0) {
+        const commonsOnly = markers.filter(m => m !== 'N').length;
+        const avgNoiseFreq = Math.round(commonsOnly / noiseInsertions);
+        content += `  Avg noise every: ~${avgNoiseFreq} commons\n`;
+      }
+      
+      // Current position since last noise
+      let sinceLastNoise = 0;
+      for (let i = markers.length - 1; i >= 0; i--) {
+        if (markers[i] === 'N') break;
+        sinceLastNoise++;
+      }
+      content += `  Commons since last noise: ${sinceLastNoise}\n\n`;
+    }
   }
 
   // 4-str section

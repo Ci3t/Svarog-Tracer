@@ -116,6 +116,19 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
       )}
 
+      {/* 🔄 Commons Flip Detection */}
+      {data.commonsFlipDetected && (
+        <div className="bg-purple-500/20 border border-purple-500/40 rounded-lg px-3 py-2 mb-4 text-center">
+          <span className="text-purple-400 text-xs font-bold uppercase tracking-wider">
+            🔄 Commons Flip Detected! ({data.flipConfidence}%)
+          </span>
+          <div className="text-[10px] text-purple-300 mt-1">
+            New commons: <span className="font-bold text-emerald-400">[{data.newCommons?.join(', ')}]</span>
+            <span className="text-slate-500 ml-2">← was noise</span>
+          </div>
+        </div>
+      )}
+
       {/* Wave Signals */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-slate-800/50 rounded-lg p-2 text-center">
@@ -221,7 +234,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       )}
 
       {/* Commons vs Noise */}
-      <div className="flex justify-between gap-2 text-[10px]">
+      <div className="flex justify-between gap-2 text-[10px] mb-3">
         <div>
           <span className="text-slate-500 uppercase">Commons: </span>
           <span className="text-emerald-400 font-bold">{commons?.join(', ') || '—'}</span>
@@ -231,6 +244,133 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           <span className="text-red-400 font-bold">{noise?.join(', ') || '—'}</span>
         </div>
       </div>
+
+      {/* 📊 Pattern Analysis Section */}
+      {rolls.length >= 6 && (() => {
+        // Build pattern markers
+        const markers = rolls.map(r => {
+          if (r === commons?.[0]) return { type: 'A', value: r };
+          if (r === commons?.[1]) return { type: 'B', value: r };
+          return { type: 'N', value: r };
+        });
+        
+        // Calculate gaps between noise events
+        const gaps = [];
+        let commonsCount = 0;
+        let lastNoiseValue = null;
+        
+        for (let i = 0; i < markers.length; i++) {
+          if (markers[i].type === 'N') {
+            if (lastNoiseValue !== null) {
+              gaps.push({
+                noiseValue: lastNoiseValue,
+                commonsAfter: commonsCount,
+                nextNoise: markers[i].value
+              });
+            }
+            lastNoiseValue = markers[i].value;
+            commonsCount = 0;
+          } else {
+            commonsCount++;
+          }
+        }
+        // Add the current open gap (commons since last noise)
+        if (lastNoiseValue !== null) {
+          gaps.push({
+            noiseValue: lastNoiseValue,
+            commonsAfter: commonsCount,
+            nextNoise: '?'
+          });
+        }
+        
+        const avgGap = gaps.length > 1 
+          ? Math.round(gaps.slice(0, -1).reduce((s, g) => s + g.commonsAfter, 0) / (gaps.length - 1))
+          : '—';
+        
+        return (
+          <div className="mt-3 pt-3 border-t border-slate-700/50">
+            {/* Roll Sequence - Compact */}
+            <div className="mb-3">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                Sequence (last {Math.min(20, rolls.length)})
+              </div>
+              <div className="flex flex-wrap gap-0.5 text-[10px]">
+                {markers.slice(-20).map((m, i) => (
+                  <span
+                    key={i}
+                    className={`px-1 py-0.5 rounded font-bold
+                      ${m.type === 'A' ? 'bg-emerald-600/50 text-emerald-300' :
+                        m.type === 'B' ? 'bg-blue-600/50 text-blue-300' :
+                        'bg-red-600/50 text-red-300'
+                      }`}
+                  >
+                    {m.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Noise Gap Analysis Table */}
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+              Noise Gap Analysis
+            </div>
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-slate-700/50 text-slate-400">
+                    <th className="px-2 py-1 text-left">#</th>
+                    <th className="px-2 py-1 text-left">Noise</th>
+                    <th className="px-2 py-1 text-left">Commons After</th>
+                    <th className="px-2 py-1 text-left">→ Next</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gaps.slice(-5).map((gap, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-800/30' : ''}>
+                      <td className="px-2 py-1 text-slate-500">{gaps.length - 5 + idx + 1}</td>
+                      <td className="px-2 py-1">
+                        <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">
+                          {gap.noiseValue}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1">
+                        <span className={`font-bold ${
+                          gap.commonsAfter >= 4 ? 'text-amber-400' :
+                          gap.commonsAfter >= 2 ? 'text-emerald-400' :
+                          'text-slate-400'
+                        }`}>
+                          {gap.commonsAfter}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1">
+                        {gap.nextNoise === '?' ? (
+                          <span className="text-yellow-400">⏳ waiting</span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">
+                            {gap.nextNoise}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pattern Summary */}
+            <div className="flex justify-between mt-2 text-[10px]">
+              <div>
+                <span className="text-slate-500">Avg commons/noise: </span>
+                <span className="text-amber-400 font-bold">{avgGap}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Since last noise: </span>
+                <span className="text-emerald-400 font-bold">{commonsCount}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

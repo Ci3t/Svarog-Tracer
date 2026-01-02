@@ -545,6 +545,44 @@ export function predictWithPairs(rolls) {
     .sort((a, b) => lastSeen[b] - lastSeen[a])[0] || null;
   
   // =========================================================================
+  // 🔄 COMMONS FLIP DETECTION: When noise becomes commons
+  // =========================================================================
+  let commonsFlipDetected = false;
+  let newCommons = null;
+  let flipConfidence = 0;
+  
+  if (rolls.length >= 10) {
+    // Get recent window (last 6 rolls)
+    const recentWindow = rolls.slice(-6);
+    const recentCounts = {};
+    VALUES.forEach(v => { recentCounts[v] = 0; });
+    recentWindow.forEach(r => { if (VALUES.includes(r)) recentCounts[r]++; });
+    
+    // Sort by recent frequency
+    const recentSorted = VALUES
+      .map(v => ({ value: v, count: recentCounts[v], pct: (recentCounts[v] / recentWindow.length) * 100 }))
+      .sort((a, b) => b.count - a.count);
+    
+    const recentCommons = recentSorted.slice(0, 2).map(x => x.value);
+    
+    // Check if recent commons are different from session commons
+    const sessionCommons = commons; // Full session commons
+    const isFlipped = recentCommons.some(rc => noise.includes(rc));
+    
+    if (isFlipped) {
+      // Old noise is now appearing more in recent window
+      const flippedValues = recentCommons.filter(rc => noise.includes(rc));
+      if (flippedValues.length > 0) {
+        commonsFlipDetected = true;
+        newCommons = recentCommons;
+        // Confidence based on how dominant the new commons are in recent window
+        const topRecentPct = recentSorted[0].pct;
+        flipConfidence = Math.round(Math.min(topRecentPct * 1.5, 100));
+      }
+    }
+  }
+
+  // =========================================================================
   // 🔥 BEAST MODE 4.0: PAIR MOMENTUM & MIRROR-STEP
   // =========================================================================
 
@@ -694,12 +732,12 @@ export function predictWithPairs(rolls) {
   // Step 2b: OVERDUE WAVE - Individual wave cycle detection
   // 🔧 User insight: When a value hasn't appeared in 4+ rolls, it tends to return
   // 🔧 FIX: Add momentum filter - don't predict "dead" overdue values
+  // 🔧 FIX: Use pair matrix % as tiebreaker when multiple overdue have similar low momentum
   else if (mostOverdue && lastSeen[mostOverdue] >= OVERDUE_THRESHOLD) {
     const overdueMomentum = momentumScores[mostOverdue] || 0;
     const isOnlyOverdue = overdueValues.length <= 1;
     
-    // Only predict overdue if it has SOME momentum (> 0.1) OR it's the only overdue option
-    // 🔧 FIX: Raised from 0.1 to 0.15 - 0.08-0.13 was still triggering incorrectly
+    // Only predict overdue if it has SOME momentum (> 0.15) OR it's the only overdue option
     if (overdueMomentum >= 0.15 || isOnlyOverdue) {
       prediction = mostOverdue;
       // Alt is the next most overdue, or the hottest value
@@ -709,6 +747,26 @@ export function predictWithPairs(rolls) {
       alt = secondOverdue || hotValues[0] || freqPrediction;
       method = 'overdue-wave';
       confidence = 0.60;
+    } else {
+      // Multiple overdue with low momentum - use pair matrix % as tiebreaker
+      // Get pair matrix percentages for overdue values
+      const lastRollMatrix = pairMatrix[lastRoll] || {};
+      const overdueWithPairPct = overdueValues
+        .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD)
+        .map(v => ({
+          value: v,
+          pct: lastRollMatrix[v]?.pct || 0,
+          momentum: momentumScores[v] || 0
+        }))
+        .sort((a, b) => b.pct - a.pct); // Sort by pair probability
+      
+      if (overdueWithPairPct.length > 0 && overdueWithPairPct[0].pct > 0) {
+        // Pick the overdue value with highest pair probability
+        prediction = overdueWithPairPct[0].value;
+        alt = overdueWithPairPct[1]?.value || hotValues[0] || freqPrediction;
+        method = 'overdue-wave+pair';
+        confidence = 0.55; // Slightly lower since we're using tiebreaker
+      }
     }
   }
   
@@ -928,7 +986,11 @@ export function predictWithPairs(rolls) {
     // 🔍 LAST SEEN data
     lastSeen,
     overdueValues,
-    mostOverdue
+    mostOverdue,
+    // 🔄 COMMONS FLIP data
+    commonsFlipDetected,
+    newCommons,
+    flipConfidence
   };
 }
 
