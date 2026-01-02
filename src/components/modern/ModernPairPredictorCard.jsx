@@ -102,11 +102,16 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
       )}
 
-      {/* Wave Warning */}
-      {waveSignals?.isWaveWarning && (
-        <div className="bg-red-500/20 border border-red-500/40 rounded-lg px-3 py-2 mb-4 text-center">
-          <span className="text-red-400 text-xs font-bold uppercase tracking-wider">
-            ⚠️ Wave Flip Warning ({waveSignals.waveFlipProbability}%)
+      {/* Wave/Overdue Warning */}
+      {(waveSignals?.isWaveWarning || (data.mostOverdue && data.lastSeen?.[data.mostOverdue] >= 5)) && (
+        <div className="bg-orange-500/20 border border-orange-500/40 rounded-lg px-3 py-2 mb-4 text-center">
+          <span className="text-orange-400 text-xs font-bold uppercase tracking-wider">
+            ⚠️ Wave Flip Warning ({waveSignals?.waveFlipProbability || 0}%)
+            {data.mostOverdue && data.lastSeen?.[data.mostOverdue] >= 5 && (
+              <span className="ml-2 text-amber-300">
+                | {data.mostOverdue} overdue ({data.lastSeen[data.mostOverdue]} rolls)
+              </span>
+            )}
           </span>
         </div>
       )}
@@ -161,10 +166,14 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           </div>
           <div className="flex gap-1">
             {VALUES.map(v => {
-              const data = pairMatrix[lastRoll]?.[v] || { pct: 0, samples: 0, reliable: false };
-              const pct = typeof data === 'object' ? data.pct : data;
-              const samples = typeof data === 'object' ? data.samples : 0;
-              const reliable = typeof data === 'object' ? data.reliable : false;
+              const matrixData = pairMatrix[lastRoll]?.[v] || { pct: 0, samples: 0, reliable: false };
+              const pct = typeof matrixData === 'object' ? matrixData.pct : matrixData;
+              const samples = typeof matrixData === 'object' ? matrixData.samples : 0;
+              const reliable = typeof matrixData === 'object' ? matrixData.reliable : false;
+              
+              // Get "last seen" data (how many rolls ago this value appeared)
+              const rollsAgo = data.lastSeen?.[v] ?? -1;
+              const isOverdue = data.overdueValues?.includes(v);
               
               // Find highest percentage
               const allPcts = VALUES.map(other => {
@@ -173,17 +182,36 @@ export default function ModernPairPredictorCard({ entries = [] }) {
               });
               const isHighest = pct === Math.max(...allPcts) && pct > 0;
               
+              // Show "↻N" (N rolls ago) instead of 0% when no samples
+              const displayValue = pct > 0 
+                ? `${pct}%` 
+                : rollsAgo >= 0 
+                  ? `↻${rollsAgo}` 
+                  : 'N/A';
+              
+              // Get momentum score for this value
+              const momentum = data.momentumScores?.[v] ?? 0;
+              
               return (
                 <div key={v} className={`flex-1 text-center py-2 rounded-md
-                  ${isHighest ? 'bg-purple-500/30 border border-purple-500/50' : 'bg-slate-800/50'}
+                  ${isHighest ? 'bg-purple-500/30 border border-purple-500/50' : 
+                    isOverdue ? 'bg-orange-500/20 border border-orange-500/40' : 'bg-slate-800/50'}
                   ${!reliable && pct > 0 ? 'opacity-60' : ''}
                 `}>
                   <div className="text-xs font-bold text-slate-300">{v}</div>
-                  <div className={`text-sm font-bold ${isHighest ? 'text-purple-300' : 'text-slate-400'}`}>
-                    {pct}%
+                  <div className={`text-sm font-bold ${
+                    isHighest ? 'text-purple-300' : 
+                    isOverdue ? 'text-orange-400' : 
+                    pct === 0 ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
+                    {displayValue}
                   </div>
-                  <div className={`text-[9px] ${reliable ? 'text-emerald-400' : 'text-slate-600'}`}>
-                    ({samples})
+                  <div className={`text-xs font-semibold ${
+                    momentum >= 1.0 ? 'text-amber-400' : 
+                    momentum >= 0.5 ? 'text-yellow-500' :
+                    momentum >= 0.2 ? 'text-cyan-400' : 'text-slate-500'
+                  }`}>
+                    ({momentum})
                   </div>
                 </div>
               );

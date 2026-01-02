@@ -150,6 +150,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
           const hotStr = Object.entries(expData.momentumScores).map(([v,s]) => `${v}:${s}`).join(',');
           content += `         🔥 MOMENTUM: ${hotStr} | Hot: [${expData.hotValues?.join(',')}]\n`;
         }
+        if (expData.lastSeen) {
+          const seenStr = Object.entries(expData.lastSeen).map(([v,n]) => `${v}:${n}`).join(',');
+          content += `         🔍 LAST-SEEN: ${seenStr} | Overdue: [${expData.overdueValues?.join(',') || 'none'}]\n`;
+        }
         if (expData.isUncertain) content += `         ⚠️ UNCERTAIN (gap: ${expData.confidenceGap}%)\n`;
         if (expData.isAlternating) content += `         🔄 ALTERNATING: ${expData.alternatingPair?.join('↔')}\n`;
         if (expData.patternShifted) content += `         🔀 PATTERN SHIFT: ${expData.shiftedToValue} is rising!\n`;

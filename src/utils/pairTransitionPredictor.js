@@ -16,12 +16,22 @@ const VALUES = ['41', '42', '43', '44'];
 // Used for "Split-Common Breaker" when top 2 candidates are tied
 // =========================================================================
 const PROPERTIES = {
-  '41': { parity: 'odd',  position: 'outer', range: 'low' },
-  '42': { parity: 'even', position: 'inner', range: 'low' },
-  '43': { parity: 'odd',  position: 'inner', range: 'high' },
-  '44': { parity: 'even', position: 'outer', range: 'high' }
+  '41': { parity: 'odd', position: 'outer' },
+  '42': { parity: 'even', position: 'inner' },
+  '43': { parity: 'odd', position: 'inner' },
+  '44': { parity: 'even', position: 'outer' }
 };
 
+/**
+ * Enhanced Pair Transition Predictor (Beast Mode v3.7 - Stable)
+ */
+
+const getParity = (v) => PROPERTIES[v]?.parity || 'unknown';
+const getPosition = (v) => PROPERTIES[v]?.position || 'unknown';
+
+/**
+ * Enhanced Pair Transition Predictor (Beast Mode v3.7 - Reverted to Clean)
+ */
 /**
  * Analyze meta-streams (Parity, Position, Range) from recent rolls
  * Returns expectation for next roll based on each stream
@@ -451,6 +461,9 @@ export function identifyCommonsNoise(rolls) {
 }
 
 /**
+ * Enhanced Pair Transition Predictor (Beast Mode v3.5)
+ */
+/**
  * Main prediction function using pair transitions and wave detection
  * 
  * @param {string[]} rolls - Array of 2-digit rolls
@@ -504,96 +517,36 @@ export function predictWithPairs(rolls) {
   const hotValues = sortedByMomentum.slice(0, 2).map(x => x.value);
   const coldValues = sortedByMomentum.slice(2).map(x => x.value);
   
-  // Detect pattern shift via momentum (noise becoming hot)
-  let patternShifted = false;
-  let shiftedToValue = null;
-  noise.forEach(n => {
-    if (hotValues.includes(n)) {
-      patternShifted = true;
-      shiftedToValue = n;
-    }
-  });
-
   // =========================================================================
-  // 🔥 BEAST MODE: SMART RUN LOGIC (Strategy 1)
-  // Context-aware run detection instead of flat anti-repeat
+  // 🔍 LAST SEEN: Track when each value last appeared (for wave detection)
   // =========================================================================
-  const prevRoll = rolls.length >= 2 ? rolls[rolls.length - 2] : null;
-  const wasChange = prevRoll !== lastRoll;
-  
-  // Count current run length for lastRoll
-  let currentRunLen = 0;
-  for (let i = rolls.length - 1; i >= 0; i--) {
-    if (rolls[i] === lastRoll) currentRunLen++;
-    else break;
-  }
-  
-  // Smart Run Scores: BOOST after change, PENALIZE after long run
-  const smartRunScores = {};
+  const lastSeen = {};
   VALUES.forEach(v => {
-    if (v === lastRoll) {
-      if (wasChange) {
-        // Just changed to this value - BOOST! Expect a pair (run of 2)
-        smartRunScores[v] = 1.3;
-      } else if (currentRunLen >= 3) {
-        // Long run - PENALIZE heavily, expect break
-        smartRunScores[v] = 0.4;
-      } else if (currentRunLen === 2) {
-        // Run of 2 - SLIGHT PENALTY, might break soon
-        smartRunScores[v] = 0.8;
-      } else {
-        // Single repeat - NEUTRAL
-        smartRunScores[v] = 1.0;
+    // Find the most recent occurrence of this value
+    let rollsAgo = -1; // -1 means never seen
+    for (let i = rolls.length - 1; i >= 0; i--) {
+      if (rolls[i] === v) {
+        rollsAgo = rolls.length - 1 - i;
+        break;
       }
-    } else {
-      smartRunScores[v] = 1.0; // Other values unaffected
     }
+    lastSeen[v] = rollsAgo;
   });
-
-  // =========================================================================
-  // 🔥 BEAST MODE: NOISE DOUBLE-TAP (Strategy 2)
-  // Check if noise tends to appear in pairs
-  // =========================================================================
-  let noiseDoubleTapLikely = false;
-  let doubleTapValue = null;
   
-  if (noise.includes(lastRoll)) {
-    // Last roll was noise - check if this noise usually comes in pairs
-    const noiseVal = lastRoll;
-    let pairsCount = 0;
-    let singlesCount = 0;
-    
-    for (let i = 0; i < rolls.length - 1; i++) {
-      if (rolls[i] === noiseVal) {
-        if (rolls[i + 1] === noiseVal) {
-          pairsCount++;
-          i++; // Skip the pair
-        } else {
-          singlesCount++;
-        }
-      }
-    }
-    
-    // If pairs are common (> 30% of appearances), expect double tap
-    const totalAppearances = pairsCount * 2 + singlesCount;
-    if (totalAppearances >= 2 && (pairsCount * 2) / totalAppearances >= 0.3) {
-      noiseDoubleTapLikely = true;
-      doubleTapValue = noiseVal;
-    }
-  }
-
-  // =========================================================================
-  // 🔥 CONFIDENCE GATE (from Gemini suggestion)
-  // If top prediction is too close to others, mark as uncertain
-  // =========================================================================
-  const sortedDist = Object.entries(distribution)
-    .map(([v, pct]) => ({ value: v, pct }))
-    .sort((a, b) => b.pct - a.pct);
+  // Detect "overdue" values - values that haven't appeared in a while (potential wave flip)
+  // 🔧 FIX: Dynamic threshold based on session dominance
+  const topPctValue = Math.max(...Object.values(distribution)) || 0;
+  const dominancePenalty = topPctValue > 40 ? Math.floor((topPctValue - 40) / 10) : 0;
+  const OVERDUE_THRESHOLD = 4 + dominancePenalty; // 4 for balanced, 5-6 for dominant
   
-  const topPct = sortedDist[0]?.pct || 0;
-  const secondPct = sortedDist[1]?.pct || 0;
-  const confidenceGap = topPct - secondPct;
-  const isUncertain = confidenceGap < 10 || topPct < 35;
+  const overdueValues = VALUES.filter(v => lastSeen[v] >= OVERDUE_THRESHOLD || lastSeen[v] === -1);
+  const mostOverdue = VALUES
+    .filter(v => lastSeen[v] !== -1)
+    .sort((a, b) => lastSeen[b] - lastSeen[a])[0] || null;
+  
+  // =========================================================================
+  // 🔥 BEAST MODE 4.0: PAIR MOMENTUM & MIRROR-STEP
+  // =========================================================================
 
   // Decide prediction method
   let method = 'frequency';
@@ -609,184 +562,216 @@ export function predictWithPairs(rolls) {
   const freqPrediction = freqSorted[0].value;
   const freqAlt = freqSorted[1].value;
 
-  // =========================================================================
-  // 🔥 TRY 2-GRAM FIRST (more context = better prediction)
-  // =========================================================================
-  let gram2Prediction = null;
-  let gram2Alt = null;
-  let gram2Confidence = 0;
-  let has2gramData = false;
-  
+  // PRE-CALCULATE CONTEXT
+  const prevRoll = rolls.length >= 2 ? rolls[rolls.length - 2] : null;
+  const wasChange = prevRoll !== lastRoll;
+  const currentRunLen = currentRunLength; // Alias from identifyCommonsNoise
+
+  // 1. SMART RUN SCORES (Strategy 1)
+  const smartRunScores = {};
+  VALUES.forEach(v => {
+    if (v === lastRoll) {
+      if (wasChange) smartRunScores[v] = 1.3;
+      else if (currentRunLen >= 3) smartRunScores[v] = 0.4;
+      else if (currentRunLen === 2) smartRunScores[v] = 0.8;
+      else smartRunScores[v] = 1.0;
+    } else smartRunScores[v] = 1.0;
+  });
+
+  // 2. NOISE DOUBLE-TAP (Strategy 2)
+  let noiseDoubleTapLikely = false;
+  let doubleTapValue = null;
+  if (noise.includes(lastRoll)) {
+    const noiseVal = lastRoll;
+    let pairsCount = 0; let singlesCount = 0;
+    for (let i = 0; i < rolls.length - 1; i++) {
+      if (rolls[i] === noiseVal) {
+        if (rolls[i + 1] === noiseVal) { pairsCount++; i++; }
+        else singlesCount++;
+      }
+    }
+    const totalAppearances = pairsCount * 2 + singlesCount;
+    if (totalAppearances >= 2 && (pairsCount * 2) / totalAppearances >= 0.3) {
+      noiseDoubleTapLikely = true;
+      doubleTapValue = noiseVal;
+    }
+  }
+
+  // 3. UNCERTAINTY GATE (Gap Analysis)
+  const sortedDist = Object.entries(distribution).map(([v, pct]) => ({ value: v, pct })).sort((a, b) => b.pct - a.pct);
+  const topPct = sortedDist[0]?.pct || 0;
+  const secondPct = sortedDist[1]?.pct || 0;
+  const confidenceGap = topPct - secondPct;
+  const isUncertain = confidenceGap < 10 || topPct < 35;
+
+  // 4. 2-GRAM LOGIC (With Sample Penalty Fix)
+  let gram2Prediction = null; let gram2Alt = null; let gram2Confidence = 0; let has2gramData = false;
   if (last2Rolls && matrix2gram[last2Rolls]) {
-    const gram2Sorted = VALUES
-      .map(v => ({ 
-        value: v, 
-        pct: matrix2gram[last2Rolls][v]?.pct || 0,
-        samples: matrix2gram[last2Rolls][v]?.samples || 0
-      }))
-      .filter(x => x.pct > 0)
-      .sort((a, b) => b.pct - a.pct);
-    
+    const gram2Sorted = VALUES.map(v => ({ value: v, pct: matrix2gram[last2Rolls][v]?.pct || 0, samples: matrix2gram[last2Rolls][v]?.samples || 0 }))
+      .filter(x => x.pct > 0).sort((a, b) => b.pct - a.pct);
     if (gram2Sorted.length > 0 && gram2Sorted[0].pct > 0) {
       gram2Prediction = gram2Sorted[0].value;
-      gram2Alt = gram2Sorted[1]?.value || freqAlt;
-      gram2Confidence = gram2Sorted[0].pct;
+      // RNG BREAKER: Ensure alt is different
+      const bestAlt = gram2Sorted[1]?.value || freqSorted.find(f => f.value !== gram2Prediction)?.value || freqAlt;
+      gram2Alt = bestAlt;
+      
+      const samples = gram2Sorted[0].samples;
+      let conf = gram2Sorted[0].pct;
+      if (samples === 1) conf = Math.min(conf, 45); // Single sample is weak
+      else if (samples === 2) conf = Math.min(conf, 65); // Two samples is okay
+      
+      gram2Confidence = conf;
       has2gramData = true;
     }
   }
 
-  // Get 1-gram pair-based prediction (fallback)
-  let pairPrediction = null;
-  let pairAlt = null;
-  let pairConfidence = 0;
-  let pairReliable = false;
+  // 5. 1-GRAM MATRIX
+  let pairPrediction = null; let pairAlt = null; let pairConfidence = 0;
   if (lastRoll && matrix[lastRoll]) {
-    const pairSorted = VALUES
-      .map(v => ({ 
-        value: v, 
-        pct: matrix[lastRoll][v]?.pct || 0,
-        samples: matrix[lastRoll][v]?.samples || 0,
-        reliable: matrix[lastRoll][v]?.reliable || false
-      }))
-      .sort((a, b) => b.pct - a.pct);
+    const pairSorted = VALUES.map(v => ({ value: v, pct: matrix[lastRoll][v]?.pct || 0 })).sort((a, b) => b.pct - a.pct);
     pairPrediction = pairSorted[0].value;
     pairAlt = pairSorted[1].value;
     pairConfidence = pairSorted[0].pct;
-    pairReliable = pairSorted[0].reliable;
   }
-
-  // =========================================================================
-  // 🔥 ENHANCED PREDICTION LOGIC
-  // Priority: Alternating > 2-gram > Run Break > Wave-Inverse > Noise-Snapback > 1-gram > Frequency
-  // =========================================================================
-
-  // 🔥 NEW: ALTERNATING PATTERN DETECTION (TOP PRIORITY)
-  // Check if last 4+ rolls alternate between 2 values (e.g., 44,41,44,41)
+  
+  // 6. ALTERNATING PATTERN DETECTION
   let isAlternating = false;
   let alternatingPair = null;
-  
   if (rolls.length >= 4) {
     const last4 = rolls.slice(-4);
     const uniqueVals = [...new Set(last4)];
-    
-    // Check if exactly 2 unique values AND they alternate
     if (uniqueVals.length === 2) {
       let alternates = true;
-      for (let i = 0; i < last4.length - 1; i++) {
-        if (last4[i] === last4[i + 1]) {
-          alternates = false;
-          break;
-        }
-      }
-      if (alternates) {
-        isAlternating = true;
-        alternatingPair = uniqueVals;
-      }
+      for (let i = 0; i < 3; i++) { if (last4[i] === last4[i+1]) alternates = false; }
+      if (alternates) { isAlternating = true; alternatingPair = uniqueVals; }
     }
   }
+  
+  // Detect pattern shift via momentum (noise becoming hot)
+  let patternShifted = false;
+  let shiftedToValue = null;
+  noise.forEach(n => {
+    if (hotValues.includes(n)) {
+      patternShifted = true;
+      shiftedToValue = n;
+    }
+  });
 
-  // ALTERNATING PATTERN - Highest priority
+  // =========================================================================
+  // 🔥 ENHANCED PREDICTION LOGIC (Standard v3.7 Priority)
+  // =========================================================================
+
+  // Step 1: ALTERNATING PATTERN - Highest priority
+  // 🔧 FIX: Use momentum to pick the right value from the pair
   if (isAlternating && alternatingPair) {
-    // Predict the OPPOSITE of lastRoll
-    const opposite = alternatingPair.find(v => v !== lastRoll);
-    if (opposite) {
-      prediction = opposite;
-      alt = lastRoll;
-      method = 'alternating';
-      confidence = 0.75;
+    // Sort pair by momentum - pick the HOTTER one
+    const sortedPair = [...alternatingPair].sort((a, b) => 
+      (momentumScores[b] || 0) - (momentumScores[a] || 0)
+    );
+    prediction = sortedPair[0]; // Higher momentum
+    alt = sortedPair[1]; // Lower momentum
+    method = 'alternating';
+    confidence = 0.75;
+  }
+  
+  // Step 2: PATTERN SHIFT - When noise is becoming common
+  // 🔧 FIX: Swapped pred/alt - analysis showed alt was hitting 83% of the time
+  else if (patternShifted && shiftedToValue) {
+    const kingMomentum = momentumScores[commons[0]] || 0;
+    const rebelMomentum = momentumScores[shiftedToValue] || 0;
+    const isRebelHot = hotValues.slice(0, 2).includes(shiftedToValue);
+
+    // Guard: 0.7x threshold
+    if (rebelMomentum > kingMomentum * 0.7 || isRebelHot) {
+      // SWAPPED: King (common) is now prediction, rebel (shifted) is alt
+      prediction = commons[0];
+      alt = shiftedToValue;
+      method = 'pattern-shift';
+      confidence = 0.65;
     }
   }
-  // 🔥 NEW: PATTERN SHIFT - When noise is becoming common, predict it!
-  if (patternShifted && shiftedToValue) {
-    prediction = shiftedToValue;
-    alt = commons[0]; // Original common as backup
-    method = 'pattern-shift';
-    confidence = 0.65;
+  
+  // Step 2b: OVERDUE WAVE - Individual wave cycle detection
+  // 🔧 User insight: When a value hasn't appeared in 4+ rolls, it tends to return
+  // 🔧 FIX: Add momentum filter - don't predict "dead" overdue values
+  else if (mostOverdue && lastSeen[mostOverdue] >= OVERDUE_THRESHOLD) {
+    const overdueMomentum = momentumScores[mostOverdue] || 0;
+    const isOnlyOverdue = overdueValues.length <= 1;
+    
+    // Only predict overdue if it has SOME momentum (> 0.1) OR it's the only overdue option
+    // 🔧 FIX: Raised from 0.1 to 0.15 - 0.08-0.13 was still triggering incorrectly
+    if (overdueMomentum >= 0.15 || isOnlyOverdue) {
+      prediction = mostOverdue;
+      // Alt is the next most overdue, or the hottest value
+      const secondOverdue = VALUES
+        .filter(v => v !== mostOverdue && lastSeen[v] >= 0)
+        .sort((a, b) => lastSeen[b] - lastSeen[a])[0];
+      alt = secondOverdue || hotValues[0] || freqPrediction;
+      method = 'overdue-wave';
+      confidence = 0.60;
+    }
   }
-  // Step 0: WAVE-INVERSE - When flip probability is HIGH, swap
-  else if (waveSignals.waveFlipProbability >= 50) {
-    // Use pair matrix but swap
+  
+  // Step 3: WAVE-INVERSE - Overrides if prob > 45%
+  else if (waveSignals.waveFlipProbability >= 45) {
     prediction = pairAlt || freqAlt;
     alt = pairPrediction || freqPrediction;
     method = 'wave-inverse';
     confidence = Math.min(waveSignals.waveFlipProbability + 10, 85) / 100;
   }
-  // Step 1: RUN BREAK - If 3+ consecutive same value, predict a break
+  
+  // Step 4: RUN BREAK - If 3+ consecutive same value
   else if (runBreakLikely) {
-    // After 3+ of same value, predict the OTHER common
     const otherCommon = commons.find(c => c !== lastRoll);
     if (otherCommon) {
       prediction = otherCommon;
-      alt = lastRoll; // Same value as backup
+      alt = lastRoll;
       method = 'run-break';
-      confidence = 0.70;
+      confidence = currentRunLen >= 4 ? 0.80 : 0.70;
     }
-  }
-  // Step 2: USE 2-GRAM if available (more context = better)
+  } 
+  
+  // Step 5: 2-GRAM (More context)
   else if (has2gramData && gram2Confidence >= 40) {
     prediction = gram2Prediction;
     alt = gram2Alt;
-    confidence = gram2Confidence / 100;
     method = '2-gram';
+    confidence = gram2Confidence / 100;
   }
-  // Step 3: 🔥 NOISE DOUBLE-TAP - If noise tends to pair, predict repeat!
+  
+  // Step 6: NOISE DOUBLE-TAP - If noise tends to pair, predict repeat!
   else if (noiseDoubleTapLikely && doubleTapValue) {
-    // Noise that likes to double - predict it again!
     prediction = doubleTapValue;
-    alt = hotValues[0] || commons[0]; // Hot common as backup
+    alt = hotValues[0] || commons[0];
     method = 'double-tap';
     confidence = 0.68;
   }
-  // Step 3b: NOISE-SNAPBACK - Single spike noise, expect return to common
+  
+  // Step 7: NOISE-SNAPBACK - Single spike noise, expect return to common
   else if (waveSignals.noiseAppearanceCount >= 2 && noise.includes(lastRoll) && currentRunLen === 1) {
-    // Only snapback if it's a single (not a pair start)
     prediction = hotValues[0] || commons[0] || freqPrediction;
     alt = hotValues[1] || commons[1] || freqAlt;
     method = 'noise-snapback';
     confidence = 0.65;
   }
-  // Step 4: NOISE RISING - A noise value is becoming a common
+  
+  // Step 8: NOISE RISING - A noise value is becoming a common
   else if (noiseRising && noiseRising.length > 0) {
-    // Predict the rising noise value
     prediction = noiseRising[0];
     alt = hotValues[0] || commons[0];
     method = 'noise-rising';
     confidence = 0.60;
   }
-  else if (!pairPrediction || pairConfidence === 0) {
-    // No pair data - fall back to frequency with trend adjustment
-    prediction = freqPrediction;
-    alt = freqAlt;
-    method = 'frequency';
-    
-    // Use trends to potentially swap
-    const freqTrend = trends[freqPrediction];
-    const altTrend = trends[freqAlt];
-    if (altTrend?.direction === 'rising' && freqTrend?.direction === 'falling') {
-      const temp = prediction;
-      prediction = alt;
-      alt = temp;
-      method = 'trend-boost';
-    }
-    confidence = distribution[prediction] / 100;
-  }
-  // Step 5: Use 1-GRAM pair matrix if available
+  
+  // Step 9: Use 1-GRAM pair matrix if available
   else if (pairPrediction && pairConfidence > 0) {
     prediction = pairPrediction;
     alt = pairAlt || freqAlt;
     confidence = pairConfidence / 100;
     method = 'pair-matrix';
   }
-  // Step 6: TREND BOOST - If pair matrix agrees but trends disagree, consider swap
-  else if (trends[pairAlt]?.direction === 'rising' && trends[pairPrediction]?.direction === 'falling') {
-    if (Math.abs(distribution[pairPrediction] - distribution[pairAlt]) < 15) {
-      prediction = pairAlt;
-      alt = pairPrediction;
-      method = 'trend-adjusted';
-      confidence = distribution[prediction] / 100;
-    }
-  }
-  // Step 7: FREQUENCY FALLBACK - Use distribution
+  
+  // Step 10: FREQUENCY FALLBACK - Use distribution
   else {
     prediction = freqPrediction;
     alt = freqAlt;
@@ -794,10 +779,17 @@ export function predictWithPairs(rolls) {
     method = 'frequency';
   }
   
-  // Final safety: ensure both prediction and alt are valid
+  // Final safety: ensure both prediction and alt are valid and DIFFERENT
   if (!prediction) prediction = freqPrediction;
   if (!alt) alt = freqAlt;
-  if (prediction === alt) alt = freqSorted[1]?.value || VALUES.find(v => v !== prediction);
+  
+  // RNG BREAKER: Strict unique check
+  if (prediction === alt) {
+    // If prediction is the top frequency, take the second. Otherwise take the first.
+    alt = (prediction === freqSorted[0].value) 
+      ? (freqSorted[1]?.value || VALUES.find(v => v !== prediction))
+      : freqSorted[0].value;
+  }
 
   // =========================================================================
   // 🔥 BEAST MODE: SMART RUN FINAL CHECK
@@ -823,9 +815,12 @@ export function predictWithPairs(rolls) {
   // =========================================================================
   // 🔥 MOMENTUM TIE-BREAKER (Strategy 4)
   // When uncertain (gap < 10%), use momentum score to pick the winner
+  // 🔧 FIX: Skip swap for pattern-shift (analysis showed it's 80% accurate)
   // =========================================================================
   let usedTieBreaker = false;
-  if (isUncertain && prediction && alt) {
+  const isPatternShift = method.includes('pattern-shift');
+  
+  if (isUncertain && prediction && alt && !isPatternShift) {
     const predMomentum = momentumScores[prediction] || 0;
     const altMomentum = momentumScores[alt] || 0;
     
@@ -852,9 +847,38 @@ export function predictWithPairs(rolls) {
   // If distribution is too flat, mark as uncertain and reduce confidence
   // =========================================================================
   let isUncertainResult = isUncertain;
-  const topFreq = distribution[prediction] || fullDistribution[prediction] || 0;
-  const confidenceMultiplier = 1.0; // Placeholder for future dynamic adjustment
-  if (isUncertain && !usedTieBreaker && method !== 'alternating' && method !== '2-gram' && method !== 'pattern-shift' && method !== 'double-tap') {
+  const topFreq = distribution[prediction] || 0;
+  
+  // RNG BREAKER: Dynamic Confidence scaling
+  // If we have a clear leader, trust it more.
+  if (confidenceGap > 30) confidence *= 1.1;
+  else if (confidenceGap < 15) confidence *= 0.8;
+  
+  // RNG BREAKER: Lightweight Meta-Tie-Breaker for close calls
+  // 🔧 FIX: Skip for pattern-shift (protected from swaps)
+  if (isUncertain && !usedTieBreaker && prediction && alt && confidenceGap < 5 && !isPatternShift) {
+    const lastParity = getParity(lastRoll);
+    const predParity = getParity(prediction);
+    const altParity = getParity(alt);
+    
+    // If prediction matches last parity (expecting run) or alternates (expecting flip)
+    // Here we favor the one that matches the property of the recent "hottest" value
+    if (predParity !== altParity) {
+      if (predParity === lastParity) { 
+        confidence += 0.05; 
+        method += '+meta-confirm';
+      } else {
+        // Simple swap if alt looks better for the property pattern
+        const temp = prediction;
+        prediction = alt;
+        alt = temp;
+        method += '+meta-swap';
+        confidence += 0.05;
+      }
+    }
+  }
+
+  if (isUncertain && method.includes('voting-weak')) {
     confidence = Math.min(confidence, 0.40);
     method = method + ' (uncertain)';
     isUncertainResult = true;
@@ -900,7 +924,11 @@ export function predictWithPairs(rolls) {
     // Comparison data
     freqPrediction,
     pairPrediction,
-    pairConfidence
+    pairConfidence,
+    // 🔍 LAST SEEN data
+    lastSeen,
+    overdueValues,
+    mostOverdue
   };
 }
 
