@@ -104,12 +104,12 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
   }
 
   // =========================================================================
-  // 🔥 NEW: EXPERIMENTAL PREDICTOR REPLAY
+  // 🎯 MAIN PREDICTOR (Pair Matrix + Momentum + Wave)
   // Re-run predictWithPairs on each log's context to show what it would predict
   // =========================================================================
   if (logs2str.length > 0) {
-    content += '\n--- 🧪 EXPERIMENTAL PREDICTOR (Pair Matrix) ---\n';
-    content += '(Replaying each roll with experimental predictor)\n\n';
+    content += '\n--- 🎯 MAIN PREDICTOR (Pair Matrix) ---\n';
+    content += '(Replaying each roll with predictor)\n\n';
     
     let expHits = 0;
     let expTop2 = 0;
@@ -165,168 +165,11 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     // Summary with TOP-2 RATE
     const expAcc = expTotal > 0 ? Math.round((expHits / expTotal) * 100) : 0;
     const expTop2Acc = expTotal > 0 ? Math.round((expTop2 / expTotal) * 100) : 0;
-    content += `--- EXPERIMENTAL SUMMARY ---\n`;
+    content += `--- PREDICTOR SUMMARY ---\n`;
     content += `Hits (main):    ${expHits}/${expTotal} = ${expAcc}%\n`;
     content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n`;
     content += `\n`;
-    content += `🎯 EXP SUGGESTS: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
-
-    // =========================================================================
-    // 🔬 TEST PREDICTOR REPLAY
-    // Same as experimental but with session personality, phase, and curse detection
-    // =========================================================================
-    content += '\n--- 🔬 TEST PREDICTOR (Personality + Phase + Curse) ---\n';
-    content += '(Comparing against experimental predictor)\n\n';
-    
-    // Session personality detection
-    const detectPersonality = (rolls) => {
-      if (rolls.length < 6) return { type: 'unknown', confidence: 0 };
-      let repeatCount = 0, alternateCount = 0, randomCount = 0;
-      for (let i = 1; i < rolls.length; i++) {
-        const prev = rolls[i - 1], curr = rolls[i], prevPrev = rolls[i - 2];
-        if (curr === prev) repeatCount++;
-        else if (i >= 2 && curr === prevPrev && curr !== prev) alternateCount++;
-        else randomCount++;
-      }
-      const total = repeatCount + alternateCount + randomCount;
-      const repeatPct = Math.round((repeatCount / total) * 100);
-      const alternatePct = Math.round((alternateCount / total) * 100);
-      if (repeatPct >= 40) return { type: 'sticky', confidence: repeatPct };
-      if (alternatePct >= 30) return { type: 'alternating', confidence: alternatePct };
-      if (randomCount > repeatCount + alternateCount) return { type: 'chaotic', confidence: Math.round((randomCount / total) * 100) };
-      return { type: 'mixed', confidence: 50 };
-    };
-
-    // Session phase detection
-    const detectPhase = (idx, total) => {
-      const pct = idx / total;
-      if (pct < 0.25) return 'early';
-      if (pct < 0.75) return 'mid';
-      return 'late';
-    };
-
-    let testHits = 0;
-    let testTop2 = 0;
-    let testTotal = 0;
-    let missStreak = 0;
-    let testVsExpWins = 0; // When test hits but exp misses
-    let expVsTestWins = 0; // When exp hits but test misses
-
-    logs2str.forEach((log, idx) => {
-      const ctx = log.ctx;
-      const actualRoll = log.actual;
-      
-      if (ctx && Array.isArray(ctx) && ctx.length >= 6) {
-        const rolls = ctx.map(r => String(r));
-        const expData = predictWithPairs(rolls);
-        const lastRoll = rolls[rolls.length - 1];
-        
-        let testPred = expData.prediction;
-        let testAlt = expData.alt;
-        let testConf = expData.confidence || 0;
-        let adjustments = [];
-        
-        // Get personality for context
-        const personality = detectPersonality(rolls);
-        const phase = detectPhase(idx, logs2str.length);
-        
-        // =====================================================================
-        // SMART HYBRID: Only override in specific conditions
-        // =====================================================================
-        const VALUES = ['41', '42', '43', '44'];
-        
-        // Get raw data from expData
-        const distribution = expData.distribution || {};
-        const pairMatrix = expData.pairMatrix || {};
-        const momentumScores = expData.momentumScores || {};
-        const lastRollRow = pairMatrix[lastRoll] || {};
-        
-        // ONLY apply weighted override for ALTERNATING sessions - that's where it helps!
-        if (personality.type === 'alternating' && personality.confidence >= 30 && rolls.length >= 3) {
-          const prevRoll = rolls[rolls.length - 2];
-          if (lastRoll !== prevRoll) {
-            // In alternating session, predict return to previous value
-            testAlt = testPred;
-            testPred = prevRoll;
-            testConf = Math.min(testConf + 0.15, 0.75);
-            adjustments.push('ALT-PREDICT');
-          }
-        }
-        // For CHAOTIC and STICKY - trust experimental, just tweak confidence
-        else if (personality.type === 'sticky') {
-          // In sticky, if exp predicts the hot value, boost it
-          const hotValue = Object.entries(momentumScores)
-            .sort((a, b) => b[1] - a[1])[0]?.[0];
-          if (testPred === hotValue) {
-            testConf = Math.min(testConf + 0.1, 0.80);
-            adjustments.push('STICKY-CONFIRM');
-          }
-        }
-        else if (personality.type === 'chaotic') {
-          // In chaotic, just trust experimental but lower confidence
-          testConf = Math.min(testConf, 0.55);
-          adjustments.push('CHAOS-CAP');
-        }
-        
-        // Phase tag
-        if (phase === 'early') adjustments.push('early');
-        else if (phase === 'late') adjustments.push('late');
-        
-        // Curse breaker (if 3+ misses in a row, invert)
-        if (missStreak >= 3) {
-          [testPred, testAlt] = [testAlt, testPred];
-          testConf = Math.min(testConf, 0.50);
-          adjustments.push(`CURSE(${missStreak})`);
-        }
-        
-        const isTestHit = testPred === actualRoll;
-        const isTestAltHit = testAlt === actualRoll;
-        const isExpHit = expData.prediction === actualRoll;
-        const isExpAltHit = expData.alt === actualRoll;
-        
-        // Update miss streak
-        if (isTestHit || isTestAltHit) {
-          missStreak = 0;
-        } else {
-          missStreak++;
-        }
-        
-        if (isTestHit) testHits++;
-        if (isTestHit || isTestAltHit) testTop2++;
-        testTotal++;
-        
-        // Compare wins
-        if ((isTestHit || isTestAltHit) && !(isExpHit || isExpAltHit)) testVsExpWins++;
-        if ((isExpHit || isExpAltHit) && !(isTestHit || isTestAltHit)) expVsTestWins++;
-        
-        const testStatus = isTestHit ? '✅ HIT' : (isTestAltHit ? '⚡ ALT-HIT' : '❌ MISS');
-        const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
-        
-        content += `[${time}] 🔬 TEST → pred: ${testPred} (${Math.round(testConf * 100)}%) | alt: ${testAlt}\n`;
-        content += `         ↳ actual: ${actualRoll} | ${testStatus}\n`;
-        content += `         📊 Personality: ${personality.type} (${personality.confidence}%) | Phase: ${phase}\n`;
-        if (adjustments.length > 0) content += `         🔧 Adjustments: ${adjustments.join(', ')}\n`;
-        if (missStreak >= 2) content += `         ⚠️ Miss streak: ${missStreak}\n`;
-        content += '\n';
-      }
-    });
-    
-    // Test Predictor Summary
-    const testAcc2 = testTotal > 0 ? Math.round((testHits / testTotal) * 100) : 0;
-    const testTop2Acc = testTotal > 0 ? Math.round((testTop2 / testTotal) * 100) : 0;
-    content += `--- TEST PREDICTOR SUMMARY ---\n`;
-    content += `Hits (main):    ${testHits}/${testTotal} = ${testAcc2}%\n`;
-    content += `Top-2 (±alt):   ${testTop2}/${testTotal} = ${testTop2Acc}%\n`;
-    content += `\n`;
-    content += `🔬 TEST SUGGESTS: ${testTop2}/${testTotal} = ${testTop2Acc}% (hit main OR alt = valid)\n\n`;
-    
-    // Comparison
-    content += `--- 📊 COMPARISON ---\n`;
-    content += `EXP Top-2:  ${expTop2Acc}%\n`;
-    content += `TEST Top-2: ${testTop2Acc}%\n`;
-    content += `Difference: ${testTop2Acc - expTop2Acc > 0 ? '+' : ''}${testTop2Acc - expTop2Acc}%\n`;
-    content += `TEST wins (caught what EXP missed): ${testVsExpWins}\n`;
-    content += `EXP wins (caught what TEST missed): ${expVsTestWins}\n\n`;
+    content += `🎯 SUGGESTED: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
 
     
     // =========================================================================

@@ -92,10 +92,11 @@ export default function ModernLiveSessionPage({
           {/* LEFT COLUMN - Prediction, Caesar, Modes */}
           <div className="lg:col-span-3 space-y-4">
 
-            {/* Next Prediction */}
+            {/* OLD Main Prediction - COMMENTED OUT, replaced by experimental
             <ModernPredictionCard prediction={livePrediction} />
+            */}
 
-            {/* Experimental Pair Predictor */}
+            {/* 🧪 Experimental Pair Predictor - NOW THE MAIN PREDICTOR */}
             <ModernPairPredictorCard entries={entries} />
 
             {/* Caesar Shift */}
@@ -138,10 +139,10 @@ export default function ModernLiveSessionPage({
               );
             })()} */}
 
-            {/* 🔬 Test Predictor Card - Experimental Features */}
+            {/* 🔬 Test Predictor Card - COMMENTED OUT after testing
             {sessionTab === 'current' && entries.length >= 6 && (
               <TestPredictorCard entries={entries} />
-            )}
+            )} */}
 
             {/* 3-str tracking */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (

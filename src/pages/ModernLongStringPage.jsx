@@ -1,7 +1,8 @@
 // Modern Long String Lab Page - Full Width Design
 import React, { useState, useMemo } from 'react';
 import { decodeLongString } from '../utils/stringHelpers.js';
-import { predictNext2BBPMode } from '../utils/bbp-mode-2str.js';
+// OLD: import { predictNext2BBPMode } from '../utils/bbp-mode-2str.js';
+import { predictWithPairs } from '../utils/pairTransitionPredictor.js';
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 
 export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onImportLogs, isDebugMode = false }) {
@@ -53,10 +54,10 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
     return decodeLongString(longString);
   }, [longString]);
 
-  // Get prediction from decoded rolls
+  // Get prediction from decoded rolls - NOW USING predictWithPairs
   const prediction = useMemo(() => {
     if (decoded.rolls.length < 6) return null;
-    return predictNext2BBPMode(decoded.rolls);
+    return predictWithPairs(decoded.rolls);
   }, [decoded.rolls]);
 
   // Calculate frequency distribution
@@ -207,181 +208,182 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
             </div>
           </div>
 
-          {/* Prediction Card (40% / 2 columns) - MOVED TO TOP RIGHT */}
+          {/* Prediction Card - EXPANDED SUGGEST with TRENDS */}
           <div className="lg:col-span-2">
             {prediction ? (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl h-full">
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 text-center">
-                  Next Prediction
-                </h3>
-
-                {/* Mode Badge */}
-                <div className="flex justify-center mb-4">
-                  <span className="px-3 py-1 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-medium border border-purple-500/30">
-                    {prediction.mode}
+              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-violet-400 uppercase tracking-wider">
+                    🎯 SUGGEST
+                  </h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-700/50 text-slate-400 border border-slate-600/50">
+                    {prediction.method || 'pair-matrix'}
                   </span>
                 </div>
 
-                {/* Circular Display */}
-                <div className="flex items-center justify-center mb-4">
-                  <div className="relative w-48 h-48">
+                {/* Circular Display + Alt */}
+                <div className="flex items-center justify-center gap-6 mb-4">
+                  <div className="relative w-28 h-28">
                     <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="56" cy="56" r="48" stroke="rgb(51, 65, 85)" strokeWidth="8" fill="none" />
                       <circle
-                        cx="96"
-                        cy="96"
-                        r="75"
-                        stroke="rgb(51, 65, 85)"
-                        strokeWidth="10"
+                        cx="56" cy="56" r="48"
+                        stroke="url(#suggestGradient)"
+                        strokeWidth="8"
                         fill="none"
-                      />
-                      <circle
-                        cx="96"
-                        cy="96"
-                        r="75"
-                        stroke="url(#gradient)"
-                        strokeWidth="10"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 75}`}
-                        strokeDashoffset={`${2 * Math.PI * 75 * (1 - (prediction.confidence || 0))}`}
+                        strokeDasharray={`${2 * Math.PI * 48}`}
+                        strokeDashoffset={`${2 * Math.PI * 48 * (1 - (prediction.confidence || 0.5))}`}
                         strokeLinecap="round"
+                        className="transition-all duration-500"
                       />
                       <defs>
-                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="rgb(168, 85, 247)" />
-                          <stop offset="100%" stopColor="rgb(236, 72, 153)" />
+                        <linearGradient id="suggestGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#a855f7" />
+                          <stop offset="100%" stopColor="#22c55e" />
                         </linearGradient>
                       </defs>
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className="text-5xl font-bold text-white mb-1">
-                        {prediction.prediction || '—'}
-                      </div>
-                      <div className="text-xl font-medium text-purple-400">
-                        {Math.round((prediction.confidence || 0) * 100)}%
-                      </div>
+                      <div className="text-3xl font-bold text-white">{prediction.prediction || '—'}</div>
+                      <div className="text-xs font-medium text-violet-400">{Math.round((prediction.confidence || 0.5) * 100)}%</div>
                     </div>
                   </div>
+                  {prediction.alt && (
+                    <div className="flex flex-col items-center">
+                      <div className="text-2xl font-bold text-slate-400">{prediction.alt}</div>
+                      <div className="text-xs text-slate-500">alt {Math.max(Math.round((prediction.confidence || 0.5) * 100) - 10, 20)}%</div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Commons Display */}
-                {prediction.commons && prediction.commons.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-700/50">
-                    <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 text-center">
-                      Commons
-                    </div>
-                    <div className="flex gap-2 justify-center">
-                      {prediction.commons.map((c, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-sm font-medium border border-emerald-500/30"
-                        >
-                          {c}
-                        </span>
-                      ))}
+                {/* Freq vs Pair comparison */}
+                {prediction.freqPrediction && prediction.pairPrediction && prediction.freqPrediction !== prediction.pairPrediction && (
+                  <div className="text-center text-[10px] text-slate-500 mb-3">
+                    <span className="text-slate-400">Freq: {prediction.freqPrediction}</span>
+                    <span className="mx-2">vs</span>
+                    <span className="text-cyan-400">Pair: {prediction.pairPrediction}</span>
+                  </div>
+                )}
+
+                {/* TRENDS section */}
+                {prediction.trends && (
+                  <div className="mb-4">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">TRENDS</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['41', '42', '43', '44'].map(value => {
+                        const trend = prediction.trends?.[value];
+                        const pct = prediction.distribution?.[value] || 0;
+                        const isHot = prediction.hotValues?.includes(value);
+                        const isCold = prediction.coldValues?.includes(value);
+                        return (
+                          <div
+                            key={value}
+                            className={`p-2 rounded-lg border text-center ${
+                              isHot ? 'border-emerald-500/50 bg-emerald-500/10' :
+                              isCold ? 'border-red-500/30 bg-red-500/10' :
+                              'border-slate-700/50 bg-slate-800/30'
+                            }`}
+                          >
+                            <div className="text-lg font-bold text-white">{value}</div>
+                            <div className={`text-lg ${
+                              trend === 'up' ? 'text-emerald-400' :
+                              trend === 'down' ? 'text-red-400' :
+                              'text-slate-500'
+                            }`}>
+                              {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}
+                            </div>
+                            <div className="text-[10px] text-slate-500">{pct}%</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
+
+                {/* AFTER X → ? section */}
+                {prediction.pairMatrix && prediction.lastRoll && (
+                  <div className="mb-4">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+                      AFTER {prediction.lastRoll} → ?
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['41', '42', '43', '44'].map(value => {
+                        const pairData = prediction.pairMatrix?.[prediction.lastRoll]?.[value];
+                        const pct = pairData?.pct || 0;
+                        const samples = pairData?.samples || 0;
+                        const momentum = prediction.momentumScores?.[value] || 0;
+                        const isTop = pct >= 80;
+                        return (
+                          <div
+                            key={value}
+                            className={`p-2 rounded-lg border text-center ${
+                              isTop ? 'border-amber-500/50 bg-amber-500/20' :
+                              samples === 0 ? 'border-red-500/30 bg-red-500/10' :
+                              'border-slate-700/50 bg-slate-800/30'
+                            }`}
+                          >
+                            <div className="text-sm font-bold text-white">{value}</div>
+                            <div className="text-xs text-slate-400">↺{samples}</div>
+                            <div className={`text-sm font-bold ${isTop ? 'text-amber-400' : samples === 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                              {samples === 0 ? 'N/A' : `${pct}%`}
+                            </div>
+                            <div className="text-[10px] text-slate-500">({momentum.toFixed(2)})</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Commons + Noise Labels */}
+                <div className="flex justify-between text-[10px] mb-3">
+                  {prediction.commons && prediction.commons.length > 0 && (
+                    <div>
+                      <span className="text-slate-500 uppercase">Commons: </span>
+                      <span className="text-emerald-400 font-bold">{prediction.commons.join(', ')}</span>
+                    </div>
+                  )}
+                  {prediction.noise && prediction.noise.length > 0 && (
+                    <div>
+                      <span className="text-slate-500 uppercase">Noise: </span>
+                      <span className="text-amber-400 font-bold">{prediction.noise.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sequence (Last 12) */}
+                <div className="border-t border-slate-700/50 pt-3">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">SEQUENCE (LAST 12)</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {decoded.rolls.slice(-12).map((roll, idx) => {
+                      const isCommon = prediction.commons?.includes(roll);
+                      const isNoise = prediction.noise?.includes(roll);
+                      return (
+                        <span
+                          key={idx}
+                          className={`px-2 py-1 rounded text-xs font-bold ${
+                            isCommon ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' :
+                            isNoise ? 'bg-red-500/30 text-red-300 border border-red-500/50' :
+                            'bg-slate-700/50 text-slate-400 border border-slate-600/50'
+                          }`}
+                        >
+                          {roll}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl h-full flex items-center justify-center">
+              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-6 border border-violet-500/30 shadow-2xl h-full flex items-center justify-center">
                 <p className="text-slate-500 text-sm">Need at least 6 rolls for prediction</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Middle Section: Frequency Table */}
-        {frequency.length > 0 && (
-          <div className="mb-6">
-            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl border border-slate-700/50 shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 px-6 py-3 border-b border-slate-700/50">
-                <div className="grid grid-cols-6 gap-4 text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  <div>Value</div>
-                  <div className="text-center">Count</div>
-                  <div className="text-center">%</div>
-                  <div className="text-center">Trend</div>
-                  <div>Last 5</div>
-                  <div>Status</div>
-                </div>
-              </div>
-
-              <div className="divide-y divide-slate-700/30">
-                {frequency.map((item, idx) => {
-                  const statuses = getStatus(item.value);
-                  const trend = getTrend(item.value);
-                  
-                  return (
-                    <div
-                      key={item.value}
-                      className="px-6 py-4 hover:bg-slate-800/50 transition-colors"
-                    >
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        {/* Value */}
-                        <div className="text-2xl font-bold text-white">
-                          {item.value}
-                        </div>
-
-                        {/* Count */}
-                        <div className="text-center text-lg font-medium text-slate-300">
-                          {item.count}
-                        </div>
-
-                        {/* Percentage */}
-                        <div className="text-center text-lg font-medium text-purple-400">
-                          {item.pct}%
-                        </div>
-
-                        {/* Trend */}
-                        <div className="text-center text-2xl">
-                          {trend === '↑' && <span className="text-emerald-400">↑</span>}
-                          {trend === '↓' && <span className="text-red-400">↓</span>}
-                          {trend === '—' && <span className="text-slate-600">—</span>}
-                        </div>
-
-                        {/* Last 5 */}
-                        <div className="flex gap-1">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`w-3 h-3 rounded-full ${
-                                i < item.last5
-                                  ? 'bg-purple-500'
-                                  : 'bg-slate-700/30'
-                              }`}
-                            />
-                          ))}
-                        </div>
-
-                        {/* Status */}
-                        <div className="flex gap-2 flex-wrap">
-                          {statuses.map((status, i) => (
-                            <span
-                              key={i}
-                              className={`px-2 py-1 rounded-lg text-xs font-medium border ${
-                                status.color === 'emerald'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  : status.color === 'amber'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                  : status.color === 'purple'
-                                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                                  : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                              }`}
-                            >
-                              {status.label}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bottom Section: Quick Stats + Warnings */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Bottom Section: Quick Stats only */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* Quick Stats - MOVED TO BOTTOM LEFT */}
           <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
@@ -492,41 +494,6 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
               )}
             </div>
           </div>
-
-          {/* Warnings/Insights Card */}
-          {prediction && (
-            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl">
-              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                Insights & Warnings
-              </h3>
-
-              <div className="space-y-3">
-                {/* Wave Flip Warning */}
-                {prediction.markData?.signals?.map((signal, idx) => (
-                  <div
-                    key={idx}
-                    className="px-4 py-3 rounded-lg bg-amber-900/20 border border-amber-600/40 text-amber-200 text-sm"
-                  >
-                    {signal}
-                  </div>
-                ))}
-
-                {/* Pattern Info */}
-                {prediction.pattern && (
-                  <div className="px-4 py-3 rounded-lg bg-purple-900/20 border border-purple-600/40 text-purple-200 text-sm">
-                    <strong>Pattern:</strong> {prediction.pattern}
-                  </div>
-                )}
-
-                {/* Recommendation */}
-                {prediction.markData?.recommendation && (
-                  <div className="px-4 py-3 rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-200 text-sm font-medium">
-                    {prediction.markData.recommendation}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Debug Panel */}

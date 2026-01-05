@@ -23,12 +23,11 @@ export default function ModernPairPredictorCard({ entries = [] }) {
 
   if (!data.prediction) {
     return (
-      <div className="bg-gradient-to-br from-amber-900/20 to-slate-900/90 rounded-2xl p-4 border border-amber-500/30 shadow-xl">
+      <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-xl">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-            🧪 Experimental
+          <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">
+            🎯 SUGGEST
           </span>
-          <span className="text-xs text-slate-500">Pair Predictor</span>
         </div>
         <div className="text-center text-slate-500 py-6">
           Need at least 6 rolls
@@ -56,12 +55,12 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   const confidencePct = Math.round(confidence * 100);
 
   return (
-    <div className="bg-gradient-to-br from-amber-900/20 to-slate-900/90 rounded-2xl p-4 border border-amber-500/30 shadow-xl">
+    <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-            🧪 Experimental
+          <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">
+            🎯 SUGGEST
           </span>
         </div>
         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium
@@ -73,22 +72,58 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </span>
       </div>
 
-      {/* Main Prediction Display */}
-      <div className="flex items-center justify-center gap-6 mb-4">
-        <div className="flex flex-col items-center">
-          <div className="text-5xl font-bold text-amber-400">
-            {prediction}
-          </div>
-          <div className="text-lg font-semibold text-slate-400">
-            {confidencePct}%
+      {/* Main Prediction Display - CIRCULAR DESIGN */}
+      <div className="flex items-center justify-center gap-8 mb-4">
+        {/* Circular Progress Indicator */}
+        <div className="relative">
+          {/* Background Circle */}
+          <svg className="w-28 h-28 transform -rotate-90">
+            <circle
+              cx="56"
+              cy="56"
+              r="48"
+              stroke="currentColor"
+              strokeWidth="8"
+              fill="transparent"
+              className="text-slate-700/50"
+            />
+            {/* Progress Circle */}
+            <circle
+              cx="56"
+              cy="56"
+              r="48"
+              stroke="url(#gradient)"
+              strokeWidth="8"
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${confidencePct * 3.02} 302`}
+              className="transition-all duration-500"
+            />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#a855f7" />
+                <stop offset="100%" stopColor="#22c55e" />
+              </linearGradient>
+            </defs>
+          </svg>
+          {/* Center Content */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-4xl font-bold text-white">
+              {prediction}
+            </div>
+            <div className="text-sm font-semibold text-violet-400">
+              {confidencePct}%
+            </div>
           </div>
         </div>
+
+        {/* Alt prediction */}
         {alt && (
-          <div className="flex flex-col items-center opacity-60">
-            <div className="text-2xl font-bold text-slate-400">
+          <div className="flex flex-col items-center">
+            <div className="text-3xl font-bold text-slate-400">
               {alt}
             </div>
-            <div className="text-xs text-slate-500">alt</div>
+            <div className="text-xs text-slate-500">alt {Math.max(confidencePct - 10, 20)}%</div>
           </div>
         )}
       </div>
