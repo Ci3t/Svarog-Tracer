@@ -12,6 +12,7 @@
  */
 
 import { translateTo4 } from './stringHelpers';
+import { predictWithPairs } from './pairTransitionPredictor';
 
 // Helper to strip trailing zeros
 function stripZeros(str = "") {
@@ -185,7 +186,22 @@ export function predictWithCascadingPriority(
   const sheetForAnalysis = extract2ndDigit(sheetFiltered);
 
   // Analyze each source
-  const liveAnalysis = analyzeDataset(liveForAnalysis, 0.85, 12);
+  let liveAnalysis;
+  if (is2str && live.length >= 4) {
+    const suggest = predictWithPairs(live);
+    liveAnalysis = {
+      valid: !!suggest.prediction,
+      prediction: suggest.prediction ? suggest.prediction.slice(-1) : null, // Extract 2nd digit
+      alt: suggest.alt ? suggest.alt.slice(-1) : null,
+      confidence: suggest.confidence,
+      rollCount: live.length,
+      candidates: Array.isArray(suggest.pairMatrix?.[live[live.length-1]] ) ? [] : [], // Placeholder for candidates
+      dominance: suggest.confidence // Approximate
+    };
+  } else {
+    liveAnalysis = analyzeDataset(liveForAnalysis, 0.85, 12);
+  }
+  
   const importAnalysis = analyzeDataset(importForAnalysis, 0.90, 50);
   const sheetAnalysis = analyzeDataset(sheetForAnalysis, 0.92, null);
 

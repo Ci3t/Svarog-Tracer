@@ -265,6 +265,46 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                   </div>
                 )}
 
+                {/* Commons + Noise Labels */}
+                <div className="flex justify-between text-[10px] mb-3">
+                  {prediction.commons && prediction.commons.length > 0 && (
+                    <div>
+                      <span className="text-slate-500 uppercase">Commons: </span>
+                      <span className="text-emerald-400 font-bold">{prediction.commons.join(', ')}</span>
+                    </div>
+                  )}
+                  {prediction.noise && prediction.noise.length > 0 && (
+                    <div>
+                      <span className="text-slate-500 uppercase">Noise: </span>
+                      <span className="text-amber-400 font-bold">{prediction.noise.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Wave Signals Grid */}
+                {prediction.waveSignals && (
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                      <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
+                      <div className={`text-md font-bold ${prediction.waveSignals.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
+                        {prediction.waveSignals.lastCommonRunLength || 0}
+                      </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                      <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
+                      <div className={`text-md font-bold ${prediction.waveSignals.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
+                        {prediction.waveSignals.noiseAppearanceCount || 0}
+                      </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                      <div className="text-[9px] text-slate-500 uppercase">Flip Prob</div>
+                      <div className={`text-md font-bold ${prediction.waveSignals.waveFlipProbability >= 50 ? 'text-red-400' : 'text-slate-300'}`}>
+                        {prediction.waveSignals.waveFlipProbability || 0}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* TRENDS section */}
                 {prediction.trends && (
                   <div className="mb-4">
@@ -335,21 +375,6 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                   </div>
                 )}
 
-                {/* Commons + Noise Labels */}
-                <div className="flex justify-between text-[10px] mb-3">
-                  {prediction.commons && prediction.commons.length > 0 && (
-                    <div>
-                      <span className="text-slate-500 uppercase">Commons: </span>
-                      <span className="text-emerald-400 font-bold">{prediction.commons.join(', ')}</span>
-                    </div>
-                  )}
-                  {prediction.noise && prediction.noise.length > 0 && (
-                    <div>
-                      <span className="text-slate-500 uppercase">Noise: </span>
-                      <span className="text-amber-400 font-bold">{prediction.noise.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
 
                 {/* Sequence (Last 12) */}
                 <div className="border-t border-slate-700/50 pt-3">

@@ -5,6 +5,7 @@ import {
   formatWaveSignalsForExport,
   formatPairRowForExport 
 } from './pairTransitionPredictor';
+import { predictNext2BBPMode } from './bbp-mode-2str';
 
 export function exportDebugLogsToTXT(debugLogs, entries = []) {
   if (!debugLogs || debugLogs.length === 0) {
@@ -169,7 +170,71 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     content += `Hits (main):    ${expHits}/${expTotal} = ${expAcc}%\n`;
     content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n`;
     content += `\n`;
-    content += `🎯 SUGGESTED: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
+    content += `🎯 BBP ADAPTIVE: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
+
+    // =========================================================================
+    // 🔄 KIYO vs BBP ADAPTIVE COMPARISON
+    // Run both predictors on same data and compare accuracy
+    // =========================================================================
+    content += '\n--- 🔄 PREDICTOR COMPARISON: KIYO vs BBP ADAPTIVE ---\n';
+    content += '(Running both predictors on same roll data)\n\n';
+    
+    let kiyoHits = 0;
+    let kiyoTop2 = 0;
+    let kiyoTotal = 0;
+    let liveWins = 0; // Cases where Live hit but Kiyo missed
+    let kiyoWins = 0; // Cases where Kiyo hit but Live missed
+    
+    logs2str.forEach((log, idx) => {
+      const ctx = log.ctx;
+      const actualRoll = log.actual;
+      
+      if (ctx && Array.isArray(ctx) && ctx.length >= 6) {
+        const rolls = ctx.map(r => String(r));
+        
+        // Run BBP ADAPTIVE predictor
+        const liveData = predictWithPairs(rolls);
+        const liveMain = liveData.prediction;
+        const liveAlt = liveData.alt;
+        const liveHit = liveMain === actualRoll;
+        const liveTop2Hit = liveMain === actualRoll || liveAlt === actualRoll;
+        
+        // Run KIYO predictor
+        const kiyoData = predictNext2BBPMode(rolls);
+        const kiyoMain = kiyoData.prediction;
+        const kiyoAlt = kiyoData.alt;
+        const kiyoHit = kiyoMain === actualRoll;
+        const kiyoTop2Hit = kiyoMain === actualRoll || kiyoAlt === actualRoll;
+        
+        if (kiyoHit) kiyoHits++;
+        if (kiyoTop2Hit) kiyoTop2++;
+        kiyoTotal++;
+        
+        // Track wins
+        if (liveTop2Hit && !kiyoTop2Hit) liveWins++;
+        if (kiyoTop2Hit && !liveTop2Hit) kiyoWins++;
+        
+        // Show comparison for each roll
+        const liveStatus = liveHit ? '✅' : (liveAlt === actualRoll ? '⚡' : '❌');
+        const kiyoStatus = kiyoHit ? '✅' : (kiyoAlt === actualRoll ? '⚡' : '❌');
+        
+        content += `[${idx + 1}] actual: ${actualRoll}\n`;
+        content += `     LIVE: ${liveMain}/${liveAlt} ${liveStatus} | KIYO: ${kiyoMain}/${kiyoAlt} ${kiyoStatus}\n`;
+      }
+    });
+    
+    // Comparison Summary
+    const kiyoAcc = kiyoTotal > 0 ? Math.round((kiyoHits / kiyoTotal) * 100) : 0;
+    const kiyoTop2Acc = kiyoTotal > 0 ? Math.round((kiyoTop2 / kiyoTotal) * 100) : 0;
+    
+    content += `\n--- COMPARISON SUMMARY ---\n`;
+    content += `                    BBP ADAPTIVE    vs    KIYO\n`;
+    content += `Main Hits:          ${expHits}/${expTotal} (${expAcc}%)         ${kiyoHits}/${kiyoTotal} (${kiyoAcc}%)\n`;
+    content += `Top-2:              ${expTop2}/${expTotal} (${expTop2Acc}%)         ${kiyoTop2}/${kiyoTotal} (${kiyoTop2Acc}%)\n`;
+    content += `\n`;
+    content += `🏆 WINNER: ${expTop2Acc > kiyoTop2Acc ? 'BBP ADAPTIVE' : (kiyoTop2Acc > expTop2Acc ? 'KIYO' : 'TIE')} (${Math.abs(expTop2Acc - kiyoTop2Acc)}% difference)\n`;
+    content += `LIVE caught what KIYO missed: ${liveWins} rolls\n`;
+    content += `KIYO caught what LIVE missed: ${kiyoWins} rolls\n\n`;
 
     
     // =========================================================================

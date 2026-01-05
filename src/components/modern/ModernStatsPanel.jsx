@@ -1,39 +1,5 @@
 import React, { useMemo, useState } from "react";
-
-// Detect line from raw input string (last digit 1-4)
-function detectLineFromRaw(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const clean = raw.replace(/[^1-4]/g, "");
-  if (!clean) return null;
-  const lastDigit = Number(clean[clean.length - 1]);
-  return [1, 2, 3, 4].includes(lastDigit) ? lastDigit : null;
-}
-
-// Caesar shift for ANY length string (2-str, 3-str, 4-str)
-function caesarShiftForLine(prediction, line) {
-  if (!prediction || !line) return null;
-
-  const cleanPred = String(prediction).replace(/[^1-4]/g, "");
-  if (!cleanPred) return null;
-
-  const lineDigit = Number(line);
-  if (lineDigit < 1 || lineDigit > 4) return null;
-
-  const digits = cleanPred.split("").map(Number);
-
-  // Shift so that the first digit becomes `line`
-  const shift = (lineDigit - digits[0] + 4) % 4;
-
-  const shifted = digits
-    .map((d) => {
-      const z = d - 1; // convert to 0-3
-      const s = (z + shift) % 4; // apply shift
-      return (s + 1).toString(); // convert back to 1-4
-    })
-    .join("");
-
-  return shifted;
-}
+import { detectLineFromRaw, caesarShiftForLine } from "../../utils/caesarUtils";
 
 export default function ModernStatsPanel({
   entries,
@@ -97,8 +63,13 @@ export default function ModernStatsPanel({
           <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
             Stats & Line Helper
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {currentRegion} • Patch {currentPatch}
+          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+            {currentRegion} • Patch {currentPatch} 
+            {activeTab === '2' && (
+              <span className="bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-md text-[9px] font-bold border border-violet-500/30">
+                🔗 BBP SYNCED
+              </span>
+            )}
           </p>
         </div>
 
@@ -123,7 +94,10 @@ export default function ModernStatsPanel({
       {/* AUTO-SHIFTED STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/30">
-          <div className="text-xs text-slate-400 mb-2">Main Prediction</div>
+          <div className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
+            Main Prediction
+            {activeTab === '2' && <span className="text-[9px] text-violet-400/70 font-mono">(via BBP)</span>}
+          </div>
           <div className="text-4xl font-mono font-bold bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent mb-2">
             {autoShiftedMain ?? "—"}
           </div>

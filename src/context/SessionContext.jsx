@@ -1,6 +1,6 @@
 // Session Context - Manages session state, timer, and roll handling
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
-import { predictNext2BBPMode } from '../utils/bbp-mode-2str';
+import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { predictNext3BBPMode } from '../utils/bbp-mode-3str';
 import { predictNext4 } from '../utils/enhanced-4str-predictor';
 import { analyzeTablePattern } from '../utils/bbp-mode-2str';
@@ -128,7 +128,7 @@ export function SessionProvider({ children, onDebugLog }) {
         .reverse();
 
       // 🔥 CAPTURE: The predictions that were SHOWING before this roll
-      const p2Before = rolls2Before.length >= 6 ? predictNext2BBPMode(rolls2Before) : null;
+      const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before) : null;
 
       // Now process each new entry for accuracy tracking
       newEntries.forEach((entry, idx) => {

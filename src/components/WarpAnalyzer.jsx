@@ -240,6 +240,34 @@ export default function WarpAnalyzer() {
                       <p className="text-xs text-slate-500 uppercase tracking-[0.3em] font-bold opacity-60">Decode the Gacha • Find Your Fate</p>
                    </div>
 
+                  {/* DISCLAIMER / HOW TO USE */}
+                  <div className="max-w-4xl mx-auto mb-8 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 text-[11px] leading-relaxed text-slate-400">
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
+                        <Icons.Target className="w-5 h-5 text-amber-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-amber-400 font-bold uppercase tracking-wider mr-1">Disclaimer:</span> 
+                          This analyzer adapts to live chart data which varies over time. Signal strength from Day 1 can differ from Day 2 or the end of the patch as the total sample size grows.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-slate-500">
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                            Best used at patch start (High contributor volume)
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                            Optimal timing: Late Day 1 or Day 2
+                          </div>
+                        </div>
+                        <p className="border-t border-slate-800 pt-2 italic text-[10px]">
+                          * This is not a magic prediction tool. It is a statistical analyzer of real pull data, highlighting rolls with the highest historical probability to trigger a 5★ drop.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* BANNER SELECTION (Tabs + Grid) */}
                   <div className="max-w-4xl mx-auto mb-12">
                      <div className="flex justify-center mb-8">

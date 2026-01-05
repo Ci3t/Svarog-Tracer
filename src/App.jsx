@@ -9,7 +9,8 @@ import React, {
 } from "react";
 import { Routes, Route } from "react-router-dom";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
-import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 NEW
+import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 OLD Kiyo
+import { predictWithPairs } from "./utils/pairTransitionPredictor"; // 🔥 NEW SUGGEST
 import { 
   WAVE_SCHEMES, 
   analyzeColumnWave, 
@@ -279,8 +280,8 @@ export default function App() {
 
       // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
       const rolls2 = contextRolls.map(r => String(r).slice(0, 2)).filter(r => r.length === 2);
-      if (rolls2.length >= 6) { // BBP needs at least 6 rolls
-        const p2 = predictNext2BBPMode(rolls2); // 🔥 Use BBP mode for enhanced data
+      if (rolls2.length >= 6) { // SUGGEST needs at least 6 rolls
+        const p2 = predictWithPairs(rolls2); // 🔥 Use SUGGEST logic instead of OLD Kiyo BBP
         const actual2 = String(actual3).slice(0, 2);
         
         if (
@@ -555,7 +556,7 @@ export default function App() {
       .filter((r) => r.length === 4); // Chronological
 
     // 🔥 CAPTURE: The predictions that were SHOWING before this roll
-    const p2Before = rolls2Before.length >= 6 ? predictNext2BBPMode(rolls2Before) : null;
+    const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before) : null;
     const p3Before = predictNext3(rolls3Before);
     const p4Before = predictNext4(rolls4Before);
 
@@ -875,21 +876,18 @@ export default function App() {
 
   const rolls2 = entries
     .map((e) => (e.translated || "").slice(0, 2))
-    .filter(Boolean)
-    .reverse();
+    .filter((r) => r.length === 2);
 
   const rolls3 = entries
     .map((e) => (e.s3 || "").replace(/0+$/, ""))
-    .filter((r) => r.length === 3)
-    .reverse();
+    .filter((r) => r.length === 3);
 
   const rolls4 = entries
     .map((e) => (e.s4 || "").replace(/0+$/, ""))
-    .filter((r) => r.length >= 4)
-    .reverse();
+    .filter((r) => r.length >= 4);
 
   // 🔥 UPDATED: Use BBP mode for live prediction display
-  const livePrediction = rolls2.length >= 6 ? predictNext2BBPMode(rolls2) : { prediction: "—", confidence: 0 };
+  const livePrediction = rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "—", confidence: 0 };
 
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);

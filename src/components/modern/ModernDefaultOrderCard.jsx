@@ -1,240 +1,107 @@
 import React, { useState } from "react";
 
 const MODE_EXAMPLES = {
-  // BBP Mode PATTERNS
-  "BBP-alternating": {
-    title: "BBP Mode: Alternating",
-    description: "Commons flip back and forth between 2 values",
+  // 🔥 BBP Adaptive (New SUGGEST logic)
+  "BBP-pattern-shift": {
+    title: "BBP: Pattern Shift",
+    description: "Detects fundamental shift in commons/noise distribution",
     body: (
       <>
-        BBP Mode identified 2 commons (e.g., 41 & 42) and detected they're alternating.
+        The 80% accuracy mode. Identifies when previously random noise values become the new dominant commons.
         <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span>
+        <span className="text-slate-400">Signal:</span>{" "}
+        <span className="text-emerald-300">New pattern locked 🔒</span>
         <br />
-        <span className="text-slate-400">Recent pattern:</span>{" "}
-        <span className="text-violet-300">41, 42, 41, 42, 41</span>
-        <br />
-        <span className="text-slate-400">→ Last was 41</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">42</span> (flip)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 70-85% | Pattern: alternating
-        </span>
+        <span className="text-slate-400">→ Result:</span>{" "}
+        <span className="text-emerald-300 font-bold">Swap logic</span> targets new hot values
       </>
     ),
   },
-
-  "BBP-dominant": {
-    title: "BBP Mode: Dominant",
-    description: "One common appears >55% of the time",
+  "BBP-wave": {
+    title: "BBP: Wave Transition",
+    description: "Predicts based on consistent transition targets",
     body: (
       <>
-        One value is clearly dominant (appears &gt;55%).
+        Used when simple frequency fails but the "next" digit follows a strong wave pattern.
         <br />
-        <span className="text-slate-400">Distribution:</span>{" "}
-        <span className="text-violet-300">42 (60%), 41 (25%), 43 (10%), 44 (5%)</span>
+        <span className="text-slate-400">Recent:</span>{" "}
+        <span className="text-violet-300">41 → 43, 41 → 43, 41</span>
         <br />
-        <span className="text-slate-400">→ Commons:</span>{" "}
-        <span className="text-green-400">42, 41</span>
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">43</span> (target lock)
+      </>
+    ),
+  },
+  "BBP-overdue": {
+    title: "BBP: Overdue Capture",
+    description: "Catches values that are statistically 'due' to return",
+    body: (
+      <>
+        Detects a "missing" value with rising momentum.
         <br />
-        <span className="text-slate-400">→ Dominant:</span>{" "}
-        <span className="text-amber-400">42 (60%)</span> 🟡
+        <span className="text-slate-400">Absent:</span>{" "}
+        <span className="text-orange-400">44 (not seen in 8 rolls)</span>
+        <br />
+        <span className="text-slate-400">→ Momentum:</span>{" "}
+        <span className="text-emerald-400">Rising ↑</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">44</span> (return)
+      </>
+    ),
+  },
+  "BBP-trend": {
+    title: "BBP: Trend Tiebreaker",
+    description: "Uses rising/falling momentum for close calls",
+    body: (
+      <>
+        When two values are tied in probability, momentum breaks the tie.
+        <br />
+        <span className="text-slate-400">Tie:</span>{" "}
+        <span className="text-violet-300">41 vs 42</span>
+        <br />
+        <span className="text-slate-400">→ Trend:</span>{" "}
+        <span className="text-emerald-400">42 is rising ↑</span>
         <br />
         <span className="text-slate-400">→ Predicts:</span>{" "}
         <span className="text-emerald-300 font-bold">42</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 75-90% | Pattern: dominant | Badge: DOMINANT (amber)
-        </span>
       </>
     ),
   },
-
-  "BBP-sticky": {
-    title: "BBP Mode: Sticky",
-    description: "One common repeats 2-3 times in a row",
+  "BBP-double-tap": {
+    title: "BBP: Double Tap",
+    description: "Detects noise values that tend to repeat once",
     body: (
       <>
-        Detected a "sticky" pattern where one common repeats consecutively.
+        Noise values appearing in pairs.
         <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">42, 41</span>
+        <span className="text-slate-400">Pattern:</span>{" "}
+        <span className="text-violet-300">43, 43 ... 44, 44</span>
         <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">41, 42, 42, 42, 43</span>
-        <br />
-        <span className="text-slate-400">→ 42 repeated 3x (sticky run)</span>
+        <span className="text-slate-400">→ Last:</span>{" "}
+        <span className="text-slate-400">43 (first hit)</span>
         <br />
         <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">42</span> (continue run)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 65-80% | Pattern: sticky
-        </span>
+        <span className="text-emerald-300 font-bold">43</span> (repeat)
       </>
     ),
   },
 
-  "BBP-wave": {
-    title: "BBP Mode: Wave",
-    description: "Noise values alternating (1-2 flips)",
-    body: (
-      <>
-        Noise values are alternating instead of random (EU region common).
-        <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span>
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">42, 41, 44, 41</span>
-        <br />
-        <span className="text-slate-400">→ Wave detected:</span>{" "}
-        <span className="text-amber-300">41 ↔ 44</span> (alternating)
-        <br />
-        <span className="text-slate-400">→ Last was 41</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">44</span> (continue wave)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 65% | Pattern: wave (1-2 flips)
-        </span>
-      </>
-    ),
+  // Legacy/Basic
+  "BBP-alternating": {
+    title: "Basic: Alternating",
+    description: "Simple switch between two values",
+    body: "Classic flip-flop pattern detection. Simplest BBP mode.",
   },
-
-  "BBP-wave-ending": {
-    title: "BBP Mode: Wave Ending",
-    description: "Wave ending after 3 flips → snap to common",
-    body: (
-      <>
-        After 3 wave flips, expect snap-back to commons.
-        <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span>
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">42, 41, 44, 41, 44</span>
-        <br />
-        <span className="text-slate-400">→ Wave:</span>{" "}
-        <span className="text-amber-300">41 ↔ 44 ↔ 41</span> (3 flips)
-        <br />
-        <span className="text-slate-400">→ Wave ending</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">42</span> (snap to common)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 68% | Pattern: wave-ending (3 flips)
-        </span>
-      </>
-    ),
+  "BBP-dominance": {
+    title: "Basic: Dominance",
+    description: "One value appears >55% of the time",
+    body: "Focuses on the most frequent value in the session.",
   },
-
-  "BBP-dominance-run": {
-    title: "BBP Mode: Dominance Run",
-    description: "One common running 4-7 times consecutively",
-    body: (
-      <>
-        Detected a dominance run (4-7 consecutive hits of same value).
-        <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span>
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">42, 41, 41, 41, 41, 41</span>
-        <br />
-        <span className="text-slate-400">→ 41 running 5x (dominance)</span>
-        <br />
-        <span className="text-slate-400">→ Continues until 8+ hits</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41</span> (continue run)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 72% | Pattern: dominance-run (4-7 hits)
-        </span>
-      </>
-    ),
-  },
-
-  "BBP-noise-run": {
-    title: "BBP Mode: Noise Run",
-    description: "Noise values (43/44) repeating",
-    body: (
-      <>
-        Noise values appeared 2+ times consecutively.
-        <br />
-        <span className="text-slate-400">Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span>
-        <br />
-        <span className="text-slate-400">Noise:</span>{" "}
-        <span className="text-slate-500">43, 44</span>
-        <br />
-        <span className="text-slate-400">Recent:</span>{" "}
-        <span className="text-violet-300">41, 42, 43, 43, 43</span>
-        <br />
-        <span className="text-slate-400">→ Noise (43) running 3x</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">43</span> (might continue)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 60% | Pattern: noise-run
-        </span>
-      </>
-    ),
-  },
-
   "BBP-balanced": {
-    title: "BBP Mode: Balanced",
-    description: "Commons are roughly equal in frequency",
-    body: (
-      <>
-        Both commons appear with similar frequency (balanced).
-        <br />
-        <span className="text-slate-400">Distribution:</span>{" "}
-        <span className="text-violet-300">41 (30%), 42 (30%), 43 (25%), 44 (15%)</span>
-        <br />
-        <span className="text-slate-400">→ Commons:</span>{" "}
-        <span className="text-green-400">41, 42</span> (both 30%)
-        <br />
-        <span className="text-slate-400">→ Pattern:</span>{" "}
-        <span className="text-violet-300">Balanced (no clear dominance)</span>
-        <br />
-        <span className="text-slate-400">→ Predicts:</span>{" "}
-        <span className="text-emerald-300 font-bold">41 or 42</span> (equal chance)
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 50-65% | Pattern: balanced
-        </span>
-      </>
-    ),
-  },
-
-  "BBP-chaotic": {
-    title: "BBP Mode: Chaotic",
-    description: "All values appear equally (no pattern)",
-    body: (
-      <>
-        Distribution is too flat - all values appear roughly equally.
-        <br />
-        <span className="text-slate-400">Distribution:</span>{" "}
-        <span className="text-violet-300">41 (25%), 42 (25%), 43 (25%), 44 (25%)</span>
-        <br />
-        <span className="text-slate-400">→ No clear commons detected</span>
-        <br />
-        <span className="text-slate-400">→ Result:</span>{" "}
-        <span className="text-slate-400">Skip prediction (chaotic)</span>
-        <br />
-        <span className="text-xs text-slate-500 mt-2 block">
-          Confidence: 0% | Pattern: chaotic (insufficient pattern)
-        </span>
-      </>
-    ),
+    title: "Basic: Balanced",
+    description: "Values are roughly equal in frequency",
+    body: "No clear leader, predictor waits for pattern or uses matrix.",
   },
 
   // LEGACY MODES
@@ -305,18 +172,19 @@ const MODE_EXAMPLES = {
 };
 
 const MODE_GROUPS = {
-  "BBP Mode (2-str)": [
-    "BBP-alternating",
-    "BBP-dominant",
-    "BBP-dominance-run",
-    "BBP-sticky",
+  "BBP Adaptive (New)": [
+    "BBP-pattern-shift",
     "BBP-wave",
-    "BBP-wave-ending",
-    "BBP-balanced",
-    "BBP-noise-run",
-    "BBP-chaotic",
+    "BBP-overdue",
+    "BBP-trend",
+    "BBP-double-tap",
   ],
-  "Legacy (2-str)": [
+  "Basic BBP patterns": [
+    "BBP-alternating",
+    "BBP-dominance",
+    "BBP-balanced",
+  ],
+  "Legacy": [
     "mono",
     "smart-transition",
     "insufficient-data",
@@ -325,9 +193,9 @@ const MODE_GROUPS = {
 
 export default function ModernDefaultOrderCard() {
   const [active, setActive] = useState(null);
-  const [group, setGroup] = useState("BBP Mode (2-str)");
+  const [group, setGroup] = useState("BBP Adaptive (New)");
 
-  const currentModes = MODE_GROUPS[group] || MODE_GROUPS["BBP Mode (2-str)"];
+  const currentModes = MODE_GROUPS[group] || MODE_GROUPS["BBP Adaptive (New)"];
 
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 shadow-xl">
@@ -337,7 +205,7 @@ export default function ModernDefaultOrderCard() {
           Prediction Modes
         </h3>
         <p className="text-[11px] text-slate-400 leading-relaxed">
-          Click a mode to see how BBP Mode detects patterns. Organized by pattern type.
+          Click a mode to see how the predictor detects patterns.
         </p>
       </div>
 

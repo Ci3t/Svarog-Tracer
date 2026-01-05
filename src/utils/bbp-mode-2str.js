@@ -1,6 +1,5 @@
-// src/utils/bbp-mode-2str.js
-// 🦁 BBP Mode 2-Str Predictor: Pattern-based prediction using "Virtual 2-Column" logic
-// Focus: Identify 2 dominant values (commons) and detect patterns among them
+// 🎯 Step 1: Identify the 2 Commons (Virtual Column A) and Noise (Virtual Column B)
+import { predictWithPairs } from './pairTransitionPredictor';
 
 /**
  * Clean raw rolls into 2-digit strings in [41-44]
@@ -920,12 +919,22 @@ export function predictNext2BBPMode(rolls, options = {}) {
     userFriendlyMode = "Balanced";
   }
 
+  // 🔥 KIYO ENHANCEMENT: Use SUGGEST logic for the final prediction
+  // This takes the results from suggest logic (80% accuracy) but keeps Kiyo reasoning
+  const suggest = predictWithPairs(cleanedRolls);
+  finalPrediction = suggest.prediction || patternResult.prediction;
+  altPrediction = suggest.alt || patternResult.alt;
+  finalConfidence = suggest.confidence || markAdjustedConfidence;
+
   return {
     prediction: finalPrediction,
     alt: altPrediction,
-    confidence: markAdjustedConfidence, // Use MARK-adjusted confidence
-    baseConfidence: finalConfidence, // Keep original for reference
-    mode: userFriendlyMode, // 🔥 Use pattern-based mode name
+    confidence: suggest.confidence ? Math.max(suggest.confidence, markAdjustedConfidence) : markAdjustedConfidence, 
+    baseConfidence: suggest.confidence || finalConfidence, 
+    mode: suggest.method ? `BBP-${suggest.method}` : userFriendlyMode, 
+    kiyoMode: userFriendlyMode, // Keep original for reference
+    kiyoReasoning: finalReasoning,
+    suggestMethod: suggest.method,
     pattern: patternResult.pattern,
     commons,
     noise,

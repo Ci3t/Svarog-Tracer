@@ -6,6 +6,7 @@
  */
 import React, { useMemo } from 'react';
 import { predictWithPairs, formatTrendsForExport } from '../../utils/pairTransitionPredictor';
+import { detectLineFromRaw, caesarShiftForLine } from '../../utils/caesarUtils';
 
 const VALUES = ['41', '42', '43', '44'];
 
@@ -26,7 +27,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-xl">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">
-            🎯 SUGGEST
+            🎯 BBP Mode
           </span>
         </div>
         <div className="text-center text-slate-500 py-6">
@@ -60,15 +61,15 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">
-            🎯 SUGGEST
+            🎯 BBP Mode
           </span>
         </div>
         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium
-          ${method === 'pair-wave' ? 'bg-purple-500/30 text-purple-300 border border-purple-500/50' :
-            method === 'trend-tiebreaker' ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50' :
+          ${method && method.includes('wave') ? 'bg-purple-500/30 text-purple-300 border border-purple-500/50' :
+            method && method.includes('trend') ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50' :
             'bg-slate-700/50 text-slate-400 border border-slate-600/50'}
         `}>
-          {method}
+          {method ? (method.startsWith('pair') ? method.replace('pair', 'BBP') : method) : '—'}
         </span>
       </div>
 
@@ -106,7 +107,6 @@ export default function ModernPairPredictorCard({ entries = [] }) {
               </linearGradient>
             </defs>
           </svg>
-          {/* Center Content */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-4xl font-bold text-white">
               {prediction}
@@ -164,6 +164,18 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
       )}
 
+      {/* Commons vs Noise */}
+      <div className="flex justify-between gap-2 text-[10px] mb-3">
+        <div>
+          <span className="text-slate-500 uppercase">Commons: </span>
+          <span className="text-emerald-400 font-bold">{commons?.join(', ') || '—'}</span>
+        </div>
+        <div>
+          <span className="text-slate-500 uppercase">Noise: </span>
+          <span className="text-red-400 font-bold">{noise?.join(', ') || '—'}</span>
+        </div>
+      </div>
+
       {/* Wave Signals */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-slate-800/50 rounded-lg p-2 text-center">
@@ -180,7 +192,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
         <div className="bg-slate-800/50 rounded-lg p-2 text-center">
           <div className="text-[10px] text-slate-500 uppercase">Flip Prob</div>
-          <div className={`text-lg font-bold ${waveSignals?.waveFlipProbability >= 50 ? 'text-red-400' : 'text-slate-300'}`}>
+          <div className={`text-lg font-bold ${waveSignals?.waveFlipProbability || 0}%`}>
             {waveSignals?.waveFlipProbability || 0}%
           </div>
         </div>
@@ -268,17 +280,6 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
       )}
 
-      {/* Commons vs Noise */}
-      <div className="flex justify-between gap-2 text-[10px] mb-3">
-        <div>
-          <span className="text-slate-500 uppercase">Commons: </span>
-          <span className="text-emerald-400 font-bold">{commons?.join(', ') || '—'}</span>
-        </div>
-        <div>
-          <span className="text-slate-500 uppercase">Noise: </span>
-          <span className="text-red-400 font-bold">{noise?.join(', ') || '—'}</span>
-        </div>
-      </div>
 
       {/* 📊 Pattern Analysis Section */}
       {rolls.length >= 6 && (() => {
