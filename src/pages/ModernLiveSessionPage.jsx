@@ -7,6 +7,8 @@ import ModernFrequencyCard from '../components/modern/ModernFrequencyCard';
 import ModernStickyHeader from '../components/modern/ModernStickyHeader';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
 import ModernLiveTrackingTable from '../components/modern/ModernLiveTrackingTable';
+import PatternAnalysisTable from '../components/modern/PatternAnalysisTable';
+import TestPredictorCard from '../components/modern/TestPredictorCard';
 import ModernCaesarCard from '../components/modern/ModernCaesarCard';
 import ModernDefaultOrderCard from '../components/modern/ModernDefaultOrderCard';
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
@@ -120,13 +122,26 @@ export default function ModernLiveSessionPage({
               isAutoImporting={isAutoImporting}
             />
 
-            {/* Live Tracking Tables - MOVED UP under session table */}
-            {sessionTab === 'current' && entries.length >= 6 && (() => {
+            {/* Live Tracking Tables - COMMENTED OUT, replaced with PatternAnalysisTable */}
+            {/* sessionTab === 'current' && entries.length >= 6 && (() => {
               const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
               return (
                 <ModernLiveTrackingTable rolls={sortedEntries.map(e => e.translated)} />
               );
-            })()}
+            })() */}
+
+            {/* Pattern Analysis Table - COMMENTED OUT for now
+            {sessionTab === 'current' && entries.length >= 6 && (() => {
+              const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
+              return (
+                <PatternAnalysisTable entries={sortedEntries} />
+              );
+            })()} */}
+
+            {/* 🔬 Test Predictor Card - Experimental Features */}
+            {sessionTab === 'current' && entries.length >= 6 && (
+              <TestPredictorCard entries={entries} />
+            )}
 
             {/* 3-str tracking */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (

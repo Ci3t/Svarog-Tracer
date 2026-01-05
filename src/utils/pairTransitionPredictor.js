@@ -769,59 +769,78 @@ export function predictWithPairs(rolls) {
   // 🔧 User insight: When a value hasn't appeared in 4+ rolls, it tends to return
   // 🔧 FIX: Raised momentum threshold from 0.15 to 0.35 to avoid "dead" predictions
   // 🔧 FIX: Skip overdue if commons are hot and alternating - trust the pattern instead
+  // 🔧 FIX: Skip overdue if there's a clearly DOMINANT value (momentum >1.5, pair >80%)
   else if (mostOverdue && lastSeen[mostOverdue] >= OVERDUE_THRESHOLD) {
     const overdueMomentum = momentumScores[mostOverdue] || 0;
     const isOnlyOverdue = overdueValues.length <= 1;
     
-    // 🔧 NEW: Check if commons are alternating hot - if so, skip overdue entirely
-    const commonsAreBothHot = commons.length >= 2 && 
-      hotValues.includes(commons[0]) && 
-      hotValues.includes(commons[1]);
-    const lastTwoAreCommons = rolls.length >= 2 && 
-      commons.includes(rolls[rolls.length - 1]) && 
-      commons.includes(rolls[rolls.length - 2]) &&
-      rolls[rolls.length - 1] !== rolls[rolls.length - 2]; // And they alternated
+    // 🔥 NEW: Check for DOMINANT value - skip overdue if one value is crushing it
+    const lastRollRow = matrix[lastRoll] || {};
+    const topPairValue = VALUES
+      .map(v => ({ value: v, pct: lastRollRow[v]?.pct || 0, momentum: momentumScores[v] || 0 }))
+      .sort((a, b) => b.pct - a.pct)[0];
     
-    // Skip overdue if commons are hot and alternating
-    if (commonsAreBothHot && lastTwoAreCommons) {
-      // Let the commons alternating pattern handle this - don't override with dead noise
+    const isDominant = topPairValue && 
+      topPairValue.pct >= 80 && // 80%+ pair probability
+      topPairValue.momentum >= 1.5 && // Very hot
+      commons.includes(topPairValue.value); // It's a common, not noise
+    
+    // Skip overdue entirely if there's a dominant value crushing the session
+    if (isDominant) {
+      // Let frequency/pair logic handle this - don't predict a dead overdue value
       // Fall through to next step
     }
-    // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
-    else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
-      prediction = mostOverdue;
-      // Alt is the next most overdue, or the hottest value
-      const secondOverdue = VALUES
-        .filter(v => v !== mostOverdue && lastSeen[v] >= 0)
-        .sort((a, b) => lastSeen[b] - lastSeen[a])[0];
-      alt = secondOverdue || hotValues[0] || freqPrediction;
-      method = 'overdue-wave';
-      confidence = 0.60;
-    } else {
-      // Multiple overdue with low momentum - use pair matrix % as tiebreaker
-      // Get pair matrix percentages for overdue values
-      const lastRollMatrix = matrix[lastRoll] || {};
-      const overdueWithPairPct = overdueValues
-        .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD && (momentumScores[v] || 0) >= 0.20)
-        .map(v => ({
-          value: v,
-          pct: lastRollMatrix[v]?.pct || 0,
-          momentum: momentumScores[v] || 0
-        }))
-        .sort((a, b) => b.pct - a.pct); // Sort by pair probability
+    // 🔧 NEW: Check if commons are alternating hot - if so, skip overdue entirely
+    else {
+      const commonsAreBothHot = commons.length >= 2 && 
+        hotValues.includes(commons[0]) && 
+        hotValues.includes(commons[1]);
+      const lastTwoAreCommons = rolls.length >= 2 && 
+        commons.includes(rolls[rolls.length - 1]) && 
+        commons.includes(rolls[rolls.length - 2]) &&
+        rolls[rolls.length - 1] !== rolls[rolls.length - 2]; // And they alternated
       
-      if (overdueWithPairPct.length > 0 && overdueWithPairPct[0].pct > 0) {
-        // Pick the overdue value with highest pair probability
-        prediction = overdueWithPairPct[0].value;
-        alt = overdueWithPairPct[1]?.value || hotValues[0] || freqPrediction;
-        method = 'overdue-wave+pair';
-        confidence = 0.55; // Slightly lower since we're using tiebreaker
+      // Skip overdue if commons are hot and alternating
+      if (commonsAreBothHot && lastTwoAreCommons) {
+        // Let the commons alternating pattern handle this - don't override with dead noise
+        // Fall through to next step
+      }
+      // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
+      else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
+        prediction = mostOverdue;
+        // Alt is the next most overdue, or the hottest value
+        const secondOverdue = VALUES
+          .filter(v => v !== mostOverdue && lastSeen[v] >= 0)
+          .sort((a, b) => lastSeen[b] - lastSeen[a])[0];
+        alt = secondOverdue || hotValues[0] || freqPrediction;
+        method = 'overdue-wave';
+        confidence = 0.60;
+      } else {
+        // Multiple overdue with low momentum - use pair matrix % as tiebreaker
+        // Get pair matrix percentages for overdue values
+        const lastRollMatrix2 = matrix[lastRoll] || {};
+        const overdueWithPairPct = overdueValues
+          .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD && (momentumScores[v] || 0) >= 0.20)
+          .map(v => ({
+            value: v,
+            pct: lastRollMatrix2[v]?.pct || 0,
+            momentum: momentumScores[v] || 0
+          }))
+          .sort((a, b) => b.pct - a.pct); // Sort by pair probability
+        
+        if (overdueWithPairPct.length > 0 && overdueWithPairPct[0].pct > 0) {
+          // Pick the overdue value with highest pair probability
+          prediction = overdueWithPairPct[0].value;
+          alt = overdueWithPairPct[1]?.value || hotValues[0] || freqPrediction;
+          method = 'overdue-wave+pair';
+          confidence = 0.55; // Slightly lower since we're using tiebreaker
+        }
       }
     }
   }
   
   // Step 3: WAVE-INVERSE - Overrides if prob > 45%
-  else if (waveSignals.waveFlipProbability >= 45) {
+  if (!prediction && waveSignals.waveFlipProbability >= 45) {
     prediction = pairAlt || freqAlt;
     alt = pairPrediction || freqPrediction;
     method = 'wave-inverse';
@@ -829,7 +848,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 4: RUN BREAK - If 3+ consecutive same value
-  else if (runBreakLikely) {
+  if (!prediction && runBreakLikely) {
     const otherCommon = commons.find(c => c !== lastRoll);
     if (otherCommon) {
       prediction = otherCommon;
@@ -837,10 +856,10 @@ export function predictWithPairs(rolls) {
       method = 'run-break';
       confidence = currentRunLen >= 4 ? 0.80 : 0.70;
     }
-  } 
+  }
   
   // Step 5: 2-GRAM (More context)
-  else if (has2gramData && gram2Confidence >= 40) {
+  if (!prediction && has2gramData && gram2Confidence >= 40) {
     prediction = gram2Prediction;
     alt = gram2Alt;
     method = '2-gram';
@@ -848,7 +867,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 6: NOISE DOUBLE-TAP - If noise tends to pair, predict repeat!
-  else if (noiseDoubleTapLikely && doubleTapValue) {
+  if (!prediction && noiseDoubleTapLikely && doubleTapValue) {
     prediction = doubleTapValue;
     alt = hotValues[0] || commons[0];
     method = 'double-tap';
@@ -856,7 +875,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 7: NOISE-SNAPBACK - Single spike noise, expect return to common
-  else if (waveSignals.noiseAppearanceCount >= 2 && noise.includes(lastRoll) && currentRunLen === 1) {
+  if (!prediction && waveSignals.noiseAppearanceCount >= 2 && noise.includes(lastRoll) && currentRunLen === 1) {
     prediction = hotValues[0] || commons[0] || freqPrediction;
     alt = hotValues[1] || commons[1] || freqAlt;
     method = 'noise-snapback';
@@ -864,7 +883,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 8: NOISE RISING - A noise value is becoming a common
-  else if (noiseRising && noiseRising.length > 0) {
+  if (!prediction && noiseRising && noiseRising.length > 0) {
     prediction = noiseRising[0];
     alt = hotValues[0] || commons[0];
     method = 'noise-rising';
@@ -872,7 +891,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 9: Use 1-GRAM pair matrix if available
-  else if (pairPrediction && pairConfidence > 0) {
+  if (!prediction && pairPrediction && pairConfidence > 0) {
     prediction = pairPrediction;
     alt = pairAlt || freqAlt;
     confidence = pairConfidence / 100;
@@ -880,7 +899,7 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 10: FREQUENCY FALLBACK - Use distribution
-  else {
+  if (!prediction) {
     prediction = freqPrediction;
     alt = freqAlt;
     // 🔧 FIX: Ensure minimum confidence of 30% for frequency predictions
