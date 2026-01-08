@@ -280,22 +280,39 @@ export default function WarpAnalyzer() {
 
     const shortcutString = useMemo(() => {
     const peaks = activeAnalysis?.peaks || [];
-    if (!peaks.length) return { string: "---", pity: [] };
-    const prePityPeaks = peaks.filter(p => p.roll < softPityStart).sort((a, b) => a.roll - b.roll).slice(0, 8);
-    if (prePityPeaks.length === 0) return { string: "---", pity: [] };
+    if (!peaks.length) return { string: "---", pity: [], path: [] };
+    
+    // Filter to pre-soft-pity peaks only, already consolidated by detectLuckyPeaks
+    const prePityPeaks = peaks.filter(p => p.roll < softPityStart).sort((a, b) => a.roll - b.roll);
+    if (prePityPeaks.length === 0) return { string: "---", pity: [], path: [] };
+    
+    // SWEEP-ALIGNED ALGORITHM:
+    // For each peak, calculate how many x1 singles to do so that the x10 ENDS on the peak
+    // Formula: peak.roll % 10 = singles to do, then x10s will land on multiples of 10 offset by that amount
     const digits = [];
     const pityNumbers = [];
-    let currentPity = 0;
+    const path = [];
+    
     for (const peak of prePityPeaks) {
-      const gap = peak.roll - currentPity;
-      const remainder = gap % 10;
-      digits.push(remainder.toString());
+      // The "landing digit" - how many singles to do so x10s end on this peak
+      const landingDigit = peak.roll % 10;
+      digits.push(landingDigit.toString());
       pityNumbers.push(peak.roll);
-      currentPity = peak.roll;
+      
+      // Calculate how many x10s needed from start to reach this peak
+      const x10Count = Math.floor(peak.roll / 10);
+      path.push({
+        singles: landingDigit,
+        x10s: x10Count,
+        landsOn: peak.roll,
+        chance: peak.chance
+      });
     }
+    
     return {
       string: digits.join(" "),
-      pity: pityNumbers
+      pity: pityNumbers,
+      path: path
     };
   }, [activeAnalysis, softPityStart]);
 
@@ -548,19 +565,6 @@ export default function WarpAnalyzer() {
                                           )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                           {/* Wins Only Toggle - Genshin Specific */}
-                                           {selectedGame === 'genshin' && winRate && (
-                                             <button 
-                                               onClick={() => setWinsOnlyMode(!winsOnlyMode)}
-                                               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
-                                                 winsOnlyMode 
-                                                   ? "bg-emerald-600 text-white border-emerald-500" 
-                                                   : "bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white"
-                                               }`}
-                                             >
-                                               {winsOnlyMode ? "✓ Wins Only" : "Wins Only"}
-                                             </button>
-                                           )}
                                            {/* Count/Chance Toggle */}
                                            <div className="flex bg-slate-800/50 rounded-lg p-1">
                                               <button onClick={() => setChartView('count')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${chartView === 'count' ? "bg-purple-600 text-white" : "text-slate-500 hover:text-white"}`}>Count</button>
@@ -659,6 +663,26 @@ export default function WarpAnalyzer() {
                                               {shortcutString.string}
                                           </div>
                                      </div>
+                                     {/* Sweep Path - Explicit x1/x10 sequence */}
+                                     {shortcutString.path && shortcutString.path.length > 0 && (
+                                       <div>
+                                         <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Sweep Path <span className="text-slate-600">[x1 → x10 → Land]</span></h4>
+                                         <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-3 space-y-1">
+                                           {shortcutString.path.map((step, i) => (
+                                             <div key={i} className="flex items-center justify-between font-mono text-xs">
+                                               <div className="flex items-center gap-2">
+                                                 <span className={`${winsOnlyMode ? 'text-emerald-400' : 'text-amber-400'}`}>{step.singles}x1</span>
+                                                 <span className="text-slate-500">→</span>
+                                                 <span className="text-purple-400">{step.x10s}x10</span>
+                                                 <span className="text-slate-500">→</span>
+                                                 <span className="text-white font-bold">#{step.landsOn}</span>
+                                               </div>
+                                               <span className="text-slate-500 text-[10px]">{(step.chance * 100).toFixed(1)}%</span>
+                                             </div>
+                                           ))}
+                                         </div>
+                                       </div>
+                                     )}
                                      <div>
                                          <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Pre-Pity Sequence <span className="text-slate-600">[1-{softPityStart - 1}]</span></h4>
                                           <div className={`bg-slate-800/30 border border-slate-700 rounded-lg p-3 font-mono text-sm ${winsOnlyMode ? 'text-emerald-400' : 'text-amber-400'}`}>

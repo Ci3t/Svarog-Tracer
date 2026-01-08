@@ -338,11 +338,44 @@ export function detectLuckyPeaks(pullsData, chanceData, options = {}) {
   softPityRolls.sort((a, b) => b.chance - a.chance);
   const topSoftPity = softPityRolls.slice(0, topNSoftPity);
 
-  // === COMBINE AND RETURN ===
-  // Sort the final string by roll number for readability
-  const allPeaks = [...topPreSoftPity, ...topSoftPity].sort((a, b) => a.roll - b.roll);
+  // === CONSOLIDATE PEAKS ===
+  // Merge peaks within 10 of each other (for sweep-aligned strings)
+  const consolidatedPeaks = consolidatePeaks([...topPreSoftPity, ...topSoftPity], 10);
   
-  return allPeaks;
+  // Sort by roll number for readability
+  return consolidatedPeaks.sort((a, b) => a.roll - b.roll);
+}
+
+/**
+ * Consolidate nearby peaks for sweep-aligned string generation.
+ * Peaks within `minDistance` of each other are merged, keeping the best one.
+ * @param {Array} peaks - Array of peak objects with roll, chance, zScore
+ * @param {number} minDistance - Minimum distance between peaks (default: 10)
+ * @returns {Array} Consolidated peaks
+ */
+export function consolidatePeaks(peaks, minDistance = 10) {
+  if (!peaks || peaks.length === 0) return [];
+  
+  // Sort by roll number first
+  const sorted = [...peaks].sort((a, b) => a.roll - b.roll);
+  const consolidated = [];
+  
+  for (const peak of sorted) {
+    // Check if this peak is within minDistance of the last consolidated peak
+    const lastPeak = consolidated[consolidated.length - 1];
+    
+    if (!lastPeak || (peak.roll - lastPeak.roll) >= minDistance) {
+      // Far enough apart, add as new peak
+      consolidated.push(peak);
+    } else {
+      // Too close, keep the one with higher chance
+      if (peak.chance > lastPeak.chance) {
+        consolidated[consolidated.length - 1] = peak;
+      }
+    }
+  }
+  
+  return consolidated;
 }
 
 // Fallback for when chance data isn't available
@@ -422,7 +455,6 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
   const total5050 = countWin + countLose;
   const winRatio = total5050 > 0 ? countWin / total5050 : 0.5;
   
-  // Scale factor for Wins vs Total
   const totalPulls = stats.total_pulls_5 || 1;
   const scaleFactor = countWin / totalPulls;
   
@@ -431,20 +463,56 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
   const originalDist = stats.by_rollnum_pulls_5 || {};
   const originalChance = stats.by_rollnum_chance_5 || {};
   
-  // Apply SHARPENING to differentiate from global string
-  // This helps prune noise peaks that are likely standard characters
-  const power = 1.08; // Slightly milder sharpening to preserve more win peaks
+  // === CORE INSIGHT: Wins tend to cluster at different spots than overall pulls ===
+  // We simulate this by: 
+  // 1. Boosting early rolls (1-35) where lucky wins concentrate
+  // 2. Suppressing mid-pity (36-65) where losses accumulate
+  // 3. Keeping soft-pity similar but slightly favoring earliest soft-pity hits
   
-  for (const [roll, count] of Object.entries(originalDist)) {
-    // 1. Scale down by the win ratio
-    // 2. Apply power law to sharpen the significant peaks
-    const scaledCount = count * scaleFactor;
-    winsOnlyPulls5[roll] = Math.max(1, Math.round(Math.pow(scaledCount, power) / 5)); // Balanced scale
+  for (const [rollStr, count] of Object.entries(originalDist)) {
+    const roll = parseInt(rollStr);
+    const chance = originalChance[roll] || 0;
+    
+    // Early luck boost (rolls 1-35): Winners tend to hit here
+    let modifier = 1.0;
+    if (roll <= 15) {
+      modifier = 2.5; // Strong boost for super early wins
+    } else if (roll <= 35) {
+      modifier = 1.8; // Moderate boost for early wins
+    } else if (roll <= 55) {
+      modifier = 0.4; // Suppress mid-pity (loss zone)
+    } else if (roll <= 73) {
+      modifier = 0.7; // Slight suppression for late pre-pity
+    } else if (roll <= 78) {
+      modifier = 1.3; // Boost early soft-pity
+    } else {
+      modifier = 0.9; // Late soft-pity slight reduction
+    }
+    
+    const scaledCount = count * scaleFactor * modifier;
+    winsOnlyPulls5[roll] = Math.max(1, Math.round(scaledCount));
   }
   
-  for (const [roll, chance] of Object.entries(originalChance)) {
-    // Sharpen chances to favor the highest peaks
-    winsOnlyChance5[roll] = Math.pow(chance, power) * 1.5; 
+  // Apply same modifiers to chance data for consistent peak detection
+  for (const [rollStr, chance] of Object.entries(originalChance)) {
+    const roll = parseInt(rollStr);
+    
+    let modifier = 1.0;
+    if (roll <= 15) {
+      modifier = 2.5;
+    } else if (roll <= 35) {
+      modifier = 1.8;
+    } else if (roll <= 55) {
+      modifier = 0.4;
+    } else if (roll <= 73) {
+      modifier = 0.7;
+    } else if (roll <= 78) {
+      modifier = 1.3;
+    } else {
+      modifier = 0.9;
+    }
+    
+    winsOnlyChance5[roll] = chance * modifier;
   }
   
   return { 
