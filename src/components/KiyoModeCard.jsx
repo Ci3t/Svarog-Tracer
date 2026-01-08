@@ -871,20 +871,24 @@ export default function KiyoModeCard({
     onSendKiyoDebugData,
   ]);
 
+  const submitRoll = () => {
+    const value = testInput.trim();
+
+    if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
+      // Store both raw and translated
+      const translated = translateTo4(value);
+      const ts = windowInfo?.startMs || Date.now();
+      setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
+      setTestInput("");
+    } else {
+      setTestInput("");
+    }
+  };
+
   const handleTestRollSubmit = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const value = testInput.trim();
-
-      if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
-        // Store both raw and translated
-        const translated = translateTo4(value);
-        const ts = windowInfo?.startMs || Date.now();
-        setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
-        setTestInput("");
-      } else {
-        setTestInput("");
-      }
+      submitRoll();
     }
   };
 
@@ -1022,6 +1026,7 @@ export default function KiyoModeCard({
               testInput={testInput}
               setTestInput={setTestInput}
               handleTestRollSubmit={handleTestRollSubmit}
+              onAddRoll={submitRoll}
               setActivePrefix={setActivePrefix}
             />
           </div>

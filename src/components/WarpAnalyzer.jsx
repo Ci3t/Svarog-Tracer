@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners } from "../utils/warpDataService";
+import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -10,36 +10,60 @@ const Icons = {
   Target: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
   Star: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
   ChevronRight: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>,
-  ChevronLeft: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6"/></svg>
+  ChevronLeft: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6"/></svg>,
+  Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>
 };
 
 export default function WarpAnalyzer() {
   const [url, setUrl] = useState(() => localStorage.getItem('warp_source_url') || "");
+  const [genshinBannerId, setGenshinBannerId] = useState(() => localStorage.getItem('genshin_banner_id') || "");
+  const [selectedGame, setSelectedGame] = useState('hsr'); // 'hsr' | 'genshin'
   const [banners, setBanners] = useState(PRESET_BANNERS);
   const [selectedBannerId, setSelectedBannerId] = useState(PRESET_BANNERS[0]?.id); 
   const [bannerType, setBannerType] = useState('character');
   const [chartView, setChartView] = useState('count'); // 'count' | 'chance'
+  const [winsOnlyMode, setWinsOnlyMode] = useState(false); // Toggle for wins-only distribution
+
 
   const [data, setData] = useState(null);
   const [cachedData, setCachedData] = useState({}); // Banner ID -> Data
   const [loading, setLoading] = useState(false); 
   const [error, setError] = useState(null);
   const [showInputModal, setShowInputModal] = useState(false);
+  const [modalTab, setModalTab] = useState('hsr'); // Tab for the config modal
   const [toast, setToast] = useState(null); // { message, type: 'cache' | 'fetch' }
 
   const DEFAULT_URL = "https://starrailstation.com/en/warp#global";
 
-  // -- LOGIC --
+  // -- Load banners based on selected game --
   useEffect(() => {
-    fetchLiveBanners(true).then(result => {
+    const loadBanners = async () => {
+      if (selectedGame === 'hsr') {
+        const result = await fetchLiveBanners(true);
         if (result.data && result.data.length > 0) {
-            setBanners(result.data);
-            if (!result.data.find(b => b.id === selectedBannerId)) {
-                setSelectedBannerId(result.data[0].id);
-            }
+          setBanners(result.data);
+          setSelectedBannerId(result.data[0].id);
+        } else {
+          setBanners(PRESET_BANNERS);
+          setSelectedBannerId(PRESET_BANNERS[0]?.id);
         }
-    }).catch(e => console.warn(e));
-  }, []);
+      } else {
+        const result = await fetchGenshinLiveBanners(true);
+        if (result.data && result.data.length > 0) {
+          setBanners(result.data);
+          setSelectedBannerId(result.data[0].id);
+        } else {
+          setBanners(GENSHIN_PRESET_BANNERS);
+          setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
+        }
+      }
+      // Clear current data when switching games
+      setData(null);
+      setBannerType('character');
+      setWinsOnlyMode(false);
+    };
+    loadBanners().catch(e => console.warn(e));
+  }, [selectedGame]);
 
   const handleFetch = async (targetId, force = false) => {
     let fetchTarget = targetId || selectedBannerId; 
@@ -49,17 +73,36 @@ export default function WarpAnalyzer() {
         fetchTarget = (potentialUrl.includes('#global') || potentialUrl === DEFAULT_URL) ? 'global' : potentialUrl;
     }
 
-    const id = extractBannerId(fetchTarget) || (fetchTarget === 'global' ? 'global' : fetchTarget);
+    // For Genshin, we need to extract the actual API banner ID from the composite ID
+    // Composite ID format: {bannerId}_{characterId} (e.g., "300093_xilonen")
+    let apiBannerId = fetchTarget;
+    if (selectedGame === 'genshin' && fetchTarget) {
+      // Find the banner in our list to get its bannerId
+      const banner = banners.find(b => b.id === fetchTarget);
+      if (banner && banner.bannerId) {
+        apiBannerId = banner.bannerId;
+      } else if (fetchTarget.includes('_')) {
+        // Fallback: extract from composite ID
+        apiBannerId = fetchTarget.split('_')[0];
+      }
+    }
+
+    const id = selectedGame === 'genshin' 
+      ? apiBannerId 
+      : (extractBannerId(fetchTarget) || (fetchTarget === 'global' ? 'global' : fetchTarget));
 
     if (!id) {
         setError("Invalid Source");
         return;
     }
 
+    // Cache key includes game AND the unique banner ID (for character separation)
+    const cacheKey = `${selectedGame}_${fetchTarget || id}`;
+
     // API GUARD: Don't refetch if we have data for this ID unless forced
-    if (!force && cachedData[id]) {
-        console.log(`[API GUARD] Using cached data for: ${id}`);
-        setData(cachedData[id]);
+    if (!force && cachedData[cacheKey]) {
+        console.log(`[API GUARD] Using cached data for: ${cacheKey}`);
+        setData(cachedData[cacheKey]);
         setToast({ message: '✓ Using cached data', type: 'cache' });
         setTimeout(() => setToast(null), 2000);
         return;
@@ -72,9 +115,14 @@ export default function WarpAnalyzer() {
     setToast({ message: '↻ Fetching fresh data...', type: 'fetch' });
 
     try {
-      const stats = await fetchWarpStats(id === 'global' ? '2099' : id);
+      let stats;
+      if (selectedGame === 'genshin') {
+        stats = await fetchGenshinWishStats(id);
+      } else {
+        stats = await fetchWarpStats(id === 'global' ? '2099' : id);
+      }
       setData(stats);
-      setCachedData(prev => ({ ...prev, [id]: stats }));
+      setCachedData(prev => ({ ...prev, [cacheKey]: stats }));
       setToast({ message: '✓ Data updated!', type: 'cache' });
       setTimeout(() => setToast(null), 2000);
     } catch (err) {
@@ -85,33 +133,101 @@ export default function WarpAnalyzer() {
     }
   };
 
+
+  // Banner filtering - handle both HSR (light_cone) and Genshin (weapon) types
+  const activeBanners = useMemo(() => {
+    if (bannerType === 'character') {
+      return banners.filter(b => b.type === 'character');
+    }
+    // For non-character, accept both 'light_cone' and 'weapon'
+    return banners.filter(b => b.type === 'light_cone' || b.type === 'weapon');
+  }, [banners, bannerType]);
+
+  // Auto-select first banner when switching tabs to prevent stale selections
+  useEffect(() => {
+    if (activeBanners.length > 0) {
+      const currentExists = activeBanners.some(b => b.id === selectedBannerId);
+      if (!currentExists) {
+        // Current selection doesn't exist in new tab, switch to first available
+        setSelectedBannerId(activeBanners[0].id);
+        setData(null); // Clear data for new selection
+        setWinsOnlyMode(false);
+      }
+    }
+  }, [activeBanners, selectedBannerId]);
+
+  // Current selected banner
+  const currentBanner = useMemo(() => {
+    return banners.find(b => b.id === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
+  }, [banners, selectedBannerId, activeBanners]);
+
+  // Calculate 50/50 win rate from API data
+  const winRate = useMemo(() => {
+    if (!data || !data.stats) return null;
+    const wins = data.stats.count_win_5 || 0;
+    const losses = data.stats.count_lose_5 || 0;
+    const total = wins + losses;
+    if (total === 0) return null;
+    return Math.round((wins / total) * 100);
+  }, [data]);
+
+  // Calculate wins-only distribution for both HSR and Genshin
+  const winsOnlyData = useMemo(() => {
+    if (!data || !data.stats) return null;
+    return estimateWinsOnlyDistribution(data.stats, currentBanner?.characterId);
+  }, [data, currentBanner]);
+
+  // Normal analysis (all pulls)
   const analysis = useMemo(() => {
     if (!data || !data.stats) return null;
     const pulls5 = data.stats.by_rollnum_pulls_5 || {};
     const chance5 = data.stats.by_rollnum_chance_5 || {};
-    const peaks = detectLuckyPeaks(pulls5, chance5);
+    const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5 });
     const metrics = calculateWarpMetrics(data.stats);
     return { peaks, metrics };
   }, [data]);
 
+  // Wins-only analysis (Elite filter for "purer" results)
+  const winsOnlyAnalysis = useMemo(() => {
+    if (!winsOnlyData) return null;
+    const peaks = detectLuckyPeaks(winsOnlyData.winsOnlyPulls5, winsOnlyData.winsOnlyChance5, { 
+      topN: 2,      // 2 peaks per segment (better balance)
+      minZScore: 0.75 // Moderate lucky threshold
+    });
+    return { peaks, winRatioPct: winsOnlyData.winRatioPct };
+  }, [winsOnlyData]);
+
+  // Active analysis based on mode (Wins only is restricted to Genshin)
+  const isWinsOnlyActive = winsOnlyMode && selectedGame === 'genshin';
+  const activeAnalysis = isWinsOnlyActive ? winsOnlyAnalysis : analysis;
+
   const chartData = useMemo(() => {
     if (!data || !data.stats) return [];
-    const pulls5 = data.stats.by_rollnum_pulls_5 || {};
-    const chance5 = data.stats.by_rollnum_chance_5 || {};
+    
+    // Use wins-only data when toggled AND for Genshin only
+    const useWinsOnly = winsOnlyMode && selectedGame === 'genshin' && winsOnlyData;
+    
+    const pulls5 = useWinsOnly
+      ? winsOnlyData.winsOnlyPulls5 
+      : data.stats.by_rollnum_pulls_5 || {};
+    const chance5 = useWinsOnly
+      ? winsOnlyData.winsOnlyChance5 
+      : data.stats.by_rollnum_chance_5 || {};
+      
     return Array.from({ length: 90 }, (_, i) => ({
       roll: i + 1,
       count: pulls5[i + 1] || 0,
       chance: chance5[i + 1] || 0
     }));
-  }, [data]);
+  }, [data, winsOnlyMode, winsOnlyData, selectedGame]);
 
   const maxCount = useMemo(() => Math.max(...chartData.map(d => d.count), 1), [chartData]);
   const maxChance = useMemo(() => Math.max(...chartData.map(d => d.chance), 0.001), [chartData]);
-  const activeBanners = useMemo(() => banners.filter(b => b.type === bannerType), [banners, bannerType]);
 
   const pullStrategy = useMemo(() => {
-    if (!analysis || !analysis.peaks.length) return [];
-    const sortedPeaks = [...analysis.peaks].sort((a, b) => a.roll - b.roll);
+    const peaks = activeAnalysis?.peaks || [];
+    if (!peaks.length) return [];
+    const sortedPeaks = [...peaks].sort((a, b) => a.roll - b.roll);
     const strategy = [];
     let currentRoll = 0;
     for (const peak of sortedPeaks) {
@@ -150,14 +266,22 @@ export default function WarpAnalyzer() {
       currentRoll = targetRoll;
     }
     return strategy;
-  }, [analysis]);
+  }, [activeAnalysis]);
 
-    const softPityStart = bannerType === 'character' ? 75 : 65;
-    const softPityEnd = bannerType === 'character' ? 90 : 80;
+    // Soft pity varies by game and banner type
+    // HSR: Characters 75-90, Light Cones 65-80
+    // Genshin: Characters 74-90, Weapons 63-80
+    const softPityStart = selectedGame === 'genshin' 
+      ? (bannerType === 'character' ? 74 : 63)
+      : (bannerType === 'character' ? 75 : 65);
+    const softPityEnd = selectedGame === 'genshin'
+      ? (bannerType === 'character' ? 90 : 80)
+      : (bannerType === 'character' ? 90 : 80);
 
     const shortcutString = useMemo(() => {
-    if (!analysis || !analysis.peaks.length) return { string: "---", pity: [] };
-    const prePityPeaks = analysis.peaks.filter(p => p.roll < softPityStart).sort((a, b) => a.roll - b.roll).slice(0, 8);
+    const peaks = activeAnalysis?.peaks || [];
+    if (!peaks.length) return { string: "---", pity: [] };
+    const prePityPeaks = peaks.filter(p => p.roll < softPityStart).sort((a, b) => a.roll - b.roll).slice(0, 8);
     if (prePityPeaks.length === 0) return { string: "---", pity: [] };
     const digits = [];
     const pityNumbers = [];
@@ -173,11 +297,7 @@ export default function WarpAnalyzer() {
       string: digits.join(" "),
       pity: pityNumbers
     };
-  }, [analysis]);
-
-  const currentBanner = useMemo(() => {
-    return banners.find(b => b.id === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
-  }, [banners, selectedBannerId, activeBanners]);
+  }, [activeAnalysis, softPityStart]);
 
   return (
     <div className="min-h-screen text-slate-100 font-sans selection:bg-amber-500 selection:text-white pb-20 relative overflow-hidden">
@@ -268,6 +388,36 @@ export default function WarpAnalyzer() {
                     </div>
                   </div>
 
+                  {/* GAME SWITCHER */}
+                  <div className="max-w-4xl mx-auto mb-8">
+                    <div className="flex justify-center">
+                      <div className="inline-flex items-center gap-2 p-1 bg-slate-900/70 backdrop-blur-sm border border-slate-700 rounded-xl">
+                        <button
+                          onClick={() => setSelectedGame('hsr')}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                            selectedGame === 'hsr' 
+                              ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-lg shadow-purple-900/50' 
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <img src={`${import.meta.env.BASE_URL}HSRIcon.png`} alt="HSR" className="w-6 h-6 rounded-full" />
+                          Honkai: Star Rail
+                        </button>
+                        <button
+                          onClick={() => setSelectedGame('genshin')}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                            selectedGame === 'genshin' 
+                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-900/50' 
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-6 h-6 rounded-full" />
+                          Genshin Impact
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* BANNER SELECTION (Tabs + Grid) */}
                   <div className="max-w-4xl mx-auto mb-12">
                      <div className="flex justify-center mb-8">
@@ -279,12 +429,13 @@ export default function WarpAnalyzer() {
                                   Characters
                               </button>
                               <button
-                                  onClick={() => setBannerType('light_cone')}
-                                  className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${bannerType === 'light_cone' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/40" : "text-slate-400 hover:text-white"}`}
+                                  onClick={() => setBannerType(selectedGame === 'genshin' ? 'weapon' : 'light_cone')}
+                                  className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "bg-purple-600 text-white shadow-lg shadow-purple-900/40" : "text-slate-400 hover:text-white"}`}
                               >
-                                  Light Cones
+                                  {selectedGame === 'genshin' ? 'Weapons' : 'Light Cones'}
                               </button>
                          </div>
+
                      </div>
 
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -292,7 +443,7 @@ export default function WarpAnalyzer() {
                              const isSelected = selectedBannerId === banner.id;
                              return (
                                  <div 
-                                     key={banner.id}
+                                     key={`${banner.id}_${banner.characterId}`}
                                      onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                                      className={`
                                           group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300
@@ -321,6 +472,61 @@ export default function WarpAnalyzer() {
                      </div>
                   </div>
 
+                  {/* ERROR DISPLAY WITH RECOVERY OPTIONS */}
+                  {error && !loading && (
+                    <div className={`max-w-4xl mx-auto mb-8 ${error.includes('400') ? 'bg-amber-950/40 border-amber-500/30' : 'bg-red-950/40 border-red-500/30'} border rounded-2xl p-6 animate-in fade-in`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`p-2 ${error.includes('400') ? 'bg-amber-500/20' : 'bg-red-500/20'} rounded-lg shrink-0`}>
+                          <Icons.Zap className={`w-5 h-5 ${error.includes('400') ? 'text-amber-400' : 'text-red-400'}`} />
+                        </div>
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <h4 className={`${error.includes('400') ? 'text-amber-400' : 'text-red-400'} font-bold uppercase tracking-wider text-sm`}>
+                              {error.includes('400') ? 'No Data Available Yet' : 'Fetch Failed'}
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {error.includes('400') 
+                                ? 'Community data for this banner has not been collected yet. This usually happens with brand new banners.' 
+                                : error}
+                            </p>
+                          </div>
+                          {/* Only show retry buttons for non-400 errors to avoid API flooding */}
+                          {!error.includes('400') && (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => handleFetch(selectedBannerId, true)}
+                                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 rounded-lg text-xs font-bold text-red-400 uppercase tracking-wider transition-all"
+                              >
+                                ↻ Retry Now
+                              </button>
+                              <button
+                                onClick={() => setShowInputModal(true)}
+                                className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/40 rounded-lg text-xs font-bold text-slate-300 uppercase tracking-wider transition-all"
+                              >
+                                ⚙ Manual Override
+                              </button>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-500 italic">
+                            {error.includes('400') 
+                              ? 'Tip: Try a different banner, or check back in a few hours once the community uploads more pull data.' 
+                              : 'Tip: Click "Manual Override" to enter a banner ID directly, or wait for automatic retry on next banner selection.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LOADING STATE */}
+                  {loading && (
+                    <div className="max-w-4xl mx-auto mb-8 bg-purple-950/30 border border-purple-500/30 rounded-2xl p-6 animate-pulse">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-purple-400 font-bold uppercase tracking-wider text-sm">Fetching data (retrying if needed)...</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* INITIATE BUTTON REMOVED - Clicking banners auto-triggers fetch with caching */}
                   {/* Force refresh available in config modal */}
 
@@ -334,12 +540,34 @@ export default function WarpAnalyzer() {
                                        <div className="flex items-center gap-2">
                                           <Icons.BarChart3 className="w-5 h-5 text-purple-500" />
                                           <h3 className="text-xl font-bold text-white">Distribution</h3>
-                                       </div>
-                                       <div className="flex bg-slate-800/50 rounded-lg p-1">
-                                          <button onClick={() => setChartView('count')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${chartView === 'count' ? "bg-purple-600 text-white" : "text-slate-500 hover:text-white"}`}>Count</button>
-                                          <button onClick={() => setChartView('chance')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${chartView === 'chance' ? "bg-purple-600 text-white" : "text-slate-500 hover:text-white"}`}>Chance %</button>
-                                       </div>
-                                 </div>
+                                          {/* 50/50 Win Rate Badge */}
+                                          {winRate && (
+                                            <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                                              50/50: {winRate}%
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                           {/* Wins Only Toggle - Genshin Specific */}
+                                           {selectedGame === 'genshin' && winRate && (
+                                             <button 
+                                               onClick={() => setWinsOnlyMode(!winsOnlyMode)}
+                                               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                                                 winsOnlyMode 
+                                                   ? "bg-emerald-600 text-white border-emerald-500" 
+                                                   : "bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white"
+                                               }`}
+                                             >
+                                               {winsOnlyMode ? "✓ Wins Only" : "Wins Only"}
+                                             </button>
+                                           )}
+                                           {/* Count/Chance Toggle */}
+                                           <div className="flex bg-slate-800/50 rounded-lg p-1">
+                                              <button onClick={() => setChartView('count')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${chartView === 'count' ? "bg-purple-600 text-white" : "text-slate-500 hover:text-white"}`}>Count</button>
+                                              <button onClick={() => setChartView('chance')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${chartView === 'chance' ? "bg-purple-600 text-white" : "text-slate-500 hover:text-white"}`}>Chance %</button>
+                                           </div>
+                                        </div>
+                                  </div>
                                  
                                   <div className="relative h-[400px] w-full pt-8">
                                       <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-slate-600 font-mono">
@@ -350,7 +578,7 @@ export default function WarpAnalyzer() {
                                              const val = chartView === 'count' ? d.count : d.chance;
                                              const max = chartView === 'count' ? maxCount : maxChance;
                                              const height = Math.max((val / max) * 100, 2);
-                                             const peakInfo = analysis.peaks.find(p => p.roll === d.roll);
+                                             const peakInfo = activeAnalysis?.peaks?.find(p => p.roll === d.roll);
                                              const isPeak = !!peakInfo;
                                              // Soft pity: Characters 75-90, Light Cones 65-80
                                              const softPityStart = bannerType === 'light_cone' ? 65 : 75;
@@ -412,41 +640,48 @@ export default function WarpAnalyzer() {
 
                          <div className="space-y-6">
                              <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
-                                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl" />
-                                  <div className="flex items-center gap-2 mb-6">
-                                      <Icons.Sparkles className="w-5 h-5 text-purple-500" />
-                                      <h3 className="text-xl font-bold text-white">Lucky String</h3>
+                                  <div className={`absolute top-0 right-0 w-32 h-32 ${winsOnlyMode ? 'bg-emerald-500/5' : 'bg-purple-500/5'} rounded-full blur-3xl`} />
+                                  <div className="flex items-center justify-between mb-6">
+                                      <div className="flex items-center gap-2">
+                                          <Icons.Sparkles className={`w-5 h-5 ${winsOnlyMode ? 'text-emerald-500' : 'text-purple-500'}`} />
+                                          <h3 className="text-xl font-bold text-white">{winsOnlyMode ? "Wins Only String" : "Lucky String"}</h3>
+                                      </div>
+                                      {winsOnlyMode && (
+                                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 uppercase tracking-widest">
+                                              Wins Only
+                                          </span>
+                                      )}
                                   </div>
                                  <div className="space-y-4 relative z-10">
                                      <div>
                                          <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Shortcut String</h4>
-                                          <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/10 border border-amber-500/30 rounded-lg p-3 font-mono text-xl font-bold text-amber-400 tracking-[0.2em] text-center">
+                                          <div className={`bg-gradient-to-r ${winsOnlyMode ? 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-400' : 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400'} border rounded-lg p-3 font-mono text-xl font-bold tracking-[0.2em] text-center`}>
                                               {shortcutString.string}
                                           </div>
                                      </div>
                                      <div>
                                          <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Pre-Pity Sequence <span className="text-slate-600">[1-{softPityStart - 1}]</span></h4>
-                                          <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-3 font-mono text-sm text-amber-400">
-                                              {analysis.peaks.filter(p => p.roll < softPityStart).slice(0, 8).map(p => p.roll).join(" - ") || "No peaks"}
+                                          <div className={`bg-slate-800/30 border border-slate-700 rounded-lg p-3 font-mono text-sm ${winsOnlyMode ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                              {activeAnalysis?.peaks?.filter(p => p.roll < softPityStart).slice(0, 8).map(p => p.roll).join(" - ") || "No peaks"}
                                           </div>
                                      </div>
                                       <div>
-                                          <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Soft Pity Zone <span className="text-purple-500">[{softPityStart}+]</span></h4>
-                                          <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 font-mono text-sm text-purple-400">
-                                              {analysis.peaks.filter(p => p.roll >= softPityStart).map(p => p.roll).join(" - ") || "No soft pity peaks"}
+                                          <h4 className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Soft Pity Zone <span className={winsOnlyMode ? 'text-emerald-500' : 'text-purple-500'}>[{softPityStart}+]</span></h4>
+                                          <div className={`border rounded-lg p-3 font-mono text-sm ${winsOnlyMode ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-purple-500/10 border-purple-500/30 text-purple-400'}`}>
+                                              {activeAnalysis?.peaks?.filter(p => p.roll >= softPityStart).map(p => p.roll).join(" - ") || "No soft pity peaks"}
                                           </div>
                                       </div>
                                      <div>
                                          <h4 className="text-xs font-mono text-slate-500 mb-3 uppercase tracking-wider">All Peak Rolls</h4>
                                           <div className="grid grid-cols-4 gap-2">
-                                              {analysis.peaks.slice(0, 12).map((p, i) => {
+                                              {activeAnalysis?.peaks?.slice(0, 12).map((p, i) => {
                                                   const zVal = parseFloat(p.zScore) || 0;
                                                   const isSuperLucky = zVal >= 2.7;
                                                   const isSoftPity = p.roll >= softPityStart;
                                                   return (
                                                       <div key={i} className={`rounded-md py-2 text-center font-mono text-xs font-bold border transition-colors
                                                           ${isSuperLucky ? "bg-amber-500/30 border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.3)]" 
-                                                          : isSoftPity ? "bg-violet-500/20 border-violet-500/30 text-violet-400" 
+                                                          : isSoftPity ? (winsOnlyMode ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : "bg-violet-500/20 border-violet-500/30 text-violet-400") 
                                                           : "bg-slate-800/50 border-slate-700 text-slate-300 hover:border-purple-500/50 hover:text-purple-400"}
                                                       `} title={`Z-score: ${p.zScore || 'N/A'}`}>
                                                           #{p.roll}
@@ -465,23 +700,93 @@ export default function WarpAnalyzer() {
                   {showInputModal && (
                       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowInputModal(false)}>
                           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-                              <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-bold text-white">Source Configuration</h3>
-                                <button onClick={() => setShowInputModal(false)} className="text-slate-500 hover:text-white">&times;</button>
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-white">Manual Override</h3>
+                                <button onClick={() => setShowInputModal(false)} className="text-slate-500 hover:text-white text-2xl">&times;</button>
                               </div>
-                              <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 mb-6">
-                                   <input
-                                       type="text"
-                                       placeholder="https://starrailstation.com/en/warp#global"
-                                       className="w-full bg-transparent text-sm font-mono text-purple-400 placeholder-slate-600 focus:outline-none"
-                                       value={url}
-                                       onChange={(e) => setUrl(e.target.value)}
-                                   />
+                              
+                              {/* Game Tabs */}
+                              <div className="flex gap-2 mb-4">
+                                <button 
+                                  onClick={() => setModalTab('hsr')}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
+                                    modalTab === 'hsr' 
+                                      ? 'bg-purple-600 text-white' 
+                                      : 'text-slate-400 hover:text-white bg-slate-800/50'
+                                  }`}
+                                >
+                                  <img src={`${import.meta.env.BASE_URL}HSRIcon.png`} alt="HSR" className="w-5 h-5 rounded-full" />
+                                  Star Rail
+                                </button>
+                                <button 
+                                  onClick={() => setModalTab('genshin')}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
+                                    modalTab === 'genshin' 
+                                      ? 'bg-amber-500 text-white' 
+                                      : 'text-slate-400 hover:text-white bg-slate-800/50'
+                                  }`}
+                                >
+                                  <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-5 h-5 rounded-full" />
+                                  Genshin
+                                </button>
                               </div>
-                              <div className="flex justify-between items-center">
-                                  <button onClick={() => { setUrl(""); localStorage.removeItem('warp_source_url'); }} className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-wider">Reset Default</button>
-                                   <button onClick={() => { localStorage.setItem('warp_source_url', url); handleFetch(null, true); }} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-sm transition-colors shadow-lg shadow-purple-900/40">Save Strategy</button>
-                              </div>
+
+                              {/* HSR Input */}
+                              {modalTab === 'hsr' && (
+                                <>
+                                  <p className="text-xs text-slate-500 mb-2">Enter StarRailStation URL or Banner ID</p>
+                                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 mb-4">
+                                    <input
+                                      type="text"
+                                      placeholder="https://starrailstation.com/en/warp#2099"
+                                      className="w-full bg-transparent text-sm font-mono text-purple-400 placeholder-slate-600 focus:outline-none"
+                                      value={url}
+                                      onChange={(e) => setUrl(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <button onClick={() => { setUrl(""); localStorage.removeItem('warp_source_url'); }} className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-wider">Reset</button>
+                                    <button onClick={() => { 
+                                      localStorage.setItem('warp_source_url', url); 
+                                      setSelectedGame('hsr');
+                                      handleFetch(url.includes('#') ? url.split('#')[1] : url, true); 
+                                    }} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-sm transition-colors shadow-lg shadow-purple-900/40">
+                                      Fetch HSR Data
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+
+                              {/* Genshin Input */}
+                              {modalTab === 'genshin' && (
+                                <>
+                                  <p className="text-xs text-slate-500 mb-2">Enter Paimon.moe Banner ID (e.g., 300093 for character, 400092 for weapon)</p>
+                                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 mb-4">
+                                    <input
+                                      type="text"
+                                      placeholder="300093"
+                                      className="w-full bg-transparent text-sm font-mono text-amber-400 placeholder-slate-600 focus:outline-none"
+                                      value={genshinBannerId}
+                                      onChange={(e) => setGenshinBannerId(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="text-[10px] text-slate-600 mb-4 space-y-1">
+                                    <p>• Character banners: 300xxx (e.g., 300093)</p>
+                                    <p>• Weapon banners: 400xxx (e.g., 400092)</p>
+                                    <p>• Find IDs at: paimon.moe/wish/tally</p>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <button onClick={() => { setGenshinBannerId(""); localStorage.removeItem('genshin_banner_id'); }} className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-wider">Reset</button>
+                                    <button onClick={() => { 
+                                      localStorage.setItem('genshin_banner_id', genshinBannerId); 
+                                      setSelectedGame('genshin');
+                                      handleFetch(genshinBannerId, true); 
+                                    }} className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-white font-bold rounded-lg text-sm transition-colors shadow-lg shadow-amber-900/40">
+                                      Fetch Genshin Data
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                           </div>
                       </div>
                   )}
@@ -540,7 +845,7 @@ export default function WarpAnalyzer() {
                             </div>
                             <div className="mt-8 pt-6 border-t border-slate-800/50">
                                 <p className="text-[10px] text-slate-600 leading-relaxed max-w-2xl mx-auto uppercase tracking-tighter italic">
-                                    Warp data sourced from <a href="https://starrailstation.com" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 underline underline-offset-2">StarRailStation.com</a>. This tool provides pattern analysis for their global warp statistics.
+                                    Data sourced from <a href="https://starrailstation.com" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 underline underline-offset-2">StarRailStation.com</a> (HSR) and <a href="https://paimon.moe" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400 underline underline-offset-2">Paimon.moe</a> (Genshin). This tool provides pattern analysis for global warp/wish statistics.
                                     Not affiliated with Cognosphere/HoYoverse. May your pulls be lucky and your pities be short. ✦
                                 </p>
                             </div>
@@ -553,3 +858,8 @@ export default function WarpAnalyzer() {
     </div>
   );
 }
+
+
+
+
+

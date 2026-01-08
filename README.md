@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/HSR-Pattern%20Record-8b5cf6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWdvbiBwb2ludHM9IjEyIDIgMTUuMDkgOC4yNiAyMiA5LjI3IDE3IDE0LjE0IDE4LjE4IDIxLjAyIDEyIDE3Ljc3IDUuODIgMjEuMDIgNyAxNC4xNCAyIDkuMjcgOC45MSA4LjI2IDEyIDIiPjwvcG9seWdvbj48L3N2Zz4=" alt="HSR Pattern Record">
+  <img src="https://img.shields.io/badge/Svarog-Tracer-8b5cf6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWdvbiBwb2ludHM9IjEyIDIgMTUuMDkgOC4yNiAyMiA5LjI3IDE3IDE0LjE0IDE4LjE4IDIxLjAyIDEyIDE3Ljc3IDUuODIgMjEuMDIgNyAxNC4xNCAyIDkuMjcgOC45MSA4LjI2IDEyIDIiPjwvcG9seWdvbj48L3N2Zz4=" alt="Svarog Tracer">
   <br>
-  <strong>Honkai: Star Rail Relic Pattern Analyzer</strong>
+  <strong>Gacha Upgrade Pattern Analyzer</strong>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 
 ## 🎯 What is this?
 
-A **pattern analysis tool** for Honkai: Star Rail relic upgrades. It uses real-time session tracking and statistical models to predict which sub-stat slot is most likely to roll next.
+A **pattern analysis tool** for gacha games with equipment/relic upgrade systems. It uses real-time session tracking and statistical models to predict which sub-stat slot is most likely to roll next during upgrades.
 
 > **Disclaimer:** This is a statistical analyzer, not a cheat. RNG is still RNG.
 

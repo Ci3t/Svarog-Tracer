@@ -6,6 +6,7 @@ export default function RollInput({
   testInput,
   setTestInput,
   handleTestRollSubmit,
+  onAddRoll,
   setActivePrefix,
 }) {
   return (
@@ -16,29 +17,37 @@ export default function RollInput({
           <div className="text-sm font-bold text-purple-300">Rolls Input</div>
         </div>
       </div>
-      <input
-        type="text"
-        value={testInput}
-        onChange={(e) => {
-          const value = e.target.value.replace(/[^1-8]/g, "");
-          setTestInput(value);
-          
-          // Real-time prefix tracking for predictions
-          if (value.length >= 2) {
-            const translated = translateTo4(value);
-            setActivePrefix(translated.slice(0, 2)); // 2-digit prefix for 3-str
-          } else if (value.length === 1) {
-            const translated = translateTo4(value);
-            setActivePrefix(translated[0]); // 1-digit prefix for 2-str
-          } else {
-            setActivePrefix(null); // Clear if empty
-          }
-        }}
-        onKeyDown={handleTestRollSubmit}
-        placeholder="Type 3-digit roll (e.g. 234)"
-        maxLength={3}
-        className="w-full bg-slate-900/50 border border-purple-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-      />
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={testInput}
+          onChange={(e) => {
+            const value = e.target.value.replace(/[^1-8]/g, "");
+            setTestInput(value);
+            
+            // Real-time prefix tracking for predictions
+            if (value.length >= 2) {
+              const translated = translateTo4(value);
+              setActivePrefix(translated.slice(0, 2)); // 2-digit prefix for 3-str
+            } else if (value.length === 1) {
+              const translated = translateTo4(value);
+              setActivePrefix(translated[0]); // 1-digit prefix for 2-str
+            } else {
+              setActivePrefix(null); // Clear if empty
+            }
+          }}
+          onKeyDown={handleTestRollSubmit}
+          placeholder="Type 3-digit roll (e.g. 234)"
+          maxLength={3}
+          className="flex-1 bg-slate-900/50 border border-purple-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+        />
+        <button
+          onClick={onAddRoll}
+          className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap active:scale-95"
+        >
+          Add Roll
+        </button>
+      </div>
     </div>
   );
 }
