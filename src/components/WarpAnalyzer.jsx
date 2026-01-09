@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution } from "../utils/warpDataService";
+import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -39,7 +39,8 @@ export default function WarpAnalyzer() {
   useEffect(() => {
     const loadBanners = async () => {
       if (selectedGame === 'hsr') {
-        const result = await fetchLiveBanners(true);
+        // Use cache first (false) for instant UI, fetches fresh after 10s
+        const result = await fetchLiveBanners(false);
         if (result.data && result.data.length > 0) {
           setBanners(result.data);
           setSelectedBannerId(result.data[0].id);
@@ -48,7 +49,8 @@ export default function WarpAnalyzer() {
           setSelectedBannerId(PRESET_BANNERS[0]?.id);
         }
       } else {
-        const result = await fetchGenshinLiveBanners(true);
+        // Use cache first for Genshin too
+        const result = await fetchGenshinLiveBanners(false);
         if (result.data && result.data.length > 0) {
           setBanners(result.data);
           setSelectedBannerId(result.data[0].id);
@@ -811,6 +813,36 @@ export default function WarpAnalyzer() {
                                   </div>
                                 </>
                               )}
+
+                              {/* CUSTOM PROXY SECTION */}
+                              <div className="mt-6 pt-6 border-t border-slate-700">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">⚙️ Custom CORS Proxy (Advanced)</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mb-3">
+                                  If all proxies fail in your region, enter a custom CORS proxy URL. Leave empty to use built-in proxies.
+                                </p>
+                                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800 mb-3">
+                                  <input
+                                    type="text"
+                                    placeholder="https://your-cors-proxy.com/?url="
+                                    className="w-full bg-transparent text-xs font-mono text-cyan-400 placeholder-slate-600 focus:outline-none"
+                                    defaultValue={getCustomProxy()}
+                                    onChange={(e) => setCustomProxy(e.target.value.trim())}
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => { setCustomProxy(''); }}
+                                    className="px-3 py-1.5 text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-wider"
+                                  >
+                                    Clear Proxy
+                                  </button>
+                                  <span className="text-[10px] text-slate-600 flex items-center">
+                                    Proxies are tried: Direct → Custom → Built-in (5 fallbacks)
+                                  </span>
+                                </div>
+                              </div>
                           </div>
                       </div>
                   )}

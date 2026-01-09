@@ -7,44 +7,131 @@
 const SRS_API_BASE = "https://starrailstation.com/api/v1/warp_fetch/";
 const PAIMON_API_BASE = "https://api.paimon.moe/wish";
 
-// Multiple CORS proxies for regional fallback (some blocked in Asia)
+// Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
+  // Primary: Most reliable globally
   { name: "corsproxy.io", format: (url) => `https://corsproxy.io/?${encodeURIComponent(url)}` },
+  // Fallback 1: Good in Asia
+  { name: "cors-anywhere-alt", format: (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}` },
+  // Fallback 2: Alternative
   { name: "allorigins", format: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+  // Fallback 3: Another option
+  { name: "thingproxy", format: (url) => `https://thingproxy.freeboard.io/fetch/${url}` },
+  // Fallback 4: Last resort
   { name: "corsproxy.org", format: (url) => `https://corsproxy.org/?${encodeURIComponent(url)}` },
 ];
 
-// Helper: Try fetch with proxy fallbacks
+// Custom proxy storage key
+const CUSTOM_PROXY_KEY = 'svarog_custom_proxy';
+
+// Get/Set custom proxy from localStorage
+export function getCustomProxy() {
+  return localStorage.getItem(CUSTOM_PROXY_KEY) || '';
+}
+
+export function setCustomProxy(proxyUrl) {
+  if (proxyUrl) {
+    localStorage.setItem(CUSTOM_PROXY_KEY, proxyUrl);
+  } else {
+    localStorage.removeItem(CUSTOM_PROXY_KEY);
+  }
+}
+
+// Helper: Fetch with timeout
+async function fetchWithTimeout(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+// Helper: Try fetch with direct first, then proxy fallbacks
 async function fetchWithProxyFallback(targetUrl) {
   let lastError;
+  const errors = [];
   
+  // 1. Try DIRECT fetch first (some APIs allow CORS now)
+  try {
+    console.log(`[CORS] Trying direct fetch...`);
+    const response = await fetchWithTimeout(targetUrl, 5000);
+    if (response.ok) {
+      console.log(`[CORS] ✓ Direct fetch succeeded!`);
+      return response;
+    }
+  } catch (error) {
+    // CORS blocked or network error - expected, continue to proxies
+    console.log(`[CORS] Direct fetch blocked, trying proxies...`);
+  }
+  
+  // 2. Try CUSTOM PROXY if set by user
+  const customProxy = getCustomProxy();
+  if (customProxy) {
+    try {
+      const customUrl = customProxy.includes('?') 
+        ? `${customProxy}${encodeURIComponent(targetUrl)}`
+        : `${customProxy}?url=${encodeURIComponent(targetUrl)}`;
+      console.log(`[CORS] Trying custom proxy...`);
+      const response = await fetchWithTimeout(customUrl, 8000);
+      if (response.ok) {
+        console.log(`[CORS] ✓ Custom proxy succeeded!`);
+        return response;
+      }
+      errors.push(`custom: HTTP ${response.status}`);
+    } catch (error) {
+      errors.push(`custom: ${error.message}`);
+      console.warn(`[CORS] Custom proxy failed:`, error.message);
+    }
+  }
+  
+  // 3. Try each built-in proxy with timeout
   for (const proxy of CORS_PROXIES) {
     try {
       const proxyUrl = proxy.format(targetUrl);
       console.log(`[CORS] Trying ${proxy.name}...`);
-      const response = await fetch(proxyUrl);
+      const response = await fetchWithTimeout(proxyUrl, 8000);
       
       if (response.ok) {
-        console.log(`[CORS] Success with ${proxy.name}`);
+        console.log(`[CORS] ✓ Success with ${proxy.name}`);
         return response;
       }
       
-      // 403/429 = blocked/rate-limited, try next proxy
-      if (response.status === 403 || response.status === 429) {
-        console.warn(`[CORS] ${proxy.name} returned ${response.status}, trying next...`);
+      // 403/429/5xx = blocked/rate-limited/server error, try next proxy
+      if (response.status === 403 || response.status === 429 || response.status >= 500) {
+        const err = `${proxy.name}: HTTP ${response.status}`;
+        errors.push(err);
+        console.warn(`[CORS] ${err}, trying next...`);
         lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
         continue;
       }
       
-      // Other errors, throw immediately
+      // 404 = probably API endpoint issue, not proxy
+      if (response.status === 404) {
+        throw new Error(`HTTP 404: Resource not found`);
+      }
+      
+      // Other errors
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     } catch (error) {
+      const errMsg = error.name === 'AbortError' ? `${proxy.name}: Timeout` : `${proxy.name}: ${error.message}`;
+      errors.push(errMsg);
       lastError = error;
-      console.warn(`[CORS] ${proxy.name} failed:`, error.message);
+      console.warn(`[CORS] ${errMsg}`);
     }
   }
   
-  throw lastError || new Error("All CORS proxies failed");
+  // All proxies failed - provide detailed error
+  console.error(`[CORS] All proxies failed:`, errors.join(', '));
+  const finalError = new Error(`All CORS proxies failed. Tried: ${errors.join(', ')}`);
+  finalError.proxyErrors = errors;
+  finalError.needsCustomProxy = true; // Flag for UI to show custom proxy input
+  throw finalError;
 }
 
 // Genshin Character Image Base (Ambr.top has good icons)
@@ -724,34 +811,37 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 /**
  * Fetches live Genshin banners from Paimon.moe
- * Auto-detects current event banners
+ * OPTIMIZED: Uses cache-first approach and parallel fetching
  */
 export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
-  try {
-    const LAST_CHECK_KEY = 'genshin_banner_last_check';
-    const CACHE_KEY = 'genshin_cached_banners';
-    
-    if (!ignoreThrottle) {
-      const lastCheck = parseInt(localStorage.getItem(LAST_CHECK_KEY) || '0');
-      const nowTs = Date.now();
-      
-      if (nowTs - lastCheck < 10000) {
-        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
-        if (cached.length > 0) return { status: 'uptodate', data: cached };
-      }
-    }
-    
-    // Fetch banner list from Paimon.moe
-    // They don't have a direct banner list API, so we'll fetch recent banners by trying known IDs
+  const LAST_CHECK_KEY = 'genshin_banner_last_check';
+  const CACHE_KEY = 'genshin_cached_banners';
+  const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
+  
+  // 1. ALWAYS return cached data first for instant UI
+  const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
+  
+  if (!ignoreThrottle) {
+    const lastCheck = parseInt(localStorage.getItem(LAST_CHECK_KEY) || '0');
     const nowTs = Date.now();
     
-    // Try to get recent character banners (IDs are sequential: 300093, 300092, etc.)
-    // Find the latest by testing a high ID first
+    // If checked recently (10s), return cache immediately
+    if (nowTs - lastCheck < 10000 && cached.length > 0) {
+      return { status: 'uptodate', data: cached };
+    }
+  }
+  
+  // 2. Try to fetch new data (but return cached if available)
+  try {
+    const nowTs = Date.now();
     const banners = [];
     
-    // Character banners - try recent IDs (expanded range for future-proofing)
-    // Each patch has ~2-3 character banners, range covers ~1 year
-    for (let i = 99; i >= 85; i--) {
+    // Start from last known ID to avoid checking old banners
+    const lastKnownId = parseInt(localStorage.getItem(LAST_KNOWN_ID_KEY) || '93');
+    const startId = Math.min(lastKnownId + 3, 105); // Check 3 ahead of last known
+    
+    // Character banners - only check 5 IDs starting from smart position
+    for (let i = startId; i >= startId - 5 && i >= 85; i--) {
       const bannerId = `3000${i}`;
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
@@ -759,16 +849,13 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
         if (response.ok) {
           const data = await response.json();
           if (data.total && data.total.legendary > 1000) {
-            // Find featured 5★ characters only using count RANGE
-            // Based on actual API data:
-            // - 4★ rate-up: ~64,000 counts (too high)
-            // - 5★ rate-up: ~12,000-13,000 counts (target)
-            // - Standard 5★: ~1,500 counts (too low)
-            // Filter: count > 5000 AND count < 50000 = 5★ featured only
+            // Save this as the new "last known" for next time
+            localStorage.setItem(LAST_KNOWN_ID_KEY, i.toString());
+            
             const featured5Star = data.list?.filter(item => 
               item.type === 'character' && 
-              item.count > 5000 &&   // Above standard 5★ (~1500)
-              item.count < 50000 &&  // Below 4★ rate-ups (~64000)
+              item.count > 5000 && 
+              item.count < 50000 &&
               !['diluc', 'jean', 'keqing', 'mona', 'qiqi', 'tighnari', 'dehya'].includes(item.name)
             ) || [];
             
@@ -776,14 +863,11 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
               const formattedName = char.name.split('_').map(w => 
                 w.charAt(0).toUpperCase() + w.slice(1)
               ).join(' ');
-              
-              // Use proper Genshin character icon URL format
               const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
               
-              // Use unique ID = bannerId_characterName to prevent duplicates
               banners.push({
-                id: `${bannerId}_${char.name}`,  // Unique per character
-                bannerId: bannerId,               // Original API banner ID for fetching
+                id: `${bannerId}_${char.name}`,
+                bannerId: bannerId,
                 name: formattedName,
                 type: 'character',
                 image: `${GENSHIN_IMG_BASE}${charIconName}.png`,
@@ -791,7 +875,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
                 game: 'genshin'
               });
             }
-            break; // Found current banner, stop searching
+            break; // Found current banner
           }
         }
       } catch (e) {
@@ -799,30 +883,21 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
       }
     }
     
-    // Weapon banners - expanded range for future-proofing
-    for (let i = 99; i >= 85; i--) {
-      const bannerId = `4000${i}`;  // Fixed: was 400${i} which gave 40092 instead of 400092
+    // Weapon banners - same optimization
+    for (let i = startId; i >= startId - 5 && i >= 85; i--) {
+      const bannerId = `4000${i}`;
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
         const response = await fetchWithProxyFallback(targetUrl);
         if (response.ok) {
           const data = await response.json();
           if (data.total && data.total.legendary > 500) {
-            // Find the top 5★ weapons - need higher threshold to exclude 4★ weapons
-            const weapons = data.list?.filter(item => 
-              item.type === 'weapon' && item.count > 3000  // Higher threshold for 5★
-            ).sort((a, b) => b.count - a.count).slice(0, 2) || [];
-            
-            // Extract banner number from ID (400092 -> 92)
             const bannerNumber = bannerId.slice(-2);
-            
-            // Use unique ID for weapon banner
             banners.push({
-              id: `${bannerId}_weapon`,   // Unique weapon banner ID
-              bannerId: bannerId,          // Original API banner ID for fetching
+              id: `${bannerId}_weapon`,
+              bannerId: bannerId,
               name: `Epitome Invocation`,
               type: 'weapon',
-              // Use Paimon.moe's own banner images
               image: `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`,
               characterId: 'weapon_banner',
               game: 'genshin'
@@ -841,13 +916,19 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
       return { status: 'updated', data: banners };
     }
     
-    // Fallback to presets
+    // Fallback to cached if fetch failed
+    if (cached.length > 0) {
+      return { status: 'fallback', data: cached };
+    }
+    
     return { status: 'fallback', data: GENSHIN_PRESET_BANNERS };
     
   } catch (error) {
     console.error("Genshin banner fetch error:", error);
+    // Return cached or presets on error
+    if (cached.length > 0) {
+      return { status: 'error', data: cached, error };
+    }
     return { status: 'error', data: GENSHIN_PRESET_BANNERS, error };
   }
 }
-
-
