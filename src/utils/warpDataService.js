@@ -6,7 +6,46 @@
 
 const SRS_API_BASE = "https://starrailstation.com/api/v1/warp_fetch/";
 const PAIMON_API_BASE = "https://api.paimon.moe/wish";
-const CORS_PROXY = "https://corsproxy.io/?";
+
+// Multiple CORS proxies for regional fallback (some blocked in Asia)
+const CORS_PROXIES = [
+  { name: "corsproxy.io", format: (url) => `https://corsproxy.io/?${encodeURIComponent(url)}` },
+  { name: "allorigins", format: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+  { name: "corsproxy.org", format: (url) => `https://corsproxy.org/?${encodeURIComponent(url)}` },
+];
+
+// Helper: Try fetch with proxy fallbacks
+async function fetchWithProxyFallback(targetUrl) {
+  let lastError;
+  
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxyUrl = proxy.format(targetUrl);
+      console.log(`[CORS] Trying ${proxy.name}...`);
+      const response = await fetch(proxyUrl);
+      
+      if (response.ok) {
+        console.log(`[CORS] Success with ${proxy.name}`);
+        return response;
+      }
+      
+      // 403/429 = blocked/rate-limited, try next proxy
+      if (response.status === 403 || response.status === 429) {
+        console.warn(`[CORS] ${proxy.name} returned ${response.status}, trying next...`);
+        lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        continue;
+      }
+      
+      // Other errors, throw immediately
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[CORS] ${proxy.name} failed:`, error.message);
+    }
+  }
+  
+  throw lastError || new Error("All CORS proxies failed");
+}
 
 // Genshin Character Image Base (Ambr.top has good icons)
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
@@ -69,8 +108,7 @@ export async function fetchWarpStats(bannerId, maxRetries = 3) {
     try {
       const nowTs = Date.now();
       const targetUrl = `${SRS_API_BASE}${bannerId}?compare_id=0&_t=${nowTs}`;
-      const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
-      const response = await fetch(url);
+      const response = await fetchWithProxyFallback(targetUrl);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -121,8 +159,8 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
 
     const nowTs = Date.now(); // Update timestamp reference
     // we use a random query param to prevent browser caching of the config itself
-    const configUrl = `${CORS_PROXY}${encodeURIComponent(`https://starrailstation.com/api/v1/warp_config?_t=${nowTs}`)}`;
-    const response = await fetch(configUrl);
+    const configUrl = `https://starrailstation.com/api/v1/warp_config?_t=${nowTs}`;
+    const response = await fetchWithProxyFallback(configUrl);
     if (!response.ok) throw new Error("Failed to fetch warp config");
     
     const data = await response.json();
@@ -561,8 +599,7 @@ export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
-      const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
-      const response = await fetch(url);
+      const response = await fetchWithProxyFallback(targetUrl);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -718,8 +755,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
       const bannerId = `3000${i}`;
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
-        const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(url);
+        const response = await fetchWithProxyFallback(targetUrl);
         if (response.ok) {
           const data = await response.json();
           if (data.total && data.total.legendary > 1000) {
@@ -768,8 +804,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
       const bannerId = `4000${i}`;  // Fixed: was 400${i} which gave 40092 instead of 400092
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
-        const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(url);
+        const response = await fetchWithProxyFallback(targetUrl);
         if (response.ok) {
           const data = await response.json();
           if (data.total && data.total.legendary > 500) {
