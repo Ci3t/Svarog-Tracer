@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ModernTimerCard({ secondsLeft, onStart, timerRunning }) {
+export default function ModernTimerCard({ secondsLeft, onStart, onPause, onRestart, timerRunning, timerPaused }) {
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
   const totalSeconds = 5 * 60; // 5 minutes
@@ -28,8 +28,10 @@ export default function ModernTimerCard({ secondsLeft, onStart, timerRunning }) 
         </h3>
         {timerRunning && (
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs text-emerald-400 font-medium">Active</span>
+            <div className={`w-2 h-2 rounded-full ${timerPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+            <span className={`text-xs font-medium ${timerPaused ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {timerPaused ? 'Paused' : 'Active'}
+            </span>
           </div>
         )}
       </div>
@@ -76,12 +78,12 @@ export default function ModernTimerCard({ secondsLeft, onStart, timerRunning }) 
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </div>
           <div className="text-sm text-slate-400 font-medium">
-            {timerRunning ? 'Remaining' : 'Ready'}
+            {timerPaused ? 'Paused' : timerRunning ? 'Remaining' : 'Ready'}
           </div>
         </div>
       </div>
 
-      {/* Start Button */}
+      {/* Buttons */}
       {!timerRunning && (
         <button
           onClick={onStart}
@@ -94,6 +96,38 @@ export default function ModernTimerCard({ secondsLeft, onStart, timerRunning }) 
             <span>Start Session</span>
           </div>
         </button>
+      )}
+
+      {/* Pause/Restart buttons when running */}
+      {timerRunning && (
+        <div className="flex gap-2">
+          <button
+            onClick={onPause}
+            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                {timerPaused ? (
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                ) : (
+                  <path  fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                )}
+              </svg>
+              <span className="text-sm">{timerPaused ? 'Resume' : 'Pause'}</span>
+            </div>
+          </button>
+          <button
+            onClick={onRestart}
+            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">Restart</span>
+            </div>
+          </button>
+        </div>
       )}
 
       {/* Progress indicator */}

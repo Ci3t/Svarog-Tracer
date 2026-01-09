@@ -1,13 +1,89 @@
 // Modern Long String Lab Page - Full Width Design
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { decodeLongString } from '../utils/stringHelpers.js';
 // OLD: import { predictNext2BBPMode } from '../utils/bbp-mode-2str.js';
 import { predictWithPairs } from '../utils/pairTransitionPredictor.js';
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
+import ModernTimerCard from '../components/modern/ModernTimerCard';
 
 export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onImportLogs, isDebugMode = false }) {
   const [longString, setLongString] = useState('');
   const [region, setRegion] = useState('Global');
+  const [secondsLeft, setSecondsLeft] = useState(300); // 5 minutes
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerPaused, setTimerPaused] = useState(false);
+  const [stringHistory, setStringHistory] = useState([]);
+
+  // Timer countdown effect
+  useEffect(() => {
+    if (!timerRunning || timerPaused) return;
+    if (secondsLeft <= 0) {
+      // Timer completed - save to history
+      if (longString.trim()) {
+        const historyEntry = {
+          string: longString,
+          timestamp: new Date().toISOString(),
+          region: region,
+          rollCount: decodeLongString(longString).rolls.length
+        };
+        setStringHistory(prev => [historyEntry, ...prev]);
+        setLongString(''); // Clear the string
+      }
+      // Auto-restart timer after saving
+      setSecondsLeft(300);
+      setTimerRunning(true);
+      setTimerPaused(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerRunning, timerPaused, secondsLeft, longString, region]);
+
+  // Start timer handler
+  const handleStartTimer = () => {
+    setSecondsLeft(300); // Reset to 5 minutes
+    setTimerRunning(true);
+    setTimerPaused(false);
+  };
+
+  // Pause timer handler
+  const handlePauseTimer = () => {
+    setTimerPaused(!timerPaused);
+  };
+
+  // Restart timer handler
+  const handleRestartTimer = () => {
+    // Save current session to history if there's a string
+    if (longString.trim()) {
+      const historyEntry = {
+        string: longString,
+        timestamp: new Date().toISOString(),
+        region: region,
+        rollCount: decodeLongString(longString).rolls.length
+      };
+      setStringHistory(prev => [historyEntry, ...prev]);
+      setLongString(''); // Clear for new session
+    }
+    // Start fresh timer
+    setSecondsLeft(300);
+    setTimerRunning(true);
+    setTimerPaused(false);
+  };
+
+  // Load from history
+  const handleLoadFromHistory = (entry) => {
+    setLongString(entry.string);
+    setRegion(entry.region);
+  };
+
+  // Delete history entry
+  const handleDeleteHistory = (index) => {
+    setStringHistory(prev => prev.filter((_, i) => i !== index));
+  };
 
   // Download handler
   const handleDownload = () => {
@@ -206,9 +282,21 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                 </div>
               )}
             </div>
-          </div>
+              <div className="mt-4">
 
-          {/* Prediction Card - EXPANDED SUGGEST with TRENDS */}
+            {/* Timer Card */}
+            <ModernTimerCard
+              secondsLeft={secondsLeft}
+              onStart={handleStartTimer}
+              onPause={handlePauseTimer}
+              onRestart={handleRestartTimer}
+              timerRunning={timerRunning}
+              timerPaused={timerPaused}
+              />
+          </div>
+              </div>
+
+          {/* Right Column - Prediction only */}
           <div className="lg:col-span-2">
             {prediction ? (
               <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-2xl">
@@ -400,126 +488,112 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                 </div>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-6 border border-violet-500/30 shadow-2xl h-full flex items-center justify-center">
+              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl py-8 px-6 border border-violet-500/30 shadow-2xl flex items-center justify-center">
                 <p className="text-slate-500 text-sm">Need at least 6 rolls for prediction</p>
+              </div>
+            )}
+
+            {/* History Section */}
+            {stringHistory.length > 0 && (
+              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 border border-slate-700/50 shadow-xl mt-4">
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
+                  History
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {stringHistory.map((entry, index) => (
+                    <div key={index} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30 hover:border-purple-500/30 transition-colors">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-slate-400 mb-1">
+                            {new Date(entry.timestamp).toLocaleString()} • {entry.region}
+                          </div>
+                          <div className=" text-xs text-slate-500">
+                            {entry.rollCount} rolls
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => handleLoadFromHistory(entry)}
+                            className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-xs rounded border border-purple-500/30 transition-colors"
+                            title="Load"
+                          >
+                            Load
+                          </button>
+                          <button
+                            onClick={() => handleDeleteHistory(index)}
+                            className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 text-xs rounded border border-red-500/30 transition-colors"
+                            title="Delete"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-xs font-mono text-slate-300 truncate">
+                        {entry.string.length > 55 ? entry.string.substring(0, 55) + '...' : entry.string}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Bottom Section: Quick Stats only */}
-        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-          {/* Quick Stats - MOVED TO BOTTOM LEFT */}
-          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-6 border border-slate-700/50 shadow-2xl">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+        {/* Bottom Section: Quick Stats (Compact) */}
+        {(decoded.cleaned.length > 0 || frequency.length > 0) && (
+          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-xl p-4 border border-slate-700/50 shadow-xl">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Quick Stats
             </h3>
             
-            <div className="space-y-4">
-              <div>
-                <div className="text-3xl font-bold text-white mb-1">
-                  {decoded.cleaned.length}
-                </div>
-                <div className="text-xs text-slate-500">Total Digits</div>
+            {/* Compact Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {/* Total Digits */}
+              <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+                <div className="text-xl font-bold text-white">{decoded.cleaned.length}</div>
+                <div className="text-[10px] text-slate-500">Total Digits</div>
               </div>
 
-              <div>
-                <div className="text-2xl font-bold text-white mb-1">
-                  {decoded.rolls.length}
-                </div>
-                <div className="text-xs text-slate-500">Decoded Rolls</div>
+              {/* Decoded Rolls */}
+              <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+                <div className="text-xl font-bold text-white">{decoded.rolls.length}</div>
+                <div className="text-[10px] text-slate-500">Decoded Rolls</div>
               </div>
 
-              {/* Digit Frequency Counter */}
-              {longString.length > 0 && (
-                <div className="pt-2 border-t border-slate-700/50">
-                  <div className="text-xs text-slate-500 mb-3">Raw Digit Count</div>
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center mb-2">
-                        <span className="text-xl font-bold text-cyan-300">1</span>
-                      </div>
-                      <div className="text-sm font-medium text-white">
-                        {(longString.match(/1/g) || []).length}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-2">
-                        <span className="text-xl font-bold text-emerald-300">2</span>
-                      </div>
-                      <div className="text-sm font-medium text-white">
-                        {(longString.match(/2/g) || []).length}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mb-2">
-                        <span className="text-xl font-bold text-amber-300">3</span>
-                      </div>
-                      <div className="text-sm font-medium text-white">
-                        {(longString.match(/3/g) || []).length}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center mb-2">
-                        <span className="text-xl font-bold text-purple-300">4</span>
-                      </div>
-                      <div className="text-sm font-medium text-white">
-                        {(longString.match(/4/g) || []).length}
-                      </div>
-                    </div>
-                  </div>
+              {/* Unique Values */}
+              {frequency.length > 0 && (
+                <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+                  <div className="text-xl font-bold text-white">{frequency.length}</div>
+                  <div className="text-[10px] text-slate-500">Unique Values</div>
                 </div>
               )}
 
+              {/* Most Frequent */}
               {frequency.length > 0 && (
-                <>
-                  <div className="pt-2 border-t border-slate-700/50">
-                    <div className="text-xl font-bold text-white mb-1">
-                      {frequency.length}
-                    </div>
-                    <div className="text-xs text-slate-500">Unique Values</div>
-                  </div>
+                <div className="bg-emerald-500/10 rounded-lg p-2 text-center border border-emerald-500/20">
+                  <div className="text-xl font-bold text-emerald-400">{frequency[0].value}</div>
+                  <div className="text-[10px] text-slate-500">Most ({frequency[0].pct}%)</div>
+                </div>
+              )}
 
-                  {/* Most & Least Frequent - Inline */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg font-bold text-emerald-400">
-                          {frequency[0].value}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          ({frequency[0].pct}%)
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500">Most Frequent</div>
-                    </div>
+              {/* Least Frequent */}
+              {frequency.length > 1 && frequency[frequency.length - 1] && (
+                <div className="bg-red-500/10 rounded-lg p-2 text-center border border-red-500/20">
+                  <div className="text-xl font-bold text-red-400">{frequency[frequency.length - 1].value}</div>
+                  <div className="text-[10px] text-slate-500">Least ({frequency[frequency.length - 1].pct}%)</div>
+                </div>
+              )}
 
-                    {frequency[frequency.length - 1] && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg font-bold text-red-400">
-                            {frequency[frequency.length - 1].value}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            ({frequency[frequency.length - 1].pct}%)
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500">Least Frequent</div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-700/50">
-                    <div className="text-lg font-bold text-purple-400 mb-1">
-                      {(100 / frequency.length).toFixed(1)}%
-                    </div>
-                    <div className="text-xs text-slate-500">Average Frequency</div>
-                  </div>
-                </>
+              {/* Dominant (if exists) */}
+              {frequency.length > 0 && parseFloat(frequency[0].pct) > 40 && (
+                <div className="bg-purple-500/10 rounded-lg p-2 text-center border border-purple-500/20">
+                  <div className="text-xl font-bold text-purple-400">{parseFloat(frequency[0].pct).toFixed(0)}%</div>
+                  <div className="text-[10px] text-slate-500">Dominant</div>
+                </div>
               )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Debug Panel */}
         <div className="mt-6">
