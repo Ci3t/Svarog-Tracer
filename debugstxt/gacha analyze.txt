@@ -1,0 +1,87 @@
+HSR POST : 
+Note: I'm going off of what I've read here regarding pity, which is that starting from pull 74 the rate increases by 6% for each single pull until hitting 100% at 90 pulls. If I was misinformed on that, you can ignore most of this lol. The math for the first 73 pulls still holds up though!
+
+Note 2: I'm literally in the bottom 6% for luck according to the Star Rail Station warp tracker so none of this math applies if you're me or like me, we are cursed
+
+Soft pity kicks in at 74 pulls, with your rate increasing steadily from there. Up to and including pull 73, the rate is 0.6%. Mathematically speaking, your chances of getting a 5-star before the 74th pull is ~35.6%, or a bit over 1/3. On average you should expect to get your 5-star early about 1/3 times (a good math reason to not build pity on a banner where you don't want the banner character, if you needed another one).
+
+The math for your first 70 pulls is as follows - remember that these percentages are cumulative, the rate for any particular 10 pull up to 70 is going to be a flat 5.84%.
+
+10: 5.84%
+
+20: 11.34%
+
+30: 16.52%
+
+40: 21.4%
+
+50: 25.99%
+
+60: 30.31%
+
+70: 34.38%
+
+After pull 73, the numbers ramp up pretty rapidly. By pull 76 the likelihood that you will have gotten a 5-star (cumulatively) is > 50%. By pull 80 it's > 90%. The numbers below are the percentage chance for that particular pull, followed by the cumulative chance of you getting a 5-star by that point, and then just for fun the likelihood that after that pull you still won't have a 5-star.
+
+74: 6.6% (39.81% / 3 in 5 chance of no 5-star)
+
+75: 12.6% (47.39% / ~1 in 1.9 chance of no 5-star)
+
+76: 18.6% (57.18% / ~1 in 2.3 chance of no 5-star)
+
+77: 24.6% (67.78% / ~1 in 3 chance of no 5-star)
+
+78: 30.6% (77.64% / ~1 in 4.5 chance of no 5-star)
+
+79: 36.6% (85.82% / ~1 in 7 chance of no 5-star)
+
+80: 42.6% (91.86% / ~1 in 12.5 chance of no 5-star)
+
+81: 48.6% (95.82% / 1 in 25 chance of no 5-star)
+
+82: 52.6% (98.10% / 1 in 50 chance of no 5-star)
+
+83: 58.6% (99.25% / ~ 1 in 133 chance of no 5-star)
+
+84: 64.6% (99.75% / 1 in 400 chance chance of no 5-star)
+
+85: 70.6% (99.93% / ~1 in 1430 chance of no 5-star)
+
+86: 76.6% (99.99% / 1 in 10000 chance of no 5-star)
+
+87: 82.6% (99.998% / 1 in 50000 chance of no 5-star)
+
+88: 88.6% (99.9998% / 1 in 500000 chance of no 5-star)
+
+89: 94.6% (99.99999% / 1 in 10 million chance of no 5-star)
+
+90: 100%
+
+Takeaway: it is more likely to get a 5-star in a single pull than it is to ever get to 85 or higher on pity. And if you've ever hit 90 pity - maybe buy a lottery ticket?
+
+Final bit of math for fun: if you're the sort of person who does 10-pulls exclusively, what is the likelihood that you will get a 5-star if you do a 10-pull when you have 70 pity? This throws away the cumulative data for the first 70 pulls since we're assuming you've gotten this far without getting one.
+
+The ten pull from your 71st to your 80th pull has a 87.7% chance of yielding a 5-star independent of previous pulls. That's about a 7/8 chance for that ten-pull in particular. If you are trying to optimize and use as few pulls as possible on a given banner it definitely makes the most sense to do single pulls at this point - again ignoring all previous pulls, going cumulatively from pull 70, on average you will get a 5-star at approximately pull 77 (as opposed to pull 76, going cumulatively from 0).
+
+All of this information is probably not all that useful. But I was very bored.
+
+ETA: The odds of hitting hard pity twice on one account are so low that you would need 1000x the population of the planet Earth to be playing this game to get to a point where it might happen to one person, ever. I am not even going to get into the odds of having it happen more than twice. Doing a ten pull at 80 and getting a 5-star doesn't mean you got hard pity. Y'all are gonna give me a heart attack
+
+
+
+GENSHIN POST : 
+In the picture above (Sample (blue) from paimon.moe vs Simulation(s) (green, red)) I want to show the distribution function from all pulls currently available on paimon.moe (~260+million, which is a very reasonable sample rate for analyzing purpose).
+
+Conclusion: As most people know the base probability of getting a 5* character on the event banner is 0.6%, which holds true until a certain threshold (observed at 73 pulls) is reached. After that the probability to get a 5* character increases linearly to 100%. So you get an additional (100-0.6)% / (90-73) = 5.85% rate every pull at that point until you get your desired 5* <3. (E.g. at the 75th pull the probability is 0.6% + 2*5.85% = 12.3%)
+
+Results of the sample from paimon.moe:
+
+-) There is a 35.6% chance to get a 5* before the threshold (73 pulls, start of 'soft pity region').
+
+-) The distribution of successful pulls hits a maximum by around 77 pulls = soft pity.
+
+-) The probability that one needs more than 83 pulls is lower than 1%. (drastically decreasing at that point, it's way lower than one out of 1mil. to go up to 90 pulls, kek)
+
+-) The expectation value E is by ~61.5 pulls.* (red simulation: 62.34, leading to 1.60% consolidated probability)
+
+*Edit (since @IPancakesI pointed it out): The expectation value obtained by the 260 million in-game pull history is quite good. The value from mihoyo (consolidation rate 1.6%) would be E=62.5+-, which is 'nearly' the same. The small deviation to the sample is most likely because some players upload data on paimon.moe that doesn't start at '0' which leads to a one-sided shift of the blue graph (above) to the left. Btw. on the same topic: The adjusted simulation with increased probability after reaching the threshould leads to a 1.60% consolidation rate :D, so one can asume that this simulation (red) does it's job pretty well for a model of the real in-game (blue) probability distribution.

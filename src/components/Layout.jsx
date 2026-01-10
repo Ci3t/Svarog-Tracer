@@ -1,5 +1,6 @@
-import React from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { gsap } from 'gsap';
 import svarog from '/svarog.png';
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
@@ -15,6 +16,38 @@ export default function Layout({
   prevSessions,
   onExportCSV,
 }) {
+  const location = useLocation();
+  const navRef = useRef(null);
+  const indicatorRef = useRef(null);
+  const tabRefs = useRef({});
+
+  // GSAP: Animate active indicator when route changes
+  useEffect(() => {
+    if (!navRef.current || !indicatorRef.current) return;
+
+    const activeTab = navRef.current.querySelector('[data-active="true"]');
+    if (activeTab) {
+      const { offsetLeft, offsetWidth } = activeTab;
+      gsap.to(indicatorRef.current, {
+        x: offsetLeft,
+        width: offsetWidth,
+        duration: 0.4,
+        ease: 'power3.out',
+      });
+    }
+  }, [location.pathname]);
+
+  // GSAP: Initial animation on mount
+  useEffect(() => {
+    gsap.from(navRef.current, {
+      y: -20,
+      opacity: 0,
+      duration: 0.6,
+      ease: 'power2.out',
+      delay: 0.2,
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Sticky Header */}
@@ -82,15 +115,23 @@ export default function Layout({
 
             {/* Middle/Bottom Row: Navigation + Export Button */}
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-              {/* Navigation Tabs - Full Width on Mobile */}
-              <nav className="flex items-center gap-1 sm:gap-2 p-1 bg-slate-800/40 rounded-xl border border-slate-700/30 w-full sm:w-auto overflow-x-auto scrollbar-hide">
+              {/* Navigation Tabs with Animated Indicator */}
+              <nav ref={navRef} className="relative flex items-center gap-1 sm:gap-2 p-1 bg-slate-800/40 rounded-xl border border-slate-700/30 w-full sm:w-auto overflow-x-auto scrollbar-hide">
+                {/* Animated indicator background */}
+                <div
+                  ref={indicatorRef}
+                  className="absolute top-1 left-0 h-[calc(100%-8px)] bg-purple-600 rounded-lg shadow-lg shadow-purple-500/30 pointer-events-none"
+                  style={{ width: 0, transform: 'translateX(0)' }}
+                />
+                
                 <NavLink
                   to="/"
+                  data-active={location.pathname === '/'}
                   className={({ isActive }) =>
-                    `flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all text-center ${
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
                       isActive
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -98,11 +139,12 @@ export default function Layout({
                 </NavLink>
                 <NavLink
                   to="/long-string"
+                  data-active={location.pathname === '/long-string'}
                   className={({ isActive }) =>
-                    `flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all text-center ${
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
                       isActive
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -110,11 +152,12 @@ export default function Layout({
                 </NavLink>
                 <NavLink
                   to="/kiyo"
+                  data-active={location.pathname === '/kiyo'}
                   className={({ isActive }) =>
-                    `flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all text-center ${
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
                       isActive
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -122,15 +165,29 @@ export default function Layout({
                 </NavLink>
                 <NavLink
                   to="/warp-analyzer"
+                  data-active={location.pathname === '/warp-analyzer'}
                   className={({ isActive }) =>
-                    `flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all text-center ${
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
                       isActive
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
                   📊 Warp
+                </NavLink>
+                <NavLink
+                  to="/guides"
+                  data-active={location.pathname === '/guides'}
+                  className={({ isActive }) =>
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
+                      isActive
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`
+                  }
+                >
+                  📚 Guides
                 </NavLink>
               </nav>
 

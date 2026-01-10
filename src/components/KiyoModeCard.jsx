@@ -42,7 +42,7 @@ import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import PrefixPredictors from "./kiyo/PrefixPredictors";
 import BettingRecommendationCard from "./kiyo/BettingRecommendationCard";
 import FiveMinWindowTracker from "./FiveMinWindowTracker";
-import GuideModal from "./kiyo/GuideModal";
+// NOTE: GuideModal removed - all guides are now centralized in the Guides page (accessible from navbar)
 import AdvancedToolsSection from "./AdvancedToolsSection";
 import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
 import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
@@ -63,7 +63,6 @@ export default function KiyoModeCard({
   const [testInput, setTestInput] = useState("");
   const [testRolls, setTestRolls] = useState([]);
   const [activePrefix, setActivePrefix] = useState(null);
-  const [showDecisionGuide, setShowDecisionGuide] = useState(false);
   const lastSentRef = useRef(null);
   const [, forceUpdate] = useState({});
   const lastSentDataRef = useRef(null);
@@ -1095,13 +1094,6 @@ export default function KiyoModeCard({
           combinedRolls={combinedRolls}
         />
       </div>
-
-      {showDecisionGuide && (
-        <GuideModal
-          show={showDecisionGuide}
-          onClose={() => setShowDecisionGuide(false)}
-        />
-      )}
     </div>
   );
 }

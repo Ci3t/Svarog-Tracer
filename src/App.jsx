@@ -25,6 +25,7 @@ import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW M
 import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
 import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
 import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // 🔥 NEW Warp Analyzer
+import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
 
 
 
@@ -1037,6 +1038,7 @@ export default function App() {
             }
           />
           <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
+          <Route path="/guides" element={<ModernGuidesPage />} />
         </Route>
       </Routes>
     </Suspense>

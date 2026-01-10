@@ -1,0 +1,320 @@
+// Modern Guides Page - Professional Animated Version with GSAP
+import React, { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import GuideModal from '../components/GuideModal';
+import LiveModeGuide from '../components/guides/LiveModeGuide';
+import LongStringGuide from '../components/guides/LongStringGuide';
+import KiyoGuide from '../components/guides/KiyoGuide';
+import WarpGuide from '../components/guides/WarpGuide';
+
+// Video Data
+const CREATORS = [
+  {
+    id: 'bbp',
+    name: 'BigBoiPinoy',
+    shortName: 'BBP',
+    channelUrl: 'https://www.youtube.com/@BigBoiPnoy',
+    description: 'OG Relic Manipulation Guide Creator',
+    color: 'amber',
+    videos: [
+      { id: 'QrqPENtcFus', title: 'Relic Manipulation Changed?', description: 'Latest update on how relic manipulation works after patches', featured: true },
+      { id: 'swghREiYFPo', title: 'Relic Manipulation Weight Method', description: 'Relic Manipulation Weight Method Tips', featured: false },
+      { id: 'G0j3imbKw7M', title: 'How to Manipulate Relics', description: 'Original comprehensive guide on relic manipulation (8 months ago)', featured: false },
+    ],
+  },
+  {
+    id: 'ciet',
+    name: 'Ciet',
+    shortName: 'Ciet',
+    channelUrl: 'https://www.youtube.com/@iiciet',
+    description: 'Svarog Tracer Creator & Developer',
+    color: 'purple',
+    videos: [
+      { id: 'nUUx7ur-yUY', title: 'Ultimate Guide: How to Use Svarog Tracer', description: 'Complete walkthrough of the Svarog Tracer site and all its features', featured: true },
+    ],
+  },
+];
+
+const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
+const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+
+const COLOR_CLASSES = {
+  amber: { border: 'border-amber-500/20', gradient: 'from-amber-500/30 to-orange-500/30', text: 'text-amber-400', glow: 'shadow-amber-500/20' },
+  purple: { border: 'border-purple-500/20', gradient: 'from-purple-500/30 to-violet-500/30', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
+  emerald: { border: 'border-emerald-500/20', gradient: 'from-emerald-500/30 to-teal-500/30', text: 'text-emerald-400', glow: 'shadow-emerald-500/20' },
+  cyan: { border: 'border-cyan-500/20', gradient: 'from-cyan-500/30 to-blue-500/30', text: 'text-cyan-400', glow: 'shadow-cyan-500/20' },
+};
+
+// Video Card with GSAP hover animations
+function VideoCard({ video, color, creatorName, className = "", delay = 0 }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const cardRef = useRef(null);
+  const playButtonRef = useRef(null);
+  const colors = COLOR_CLASSES[color];
+
+  useEffect(() => {
+    gsap.fromTo(cardRef.current,
+      { y: 50, opacity: 0, scale: 0.9 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'back.out(1.2)', delay }
+    );
+  }, [delay]);
+
+  const handleMouseEnter = () => {
+    if (!isPlaying) {
+      gsap.to(cardRef.current, { y: -8, boxShadow: `0 20px 40px rgba(147, 51, 234, 0.4)`, duration: 0.3, ease: 'power2.out' });
+      gsap.to(playButtonRef.current, { scale: 1.2, rotation: 15, duration: 0.3, ease: 'back.out(2)' });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (!isPlaying) {
+      gsap.to(cardRef.current, { y: 0, boxShadow: '0 0 0 rgba(0,0,0,0)', duration: 0.3 });
+      gsap.to(playButtonRef.current, { scale: 1, rotation: 0, duration: 0.3 });
+    }
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border ${colors.border} overflow-hidden ${className}`}
+    >
+      <div className="relative aspect-video bg-slate-900">
+        {isPlaying ? (
+          <iframe src={`${getYouTubeEmbedUrl(video.id)}?autoplay=1`} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={video.title} />
+        ) : (
+          <>
+            <img src={getYouTubeThumbnail(video.id)} alt={video.title} className="w-full h-full object-cover opacity-80" onError={(e) => { e.target.src = `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`; }} />
+            <button onClick={() => setIsPlaying(true)} className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors cursor-pointer">
+              <div ref={playButtonRef} className={`w-16 h-16 rounded-full bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-2xl border border-white/10`}>
+                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </button>
+            {video.featured && (
+              <div className="absolute top-3 left-3 px-2 py-1 bg-gradient-to-r from-amber-500/80 to-orange-500/80 rounded-full text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
+                ⭐ Featured
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <div className="p-4">
+        <h3 className="text-sm font-bold text-white mb-2 line-clamp-2">{video.title}</h3>
+        <p className="text-xs text-slate-400 line-clamp-2 mb-3">{video.description}</p>
+        <div className="flex items-center justify-between">
+          <span className={`text-[10px] font-medium ${colors.text} uppercase tracking-wider`}>{creatorName}</span>
+          <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-white transition-colors flex items-center gap-1 cursor-pointer">
+            Watch on YouTube
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Creator Section
+function CreatorSection({ creator, index }) {
+  const sectionRef = useRef(null);
+  const headerRef = useRef(null);
+  const colors = COLOR_CLASSES[creator.color];
+
+  useEffect(() => {
+    const tl = gsap.timeline({ delay: index * 0.2 });
+    tl.fromTo(sectionRef.current, { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' })
+      .fromTo(headerRef.current, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.4');
+  }, [index]);
+
+  return (
+    <section ref={sectionRef} className="mb-8">
+      <div ref={headerRef} className="flex items-center justify-between gap-4 mb-4 py-3 px-4 rounded-lg bg-slate-800/40 border border-slate-700/40">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg`}>
+            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className={`text-sm font-bold ${colors.text}`}>{creator.name}</h2>
+            <p className="text-[10px] text-slate-500">{creator.description}</p>
+          </div>
+        </div>
+        <a href={creator.channelUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-700/50 hover:bg-slate-600/50 text-white text-[10px] font-bold transition-all cursor-pointer border border-slate-600/30">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          Visit Channel
+        </a>
+      </div>
+
+      <div className={creator.videos.length > 2 ? "overflow-x-auto pb-4 -mx-4 px-4" : ""}>
+        <div className={creator.videos.length > 2 ? "flex gap-4 min-w-max" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+          {creator.videos.map((video, i) => (
+            <VideoCard key={video.id} video={video} color={creator.color} creatorName={creator.shortName} className={creator.videos.length > 2 ? "w-80 flex-shrink-0" : ""} delay={i * 0.15} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Written Guide Card with simple hover animations
+function GuideCard({ guide, onClick, index }) {
+  const cardRef = useRef(null);
+  const iconRef = useRef(null);
+  const glowRef = useRef(null);
+  const colors = COLOR_CLASSES[guide.color];
+
+  useEffect(() => {
+    gsap.fromTo(cardRef.current,
+      { y: 40, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out', delay: index * 0.1 }
+    );
+    gsap.fromTo(iconRef.current,
+      { scale: 0 },
+      { scale: 1, duration: 0.5, ease: 'back.out(1.7)', delay: 0.2 + index * 0.1 }
+    );
+  }, [index]);
+
+  const handleMouseEnter = () => {
+    gsap.to(cardRef.current, { y: -8, scale: 1.02, duration: 0.3, ease: 'power2.out' });
+    gsap.to(iconRef.current, { scale: 1.15, rotation: 10, duration: 0.3, ease: 'power2.out' });
+    gsap.to(glowRef.current, { opacity: 0.5, duration: 0.3 });
+  };
+
+  const handleMouseLeave = () => {
+    gsap.to(cardRef.current, { y: 0, scale: 1, duration: 0.3 });
+    gsap.to(iconRef.current, { scale: 1, rotation: 0, duration: 0.3 });
+    gsap.to(glowRef.current, { opacity: 0, duration: 0.3 });
+  };
+
+  return (
+    <div className="relative">
+      <div ref={glowRef} className={`absolute inset-0 bg-gradient-to-r ${colors.gradient} rounded-2xl blur-2xl opacity-0`} style={{ pointerEvents: 'none' }} />
+      <button
+        ref={cardRef}
+        onClick={onClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`relative w-full bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-2xl border ${colors.border} shadow-xl overflow-hidden p-6 text-left cursor-pointer backdrop-blur-sm group`}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div ref={iconRef} className={`w-14 h-14 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center text-3xl shadow-2xl ${colors.glow} border border-white/10`}>
+            {guide.icon}
+          </div>
+          <span className="text-[10px] text-slate-500">{guide.readTime}</span>
+        </div>
+        <h3 className="text-lg font-bold text-white mb-2">{guide.title}</h3>
+        <p className="text-xs text-slate-400 mb-4 line-clamp-2">{guide.description}</p>
+        <div className={`flex items-center gap-2 text-xs font-semibold ${colors.text}`}>
+          <span>Read Guide</span>
+          <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// Main Page Component
+export default function ModernGuidesPage() {
+  const [selectedGuide, setSelectedGuide] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const headerRef = useRef(null);
+  const badgeRef = useRef(null);
+  const titleRef = useRef(null);
+
+  const WRITTEN_GUIDES = [
+    { id: 'live', title: 'Live Mode Guide', icon: '🔴', description: 'Real-time pattern detection, prediction strategies, and session management', component: LiveModeGuide, color: 'purple', tag: 'Core', readTime: '5 min' },
+    { id: 'longstring', title: 'Long String Lab Guide', icon: '🧪', description: 'Offline analysis, backtesting strategies, and pattern validation', component: LongStringGuide, color: 'emerald', tag: 'Lab', readTime: '4 min' },
+    { id: 'kiyo', title: 'Kiyo Mode Guide', icon: '🌊', description: 'Wave analysis, column-based prediction, and flip pattern detection', component: KiyoGuide, color: 'cyan', tag: 'Advanced', readTime: '4 min' },
+    { id: 'warp', title: 'Warp Analyzer Guide', icon: '📊', description: 'Community pull data analysis, lucky peaks, and shortcut strings', component: WarpGuide, color: 'amber', tag: 'Gacha', readTime: '3 min' },
+  ];
+
+  useEffect(() => {
+    const tl = gsap.timeline();
+    tl.fromTo(badgeRef.current, { scale: 0, rotation: -360 }, { scale: 1, rotation: 0, duration: 1, ease: 'elastic.out(1, 0.5)' })
+      .fromTo(titleRef.current, { y: -50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'power3.out' }, '-=0.6')
+      .from(titleRef.current.querySelectorAll('span'), { y: 30, opacity: 0, stagger: 0.03, duration: 0.5, ease: 'back.out(2)' }, '-=0.6');
+
+    gsap.to(badgeRef.current, { 
+      boxShadow: '0 0 40px rgba(147, 51, 234, 0.8), 0 0 80px rgba(147, 51, 234, 0.4)', 
+      duration: 2, 
+      ease: 'power1.inOut', 
+      yoyo: true, 
+      repeat: -1 
+    });
+  }, []);
+
+  const openGuide = (guide) => {
+    setSelectedGuide(guide);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedGuide(null), 300);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div ref={headerRef} className="text-center mb-12">
+          <div ref={badgeRef} className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600/30 to-violet-600/30 border border-purple-500/40 mb-6 shadow-2xl backdrop-blur-sm">
+            <svg className="w-6 h-6 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <span className="text-sm font-bold text-purple-300 uppercase tracking-wider">Guides</span>
+          </div>
+          <h1 ref={titleRef} className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-violet-400 to-purple-500 mb-4">
+            <span>L</span><span>e</span><span>a</span><span>r</span><span>n</span><span> </span>
+            <span>S</span><span>v</span><span>a</span><span>r</span><span>o</span><span>g</span><span> </span>
+            <span>T</span><span>r</span><span>a</span><span>c</span><span>e</span><span>r</span>
+          </h1>
+          <p className="text-slate-400 max-w-2xl mx-auto">
+            Master relic manipulation with video tutorials and comprehensive written guides
+          </p>
+        </div>
+
+        {/* Written Guides Section - NOW FIRST */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400 mb-2">
+              Written Guides
+            </h2>
+            <p className="text-slate-500 text-xs">
+              In-depth documentation for each mode with advanced strategies and tips
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {WRITTEN_GUIDES.map((guide, i) => (
+              <GuideCard key={guide.id} guide={guide} onClick={() => openGuide(guide)} index={i} />
+            ))}
+          </div>
+        </div>
+
+        {/* Video Tutorials Section - NOW SECOND */}
+        <div className="mb-8">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400 mb-2">
+              Video Tutorials
+            </h2>
+            <p className="text-slate-500 text-xs">
+              Learn from the community's best relic manipulation content creators
+            </p>
+          </div>
+          {CREATORS.map((creator, i) => (
+            <CreatorSection key={creator.id} creator={creator} index={i} />
+          ))}
+        </div>
+      </div>
+
+      {/* Guide Modal */}
+      {selectedGuide && (
+        <GuideModal isOpen={isModalOpen} onClose={closeModal} guideComponent={selectedGuide.component} guideTitle={selectedGuide.title} guideIcon={selectedGuide.icon} />
+      )}
+    </div>
+  );
+}
