@@ -39,13 +39,12 @@ export default function Layout({
 
   // GSAP: Initial animation on mount
   useEffect(() => {
-    gsap.from(navRef.current, {
-      y: -20,
-      opacity: 0,
-      duration: 0.6,
-      ease: 'power2.out',
-      delay: 0.2,
-    });
+    if (!navRef.current) return;
+    
+    gsap.fromTo(navRef.current, 
+      { y: -20, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 0.2 }
+    );
   }, []);
 
   return (

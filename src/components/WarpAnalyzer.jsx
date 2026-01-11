@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy } from "../utils/warpDataService";
+import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, fetchWuWaLiveBanners, WUWA_PRESET_BANNERS } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -48,7 +48,7 @@ export default function WarpAnalyzer() {
           setBanners(PRESET_BANNERS);
           setSelectedBannerId(PRESET_BANNERS[0]?.id);
         }
-      } else {
+      } else if (selectedGame === 'genshin') {
         // Use cache first for Genshin too
         const result = await fetchGenshinLiveBanners(false);
         if (result.data && result.data.length > 0) {
@@ -57,6 +57,16 @@ export default function WarpAnalyzer() {
         } else {
           setBanners(GENSHIN_PRESET_BANNERS);
           setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
+        }
+      } else if (selectedGame === 'wuwa') {
+        // Fetch WuWa banners
+        const result = await fetchWuWaLiveBanners(false);
+        if (result.data && result.data.length > 0) {
+          setBanners(result.data);
+          setSelectedBannerId(result.data[0].id);
+        } else {
+          setBanners(WUWA_PRESET_BANNERS);
+          setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
         }
       }
       // Clear current data when switching games
@@ -118,7 +128,10 @@ export default function WarpAnalyzer() {
 
     try {
       let stats;
-      if (selectedGame === 'genshin') {
+      if (selectedGame === 'wuwa') {
+        // WuWa uses direct banner IDs
+        stats = await fetchWuWaStats(id);
+      } else if (selectedGame === 'genshin') {
         stats = await fetchGenshinWishStats(id);
       } else {
         stats = await fetchWarpStats(id === 'global' ? '2099' : id);
@@ -273,12 +286,17 @@ export default function WarpAnalyzer() {
     // Soft pity varies by game and banner type
     // HSR: Characters 75-90, Light Cones 65-80
     // Genshin: Characters 74-90, Weapons 63-80
-    const softPityStart = selectedGame === 'genshin' 
-      ? (bannerType === 'character' ? 74 : 63)
-      : (bannerType === 'character' ? 75 : 65);
-    const softPityEnd = selectedGame === 'genshin'
-      ? (bannerType === 'character' ? 90 : 80)
-      : (bannerType === 'character' ? 90 : 80);
+    // WuWa: Characters 70-80, Weapons 63-80
+    const softPityStart = selectedGame === 'wuwa'
+      ? (bannerType === 'character' ? 70 : 63)
+      : selectedGame === 'genshin' 
+        ? (bannerType === 'character' ? 74 : 63)
+        : (bannerType === 'character' ? 75 : 65);
+    const softPityEnd = selectedGame === 'wuwa'
+      ? 80
+      : selectedGame === 'genshin'
+        ? (bannerType === 'character' ? 90 : 80)
+        : (bannerType === 'character' ? 90 : 80);
 
     const shortcutString = useMemo(() => {
     const peaks = activeAnalysis?.peaks || [];
@@ -295,20 +313,30 @@ export default function WarpAnalyzer() {
     const pityNumbers = [];
     const path = [];
     
+    let currentPosition = 0; // Track cumulative position
+    
     for (const peak of prePityPeaks) {
       // The "landing digit" - how many singles to do so x10s end on this peak
       const landingDigit = peak.roll % 10;
       digits.push(landingDigit.toString());
       pityNumbers.push(peak.roll);
       
-      // Calculate how many x10s needed from start to reach this peak
-      const x10Count = Math.floor(peak.roll / 10);
+      // Calculate distance from current position to this peak
+      const distance = peak.roll - currentPosition;
+      
+      // How many x10s needed to cover the distance (after doing singles)
+      // Singles are done first, then x10s
+      const x10Count = Math.floor((distance - landingDigit) / 10);
+      
       path.push({
         singles: landingDigit,
         x10s: x10Count,
         landsOn: peak.roll,
         chance: peak.chance
       });
+      
+      // Update current position
+      currentPosition = peak.roll;
     }
     
     return {
@@ -432,6 +460,17 @@ export default function WarpAnalyzer() {
                         >
                           <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-6 h-6 rounded-full" />
                           Genshin Impact
+                        </button>
+                        <button
+                          onClick={() => setSelectedGame('wuwa')}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                            selectedGame === 'wuwa' 
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-900/50' 
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <span className="text-2xl">🌊</span>
+                          Wuthering Waves
                         </button>
                       </div>
                     </div>
@@ -754,6 +793,17 @@ export default function WarpAnalyzer() {
                                 >
                                   <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-5 h-5 rounded-full" />
                                   Genshin
+                                </button>
+                                <button 
+                                  onClick={() => setModalTab('wuwa')}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
+                                    modalTab === 'wuwa' 
+                                      ? 'bg-cyan-500 text-white' 
+                                      : 'text-slate-400 hover:text-white bg-slate-800/50'
+                                  }`}
+                                >
+                                  🌊
+                                  WuWa
                                 </button>
                               </div>
 
