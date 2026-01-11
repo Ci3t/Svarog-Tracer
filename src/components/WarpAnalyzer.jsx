@@ -172,32 +172,36 @@ export default function WarpAnalyzer() {
     }
   }, [activeBanners, selectedBannerId]);
 
-  // GSAP Entrance Animations
-  useEffect(() => {
-    const tl = gsap.timeline();
-    
-    // Animate game selection buttons
-    tl.from('.game-btn', {
-      opacity: 0,
-      y: -20,
-      duration: 0.6,
-      stagger: 0.12,
-      ease: 'power3.out'
-    });
-    
-    // Animate banner cards if they exist
-    const bannerCards = document.querySelectorAll('.banner-card');
-    if (bannerCards.length > 0) {
-      tl.from('.banner-card', {
-        opacity: 0,
-        scale: 0.8,
-        y: 30,
-        duration: 0.7,
-        stagger: 0.1,
-        ease: 'back.out(1.2)'
-      }, '-=0.4');
-    }
-  }, [selectedGame, bannerType]);
+  // GSAP Entrance Animations - DISABLED
+  // useEffect(() => {
+  //   // Set initial state (hidden) before animating in
+  //   gsap.set('.game-btn', { opacity: 0, y: 20 });
+  //   gsap.set('.banner-card', { opacity: 0, scale: 0.8, y: 30 });
+  //   
+  //   const tl = gsap.timeline();
+  //   
+  //   // Animate game selection buttons in
+  //   tl.to('.game-btn', {
+  //     opacity: 1,
+  //     y: 0,
+  //     duration: 0.6,
+  //     stagger: 0.12,
+  //     ease: 'power3.out'
+  //   });
+  //   
+  //   // Animate banner cards in if they exist
+  //   const bannerCards = document.querySelectorAll('.banner-card');
+  //   if (bannerCards.length > 0) {
+  //     tl.to('.banner-card', {
+  //       opacity: 1,
+  //       scale: 1,
+  //       y: 0,
+  //       duration: 0.7,
+  //       stagger: 0.1,
+  //       ease: 'back.out(1.2)'
+  //     }, '-=0.4');
+  //   }
+  // }, [selectedGame, bannerType]);
 
   // Current selected banner
   const currentBanner = useMemo(() => {
@@ -518,7 +522,7 @@ export default function WarpAnalyzer() {
                                   onClick={() => setBannerType(selectedGame === 'genshin' ? 'weapon' : 'light_cone')}
                                   className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "bg-purple-600 text-white shadow-lg shadow-purple-900/40" : "text-slate-400 hover:text-white"}`}
                               >
-                                  {selectedGame === 'genshin' ? 'Weapons' : 'Light Cones'}
+                                  {selectedGame === 'hsr' ? 'Light Cones' : 'Weapons'}
                               </button>
                          </div>
 
