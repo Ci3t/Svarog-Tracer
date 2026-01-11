@@ -26,6 +26,7 @@ import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Mod
 import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
 import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // 🔥 NEW Warp Analyzer
 import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
+import HomePage from "./pages/HomePage"; // 🔥 NEW Landing Page
 
 
 
@@ -935,7 +936,8 @@ export default function App() {
       }
     >
       <Routes>
-        {/* Wrap all routes with Layout for navigation */}
+        <Route path="/" element={<HomePage />} />
+        {/* Wrap all other routes with Layout for navigation */}
         <Route element={
           <Layout 
             region={region}
@@ -950,7 +952,7 @@ export default function App() {
           />
         }>
           <Route
-            path="/"
+            path="/live"
             element={
               <ModernLiveSessionPage
                 // State

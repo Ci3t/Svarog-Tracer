@@ -56,7 +56,7 @@ export default function Layout({
             
             {/* Top Row: Logo + Controls (Mobile) / Left Side (Desktop) */}
             <div className="flex flex-wrap items-center justify-between gap-3 w-full lg:w-auto">
-              <div className="flex items-center gap-3">
+              <NavLink to="/" className="flex items-center gap-3 cursor-pointer">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center overflow-hidden">
                   <img
                     src={svarog}
@@ -72,7 +72,7 @@ export default function Layout({
                     Relic RNG Observation Engine
                   </p>
                 </div>
-              </div>
+              </NavLink>
 
               {/* Region & Patch (Compact on Mobile) */}
               <div className="flex items-center gap-2">
@@ -124,8 +124,8 @@ export default function Layout({
                 />
                 
                 <NavLink
-                  to="/"
-                  data-active={location.pathname === '/'}
+                  to="/live"
+                  data-active={location.pathname === '/live'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
                       isActive

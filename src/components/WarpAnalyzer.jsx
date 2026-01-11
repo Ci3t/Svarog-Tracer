@@ -34,6 +34,20 @@ export default function WarpAnalyzer() {
   const [modalTab, setModalTab] = useState('hsr'); // Tab for the config modal
   const [toast, setToast] = useState(null); // { message, type: 'cache' | 'fetch' }
 
+  // Refs for sliding animations
+  const gameTabsRef = useRef(null);
+  const gamePillRef = useRef(null);
+  const categoryTabsRef = useRef(null);
+  const categoryPillRef = useRef(null);
+
+  // -- THEME COLOR SELECTOR --
+  const getGameColor = () => {
+    if (selectedGame === 'hsr') return '#9333ea'; // purple-600
+    if (selectedGame === 'genshin') return '#f59e0b'; // amber-500
+    if (selectedGame === 'wuwa') return '#06b6d4'; // cyan-500
+    return '#9333ea';
+  };
+
   const DEFAULT_URL = "https://starrailstation.com/en/warp#global";
 
   // -- Load banners based on selected game --
@@ -172,36 +186,35 @@ export default function WarpAnalyzer() {
     }
   }, [activeBanners, selectedBannerId]);
 
-  // GSAP Entrance Animations - DISABLED
-  // useEffect(() => {
-  //   // Set initial state (hidden) before animating in
-  //   gsap.set('.game-btn', { opacity: 0, y: 20 });
-  //   gsap.set('.banner-card', { opacity: 0, scale: 0.8, y: 30 });
-  //   
-  //   const tl = gsap.timeline();
-  //   
-  //   // Animate game selection buttons in
-  //   tl.to('.game-btn', {
-  //     opacity: 1,
-  //     y: 0,
-  //     duration: 0.6,
-  //     stagger: 0.12,
-  //     ease: 'power3.out'
-  //   });
-  //   
-  //   // Animate banner cards in if they exist
-  //   const bannerCards = document.querySelectorAll('.banner-card');
-  //   if (bannerCards.length > 0) {
-  //     tl.to('.banner-card', {
-  //       opacity: 1,
-  //       scale: 1,
-  //       y: 0,
-  //       duration: 0.7,
-  //       stagger: 0.1,
-  //       ease: 'back.out(1.2)'
-  //     }, '-=0.4');
-  //   }
-  // }, [selectedGame, bannerType]);
+  // GSAP Sliding Navbar Animations
+  useEffect(() => {
+    if (!gameTabsRef.current || !gamePillRef.current) return;
+    
+    const activeBtn = gameTabsRef.current.querySelector('button.active');
+    if (activeBtn) {
+      gsap.to(gamePillRef.current, {
+        x: activeBtn.offsetLeft,
+        width: activeBtn.offsetWidth,
+        duration: 0.4,
+        ease: "power2.out",
+        backgroundColor: getGameColor()
+      });
+    }
+  }, [selectedGame]);
+
+  useEffect(() => {
+    if (!categoryTabsRef.current || !categoryPillRef.current) return;
+    
+    const activeBtn = categoryTabsRef.current.querySelector('button.active');
+    if (activeBtn) {
+      gsap.to(categoryPillRef.current, {
+        x: activeBtn.offsetLeft,
+        width: activeBtn.offsetWidth,
+        duration: 0.4,
+        ease: "power2.out"
+      });
+    }
+  }, [bannerType]);
 
   // Current selected banner
   const currentBanner = useMemo(() => {
@@ -470,13 +483,12 @@ export default function WarpAnalyzer() {
                   {/* GAME SWITCHER */}
                   <div className="max-w-4xl mx-auto mb-8">
                     <div className="flex justify-center">
-                      <div className="inline-flex items-center gap-2 p-1 bg-slate-900/70 backdrop-blur-sm border border-slate-700 rounded-xl">
+                      <div ref={gameTabsRef} className="relative inline-flex items-center gap-2 p-1 bg-slate-900/70 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden">
+                        <div ref={gamePillRef} className="absolute top-1 bottom-1 left-0 rounded-lg shadow-lg z-0 pointer-events-none" style={{ backgroundColor: getGameColor() }} />
                         <button
                           onClick={() => setSelectedGame('hsr')}
-                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                            selectedGame === 'hsr' 
-                              ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-lg shadow-purple-900/50' 
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                            selectedGame === 'hsr' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           <img src={`${import.meta.env.BASE_URL}HSRIcon.png`} alt="HSR" className="w-6 h-6 rounded-full" />
@@ -484,10 +496,8 @@ export default function WarpAnalyzer() {
                         </button>
                         <button
                           onClick={() => setSelectedGame('genshin')}
-                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                            selectedGame === 'genshin' 
-                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-900/50' 
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                            selectedGame === 'genshin' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-6 h-6 rounded-full" />
@@ -495,10 +505,8 @@ export default function WarpAnalyzer() {
                         </button>
                         <button
                           onClick={() => setSelectedGame('wuwa')}
-                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                            selectedGame === 'wuwa' 
-                              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-900/50' 
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                            selectedGame === 'wuwa' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           <img src={`${import.meta.env.BASE_URL}wuwaIcon.png`} alt="WuWa" className="w-6 h-6 rounded-full" />
@@ -511,16 +519,17 @@ export default function WarpAnalyzer() {
                   {/* BANNER SELECTION (Tabs + Grid) */}
                   <div className="max-w-4xl mx-auto mb-12">
                      <div className="flex justify-center mb-8">
-                         <div className="grid grid-cols-2 p-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg w-full max-w-md">
+                         <div ref={categoryTabsRef} className="relative grid grid-cols-2 p-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg w-full max-w-md overflow-hidden">
+                               <div ref={categoryPillRef} className="absolute top-1 bottom-1 left-0 rounded-md shadow-lg z-0 bg-purple-600 pointer-events-none" />
                               <button
                                   onClick={() => setBannerType('character')}
-                                  className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${bannerType === 'character' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/40" : "text-slate-400 hover:text-white"}`}
+                                  className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${bannerType === 'character' ? "active text-white" : "text-slate-400 hover:text-white"}`}
                               >
                                   Characters
                               </button>
                               <button
-                                  onClick={() => setBannerType(selectedGame === 'genshin' ? 'weapon' : 'light_cone')}
-                                  className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "bg-purple-600 text-white shadow-lg shadow-purple-900/40" : "text-slate-400 hover:text-white"}`}
+                                  onClick={() => setBannerType(selectedGame === 'hsr' ? 'light_cone' : 'weapon')}
+                                  className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "active text-white" : "text-slate-400 hover:text-white"}`}
                               >
                                   {selectedGame === 'hsr' ? 'Light Cones' : 'Weapons'}
                               </button>
