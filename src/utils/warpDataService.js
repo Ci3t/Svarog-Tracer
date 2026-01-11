@@ -1195,10 +1195,18 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
+    // Filter to show only the most recent banners (to avoid clutter over time)
+    // Keep the 2 newest character banners and 2 newest weapon banners
+    const characterBanners = banners.filter(b => b.type === 'character').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 2);
+    const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 2);
+    const recentBanners = [...characterBanners, ...weaponBanners];
+    
+    console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => b.name));
+    
     // Cache the results
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({
-        data: banners,
+        data: recentBanners,
         timestamp: Date.now()
       }));
     } catch (e) {
@@ -1207,7 +1215,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     return {
       status: 'updated',
-      data: banners
+      data: recentBanners
     };
   } catch (error) {
     console.error('[WuWa Banners] Fetch error:', error);

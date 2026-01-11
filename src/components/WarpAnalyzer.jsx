@@ -469,7 +469,7 @@ export default function WarpAnalyzer() {
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                           }`}
                         >
-                          <span className="text-2xl">🌊</span>
+                          <img src={`${import.meta.env.BASE_URL}wuwaIcon.png`} alt="WuWa" className="w-6 h-6 rounded-full" />
                           Wuthering Waves
                         </button>
                       </div>
