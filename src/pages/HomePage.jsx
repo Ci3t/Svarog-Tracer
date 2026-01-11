@@ -60,6 +60,16 @@ export default function HomePage() {
       ease: 'power2.out'
     }, '-=0.8');
 
+    // Subtle floating loop for title
+    gsap.to('.hero-content h1', {
+      y: 10,
+      duration: 3,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut',
+      delay: 4
+    });
+
   }, [baseUrl]);
 
   const modes = [
@@ -93,6 +103,21 @@ export default function HomePage() {
     }
   ];
 
+  const [typewriterText, setTypewriterText] = useState("");
+  const fullText = "Decrypt the hidden rhythms of the gacha. A sophisticated observation suite built to visualize RNG patterns and historical probability peaks.";
+
+  useEffect(() => {
+    if (isSplashDone) {
+      let i = 0;
+      const interval = setInterval(() => {
+        setTypewriterText(fullText.slice(0, i));
+        i++;
+        if (i > fullText.length) clearInterval(interval);
+      }, 20);
+      return () => clearInterval(interval);
+    }
+  }, [isSplashDone]);
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden selection:bg-purple-500 selection:text-white">
       
@@ -122,9 +147,9 @@ export default function HomePage() {
             SVAROG TRACER
           </h1>
           
-          <p className="max-w-2xl mx-auto text-slate-400 text-sm md:text-lg leading-relaxed tracking-wide mb-12 opacity-80 font-light">
-            Decrypt the hidden rhythms of the gacha. 
-            A sophisticated observation suite built to visualize RNG patterns and historical probability peaks.
+          <p className="max-w-2xl mx-auto text-slate-400 text-sm md:text-lg leading-relaxed tracking-wide mb-12 opacity-80 font-light min-h-[3em]">
+            {typewriterText}
+            {!isSplashDone || typewriterText.length < fullText.length ? <span className="inline-block w-2 h-5 ml-1 bg-purple-500 animate-pulse" /> : null}
             <span className="block mt-4 text-amber-500/90 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] italic">⚡ Critical: Prediction Hub • Non-Intrusive Observation Only</span>
           </p>
 
