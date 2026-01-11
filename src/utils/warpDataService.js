@@ -958,95 +958,50 @@ export const WUWA_PRESET_BANNERS = [
 ];
 
 /**
- * Fetches WuWa statistics from Python API backend
- * The Python scraper handles HTML parsing and returns clean JSON
+ * Fetches WuWa statistics from WuWa Tracker website
+ * Uses HTML scraping with CORS proxy (no backend needed)
  * @param {string} bannerId - Banner ID to fetch (e.g., "100030" for Lynae)
  * @param {boolean} debugMode - Enable debug logging
  */
 export async function fetchWuWaStats(bannerId, debugMode = true) {
   try {
-    const apiUrl = `http://localhost:5174/api/wuwa/stats/${bannerId}`;
+    const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
     
-    console.log('[WuWa] Fetching from Python API:', apiUrl);
+    console.log('[WuWa] Fetching:', statsUrl);
     
-    const response = await fetch(apiUrl);
+    const response = await fetchWithProxyFallback(statsUrl);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     
-    const data = await response.json();
+    const html = await response.text();
     
-    if (data.error) {
-      throw new Error(data.error);
+    console.log('[WuWa] HTML length:', html.length);
+    
+    // Parse the HTML to extract pity distribution
+    const stats = parseWuWaHTML(html, debugMode);
+    
+    if (!stats) {
+      throw new Error('Failed to parse WuWa statistics from HTML');
     }
     
-    console.log('[WuWa API] Received data:', {
-      totalPulls: data.total_pulls,
-      histogramKeys: Object.keys(data.histogram || {}).length,
-      histogramPercentKeys: Object.keys(data.histogram_percent || {}).length,
-      characters: Object.keys(data.characters || {})
-    });
-    
-    // Transform to our format with error checking
-    try {
-      const by_rollnum_pulls_5 = data.histogram;
-      const by_rollnum_chance_5 = data.histogram_percent;
-      const total_pulls_5 = data.total_pulls;
-      
-      if (!by_rollnum_pulls_5 || !by_rollnum_chance_5) {
-        throw new Error('Missing histogram or histogram_percent in API response');
-      }
-      
-      // Log verification
-      const roll22Count = by_rollnum_pulls_5[22] || 0;
-      const roll22Chance = by_rollnum_chance_5[22] || 0;
-      console.log('[WuWa API] Roll #22: Count =', roll22Count, ', Chance =', (roll22Chance * 100).toFixed(2) + '%');
-      
-      return {
-        stats: {
-          by_rollnum_pulls_5,
-          by_rollnum_chance_5,
-          total_pulls_5,
-          count_win_5: 0, // WuWa doesn't have 50/50 data
-          count_lose_5: 0
-        },
-        list: []
-      };
-    } catch (transformError) {
-      console.error('[WuWa API] Data transformation error:', transformError);
-      console.error('[WuWa API] Raw data:', data);
-      throw new Error(`Data transformation failed: ${transformError.message}`);
-    }
+    return stats;
   } catch (error) {
-    console.error('[WuWa API] Fetch error:', error);
-    
-    // If Python API is not running, show helpful error
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      throw new Error('WuWa API server not running. Please start it with: python wuwa_api.py');
-    }
-    
+    console.error('[WuWa] Fetch error:', error);
     throw new Error(`FETCH FAILED: ${error.message}`);
   }
 }
 
 /**
- * Parses WuWa Tracker HTML to extract pity distribution data
- * The data is embedded in Next.js RSC payload within script tags
+ * Parses WuWa Tracker HTML to extract pity distribution data using JavaScript
+ * Extracts histogram counts and character data, calculates total as 2x featured character
  */
-function parseWuWaHTML(html, debugMode = false) {
-  const debugInfo = [];
-  
+function parseWuWaHTML(html) {
   try {
-    // The data is in Next.js RSC format: self.__next_f.push([...])
-    // Example: self.__next_f.push([1,"3b:[...{\"histogram\":{\"1\":1325,\"2\":1331,...},\"label\":\"5✦ Pulls per Pity\"}...]"])
-    
     console.log('[WuWa Parser] Starting parse, HTML length:', html.length);
     
-    // Search for the script containing the 5-star pity histogram
-    // The pattern is: {"histogram":{...},"label":"5✦ Pulls per Pity"}
-    // But it's escaped in the HTML: {\"histogram\":{...},\"label\":\"5✦ Pulls per Pity\"}
-    
+    // 1. Extract histogram data (pity distribution counts)
     const labelPattern = /\\"label\\":\\"5✦ Pulls per Pity\\"/;
     if (!html.match(labelPattern)) {
       console.warn('[WuWa Parser] Label pattern not found');
@@ -1055,249 +1010,92 @@ function parseWuWaHTML(html, debugMode = false) {
     
     console.log('[WuWa Parser] Found pity label');
     
-    // The histogram object itself doesn't contain "total", but there might be a parent JSON structure
-    // Let's search backwards from the histogram to find if there's a total field nearby
+    // Extract histogram: {\"histogram\":{\"1\":1340,\"2\":1345,...},\"barColor\":...,\"label\":\"5✦ Pulls per Pity\"}
+    const histPattern = /\{\\"histogram\\":\{([^}]+)\}[^}]*\\"label\\":\\"5✦ Pulls per Pity\\"/;
+    const histMatch = html.match(histPattern);
     
-    const histIndex = html.indexOf('\\"label\\":\\"5✦ Pulls per Pity\\"');
-    if (histIndex === -1) {
-      console.warn('[WuWa Parser] Could not find label index');
+    if (!histMatch) {
+      console.warn('[WuWa Parser] Could not extract histogram');
       return null;
     }
     
-    // Search in the ~5000 characters before the label for any "total" field
-    const searchStart = Math.max(0, histIndex - 5000);
-    const searchArea = html.substring(searchStart, histIndex + 500);
-    
-    console.log('[WuWa Parser] Searching for total in area near histogram...');
-    
-    // Look for total field patterns in the search area
-    const totalPatterns = [
-      /\\"total\\":(\d{5,7})/g,          // "total":114175 (5-7 digits for reasonable total)
-      /\\"totalPulls\\":(\d{5,7})/g,     // "totalPulls":114175
-      /\\"count\\":(\d{5,7})/g,          // "count":114175
-      /\\"sum\\":(\d{5,7})/g,            // "sum":114175  
-      /\\"pulls\\":(\d{5,7})/g           // "pulls":114175
-    ];
-    
-    let foundTotal = null;
-    for (const pattern of totalPatterns) {
-      const matches = [...searchArea.matchAll(pattern)];
-      if (matches.length > 0) {
-        // Take the last match (closest to histogram)
-        const lastMatch = matches[matches.length - 1];
-        const totalValue = parseInt(lastMatch[1], 10);
-        
-        // Sanity check: total should be less than summed histogram (100k-150k range)
-        if (totalValue >= 50000 && totalValue <= 200000) {
-          console.log('[WuWa Parser] Found potential total using pattern', pattern.source, ':', totalValue);
-          foundTotal = totalValue;
-          break;
-        }
-      }
-    }
-    
-    if (!foundTotal) {
-      console.warn('[WuWa Parser] Could not find total field near histogram');
-      console.log('[WuWa Parser] Search area sample (500 chars before histogram):', searchArea.substring(Math.max(0, searchArea.length - 500)));
-    }
-    
-    // Now extract the histogram as before
-    const fullObjectPattern = /\{\\"histogram\\":\{[^}]+\}[^}]*\\"label\\":\\"5✦ Pulls per Pity\\"[^}]*\}/;
-    const fullObjMatch = html.match(fullObjectPattern);
-    
-    if (fullObjMatch) {
-      const fullObj = fullObjMatch[0];
-      console.log('[WuWa Parser] Full histogram object (first 500 chars):', fullObj.substring(0, 500));
-      
-      // Search for "total" field in various formats
-      const totalPatterns = [
-        /\\"total\\":(\d+)/,           // "total":114175
-        /\\"totalPulls\\":(\d+)/,      // "totalPulls":114175
-        /\\"count\\":(\d+)/,           // "count":114175
-        /\\"sum\\":(\d+)/              // "sum":114175
-      ];
-      
-      let totalFromData = null;
-      for (const pattern of totalPatterns) {
-        const match = fullObj.match(pattern);
-        if (match) {
-          totalFromData = parseInt(match[1], 10);
-          console.log('[WuWa Parser] Found total using pattern', pattern.source, ':', totalFromData);
-          break;
-        }
-      }
-      
-      if (!totalFromData) {
-        console.warn('[WuWa Parser] Could not find total field in histogram object');
-        console.log('[WuWa Parser] Full object content:', fullObj);
-      }
-    }
-    
-    // Find the entire data object that contains histogram, total, and label
-    // Pattern: {"histogram":{...},"total":114175,"barColor":"...","lineColor":"...","label":"5✦ Pulls per Pity"}
-    // In HTML it's escaped: {\"histogram\":{...},\"total\":114175,...,\"label\":\"5✦ Pulls per Pity\"}
-    const fullPattern = /\{\\"histogram\\":\{([^}]+)\}[^}]*\\"total\\":(\d+)[^}]*\\"label\\":\\"5✦ Pulls per Pity\\"\}/;
-    const match = html.match(fullPattern);
-    
-    if (!match) {
-      console.warn('[WuWa Parser] Could not extract histogram object with total field');
-      
-      // Fallback: try without total field (old pattern)
-      const histOnlyPattern = /\{\\"histogram\\":\{([^}]+)\}[^}]*\\"label\\":\\"5✦ Pulls per Pity\\"\}/;
-      const histMatch = html.match(histOnlyPattern);
-      
-      if (!histMatch) {
-        console.warn('[WuWa Parser] Could not extract histogram object at all');
-        return null;
-      }
-      
-      console.log('[WuWa Parser] Using fallback pattern (no total field)');
-      
-      // Continue with old logic (sum histogram)
-      let histogramContent = histMatch[1];
-      console.log('[WuWa Parser] Raw histogram (first 300 chars):', histogramContent.substring(0, 300));
-      
-      histogramContent = histogramContent.replace(/\\"/g, '"');
-      console.log('[WuWa Parser] Unescaped histogram (first 300 chars):', histogramContent.substring(0, 300));
-      
-      const histogramJson = `{${histogramContent}}`;
-      
-      let histogramData;
-      try {
-        histogramData = JSON.parse(histogramJson);
-        console.log('[WuWa Parser] Successfully parsed histogram JSON');
-        console.log('[WuWa Parser] Number of pity rolls:', Object.keys(histogramData).length);
-      } catch (e) {
-        console.error('[WuWa Parser] JSON parse error:', e);
-        console.log('[WuWa Parser] Failed JSON string:', histogramJson.substring(0, 500));
-        return null;
-      }
-      
-      // Transform to our format
-      const by_rollnum_pulls_5 = {};
-      const by_rollnum_chance_5 = {};
-      let total_pulls_5 = 0;
-      
-      for (const [pity, count] of Object.entries(histogramData)) {
-        const roll = parseInt(pity, 10);
-        const pullCount = parseInt(count, 10);
-        
-        if (!isNaN(roll) && !isNaN(pullCount)) {
-          by_rollnum_pulls_5[roll] = pullCount;
-          total_pulls_5 += pullCount;
-        }
-      }
-      
-      console.log('[WuWa Parser] Total 5★ pulls (summed):', total_pulls_5);
-      console.log('[WuWa Parser] First 10 rolls (count):', Object.fromEntries(Object.entries(by_rollnum_pulls_5).slice(0, 10)));
-      
-      // Calculate chances
-      for (const [roll, count] of Object.entries(by_rollnum_pulls_5)) {
-        by_rollnum_chance_5[roll] = total_pulls_5 > 0 ? count / total_pulls_5 : 0;
-      }
-      
-      // Log specific roll #22 for verification
-      const roll22Count = by_rollnum_pulls_5[22] || 0;
-      const roll22Chance = by_rollnum_chance_5[22] || 0;
-      console.log('[WuWa Parser] Roll #22: Count =', roll22Count, ', Chance =', (roll22Chance * 100).toFixed(2) + '%');
-      
-      console.log('[WuWa Parser] First 10 rolls (chance%):', 
-        Object.fromEntries(
-          Object.entries(by_rollnum_chance_5)
-            .slice(0, 10)
-            .map(([k, v]) => [k, (v * 100).toFixed(3) + '%'])
-        )
-      );
-      
-      return {
-        stats: {
-          by_rollnum_pulls_5,
-          by_rollnum_chance_5,
-          total_pulls_5,
-          count_win_5: 0,
-          count_lose_5: 0
-        },
-        list: []
-      };
-    }
-    
-    console.log('[WuWa Parser] Matched histogram pattern with total field');
-    
-    // Extract the histogram content: \"1\":1325,\"2\":1331,...
-    let histogramContent = match[1];
-    // Extract the total field
-    const totalFromData = parseInt(match[2], 10);
-    
-    console.log('[WuWa Parser] Raw histogram (first 300 chars):', histogramContent.substring(0, 300));
-    console.log('[WuWa Parser] Total from data field:', totalFromData);
-    
-    // Unescape the quotes: \"1\":1325 becomes "1":1325
-    histogramContent = histogramContent.replace(/\\"/g, '"');
-    
-    console.log('[WuWa Parser] Unescaped histogram (first 300 chars):', histogramContent.substring(0, 300));
-    
-    // Construct valid JSON: {histogramContent}
+    // Unescape and parse histogram
+    let histogramContent = histMatch[1].replace(/\\"/g, '"');
     const histogramJson = `{${histogramContent}}`;
+    const histogramData = JSON.parse(histogramJson);
     
-    let histogramData;
-    try {
-      histogramData = JSON.parse(histogramJson);
-      console.log('[WuWa Parser] Successfully parsed histogram JSON');
-      console.log('[WuWa Parser] Number of pity rolls:', Object.keys(histogramData).length);
-    } catch (e) {
-      console.error('[WuWa Parser] JSON parse error:', e);
-      console.log('[WuWa Parser] Failed JSON string:', histogramJson.substring(0, 500));
-      return null;
+    console.log('[WuWa Parser] Extracted histogram with', Object.keys(histogramData).length, 'pity values');
+    
+    // 2. Extract character data (itemNameHistogram)
+    const charPattern = /\\"itemNameHistogram\\":\{([^}]+)\}/;
+    const charMatch = html.match(charPattern);
+    
+    let characterData = null;
+    if (charMatch) {
+      let charContent = charMatch[1].replace(/\\"/g, '"');
+      const charJson = `{${charContent}}`;
+      characterData = JSON.parse(charJson);
+      console.log('[WuWa Parser] Extracted character data:', Object.keys(characterData));
     }
     
-    // Transform to our format
+    // 3. Calculate total using appropriate method
+    // WuWa has different mechanics for character vs weapon banners:
+    // - Character banners: 50/50 mechanic (can lose to standard pool) → Total ≈ 2x Featured Character
+    // - Weapon banners: No 50/50 loss → Total = Sum of all banner weapons
+    let total_pulls_5;
+    
+    if (characterData) {
+      const items = Object.entries(characterData).map(([name, count]) => ({
+        name,
+        count: parseInt(count, 10)
+      }));
+      
+      items.sort((a, b) => b.count - a.count);
+      const featured = items[0];
+      
+      // Detect if this is a weapon or character banner
+      // Weapon banners typically have 3 items, character banners have 8+
+      const isWeaponBanner = items.length <= 4;
+      
+      if (isWeaponBanner) {
+        // Weapon banner: Featured weapon × 1.3 multiplier
+        // This matches WuWa Tracker's calculation methodology
+        total_pulls_5 = Math.floor(featured.count * 1.3);
+        console.log(`[WuWa Parser] Weapon banner detected. Total = ${featured.name} × 1.3 = ${total_pulls_5}`);
+      } else {
+        // Character banner: 2x featured character (accounts for 50/50)
+        total_pulls_5 = featured.count * 2;
+        console.log(`[WuWa Parser] Character banner detected. Using 2x featured character (${featured.name}: ${featured.count}) = ${total_pulls_5} total`);
+      }
+    } else {
+      // Fallback: sum histogram
+      total_pulls_5 = Object.values(histogramData).reduce((sum, count) => sum + parseInt(count, 10), 0);
+      console.log('[WuWa Parser] Using histogram sum:', total_pulls_5);
+    }
+    
+    // 4. Transform to our format
     const by_rollnum_pulls_5 = {};
     const by_rollnum_chance_5 = {};
     
-    // Calculate sum for verification
-    let summed_total = 0;
     for (const [pity, count] of Object.entries(histogramData)) {
       const roll = parseInt(pity, 10);
       const pullCount = parseInt(count, 10);
       
-      if (!isNaN(roll) && !isNaN(pullCount)) {
-        by_rollnum_pulls_5[roll] = pullCount;
-        summed_total += pullCount;
-      }
+      by_rollnum_pulls_5[roll] = pullCount;
+      by_rollnum_chance_5[roll] = total_pulls_5 > 0 ? pullCount / total_pulls_5 : 0;
     }
     
-    // Use the total from the data field (more accurate)
-    const total_pulls_5 = totalFromData;
-    
-    console.log('[WuWa Parser] Total from data field:', total_pulls_5);
-    console.log('[WuWa Parser] Total from summing histogram:', summed_total);
-    console.log('[WuWa Parser] Difference:', Math.abs(total_pulls_5 - summed_total));
-    console.log('[WuWa Parser] First 10 rolls (count):', Object.fromEntries(Object.entries(by_rollnum_pulls_5).slice(0, 10)));
-    
-    // Calculate chances using the data field total
-    for (const [roll, count] of Object.entries(by_rollnum_pulls_5)) {
-      by_rollnum_chance_5[roll] = total_pulls_5 > 0 ? count / total_pulls_5 : 0;
-    }
-    
-    // Log specific roll #22 for verification
+    // Verification
     const roll22Count = by_rollnum_pulls_5[22] || 0;
     const roll22Chance = by_rollnum_chance_5[22] || 0;
-    console.log('[WuWa Parser] Roll #22: Count =', roll22Count, ', Chance =', (roll22Chance * 100).toFixed(2) + '% (should be 0.91%)');
-    
-    console.log('[WuWa Parser] First 10 rolls (chance%):', 
-      Object.fromEntries(
-        Object.entries(by_rollnum_chance_5)
-          .slice(0, 10)
-          .map(([k, v]) => [k, (v * 100).toFixed(3) + '%'])
-      )
-    );
+    console.log('[WuWa Parser] Roll #22: Count =', roll22Count, ', Chance =', (roll22Chance * 100).toFixed(2) + '%');
     
     return {
       stats: {
         by_rollnum_pulls_5,
         by_rollnum_chance_5,
         total_pulls_5,
-        count_win_5: 0, // WuWa doesn't have 50/50 data in the same format
+        count_win_5: 0,
         count_lose_5: 0
       },
       list: []
@@ -1308,15 +1106,118 @@ function parseWuWaHTML(html, debugMode = false) {
   }
 }
 
+
+
+
+
 /**
- * Fetches live WuWa banners
- * Returns preset banners for now since WuWa Tracker doesn't have a banner list API
+ * Fetches live WuWa banners by scraping WuWa Tracker
+ * Automatically discovers new banners when they release
  */
 export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
-  // For now, return preset banners
-  // In the future, we could scrape the WuWa Tracker banner history page
-  return {
-    status: 'preset',
-    data: WUWA_PRESET_BANNERS
-  };
+  const CACHE_KEY = 'wuwa_live_banners_cache';
+  const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
+  
+  // Check cache first (unless ignoreThrottle is true)
+  if (!ignoreThrottle) {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        const age = Date.now() - timestamp;
+        
+        if (age < CACHE_DURATION) {
+          console.log('[WuWa Banners] Using cached data, age:', Math.floor(age / 1000), 'seconds');
+          return { status: 'cached', data };
+        }
+      }
+    } catch (e) {
+      console.warn('[WuWa Banners] Cache read error:', e);
+    }
+  }
+  
+  try {
+    console.log('[WuWa Banners] Fetching live banner list from WuWa Tracker...');
+    
+    // Fetch the main stats page which lists all available banners
+    const response = await fetchWithProxyFallback('https://wuwatracker.com/tracker/stats');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const html = await response.text();
+    
+    // Extract banner data from the HTML
+    // WuWa Tracker shows banners as links like /tracker/stats/100030
+    const bannerPattern = /\/tracker\/stats\/(\d{6})[^>]*>([^<]+)</g;
+    const banners = [];
+    const seenIds = new Set();
+    
+    let match;
+    while ((match = bannerPattern.exec(html)) !== null) {
+      const bannerId = match[1];
+      const bannerName = match[2].trim();
+      
+      // Skip duplicates
+      if (seenIds.has(bannerId)) continue;
+      seenIds.add(bannerId);
+      
+      // Detect banner type:
+      // - Character banners: IDs starting with 100xxx
+      // - Weapon banners: IDs starting with 101xxx
+      const isWeaponBanner = bannerId.startsWith('101');
+      const type = isWeaponBanner ? 'weapon' : 'character';
+      
+      // Try to extract image URL (if available in HTML)
+      // For now, use preset images if we have them, otherwise null
+      const presetBanner = WUWA_PRESET_BANNERS.find(b => b.bannerId === bannerId);
+      const image = presetBanner?.image || null;
+      
+      banners.push({
+        id: `${bannerId}_${type}`,
+        bannerId,
+        name: bannerName,
+        type,
+        image,
+        game: 'wuwa'
+      });
+    }
+    
+    // If we found no banners via scraping, fall back to presets
+    if (banners.length === 0) {
+      console.warn('[WuWa Banners] No banners found via scraping, using presets');
+      return {
+        status: 'preset',
+        data: WUWA_PRESET_BANNERS
+      };
+    }
+    
+    console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
+    
+    // Cache the results
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data: banners,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      console.warn('[WuWa Banners] Cache write error:', e);
+    }
+    
+    return {
+      status: 'updated',
+      data: banners
+    };
+  } catch (error) {
+    console.error('[WuWa Banners] Fetch error:', error);
+    
+    // On error, return preset banners as fallback
+    console.warn('[WuWa Banners] Falling back to preset banners due to error');
+    return {
+      status: 'error',
+      data: WUWA_PRESET_BANNERS,
+      error: error.message
+    };
+  }
 }
