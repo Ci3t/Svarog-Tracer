@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, fetchWuWaLiveBanners, WUWA_PRESET_BANNERS } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
@@ -170,6 +171,33 @@ export default function WarpAnalyzer() {
       }
     }
   }, [activeBanners, selectedBannerId]);
+
+  // GSAP Entrance Animations
+  useEffect(() => {
+    const tl = gsap.timeline();
+    
+    // Animate game selection buttons
+    tl.from('.game-btn', {
+      opacity: 0,
+      y: -20,
+      duration: 0.6,
+      stagger: 0.12,
+      ease: 'power3.out'
+    });
+    
+    // Animate banner cards if they exist
+    const bannerCards = document.querySelectorAll('.banner-card');
+    if (bannerCards.length > 0) {
+      tl.from('.banner-card', {
+        opacity: 0,
+        scale: 0.8,
+        y: 30,
+        duration: 0.7,
+        stagger: 0.1,
+        ease: 'back.out(1.2)'
+      }, '-=0.4');
+    }
+  }, [selectedGame, bannerType]);
 
   // Current selected banner
   const currentBanner = useMemo(() => {
@@ -441,7 +469,7 @@ export default function WarpAnalyzer() {
                       <div className="inline-flex items-center gap-2 p-1 bg-slate-900/70 backdrop-blur-sm border border-slate-700 rounded-xl">
                         <button
                           onClick={() => setSelectedGame('hsr')}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                             selectedGame === 'hsr' 
                               ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-lg shadow-purple-900/50' 
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -452,7 +480,7 @@ export default function WarpAnalyzer() {
                         </button>
                         <button
                           onClick={() => setSelectedGame('genshin')}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                             selectedGame === 'genshin' 
                               ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-900/50' 
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -463,7 +491,7 @@ export default function WarpAnalyzer() {
                         </button>
                         <button
                           onClick={() => setSelectedGame('wuwa')}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                          className={`game-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                             selectedGame === 'wuwa' 
                               ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-900/50' 
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
