@@ -6,6 +6,10 @@
 
 const SRS_API_BASE = "https://starrailstation.com/api/v1/warp_fetch/";
 const PAIMON_API_BASE = "https://api.paimon.moe/wish";
+const ZZZ_API_BASE = "https://zzz.rng.moe/api/v1/gacha/global/";
+
+// Import adaptive WuWa parser (self-healing)
+import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
@@ -154,6 +158,47 @@ export const PRESET_BANNERS = currentBanners.length > 0 ? currentBanners : [
     name: "Firefly",
     image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png",
     type: "character"
+  }
+];
+
+// === FATE/STAY NIGHT COLLABORATION ===
+// Separate export for Fate characters to merge with live banners
+export const FATE_CHARACTERS = [
+  {
+    id: "5001",
+    name: "Saber",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png", 
+    type: "character",
+    characterId: "1014",
+    separator: true,
+    collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "5002",
+    name: "Archer",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png",
+    type: "character",
+    characterId: "1015",
+    collaboration: "Fate/Stay Night"
+  }
+];
+
+// Fate/Stay Night collaboration Light Cones
+export const FATE_LIGHT_CONES = [
+  {
+    id: "6001",
+    name: "A Thankless Coronation",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23045.png",
+    type: "light_cone",
+    separator: true,
+    collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "6002",
+    name: "The Hell Where Ideals Burn",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23046.png",
+    type: "light_cone",
+    collaboration: "Fate/Stay Night"
   }
 ];
 
@@ -979,8 +1024,8 @@ export async function fetchWuWaStats(bannerId, debugMode = true) {
     
     console.log('[WuWa] HTML length:', html.length);
     
-    // Parse the HTML to extract pity distribution
-    const stats = parseWuWaHTML(html, debugMode);
+    // Parse the HTML using the ADAPTIVE parser (self-healing)
+    const stats = parseWuWaHTML_Adaptive(html);
     
     if (!stats) {
       throw new Error('Failed to parse WuWa statistics from HTML');
@@ -1228,4 +1273,101 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       error: error.message
     };
   }
+}
+
+// ============================================================
+// ZENLESS ZONE ZERO SUPPORT (zzz.rng.moe API)
+// ============================================================
+
+// ZZZ preset banners (Signal types) - Current banners only
+export const ZZZ_PRESET_BANNERS = [
+  // Latest Exclusive Channel (Character) - Ye Shuanguang
+  { 
+    id: "2001015", 
+    name: "Ye Shuanguang", 
+    type: "character", 
+    image: "https://zzz.rng.moe/images/characters/1381.webp", 
+    characterId: "ye_shuanguang", 
+    game: "zzz" 
+  },
+  // Zhao (second concurrent character banner)
+  { 
+    id: "2001016", 
+    name: "Zhao", 
+    type: "character", 
+    image: "https://zzz.rng.moe/images/characters/1391.webp", 
+    characterId: "zhao", 
+    game: "zzz" 
+  },
+  // Latest W-Engine Channel (Weapon)
+  { 
+    id: "3001043", 
+    name: "Dissonant Sonata (W-Engine)", 
+    type: "weapon", 
+    image: "https://zzz.rng.moe/images/weapons/14127.webp", 
+    characterId: "weapon_dissonant", 
+    game: "zzz" 
+  },
+];
+
+/**
+ * Fetches ZZZ statistics from zzz.rng.moe API
+ * Clean JSON API - no scraping needed (same format as HSR)
+ * @param {string} bannerId - Banner ID to fetch (e.g., "2001015" for Ye Shuanguang)
+ * @param {number} maxRetries - Maximum retry attempts (default: 3)
+ */
+export async function fetchZZZStats(bannerId, maxRetries = 3) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const targetUrl = `${ZZZ_API_BASE}${bannerId}?game=zzz`;
+      
+      console.log('[ZZZ] Fetching:', targetUrl);
+      
+      const response = await fetchWithProxyFallback(targetUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('[ZZZ] Data received, total 5★ pulls:', data.stats?.total_pulls_5);
+      
+      // Transform to our unified format (already very close)
+      return transformZZZData(data);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[ZZZ Attempt ${attempt}/${maxRetries}] Fetch error:`, error.message);
+      
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        console.log(`Retrying ZZZ fetch in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  console.error("All retry attempts failed for ZZZ fetch");
+  throw lastError;
+}
+
+/**
+ * Transforms ZZZ data to match our unified format
+ * The zzz.rng.moe API is already very similar to HSR format
+ */
+function transformZZZData(data) {
+  const stats = data.stats;
+  
+  return {
+    stats: {
+      total_pulls_5: stats.total_pulls_5 || 0,
+      by_rollnum_pulls_5: stats.by_rollnum_pulls_5 || {},
+      by_rollnum_chance_5: stats.by_rollnum_chance_5 || {},
+      count_win_5: stats.count_win_5 || 0,
+      count_lose_5: stats.count_lose_5 || 0
+    },
+    list: []
+  };
 }

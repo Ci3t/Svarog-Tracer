@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
-import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, fetchWuWaLiveBanners, WUWA_PRESET_BANNERS } from "../utils/warpDataService";
+import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, fetchWuWaLiveBanners, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -24,6 +24,7 @@ export default function WarpAnalyzer() {
   const [bannerType, setBannerType] = useState('character');
   const [chartView, setChartView] = useState('count'); // 'count' | 'chance'
   const [winsOnlyMode, setWinsOnlyMode] = useState(false); // Toggle for wins-only distribution
+  const [bannersLoading, setBannersLoading] = useState(false); // Loading state for banner fetching
 
 
   const [data, setData] = useState(null);
@@ -44,6 +45,7 @@ export default function WarpAnalyzer() {
   const getGameColor = () => {
     if (selectedGame === 'hsr') return '#9333ea'; // purple-600
     if (selectedGame === 'genshin') return '#f59e0b'; // amber-500
+    if (selectedGame === 'zzz') return '#22c55e'; // green-500
     if (selectedGame === 'wuwa') return '#06b6d4'; // cyan-500
     return '#9333ea';
   };
@@ -53,41 +55,54 @@ export default function WarpAnalyzer() {
   // -- Load banners based on selected game --
   useEffect(() => {
     const loadBanners = async () => {
-      if (selectedGame === 'hsr') {
-        // Use cache first (false) for instant UI, fetches fresh after 10s
-        const result = await fetchLiveBanners(false);
-        if (result.data && result.data.length > 0) {
-          setBanners(result.data);
-          setSelectedBannerId(result.data[0].id);
-        } else {
-          setBanners(PRESET_BANNERS);
-          setSelectedBannerId(PRESET_BANNERS[0]?.id);
+      setBannersLoading(true);
+      try {
+        if (selectedGame === 'hsr') {
+          // Use cache first (false) for instant UI, fetches fresh after 10s
+          const result = await fetchLiveBanners(false);
+          if (result.data && result.data.length > 0) {
+            // Merge Fate collaboration characters AND light cones with live banners
+            const mergedBanners = [...result.data, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
+            setBanners(mergedBanners);
+            setSelectedBannerId(mergedBanners[0].id);
+          } else {
+            // Merge Fate collaboration characters AND light cones with preset banners
+            const mergedBanners = [...PRESET_BANNERS, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
+            setBanners(mergedBanners);
+            setSelectedBannerId(mergedBanners[0]?.id);
+          }
+        } else if (selectedGame === 'genshin') {
+          // Use cache first for Genshin too
+          const result = await fetchGenshinLiveBanners(false);
+          if (result.data && result.data.length > 0) {
+            setBanners(result.data);
+            setSelectedBannerId(result.data[0].id);
+          } else {
+            setBanners(GENSHIN_PRESET_BANNERS);
+            setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
+          }
+        } else if (selectedGame === 'wuwa') {
+          // Fetch WuWa banners
+          const result = await fetchWuWaLiveBanners(false);
+          if (result.data && result.data.length > 0) {
+            setBanners(result.data);
+            setSelectedBannerId(result.data[0].id);
+          } else {
+            setBanners(WUWA_PRESET_BANNERS);
+            setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
+          }
+        } else if (selectedGame === 'zzz') {
+          // ZZZ uses preset banners (zzz.rng.moe has clean API, no live discovery needed)
+          setBanners(ZZZ_PRESET_BANNERS);
+          setSelectedBannerId(ZZZ_PRESET_BANNERS[0]?.id);
         }
-      } else if (selectedGame === 'genshin') {
-        // Use cache first for Genshin too
-        const result = await fetchGenshinLiveBanners(false);
-        if (result.data && result.data.length > 0) {
-          setBanners(result.data);
-          setSelectedBannerId(result.data[0].id);
-        } else {
-          setBanners(GENSHIN_PRESET_BANNERS);
-          setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
-        }
-      } else if (selectedGame === 'wuwa') {
-        // Fetch WuWa banners
-        const result = await fetchWuWaLiveBanners(false);
-        if (result.data && result.data.length > 0) {
-          setBanners(result.data);
-          setSelectedBannerId(result.data[0].id);
-        } else {
-          setBanners(WUWA_PRESET_BANNERS);
-          setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
-        }
+        // Clear current data when switching games
+        setData(null);
+        setBannerType('character');
+        setWinsOnlyMode(false);
+      } finally {
+        setBannersLoading(false);
       }
-      // Clear current data when switching games
-      setData(null);
-      setBannerType('character');
-      setWinsOnlyMode(false);
     };
     loadBanners().catch(e => console.warn(e));
   }, [selectedGame]);
@@ -143,7 +158,10 @@ export default function WarpAnalyzer() {
 
     try {
       let stats;
-      if (selectedGame === 'wuwa') {
+      if (selectedGame === 'zzz') {
+        // ZZZ uses zzz.rng.moe API (clean JSON, same format as HSR)
+        stats = await fetchZZZStats(id);
+      } else if (selectedGame === 'wuwa') {
         // WuWa uses direct banner IDs
         stats = await fetchWuWaStats(id);
       } else if (selectedGame === 'genshin') {
@@ -164,12 +182,13 @@ export default function WarpAnalyzer() {
   };
 
 
-  // Banner filtering - handle both HSR (light_cone) and Genshin (weapon) types
+  // Banner filtering - handle HSR (light_cone), Genshin (weapon), WuWa (weapon), and ZZZ (standard, character, weapon, bangboo)
   const activeBanners = useMemo(() => {
     if (bannerType === 'character') {
-      return banners.filter(b => b.type === 'character');
+      // For ZZZ, include 'standard' and 'bangboo' as character-like banners
+      return banners.filter(b => b.type === 'character' || b.type === 'standard' || b.type === 'bangboo');
     }
-    // For non-character, accept both 'light_cone' and 'weapon'
+    // For non-character, accept 'light_cone', 'weapon'
     return banners.filter(b => b.type === 'light_cone' || b.type === 'weapon');
   }, [banners, bannerType]);
 
@@ -487,7 +506,10 @@ export default function WarpAnalyzer() {
                         <div ref={gamePillRef} className="absolute top-1 bottom-1 left-0 rounded-lg shadow-lg z-0 pointer-events-none" style={{ backgroundColor: getGameColor() }} />
                         <button
                           onClick={() => setSelectedGame('hsr')}
-                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                          disabled={bannersLoading}
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 ${
+                            bannersLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          } ${
                             selectedGame === 'hsr' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
@@ -496,16 +518,32 @@ export default function WarpAnalyzer() {
                         </button>
                         <button
                           onClick={() => setSelectedGame('genshin')}
-                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                          disabled={bannersLoading}
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 ${
+                            bannersLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          } ${
                             selectedGame === 'genshin' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-6 h-6 rounded-full" />
                           Genshin Impact
                         </button>
+                        {/* TEMPORARILY DISABLED: ZZZ button until zzz.rng.moe banner IDs are confirmed */}
+                        {/* <button
+                          onClick={() => setSelectedGame('zzz')}
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                            selectedGame === 'zzz' ? 'active text-white' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <img src={`${import.meta.env.BASE_URL}zzzIcon.png`} alt="ZZZ" className="w-6 h-6 rounded-full" />
+                          Zenless Zone Zero
+                        </button> */}
                         <button
                           onClick={() => setSelectedGame('wuwa')}
-                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 cursor-pointer ${
+                          disabled={bannersLoading}
+                          className={`game-btn z-10 relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors duration-300 ${
+                            bannersLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          } ${
                             selectedGame === 'wuwa' ? 'active text-white' : 'text-slate-400 hover:text-white'
                           }`}
                         >
@@ -514,6 +552,20 @@ export default function WarpAnalyzer() {
                         </button>
                       </div>
                     </div>
+                    {/* LOADING PROGRESS BAR */}
+                    {bannersLoading && (
+                      <div className="mt-4 flex flex-col items-center animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="w-full max-w-md h-1 bg-slate-800 rounded-full overflow-hidden relative">
+                          <div 
+                            className="absolute inset-y-0 left-0 w-1/3 rounded-full animate-progress-scan"
+                            style={{ backgroundColor: getGameColor(), boxShadow: `0 0 10px ${getGameColor()}` }}
+                          />
+                        </div>
+                        <p className="mt-2 text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em] animate-pulse">
+                          Loading {selectedGame === 'hsr' ? 'Honkai: Star Rail' : selectedGame === 'genshin' ? 'Genshin Impact' : 'Wuthering Waves'} banners...
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* BANNER SELECTION (Tabs + Grid) */}
@@ -538,34 +590,58 @@ export default function WarpAnalyzer() {
                      </div>
 
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                         {activeBanners.map(banner => {
+                         {activeBanners.map((banner, index, array) => {
                              const isSelected = selectedBannerId === banner.id;
+                             const prevBanner = index > 0 ? array[index - 1] : null;
+                             const showSeparator = banner.separator && (!prevBanner || !prevBanner.collaboration);
+                             
                              return (
-                                 <div 
-                                     key={`${banner.id}_${banner.characterId}`}
-                                     onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
-                                     className={`
-                                          group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300
-                                          ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
-                                          bg-slate-900/50 backdrop-blur-sm
-                                      `}
-                                 >
-                                      <img 
-                                          src={banner.image} 
-                                          alt={banner.name} 
-                                          className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`} 
-                                      />
-                                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
-                                     <div className="absolute bottom-0 left-0 right-0 p-4">
-                                          <div className="flex gap-1 mb-2">
-                                             {[...Array(5)].map((_, i) => (
-                                                  <Icons.Star key={i} className={`w-3 h-3 ${isSelected ? "text-amber-500 fill-amber-500" : "text-slate-600 fill-slate-600"}`} />
-                                             ))}
-                                          </div>
-                                         <h3 className={`text-sm font-bold uppercase tracking-wider ${isSelected ? "text-white" : "text-slate-400"}`}>{banner.name}</h3>
+                                 <React.Fragment key={`${banner.id}_${banner.characterId}`}>
+                                     {/* Separator for collaboration banners */}
+                                     {showSeparator && (
+                                         <div className="col-span-2 md:col-span-4 flex items-center gap-4 my-4">
+                                             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
+                                             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30">
+                                                 <Icons.Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                                                 <span className="text-sm font-bold text-amber-400 uppercase tracking-wider">
+                                                     {banner.collaboration} Collaboration
+                                                 </span>
+                                                 <Icons.Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                                             </div>
+                                             <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 via-transparent to-transparent"></div>
+                                         </div>
+                                     )}
+                                     
+                                     <div 
+                                         onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
+                                         className={`
+                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300
+                                              ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
+                                              bg-slate-900/50 backdrop-blur-sm
+                                          `}
+                                     >
+                                          <img 
+                                              src={banner.image} 
+                                              alt={banner.name} 
+                                              className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`} 
+                                          />
+                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
+                                         <div className="absolute bottom-0 left-0 right-0 p-4">
+                                              <div className="flex gap-1 mb-2">
+                                                 {[...Array(5)].map((_, i) => (
+                                                      <Icons.Star key={i} className={`w-3 h-3 ${isSelected ? "text-amber-500 fill-amber-500" : "text-slate-600 fill-slate-600"}`} />
+                                                 ))}
+                                              </div>
+                                             <h3 className={`text-sm font-bold uppercase tracking-wider ${isSelected ? "text-white" : "text-slate-400"}`}>{banner.name}</h3>
+                                             {banner.collaboration && (
+                                                 <div className="mt-1 text-[10px] text-amber-400/70 font-medium uppercase tracking-wider">
+                                                     {banner.collaboration}
+                                                 </div>
+                                             )}
+                                         </div>
+                                          {isSelected && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#f59e0b]" />}
                                      </div>
-                                      {isSelected && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#f59e0b]" />}
-                                 </div>
+                                 </React.Fragment>
                              )
                          })}
                      </div>
@@ -974,7 +1050,7 @@ export default function WarpAnalyzer() {
                                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                         Operational Status
                                     </h4>
-                                    <p className="text-xs text-slate-500 font-mono">Ver 3.8.6 • Site Patch: Stability Enhanced</p>
+                                    <p className="text-xs text-slate-500 font-mono">Ver 3.8.7 • Site Patch: Stability Enhanced</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <div className="text-right hidden md:block">
@@ -992,8 +1068,8 @@ export default function WarpAnalyzer() {
                             </div>
                             <div className="mt-8 pt-6 border-t border-slate-800/50">
                                 <p className="text-[10px] text-slate-600 leading-relaxed max-w-2xl mx-auto uppercase tracking-tighter italic">
-                                    Data sourced from <a href="https://starrailstation.com" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 underline underline-offset-2">StarRailStation.com</a> (HSR) and <a href="https://paimon.moe" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400 underline underline-offset-2">Paimon.moe</a> (Genshin). This tool provides pattern analysis for global warp/wish statistics.
-                                    Not affiliated with Cognosphere/HoYoverse. May your pulls be lucky and your pities be short. ✦
+                                    Data sourced from <a href="https://starrailstation.com" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 underline underline-offset-2">StarRailStation.com</a> (HSR), <a href="https://paimon.moe" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400 underline underline-offset-2">Paimon.moe</a> (Genshin), and <a href="https://wuwatracker.com" target="_blank" rel="noopener noreferrer" className="text-teal-400 hover:text-teal-300 underline underline-offset-2">WuWaTracker.com</a> (WuWa). This tool provides pattern analysis for global gacha statistics.
+                                    Not affiliated with Cognosphere/HoYoverse/Kuro Games. May your pulls be lucky and your pities be short. ✦
                                 </p>
                             </div>
                        </div>

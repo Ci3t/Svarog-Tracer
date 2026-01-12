@@ -15,6 +15,24 @@ body {
   /* Firefox */
 }
 
+@keyframes progress-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-progress-scan {
+  animation: progress-scan 1.5s infinite linear;
+}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
   /* Chrome, Safari and Opera */
