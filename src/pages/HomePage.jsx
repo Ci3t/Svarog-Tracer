@@ -45,6 +45,13 @@ export default function HomePage() {
       desc: "Detailed documentation and technical guides for RNG analysis.",
       path: "/guides",
       icon: "📚"
+    },
+    {
+      title: "Tracker",
+      label: "Banner Rerun",
+      desc: "Timeline of character banners and drought counters.",
+      path: "/banner-tracker",
+      icon: "🗓️"
     }
   ];
 
@@ -178,7 +185,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap justify-center gap-6">
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
-               Ver.3.8.7 FCS
+               Ver.3.8.7b FCS
              </div>
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
                SYS-Status: Validated

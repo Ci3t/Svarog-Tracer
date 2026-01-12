@@ -143,6 +143,7 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Latest banners for Pach 2.3?
 import currentBanners from '../data/current_banners.json';
+import bannerHistory from '../data/bannerHistory.json';
 
 // Updated: Now using auto-generated banners from scripts/update_banners.py
 // Fallback to hardcoded if JSON is empty (optional, but good practice)
@@ -799,6 +800,70 @@ function transformGenshinData(data, bannerId) {
     raw: data
   };
 }
+
+// ============================================================
+// HISTORY TRACKER UTILS
+// ============================================================
+
+export function getBannerHistory() {
+  return bannerHistory;
+}
+
+/**
+ * Fetches character metadata to map Names to Images
+ * Returns a map: { "Seele": "url...", "Jing Yuan": "url...", ... }
+ */
+export async function fetchCharacterMetadataMap() {
+  const CACHE_KEY = 'char_metadata_map_v2'; // Bump version to force refresh
+  const cached = localStorage.getItem(CACHE_KEY);
+  let nameToImage = {};
+
+  if (cached) {
+    try {
+      nameToImage = JSON.parse(cached);
+    } catch (e) {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  }
+
+  // If cache is empty or too small, fetch from Network
+  if (Object.keys(nameToImage).length < 20) {
+    try {
+      const url = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/characters.json";
+      const response = await fetchWithProxyFallback(url); 
+      if (response.ok) {
+        const data = await response.json();
+        const IMG_BASE = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/";
+        Object.values(data).forEach(char => {
+          if (char.name && char.icon) {
+            nameToImage[char.name] = `${IMG_BASE}${char.icon}`;
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching char metadata:", err);
+    }
+  }
+
+  // ALWAYS Apply Overrides (Cache or Fresh)
+  if (nameToImage["Topaz & Numby"]) nameToImage["Topaz"] = nameToImage["Topaz & Numby"];
+  
+  // Manual override for Dan Heng variants
+  nameToImage["Imbibitor Lunae"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1213.png";
+  nameToImage["Dan Heng PT"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1414.png";
+
+  // Fate Collab Manual Overrides
+  nameToImage["Saber"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png";
+  nameToImage["Archer"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png";
+
+  // Update Cache with overrides
+  if (Object.keys(nameToImage).length > 0) {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(nameToImage));
+  }
+  
+  return nameToImage;
+}
+
 
 /**
  * Calculate 50/50 win/loss from Genshin featured character data
