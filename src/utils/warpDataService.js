@@ -946,56 +946,83 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
     const nowTs = Date.now();
     const banners = [];
     
-    // Start from last known ID to avoid checking old banners
+    // Start from last known ID and search BOTH directions to catch double banners
+    // Double banners can be at consecutive IDs (e.g., 300093 + 300094)
     const lastKnownId = parseInt(localStorage.getItem(LAST_KNOWN_ID_KEY) || '93');
-    const startId = Math.min(lastKnownId + 3, 105); // Check 3 ahead of last known
+    const searchRange = 8; // Search ±8 IDs from last known
     
-    // Character banners - only check 5 IDs starting from smart position
-    for (let i = startId; i >= startId - 5 && i >= 85; i--) {
-      const bannerId = `3000${i}`;
+    // Collect all valid banners in the search range
+    const candidateBanners = [];
+    
+    for (let offset = -5; offset <= searchRange; offset++) {
+      const i = lastKnownId + offset;
+      if (i < 85 || i > 120) continue; // Stay within reasonable bounds
+      
+      const bannerId = `300${i.toString().padStart(3, '0')}`;
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
         const response = await fetchWithProxyFallback(targetUrl);
         if (response.ok) {
           const data = await response.json();
-          if (data.total && data.total.legendary > 1000) {
-            // Save this as the new "last known" for next time
-            localStorage.setItem(LAST_KNOWN_ID_KEY, i.toString());
-            
-            const featured5Star = data.list?.filter(item => 
-              item.type === 'character' && 
-              item.count > 5000 && 
-              item.count < 50000 &&
-              !['diluc', 'jean', 'keqing', 'mona', 'qiqi', 'tighnari', 'dehya'].includes(item.name)
-            ) || [];
-            
-            for (const char of featured5Star) {
-              const formattedName = char.name.split('_').map(w => 
-                w.charAt(0).toUpperCase() + w.slice(1)
-              ).join(' ');
-              const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-              
-              banners.push({
-                id: `${bannerId}_${char.name}`,
-                bannerId: bannerId,
-                name: formattedName,
-                type: 'character',
-                image: `${GENSHIN_IMG_BASE}${charIconName}.png`,
-                characterId: char.name,
-                game: 'genshin'
-              });
-            }
-            break; // Found current banner
+          // Lower threshold to 400 to catch newer/smaller sample size banners
+          if (data.total && data.total.legendary > 400) {
+            candidateBanners.push({ bannerId, data, bannerId_num: i });
           }
         }
       } catch (e) {
-        console.warn(`Banner ${bannerId} not found`);
+        // Silently skip non-existent banners
       }
     }
     
-    // Weapon banners - same optimization
-    for (let i = startId; i >= startId - 5 && i >= 85; i--) {
-      const bannerId = `4000${i}`;
+    // Sort by banner ID descending (newest first), take ONLY the newest banner
+    candidateBanners.sort((a, b) => b.bannerId_num - a.bannerId_num);
+    const activeBanners = candidateBanners.slice(0, 1);  // Only current banner, not old ones
+    
+    // Update last known ID to the highest found
+    if (activeBanners.length > 0) {
+      localStorage.setItem(LAST_KNOWN_ID_KEY, activeBanners[0].bannerId_num.toString());
+    }
+    
+    // Process each active banner
+    for (const { bannerId, data } of activeBanners) {
+      // Filter for featured 5★ characters only (exclude standard pool and 4★)
+      // NOTE: Paimon.moe API doesn't provide rarity field, so we rely on count range
+      // Featured 5-stars: 1,000-30,000 pulls (very low min to catch day-1 banners)
+      // 4-star rate-ups: 40,000-90,000 pulls (5% drop rate) 
+      // Standard 5-stars: Usually 1,000-2,000 pulls (filtered via name list)
+      const featured5Star = data.list?.filter(item => {
+        const isCharacter = item.type === 'character';
+        const isStandard = ['diluc', 'jean', 'keqing', 'mona', 'qiqi', 'tighnari', 'dehya'].includes(item.name);
+        const inFeatured5StarRange = item.count > 1000 && item.count < 30000;  // Conservative threshold for new banners
+        
+        // Featured 5-stars have counts between 5k-30k (excludes 4-star rate-ups and standard pool)
+        return isCharacter && !isStandard && inFeatured5StarRange;
+      }).sort((a, b) => b.count - a.count)  // Sort by count descending
+       .slice(0, 2) || [];  // Take top 2 featured characters per banner
+      
+      for (const char of featured5Star) {
+        const formattedName = char.name.split('_').map(w => 
+          w.charAt(0).toUpperCase() + w.slice(1)
+        ).join(' ');
+        const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+        
+        banners.push({
+          id: `${bannerId}_${char.name}`,
+          bannerId: bannerId,
+          name: formattedName,
+          type: 'character',
+          image: `${GENSHIN_IMG_BASE}${charIconName}.png`,
+          characterId: char.name,
+          game: 'genshin'
+        });
+      }
+    }
+    
+    // Weapon banners - search from the highest character banner ID found
+    if (activeBanners.length > 0) {
+      const weaponSearchStart = activeBanners[0].bannerId_num;
+      for (let i = weaponSearchStart + 2; i >= weaponSearchStart - 5 && i >= 85; i--) {
+      const bannerId = `400${i.toString().padStart(3, '0')}`;
       try {
         const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
         const response = await fetchWithProxyFallback(targetUrl);
@@ -1016,10 +1043,11 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
           }
         }
       } catch (e) {
-        console.warn(`Weapon banner ${bannerId} not found`);
+        // Silently skip
+      }
       }
     }
-    
+
     if (banners.length > 0) {
       localStorage.setItem(CACHE_KEY, JSON.stringify(banners));
       localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
@@ -1034,7 +1062,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
     return { status: 'fallback', data: GENSHIN_PRESET_BANNERS };
     
   } catch (error) {
-    console.error("Genshin banner fetch error:", error);
+    console.error("[GENSHIN DEBUG] ❌ FATAL ERROR:", error);
     // Return cached or presets on error
     if (cached.length > 0) {
       return { status: 'error', data: cached, error };
