@@ -11,6 +11,9 @@ const ZZZ_API_BASE = "https://zzz.rng.moe/api/v1/gacha/global/";
 // Import adaptive WuWa parser (self-healing)
 import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
+// Import Backend API Client
+import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
+
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
   // Primary: Most reliable globally
@@ -248,8 +251,19 @@ export function extractBannerId(input = "") {
  * @param {number} maxRetries - Maximum retry attempts (default: 3)
  */
 export async function fetchWarpStats(bannerId, maxRetries = 3) {
+  // 1. Try Backend API first
+  try {
+    console.log('[HSR] Trying backend API...');
+    const data = await hsrApi.getStats(bannerId);
+    if (data && data.stats) {
+      console.log('[HSR] ✓ Backend API succeeded');
+      return data;
+    }
+  } catch (backendError) {
+    console.warn('[HSR] Backend API failed, falling back to SRS:', backendError.message);
+  }
+
   let lastError;
-  
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const nowTs = Date.now();
@@ -740,8 +754,19 @@ export const GENSHIN_PRESET_BANNERS = [
  * @param {number} maxRetries - Maximum retry attempts (default: 3)
  */
 export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
+  // 1. Try Backend API first
+  try {
+    console.log('[Genshin] Trying backend API...');
+    const data = await genshinApi.getStats(bannerId);
+    if (data && data.stats) {
+      console.log('[Genshin] ✓ Backend API succeeded');
+      return data;
+    }
+  } catch (backendError) {
+    console.warn('[Genshin] Backend API failed, falling back to Paimon.moe:', backendError.message);
+  }
+
   let lastError;
-  
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // Add cache-buster to force fresh data
@@ -947,6 +972,18 @@ const GENSHIN_BANNER_OVERRIDES = {
  * OPTIMIZED: Uses cache-first approach and parallel fetching
  */
 export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
+  // 1. Try Backend API first
+  try {
+    console.log('[Genshin Banners] Trying backend API...');
+    const banners = await genshinApi.getBanners();
+    if (banners && Array.isArray(banners) && banners.length > 0) {
+      console.log('[Genshin Banners] ✓ Backend API succeeded');
+      return { status: 'updated', data: banners };
+    }
+  } catch (backendError) {
+    console.warn('[Genshin Banners] Backend API failed, falling back to Discovery:', backendError.message);
+  }
+
   const LAST_CHECK_KEY = 'genshin_banner_last_check';
   const CACHE_KEY = 'genshin_cached_banners';
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
@@ -1171,10 +1208,20 @@ export const WUWA_PRESET_BANNERS = [
  */
 export async function fetchWuWaStats(bannerId, debugMode = true) {
   try {
+    // 1. Try Backend API first
+    try {
+      console.log('[WuWa] Trying backend API...');
+      const data = await wuwaApi.getStats(bannerId);
+      if (data && data.stats) {
+        console.log('[WuWa] ✓ Backend API succeeded');
+        return data;
+      }
+    } catch (backendError) {
+      console.warn('[WuWa] Backend API failed, falling back to Scraping:', backendError.message);
+    }
+
     const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
-    
     console.log('[WuWa] Fetching:', statsUrl);
-    
     const response = await fetchWithProxyFallback(statsUrl);
     
     if (!response.ok) {
@@ -1321,6 +1368,18 @@ function parseWuWaHTML(html) {
  * Automatically discovers new banners when they release
  */
 export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
+  // 1. Try Backend API first
+  try {
+    console.log('[WuWa Banners] Trying backend API...');
+    const banners = await wuwaApi.getBanners();
+    if (banners && Array.isArray(banners) && banners.length > 0) {
+      console.log('[WuWa Banners] ✓ Backend API succeeded');
+      return { status: 'updated', data: banners };
+    }
+  } catch (backendError) {
+    console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
+  }
+
   const CACHE_KEY = 'wuwa_live_banners_cache';
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
@@ -1512,42 +1571,16 @@ export const ZZZ_PRESET_BANNERS = [
  * @param {number} maxRetries - Maximum retry attempts (default: 3)
  */
 export async function fetchZZZStats(bannerId, maxRetries = 3) {
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Add cache-buster for fresh data
-      const cacheBuster = Date.now();
-      const targetUrl = `${ZZZ_API_BASE}${bannerId}?game=zzz&_t=${cacheBuster}`;
-      
-      console.log('[ZZZ] Fetching:', targetUrl);
-      
-      const response = await fetchWithProxyFallback(targetUrl);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      console.log('[ZZZ] Data received, total 5★ pulls:', data.stats?.total_pulls_5);
-      
-      // Transform to our unified format (already very close)
-      return transformZZZData(data);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[ZZZ Attempt ${attempt}/${maxRetries}] Fetch error:`, error.message);
-      
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`Retrying ZZZ fetch in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+  try {
+    const data = await zzzApi.getStats(bannerId);
+    if (data.error) {
+       throw new Error(data.error);
     }
+    return transformZZZData(data);
+  } catch (e) {
+    console.warn('[ZZZ] Tracking is currently disabled or unavailable:', e.message);
+    throw new Error('ZZZ Tracking is temporarily unavailable. The source data site is having issues.');
   }
-  
-  console.error("All retry attempts failed for ZZZ fetch");
-  throw lastError;
 }
 
 /**

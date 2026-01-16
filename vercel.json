@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "framework": "vite",
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
+}
