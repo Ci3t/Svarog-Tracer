@@ -204,11 +204,12 @@ export const FATE_LIGHT_CONES = [
 ];
 
 /**
- * Extracts banner ID from a Star Rail Station URL
+ * Extracts banner ID from a Star Rail Station URL or banner identifier
  * Supported formats:
  * - https://starrailstation.com/en/warp#global (Default to latest or specific ID)
  * - https://starrailstation.com/en/warp#2099
  * - 2099 (Direct ID)
+ * - 100031_character (WuWa ID with suffix)
  */
 export function extractBannerId(input = "") {
   if (!input) return null;
@@ -218,7 +219,13 @@ export function extractBannerId(input = "") {
     return input.trim();
   }
   
-  // Case 2: URL with hash (e.g., #2099 or #global)
+  // Case 2: WuWa ID with suffix (e.g., "100031_character")
+  const wuwaMatch = input.match(/^(\d+)_(character|weapon)$/);
+  if (wuwaMatch) {
+    return wuwaMatch[1]; // Return just the numeric part
+  }
+  
+  // Case 3: URL with hash (e.g., #2099 or #global)
   const hashMatch = input.match(/#(\w+)/);
   if (hashMatch) {
     const hash = hashMatch[1];
@@ -226,7 +233,13 @@ export function extractBannerId(input = "") {
     if (hash === "global") return "2099"; // Fallback to current banner ID found in research
   }
   
-  return "2099"; // Default fallback
+  // Case 4: If it looks like a valid ID (starts with digits), return it as-is
+  // This handles cases like "100031" that might have been processed
+  if (/^\d/.test(input)) {
+    return input;
+  }
+  
+  return null; // Don't default to 2099 for unknown inputs
 }
 
 /**
@@ -716,7 +729,7 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 export const GENSHIN_PRESET_BANNERS = [
   { id: "300093_varesa", bannerId: "300093", name: "Varesa", type: "character", image: `${GENSHIN_IMG_BASE}Varesa.png`, characterId: "varesa", game: "genshin" },
   { id: "300093_xilonen", bannerId: "300093", name: "Xilonen", type: "character", image: `${GENSHIN_IMG_BASE}Xilonen.png`, characterId: "xilonen", game: "genshin" },
-  { id: "400092_weapon", bannerId: "400092", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2092.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "400092_weapon", bannerId: "400092", name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2092.png", characterId: "weapon_banner", game: "genshin" },
 ];
 
 
@@ -731,7 +744,9 @@ export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}`;
+      // Add cache-buster to force fresh data
+      const cacheBuster = Date.now();
+      const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}&_t=${cacheBuster}`;
       const response = await fetchWithProxyFallback(targetUrl);
       
       if (!response.ok) {
@@ -919,6 +934,14 @@ function calculateGenshinWinLoss(list, bannerId) {
   };
 }
 
+// Genshin Banner Overrides (for specific banner IDs that need manual naming)
+const GENSHIN_BANNER_OVERRIDES = {
+  "300094": { name: "Columbina", type: "character" },
+  "300093": { name: "Ineffa", type: "character" },
+  "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
+  "400092": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" }
+};
+
 /**
  * Fetches live Genshin banners from Paimon.moe
  * OPTIMIZED: Uses cache-first approach and parallel fetching
@@ -927,6 +950,16 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const LAST_CHECK_KEY = 'genshin_banner_last_check';
   const CACHE_KEY = 'genshin_cached_banners';
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
+  const CACHE_VERSION_KEY = 'genshin_cache_version';
+  const CURRENT_CACHE_VERSION = '1.2'; // Increment this when overrides change
+  
+  // Check cache version and invalidate if outdated
+  const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);
+  if (cachedVersion !== CURRENT_CACHE_VERSION) {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(LAST_CHECK_KEY);
+    localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
+  }
   
   // 1. ALWAYS return cached data first for instant UI
   const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
@@ -935,8 +968,8 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
     const lastCheck = parseInt(localStorage.getItem(LAST_CHECK_KEY) || '0');
     const nowTs = Date.now();
     
-    // If checked recently (10s), return cache immediately
-    if (nowTs - lastCheck < 10000 && cached.length > 0) {
+    // If checked recently (5s), return cache immediately
+    if (nowTs - lastCheck < 5000 && cached.length > 0) {
       return { status: 'uptodate', data: cached };
     }
   }
@@ -1030,10 +1063,13 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
           const data = await response.json();
           if (data.total && data.total.legendary > 500) {
             const bannerNumber = bannerId.slice(-2);
+            // Check for manual override first, then extract weapons
+            const override = GENSHIN_BANNER_OVERRIDES[bannerId];
+            const weaponName = override ? override.name : (extractGenshinWeaponNames(data.list) || `Epitome Invocation`);
             banners.push({
               id: `${bannerId}_weapon`,
               bannerId: bannerId,
-              name: `Epitome Invocation`,
+              name: weaponName,
               type: 'weapon',
               image: `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`,
               characterId: 'weapon_banner',
@@ -1071,29 +1107,61 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   }
 }
 
+/**
+ * Extracts 5-star weapon names from Paimon.moe wish list
+ */
+function extractGenshinWeaponNames(list) {
+  if (!list || list.length === 0) return null;
+  
+  const standardWeapons = [
+    'amos_bow', 'skyward_harp', 'skyward_atlas', 'lost_prayer_to_the_sacred_winds',
+    'primordial_jade_winged_spear', 'skyward_spine', 'wolfs_gravestone', 'skyward_pride',
+    'skyward_blade', 'aquila_favonia'
+  ].map(n => n.toLowerCase());
+
+  const candidates = list.filter(item => {
+    if (item.type !== 'weapon') return false;
+    const nameLower = item.name.toLowerCase();
+    if (standardWeapons.includes(nameLower)) return false;
+    // Featured 5-stars are usually in 500-30k range
+    return item.count > 500 && item.count < 35000;
+  });
+
+  candidates.sort((a, b) => b.count - a.count);
+  
+  if (candidates.length > 0) {
+    return candidates.slice(0, 2).map(c => 
+      c.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    ).join(' / ');
+  }
+  return null;
+}
+
 // ============================================================
 // WUTHERING WAVES SUPPORT (WuWa Tracker)
 // ============================================================
 
-// WuWa preset banners
+// WuWa preset banners (fallback if auto-discovery fails)
 export const WUWA_PRESET_BANNERS = [
+  // Current featured banners (v2.0)
   { 
-    id: "100030", 
-    name: "Lynae", 
+    id: "100031", 
+    name: "Mornye", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75", 
-    characterId: "lynae", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75", 
+    characterId: "mornye", 
     game: "wuwa" 
   },
   { 
-    id: "200030", 
-    name: "Spectrum Blaster", 
+    id: "200031", 
+    name: "Starfield Calibrator", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75", 
-    characterId: "spectrum_blaster", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75", 
+    characterId: "starfield_calibrator", 
     game: "wuwa" 
   },
 ];
+
 
 /**
  * Fetches WuWa statistics from WuWa Tracker website
@@ -1286,31 +1354,65 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     const html = await response.text();
     
-    // Extract banner data from the HTML
-    // WuWa Tracker shows banners as links like /tracker/stats/100030
-    const bannerPattern = /\/tracker\/stats\/(\d{6})[^>]*>([^<]+)</g;
+    // NEW: Use robust escaped JSON parsing (matching Discord bot)
+    const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
     const banners = [];
     const seenIds = new Set();
+    let idMatch;
     
-    let match;
-    while ((match = bannerPattern.exec(html)) !== null) {
-      const bannerId = match[1];
-      const bannerName = match[2].trim();
+    while ((idMatch = idPattern.exec(html)) !== null) {
+      const bannerId = idMatch[1];
+      
+      // Strictly filter for WuWa ID ranges
+      // 100xxx: Resonators, 101xxx/200xxx: Weapons
+      const isCharacter = bannerId.startsWith('100');
+      const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('200');
+      if (!isCharacter && !isWeapon) continue;
       
       // Skip duplicates
       if (seenIds.has(bannerId)) continue;
       seenIds.add(bannerId);
       
-      // Detect banner type:
-      // - Character banners: IDs starting with 100xxx
-      // - Weapon banners: IDs starting with 101xxx
-      const isWeaponBanner = bannerId.startsWith('101');
-      const type = isWeaponBanner ? 'weapon' : 'character';
+      const pos = idMatch.index;
       
-      // Try to extract image URL (if available in HTML)
-      // For now, use preset images if we have them, otherwise null
-      const presetBanner = WUWA_PRESET_BANNERS.find(b => b.bannerId === bannerId);
-      const image = presetBanner?.image || null;
+      // Search forward for the name and type field
+      const forward = html.substring(pos, pos + 3000);
+      
+      // Extract Pool Type (e.g. Featured Character, Featured Weapon)
+      const typeMatch = forward.match(/\\"cardPoolType\\":\s*\\"([^\\"]+)\\"/);
+      const poolType = typeMatch ? typeMatch[1].toLowerCase() : '';
+      
+      const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
+      const bannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
+      
+      // Skip standard banner
+      if (bannerName.toLowerCase().includes('standard')) continue;
+      
+      // Categorize by pool type or ID prefix fallback
+      const type = poolType.includes('character') ? 'character' : 
+                   (poolType.includes('weapon') ? 'weapon' : 
+                   (isCharacter ? 'character' : 'weapon'));
+      
+      // Generate image URL (WuWa Tracker pattern)
+      const slug = bannerName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
+      const imageExt = type === 'character' ? 'webp' : 'png';
+      // Both characters and weapons use the -portrait suffix in the latest WuWa Tracker API
+      const fallbackImage = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
+      
+      // Try to fetch stats to extract the actual image URL from the HTML
+      let extractedImage = null;
+      try {
+        const statsData = await fetchWuWaStats(bannerId, false);
+        if (statsData && statsData.image) {
+          extractedImage = statsData.image;
+          console.log(`[WuWa Banners] ✓ Extracted image for ${bannerName}:`, extractedImage);
+        }
+      } catch (e) {
+        console.warn(`[WuWa Banners] Could not extract image for ${bannerName}, using fallback`);
+      }
+      
+      const image = extractedImage || fallbackImage;
       
       banners.push({
         id: `${bannerId}_${type}`,
@@ -1333,13 +1435,13 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
-    // Filter to show only the most recent banners (to avoid clutter over time)
-    // Keep the 2 newest character banners and 2 newest weapon banners
-    const characterBanners = banners.filter(b => b.type === 'character').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 2);
-    const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 2);
+    // Filter to show only the most recent (featured) banners
+    // Keep only the newest character banner and newest weapon banner
+    const characterBanners = banners.filter(b => b.type === 'character').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
+    const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
     const recentBanners = [...characterBanners, ...weaponBanners];
     
-    console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => b.name));
+    console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => `${b.name} (${b.bannerId})`));
     
     // Cache the results
     try {
@@ -1414,7 +1516,9 @@ export async function fetchZZZStats(bannerId, maxRetries = 3) {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const targetUrl = `${ZZZ_API_BASE}${bannerId}?game=zzz`;
+      // Add cache-buster for fresh data
+      const cacheBuster = Date.now();
+      const targetUrl = `${ZZZ_API_BASE}${bannerId}?game=zzz&_t=${cacheBuster}`;
       
       console.log('[ZZZ] Fetching:', targetUrl);
       
