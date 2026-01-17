@@ -152,22 +152,52 @@ async function fetchHSRActiveBanners() {
 // GENSHIN BANNER FETCHING
 // =========================================================================
 
+// Known 5-star characters (for filtering - add new ones as they release)
+const GENSHIN_5STAR_CHARS = [
+  'albedo', 'alhaitham', 'aloy', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
+  'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'dehya', 'diluc',
+  'eula', 'emilie', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa', 'jean',
+  'kaedehara_kazuha', 'kamisato_ayaka', 'kamisato_ayato', 'keqing', 'klee',
+  'kokomi', 'lyney', 'mavuika', 'mona', 'mualani', 'nahida', 'navia', 'neuvillette',
+  'nilou', 'qiqi', 'raiden_shogun', 'sangonomiya_kokomi', 'shenhe', 'sigewinne',
+  'tartaglia', 'tighnari', 'traveler', 'venti', 'wanderer', 'wriothesley',
+  'xiangling', 'xiao', 'xianyun', 'yae_miko', 'yelan', 'yoimiya', 'zhongli'
+];
+
+// Known 5-star weapons (for filtering)
+const GENSHIN_5STAR_WEAPONS = [
+  'a_thousand_floating_dreams', 'absolution', 'aqua_simulacra', 'amos_bow',
+  'beacon_of_the_reed_sea', 'broken_pines', 'calamity_queller', 'cashflow_supervision',
+  'crane\'s_echoing_call', 'crimson_moon\'s_semblance', 'elegy_for_the_end',
+  'engulfing_lightning', 'everlasting_moonglow', 'finale_of_the_deep',
+  'fang_of_the_mountain_king', 'forbidden_curse', 'fractured_halo',
+  'freedom_sworn', 'haran_geppaku_futsu', 'hunter\'s_path', 'jade_cutter',
+  'kagura\'s_verity', 'key_of_khaj_nisut', 'light_of_foliar_incision',
+  'lost_prayer', 'lumidouce_elegy', 'memory_of_dust', 'mistsplitter_reforged',
+  'nocturnes_curtain_call', 'polar_star', 'primordial_jade_cutter',
+  'primordial_jade_winged_spear', 'redhorn_stonethresher', 'skyward_atlas',
+  'skyward_blade', 'skyward_harp', 'skyward_pride', 'skyward_spine',
+  'song_of_stillness', 'splendor_of_tranquil_waters', 'staff_of_homa',
+  '(continued)', 'summit_shaper', 'the_first_great_magic', 'thundering_pulse',
+  'tome_of_the_eternal_flow', 'tulaytullah\'s_remembrance', 'uraku_misugiri',
+  'vortex_vanquisher', 'waveriding_whirl', 'wolf\'s_gravestone'
+];
+
 // Helper: Extract banner name from pull history
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  // Paimon.moe lists pulls by count - featured 5-stars usually have highest counts
-  // Filter for characters only (exclude weapons) and take top 2 by count
-  const characters = pullList
-    .filter(p => p.type === 'character' && p.count > 100) // Filter out low-count pulls
-    .sort((a, b) => b.count - a.count) // Sort by count descending
-    .slice(0, 2) // Take top 2 (usually the featured 5-stars)
+  // Filter for 5-star characters only, then take top 2 by count
+  const fiveStarChars = pullList
+    .filter(p => p.type === 'character' && GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase()))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
     .map(p => p.name);
   
-  if (characters.length === 0) return 'Character Event Wish';
+  if (fiveStarChars.length === 0) return 'Character Event Wish';
   
-  // Capitalize names (paimon.moe uses lowercase)
-  const formatted = characters.map(name => 
+  // Capitalize names
+  const formatted = fiveStarChars.map(name => 
     name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   );
   
@@ -178,17 +208,17 @@ function extractGenshinBannerName(pullList) {
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  // Filter for weapons only and take top 2 by count
-  const weapons = pullList
-    .filter(p => p.type === 'weapon' && p.count > 100)
+  // Filter for 5-star weapons only, then take top 2 by count
+  const fiveStarWeapons = pullList
+    .filter(p => p.type === 'weapon' && GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase()))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 2) // Take top 2 featured weapons
+    .slice(0, 2)
     .map(p => p.name);
   
-  if (weapons.length === 0) return 'Epitome Invocation';
+  if (fiveStarWeapons.length === 0) return 'Epitome Invocation';
   
   // Capitalize names
-  const formatted = weapons.map(name => 
+  const formatted = fiveStarWeapons.map(name => 
     name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   );
   
