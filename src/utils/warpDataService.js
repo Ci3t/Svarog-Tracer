@@ -144,26 +144,49 @@ async function fetchWithProxyFallback(targetUrl) {
 // Genshin Character Image Base (Ambr.top has good icons)
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
-// Latest banners for Pach 2.3?
-import currentBanners from '../data/current_banners.json';
-import bannerHistory from '../data/bannerHistory.json';
+// Banner API endpoint
+const BANNER_API_URL = 'https://svarog-tracer.vercel.app/api/banners';
 
-// Updated: Now using auto-generated banners from scripts/update_banners.py
-// Fallback to hardcoded if JSON is empty (optional, but good practice)
-export const PRESET_BANNERS = currentBanners.length > 0 ? currentBanners : [
-  {
-    id: "2099",
-    name: "Dahlia",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png",
-    type: "character"
-  },
-  {
-    id: "2100",
-    name: "Firefly",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png",
-    type: "character"
+// Fetch live banners from centralized API
+export async function fetchLiveBanners() {
+  try {
+    const response = await fetch(BANNER_API_URL);
+    if (!response.ok) return [];
+    const data = await response.json();
+    
+    // Convert API format to website format
+    const allBanners = [
+      ...(data.hsr || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        image: b.image,
+        type: b.type,
+        characterId: b.characterId
+      })),
+      ...(data.genshin || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        image: b.image,
+        type: b.type
+      })),
+      ...(data.wuwa || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        image: b.image,
+        type: b.type
+      }))
+    ];
+    
+    console.log('[WarpDataService] Fetched', allBanners.length, 'banners from API');
+    return allBanners;
+  } catch (error) {
+    console.error('[WarpDataService] Banner fetch error:', error);
+    return [];
   }
-];
+}
+
+// Fallback banners (used if API fails)
+export const PRESET_BANNERS = [];
 
 // === FATE/STAY NIGHT COLLABORATION ===
 // Separate export for Fate characters to merge with live banners
