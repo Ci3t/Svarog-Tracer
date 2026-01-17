@@ -26,26 +26,38 @@ Created a **centralized Vercel API** (`/api/banners`) that fetches live banner d
 Edit `api/banners.js` CONFIG (top of file):
 
 ```javascript
-GENSHIN_CHAR_BASE: 94,    // Increment by 1 each patch
-GENSHIN_WEAPON_BASE: 93,  // Increment by 1 each patch
+GENSHIN_MANUAL: {
+  characters: [
+    { 
+      bannerId: "300094",  // Change ID
+      name: "Columbina / Ineffa",  // Change names
+      image: "https://paimon.moe/images/characters/columbina.png"  // Change image
+    }
+  ],
+  weapons: [
+    { 
+      bannerId: "400093",  // Change ID
+      name: "Nocturne's Curtain Call / Fractured Halo",  // Change names
+      image: "https://paimon.moe/images/weapons/nocturnes_curtain_call.png"  // Change image
+    }
+  ]
+}
 ```
 
 **HSR & WuWa**: Auto-detect, no changes needed!
 
 ---
 
-## 🐛 Known Issues & Fixes
+## 🎯 Why Genshin is Manual
 
-### Issue 1: Old Banner Data
-**Problem**: Website shows old/wrong banners  
-**Cause**: API caches for 1 hour  
-**Fix**: Wait 1 hour OR redeploy Vercel to clear cache
+**Tried**: Auto-discovery by searching paimon.moe banner IDs  
+**Failed**: Name extraction unreliable, image URLs broke
 
-### Issue 2: Console Errors (localhost:3000)
-**Problem**: Errors trying to fetch from localhost:3000  
-**Cause**: Old fallback code in stats fetching  
-**Status**: Cosmetic only, stats still work via proxy  
-**Fix**: Can be removed if annoying
+**Solution**: Use same manual config as bot (much simpler!)
+
+Just update 2 banner objects when new patch releases.
+
+---
 
 ## 📊 Architecture
 
@@ -53,7 +65,7 @@ GENSHIN_WEAPON_BASE: 93,  // Increment by 1 each patch
 External APIs
 ├─ StarRailStation (HSR config)
 ├─ StarRailRes (HSR names/images)
-├─ Paimon.moe (Genshin data)
+├─ Paimon.moe (Genshin - manual config used)
 └─ WuWa Tracker (WuWa scraping)
         ↓
   Vercel /api/banners
@@ -66,42 +78,35 @@ Discord Bot       Website
 
 ---
 
-## ✅ What Works
+## ✅ Status
 
-- ✅ Discord bot fetches from API
-- ✅ Website fetches banners from API  
-- ✅ HSR banners working
-- ✅ WuWa banners working
-- ⚠️ Genshin banners (may need cache refresh)
+- ✅ HSR: Auto-detect from SRS
+- ✅ **Genshin**: Manual config (like bot)
+- ✅ WuWa: Auto-scrape from tracker
+- ✅ Bot & Website synced
 
 ---
 
-## 🎯 Testing
+## 🧪 Testing After Deploy (~2 min)
 
 **API**: https://svarog-tracer.vercel.app/api/banners  
-**Bot**: `/banners` command  
-**Website**: Warp Analyzer page
+**Website**: Refresh → should show "Columbina / Ineffa" and weapon
 
 ---
 
-## 📝 Commits Made
+## 📝 Commits
 
-1. `61426f6` - Created `/api/banners.js` endpoint
-2. `9165594` - Updated bot to use API
-3. `d38d8ca` - Added website API fetching
-4. `c6547e7` - Fixed duplicate function error
-5. `920b4f8` - Fixed game property filtering
-6. `9030ca1` - Updated Genshin search range
-7. `4e2bcf0` - Connected frontend to API
+1. `61426f6` - Created `/api/banners.js`
+2. `9165594` - Bot uses API
+3. `920b4f8` - Fixed game property
+4. `9030ca1` - Updated Genshin search
+5. `c161dd0` - Widened search range
+6. `d9511e1` - **Genshin manual config (FIX!)**
 
 ---
 
-## 🔧 For Future You
+## 💡 Key Learnings
 
-**When Genshin patch releases:**
-1. Open `api/banners.js`
-2. Find CONFIG section (line ~12)
-3. Increment GENSHIN_CHAR_BASE and GENSHIN_WEAPON_BASE by 1
-4. Commit & push
+**Don't over-engineer!** Bot had simple manual config that worked perfectly. API tried complex auto-discovery and failed. Manual config = 20 lines vs 70+ lines of buggy code.
 
-**That's it!** Bot and website auto-sync. 🚀
+**When updating Genshin**: Just edit the CONFIG object, commit, push. Cache clears in 1 hour or redeploy clears immediately.
