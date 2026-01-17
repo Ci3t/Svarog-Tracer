@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
-import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchLiveBanners, fetchGenshinWishStats, fetchGenshinLiveBanners, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, fetchWuWaLiveBanners, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
+import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -57,39 +57,40 @@ export default function WarpAnalyzer() {
     const loadBanners = async () => {
       setBannersLoading(true);
       try {
-        if (selectedGame === 'hsr') {
-          // Use cache first (false) for instant UI, fetches fresh after 10s
-          const result = await fetchLiveBanners(false);
-          if (result.data && result.data.length > 0) {
-            // Merge Fate collaboration characters AND light cones with live banners
-            const mergedBanners = [...result.data, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
-            setBanners(mergedBanners);
-            setSelectedBannerId(mergedBanners[0].id);
-          } else {
-            // Merge Fate collaboration characters AND light cones with preset banners
-            const mergedBanners = [...PRESET_BANNERS, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
-            setBanners(mergedBanners);
-            setSelectedBannerId(mergedBanners[0]?.id);
-          }
-        } else if (selectedGame === 'genshin') {
-          // Use cache first for Genshin too
-          const result = await fetchGenshinLiveBanners(false);
-          if (result.data && result.data.length > 0) {
-            setBanners(result.data);
-            setSelectedBannerId(result.data[0].id);
-          } else {
-            setBanners(GENSHIN_PRESET_BANNERS);
-            setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
-          }
-        } else if (selectedGame === 'wuwa') {
-          // Fetch WuWa banners
-          const result = await fetchWuWaLiveBanners(false);
-          if (result.data && result.data.length > 0) {
-            setBanners(result.data);
-            setSelectedBannerId(result.data[0].id);
-          } else {
-            setBanners(WUWA_PRESET_BANNERS);
-            setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
+        // Fetch banners from centralized API (works for HSR, Genshin, WuWa)
+        if (selectedGame === 'hsr' || selectedGame === 'genshin' || selectedGame === 'wuwa') {
+          const allBanners = await fetchCentralizedBanners();
+          
+          if (selectedGame === 'hsr') {
+            const hsrBanners = allBanners.filter(b => b.game === 'hsr');
+            if (hsrBanners.length > 0) {
+              // Merge with Fate collaboration
+              const mergedBanners = [...hsrBanners, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
+              setBanners(mergedBanners);
+              setSelectedBannerId(mergedBanners[0].id);
+            } else {
+              const mergedBanners = [...PRESET_BANNERS, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
+              setBanners(mergedBanners);
+              setSelectedBannerId(mergedBanners[0]?.id);
+            }
+          } else if (selectedGame === 'genshin') {
+            const genshinBanners = allBanners.filter(b => b.game === 'genshin');
+            if (genshinBanners.length > 0) {
+              setBanners(genshinBanners);
+              setSelectedBannerId(genshinBanners[0].id);
+            } else {
+              setBanners(GENSHIN_PRESET_BANNERS);
+              setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
+            }
+          } else if (selectedGame === 'wuwa') {
+            const wuwaBanners = allBanners.filter(b => b.game === 'wuwa');
+            if (wuwaBanners.length > 0) {
+              setBanners(wuwaBanners);
+              setSelectedBannerId(wuwaBanners[0].id);
+            } else {
+              setBanners(WUWA_PRESET_BANNERS);
+              setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
+            }
           }
         } else if (selectedGame === 'zzz') {
           // ZZZ uses preset banners (zzz.rng.moe has clean API, no live discovery needed)
