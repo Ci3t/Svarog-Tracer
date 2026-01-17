@@ -190,18 +190,20 @@ const GENSHIN_5STAR_WEAPONS = [
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  // Double filter: whitelist + pull count (5-stars typically have <100K pulls)
-  const fiveStarChars = pullList
-    .filter(p => 
-      p.type === 'character' && 
-      GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase()) &&
-      p.count < 100000  // 5-stars have lower counts than 4-stars!
-    )
-    .sort((a, b) => b.count - a.count)
+  // Filter by whitelist first
+  const candidates = pullList.filter(p => 
+    p.type === 'character' && 
+    GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase())
+  );
+  
+  if (candidates.length === 0) return 'Character Event Wish';
+  
+  // 5-stars have LOWER counts than 4-stars, so sort ascending and take first 2
+  // This works even for brand new banners!
+  const fiveStarChars = candidates
+    .sort((a, b) => a.count - b.count)  // Ascending! Lowest = featured 5-stars
     .slice(0, 2)
     .map(p => p.name);
-  
-  if (fiveStarChars.length === 0) return 'Character Event Wish';
   
   // Capitalize names
   const formatted = fiveStarChars.map(name => 
@@ -215,18 +217,19 @@ function extractGenshinBannerName(pullList) {
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  // Double filter: whitelist + pull count
-  const fiveStarWeapons = pullList
-    .filter(p => 
-      p.type === 'weapon' && 
-      GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase()) &&
-      p.count < 100000  // 5-stars have lower counts!
-    )
-    .sort((a, b) => b.count - a.count)
+  // Filter by whitelist first
+  const candidates = pullList.filter(p => 
+    p.type === 'weapon' && 
+    GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase())
+  );
+  
+  if (candidates.length === 0) return 'Epitome Invocation';
+  
+  // 5-stars have LOWER counts, sort ascending
+  const fiveStarWeapons = candidates
+    .sort((a, b) => a.count - b.count)  // Ascending!
     .slice(0, 2)
     .map(p => p.name);
-  
-  if (fiveStarWeapons.length === 0) return 'Epitome Invocation';
   
   // Capitalize names
   const formatted = fiveStarWeapons.map(name => 
