@@ -218,7 +218,7 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6001",
     name: "A Thankless Coronation",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23045.png",
+    image: "https://static.wikia.nocookie.net/honkai-star-rail/images/5/52/Light_Cone_A_Thankless_Coronation_Artwork.png",
     type: "light_cone",
     separator: true,
     collaboration: "Fate/Stay Night"
@@ -226,7 +226,7 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6002",
     name: "The Hell Where Ideals Burn",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23046.png",
+    image: "https://static.wikia.nocookie.net/honkai-star-rail/images/c/c8/Light_Cone_The_Hell_Where_Ideals_Burn_Artwork.png",
     type: "light_cone",
     collaboration: "Fate/Stay Night"
   }
