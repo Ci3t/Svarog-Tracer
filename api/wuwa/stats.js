@@ -50,7 +50,21 @@ export default async function handler(req, res) {
     const stats = parseWuWaHTML_Adaptive(html);
     
     if (!stats) {
-      throw new Error('Failed to parse WuWa statistics');
+      console.warn('[WuWa API] Parsing failed, returning fallback');
+      // Return a safe fallback object so frontend/bot doesn't crash
+      return res.status(200).json({
+        stats: {
+          total_pulls_5: 0,
+          by_rollnum_pulls_5: {},
+          by_rollnum_chance_5: {},
+          count_win_5: 0,
+          count_lose_5: 0
+        },
+        image: null,
+        list: [],
+        fallback: true,
+        message: "Stats processing failed - Anti-bot protection active"
+      });
     }
     
     // Cache for 5 minutes
