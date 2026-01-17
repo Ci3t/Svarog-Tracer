@@ -152,44 +152,45 @@ async function fetchHSRActiveBanners() {
 // GENSHIN BANNER FETCHING
 // =========================================================================
 
-// Known 5-star characters (for filtering - add new ones as they release)
-const GENSHIN_5STAR_CHARS = [
-  'albedo', 'alhaitham', 'aloy', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
-  'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'dehya', 'diluc',
-  'eula', 'emilie', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa', 'jean',
-  'kaedehara_kazuha', 'kamisato_ayaka', 'kamisato_ayato', 'keqing', 'klee',
-  'kokomi', 'lyney', 'mavuika', 'mona', 'mualani', 'nahida', 'navia', 'neuvillette',
-  'nilou', 'qiqi', 'raiden_shogun', 'sangonomiya_kokomi', 'shenhe', 'sigewinne',
-  'tartaglia', 'tighnari', 'traveler', 'venti', 'wanderer', 'wriothesley',
-  'xiangling', 'xiao', 'xianyun', 'yae_miko', 'yelan', 'yoimiya', 'zhongli'
+// Known 4-star characters to EXCLUDE (more stable than 5-star whitelist)
+// When new 5-stars release, they'll auto-appear! Only update when new 4-stars added.
+const GENSHIN_4STAR_CHARS = [
+  'amber', 'barbara', 'beidou', 'bennett', 'candace', 'charlotte', 'chevreuse',
+  'chongyun', 'collei', 'diona', 'dori', 'faruzan', 'fischl', 'freminet',
+  'gaming', 'gorou', 'heizou', 'iansan', 'kachina', 'kaveh', 'kirara',
+  'kujou_sara', 'kuki_shinobu', 'layla', 'lynette', 'mika', 'ningguang',
+  'noelle', 'ororon', 'razor', 'rosaria', 'sayu', 'sethos', 'sucrose',
+  'thoma', 'xiangling', 'xingqiu', 'xinyan', 'yanfei', 'yaoyao', 'yun_jin'
 ];
 
-// Known 5-star weapons (for filtering)
-const GENSHIN_5STAR_WEAPONS = [
-  'a_thousand_floating_dreams', 'absolution', 'aqua_simulacra', 'amos_bow',
-  'beacon_of_the_reed_sea', 'broken_pines', 'calamity_queller', 'cashflow_supervision',
-  'crane\'s_echoing_call', 'crimson_moon\'s_semblance', 'elegy_for_the_end',
-  'engulfing_lightning', 'everlasting_moonglow', 'finale_of_the_deep',
-  'fang_of_the_mountain_king', 'forbidden_curse', 'fractured_halo',
-  'freedom_sworn', 'haran_geppaku_futsu', 'hunter\'s_path', 'jade_cutter',
-  'kagura\'s_verity', 'key_of_khaj_nisut', 'light_of_foliar_incision',
-  'lost_prayer', 'lumidouce_elegy', 'memory_of_dust', 'mistsplitter_reforged',
-  'nocturnes_curtain_call', 'polar_star', 'primordial_jade_cutter',
-  'primordial_jade_winged_spear', 'redhorn_stonethresher', 'skyward_atlas',
-  'skyward_blade', 'skyward_harp', 'skyward_pride', 'skyward_spine',
-  'song_of_stillness', 'splendor_of_tranquil_waters', 'staff_of_homa',
-  '(continued)', 'summit_shaper', 'the_first_great_magic', 'thundering_pulse',
-  'tome_of_the_eternal_flow', 'tulaytullah\'s_remembrance', 'uraku_misugiri',
-  'vortex_vanquisher', 'waveriding_whirl', 'wolf\'s_gravestone'
+// Known 4-star weapons to EXCLUDE
+const GENSHIN_4STAR_WEAPONS = [
+  'alley_hunter', 'amenoma_kageuchi', 'apprentices_notes', 'aquila_favonia',
+  'beginners_protector', 'black_tassel', 'bloodtainted_greatsword', 'cool_steel',
+  'dark_iron_sword', 'deathmatch', 'debate_club', 'dragons_bane', 'dull_blade',
+  'ebony_bow', 'emerald_orb', 'favonius_codex', 'favonius_greatsword',
+  'favonius_lance', 'favonius_sword', 'favonius_warbow', 'ferrous_shadow',
+  'fillet_blade', 'halberd', 'harbinger_of_dawn', 'hunters_bow',
+  'iron_point', 'lions_roar', 'magic_guide', 'messenger', 'mitternachts_waltz',
+  'old_mercs_pal', 'otherworldly_story', 'pocket_grimoire', 'tenkakuken',
+  'quartz', 'rainslasher', 'raven_bow', 'recurve_bow', 'rust',
+  'sacrificial_bow', 'sacrificial_fragments', 'sacrificial_greatsword',
+  'sacrificial_sword', 'serpent_spine', 'sharpshooters_oath', 'silver_sword',
+  'skyrider_greatsword', 'skyrider_sword', 'slingshot', 'solar_pearl',
+  'the_bell', 'the_black_sword', 'the_catch', 'the_flute', 'the_stringless',
+  'the_viridescent_hunt', 'the_widsith', 'thrilling_tales_of_dragon_slayers',
+  'travelers_handy_sword', 'twin_nephrite', 'viridescent', 'waster_greatsword',
+  'white_iron_greatsword', 'white_tassel', 'wine_and_song', 'xiphos_moonlight'
 ];
 
 // Helper: Extract banner name from pull history
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  // Filter for 5-star characters only, then take top 2 by count
+  // Exclude 4-star characters, then take top 2 by count
+  // This way, NEW 5-stars auto-appear without updating the list!
   const fiveStarChars = pullList
-    .filter(p => p.type === 'character' && GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase()))
+    .filter(p => p.type === 'character' && !GENSHIN_4STAR_CHARS.includes(p.name.toLowerCase()))
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -208,9 +209,10 @@ function extractGenshinBannerName(pullList) {
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  // Filter for 5-star weapons only, then take top 2 by count
+  // Exclude 4-star weapons, then take top 2 by count
+  // NEW 5-star weapons auto-appear!
   const fiveStarWeapons = pullList
-    .filter(p => p.type === 'weapon' && GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase()))
+    .filter(p => p.type === 'weapon' && !GENSHIN_4STAR_WEAPONS.includes(p.name.toLowerCase()))
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
