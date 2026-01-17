@@ -151,6 +151,119 @@ function parseStrategy_v2(html) {
 }
 
 /**
+ * Strategy 4: Next.js Streaming Format (self.__next_f.push)
+ * WuWa Tracker uses React Server Components with streaming
+ */
+function parseStrategy_v4(html) {
+  console.log('[WuWa Strategy 4] Trying Next.js streaming format...');
+  
+  try {
+    // The actual pattern in WuWa HTML:
+    // {\"1\":256,\"2\":281,...\"78\":14},\"barColor\":...,\"lineColor\":...,\"label\":\"5✦ Pulls per Pity\"
+    // Find the label first, then extract backwards to get the pity distribution
+    
+    // Try multiple label patterns (characters use 5✦, weapons might vary)
+    const labelPatterns = [
+      /\\"label\\":\\"5✦ Pulls per Pity\\"/,  // Character banners
+      /\\"label\\":\\"[^"]+Pulls per Pity\\"/,  // Any rarity
+      /Pulls per Pity/  // Fallback - just find the text
+    ];
+    
+    let labelPos = -1;
+    for (const pattern of labelPatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        labelPos = match.index;
+        console.log(`[WuWa Strategy 4] ✓ Found label at position ${labelPos}`);
+        break;
+      }
+    }
+    
+    if (labelPos === -1) {
+      console.warn('[WuWa Strategy 4] ❌ Label not found');
+      return null;
+    }
+    
+    // Now search backwards from the label to find the pity distribution object
+    const before = html.substring(Math.max(0, labelPos - 10000), labelPos);
+    
+    // Find the last occurrence of {\"1\": (start of pity dist) before the label
+    // Pattern: find {} object with keys like \"1\":, \"2\":, etc. up to \"78\":
+    const pityPattern = /\{(\\"1\\":\d+[^}]{500,})\}/g;
+    let allMatches = [];
+    let match;
+    while ((match = pityPattern.exec(before)) !== null) {
+      allMatches.push({ content: match[1], index: match.index });
+    }
+    
+    if (allMatches.length === 0) {
+      console.warn('[WuWa Strategy 4] ❌ No pity distribution found');
+      return null;
+    }
+    
+    // Get the closest match to the label
+    const closestMatch = allMatches[allMatches.length - 1];
+    
+    let histogramData = null;
+    try {
+      // Unescape the quotes
+      let content = closestMatch.content.replace(/\\"/g, '"');
+      histogramData = JSON.parse(`{${content}}`);
+      console.log(`[WuWa Strategy 4] ✓ Histogram extracted with`, Object.keys(histogramData).length, 'pity values');
+    } catch (e) {
+      console.warn(`[WuWa Strategy 4] Histogram parse failed:`, e.message);
+      return null;
+    }
+    
+    // Try to find character/item data
+    // Pattern: \"itemNameHistogram\":{\"Mornye\":14346,...}
+    let characterData = null;
+    const charPattern = /\\"itemNameHistogram\\":\{([^}]+)\}/;
+    const charMatch = html.match(charPattern);
+    
+    if (charMatch) {
+      try {
+        let content = charMatch[1].replace(/\\"/g, '"');
+        characterData = JSON.parse(`{${content}}`);
+        console.log(`[WuWa Strategy 4] ✓ Character data extracted:`, Object.keys(characterData).join(', '));
+      } catch (e) {
+        console.warn(`[WuWa Strategy 4] Character data parse failed:`, e.message);
+      }
+    }
+    
+    // Extract banner image URL
+    // Pattern: \\"src\\":\\"/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75\\"
+    // or: \\"src\\":\\"/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75\\"
+    let imageUrl = null;
+    const imagePatterns = [
+      /\\\\\"src\\\\\":\\\\\"(\/_next\/image\\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^\\\\]+\.(?:webp|png)[^\\\\]*)\\\\\"/,
+      /src=\\"(\/_next\/image\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^"]+\.(?:webp|png)[^"]*)\\"/,
+      /src:"(\/_next\/image\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^"]+\.(?:webp|png)[^"]*)"/,
+    ];
+    
+    for (const pattern of imagePatterns) {
+      const imgMatch = html.match(pattern);
+      if (imgMatch) {
+        // Construct full URL (add domain if needed)
+        const rawUrl = imgMatch[1].replace(/\\\\/g, '');
+        imageUrl = rawUrl.startsWith('http') ? rawUrl : `https://wuwatracker.com${rawUrl}`;
+        console.log(`[WuWa Strategy 4] ✓ Image extracted:`, imageUrl);
+        break;
+      }
+    }
+    
+    if (!imageUrl) {
+      console.warn('[WuWa Strategy 4] ⚠️ Image not found in HTML');
+    }
+    
+    return buildWuWaStats(histogramData, characterData, imageUrl);
+  } catch (e) {
+    console.warn('[WuWa Strategy 4] Error:', e);
+    return null;
+  }
+}
+
+/**
  * Strategy 3: Heuristic pattern search
  */
 function parseStrategy_v3(html) {
@@ -178,9 +291,9 @@ function parseStrategy_v3(html) {
 }
 
 /**
- * Helper: Build stats from histogram + character data
+ * Helper: Build stats from histogram + character data + image
  */
-function buildWuWaStats(histogramData, characterData) {
+function buildWuWaStats(histogramData, characterData, imageUrl = null) {
   // Calculate histogram sum first (ground truth)
   const histogramSum = Object.values(histogramData)
     .reduce((sum, count) => sum + parseInt(count, 10), 0);
@@ -244,6 +357,7 @@ function buildWuWaStats(histogramData, characterData) {
       count_win_5: 0,
       count_lose_5: 0
     },
+    image: imageUrl,
     list: []
   };
 }
@@ -256,10 +370,14 @@ export function parseWuWaHTML_Adaptive(html) {
   console.log('[WuWa Adaptive] Starting parse, HTML length:', html.length);
   
   const strategies = [
+    { name: 'v4_streaming', fn: parseStrategy_v4 },  // NEW: Try streaming format first
     { name: 'v1_current', fn: parseStrategy_v1 },
     { name: 'v2_nextdata', fn: parseStrategy_v2 },
     { name: 'v3_heuristic', fn: parseStrategy_v3 }
   ];
+  
+  console.log('[WuWa Adaptive] Registered strategies:', strategies.map(s => s.name).join(', '));
+  console.log('[WuWa Adaptive] v4 function exists?', typeof parseStrategy_v4 === 'function');
   
   // Try cached strategy first
   const cached = localStorage.getItem(WUWA_STRATEGY_CACHE_KEY);

@@ -162,8 +162,9 @@ export default function WarpAnalyzer() {
         // ZZZ uses zzz.rng.moe API (clean JSON, same format as HSR)
         stats = await fetchZZZStats(id);
       } else if (selectedGame === 'wuwa') {
-        // WuWa uses direct banner IDs
-        stats = await fetchWuWaStats(id);
+        // WuWa uses direct banner IDs - strip _character/_weapon suffix
+        const cleanId = id.replace(/_(character|weapon)$/, '');
+        stats = await fetchWuWaStats(cleanId);
       } else if (selectedGame === 'genshin') {
         stats = await fetchGenshinWishStats(id);
       } else {
@@ -261,10 +262,20 @@ export default function WarpAnalyzer() {
     if (!data || !data.stats) return null;
     const pulls5 = data.stats.by_rollnum_pulls_5 || {};
     const chance5 = data.stats.by_rollnum_chance_5 || {};
+    
+    console.log('\n=== WEBSITE WARP ANALYZER DEBUG ===');
+    console.log('Selected Banner ID:', selectedBannerId);
+    console.log('Total 5* Wins:', data.stats.count_win_5);
+    console.log('Total 5* Losses:', data.stats.count_lose_5);
+    
     const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5 });
+    console.log('All Detected Peaks:', peaks.map(p => `Roll ${p.roll} (${(p.chance * 100).toFixed(2)}%)`));
+    
     const metrics = calculateWarpMetrics(data.stats);
+    console.log('===================================\n');
+    
     return { peaks, metrics };
-  }, [data]);
+  }, [data, selectedBannerId]);
 
   // Wins-only analysis (Elite filter for "purer" results)
   const winsOnlyAnalysis = useMemo(() => {
@@ -366,9 +377,16 @@ export default function WarpAnalyzer() {
     const peaks = activeAnalysis?.peaks || [];
     if (!peaks.length) return { string: "---", pity: [], path: [] };
     
-    // Filter to pre-soft-pity peaks only, already consolidated by detectLuckyPeaks
-    const prePityPeaks = peaks.filter(p => p.roll < softPityStart).sort((a, b) => a.roll - b.roll);
-    if (prePityPeaks.length === 0) return { string: "---", pity: [], path: [] };
+    // Include ALL peaks up to hard pity (90) to match Discord bot behavior
+    // This ensures pity rolls are shown in the lucky string
+    const hardPity = selectedGame === 'wuwa'
+      ? 80
+      : selectedGame === 'genshin'
+        ? (bannerType === 'character' ? 90 : 77)
+        : (bannerType === 'character' ? 90 : 80);
+    
+    const allPeaks = peaks.filter(p => p.roll <= hardPity).sort((a, b) => a.roll - b.roll);
+    if (allPeaks.length === 0) return { string: "---", pity: [], path: [] };
     
     // SWEEP-ALIGNED ALGORITHM:
     // For each peak, calculate how many x1 singles to do so that the x10 ENDS on the peak
@@ -379,7 +397,7 @@ export default function WarpAnalyzer() {
     
     let currentPosition = 0; // Track cumulative position
     
-    for (const peak of prePityPeaks) {
+    for (const peak of allPeaks) {
       // The "landing digit" - how many singles to do so x10s end on this peak
       const landingDigit = peak.roll % 10;
       digits.push(landingDigit.toString());
@@ -408,7 +426,7 @@ export default function WarpAnalyzer() {
       pity: pityNumbers,
       path: path
     };
-  }, [activeAnalysis, softPityStart]);
+  }, [activeAnalysis, selectedGame, bannerType]);
 
   return (
     <div className="min-h-screen text-slate-100 font-sans selection:bg-amber-500 selection:text-white pb-20 relative overflow-hidden">
