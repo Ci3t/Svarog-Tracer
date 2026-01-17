@@ -336,9 +336,16 @@ async function fetchActiveGenshinBanners() {
 // =========================================================================
 async function fetchWuWaLiveBanners() {
   try {
-    const res = await fetchWithTimeout(CONFIG.WUWA_TRACKER, CONFIG.TIMEOUT_WUWA);
-    if (!res.ok) return [];
+    // Fetch WuWa homepage which lists all current banners
+    const url = 'https://wuwatracker.com';
+    console.log('[WuWa] Fetching homepage:', url);
+    const res = await fetchWithTimeout(url, CONFIG.TIMEOUT_WUWA);
+    if (!res.ok) {
+      console.log('[WuWa] HTTP', res.status);
+      return [];
+    }
     const html = await res.text();
+    console.log('[WuWa] HTML length:', html.length);
     
     // Regex to scrape banner names and IDs from escaped JSON in script tags
     const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
