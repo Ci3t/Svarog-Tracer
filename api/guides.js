@@ -129,5 +129,100 @@ export default async function handler(req, res) {
     }
   }
   
+  // DELETE: Remove a video
+  if (req.method === 'DELETE') {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+      const { creatorId, videoId } = req.body;
+      
+      if (!creatorId || !videoId) {
+        return res.status(400).json({ error: 'Missing required fields: creatorId, videoId' });
+      }
+      
+      const data = await getGuidesData();
+      const creator = data.creators.find(c => c.id === creatorId);
+      
+      if (!creator) {
+        return res.status(404).json({ error: `Creator '${creatorId}' not found` });
+      }
+      
+      const videoIndex = creator.videos.findIndex(v => v.id === videoId);
+      if (videoIndex === -1) {
+        return res.status(404).json({ error: `Video '${videoId}' not found` });
+      }
+      
+      const deletedVideo = creator.videos.splice(videoIndex, 1)[0];
+      
+      await put(BLOB_PATH, JSON.stringify(data, null, 2), {
+        access: 'public',
+        contentType: 'application/json'
+      });
+      
+      console.log('[Guides API] Video deleted:', deletedVideo.title);
+      
+      return res.status(200).json({
+        success: true,
+        message: `Video "${deletedVideo.title}" deleted from ${creator.name}`
+      });
+    } catch (error) {
+      console.error('[Guides API] DELETE error:', error);
+      return res.status(500).json({ error: 'Failed to delete video', message: error.message });
+    }
+  }
+  
+  // PATCH: Update a video
+  if (req.method === 'PATCH') {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+      const { creatorId, videoId, updates } = req.body;
+      
+      if (!creatorId || !videoId || !updates) {
+        return res.status(400).json({ error: 'Missing required fields: creatorId, videoId, updates' });
+      }
+      
+      const data = await getGuidesData();
+      const creator = data.creators.find(c => c.id === creatorId);
+      
+      if (!creator) {
+        return res.status(404).json({ error: `Creator '${creatorId}' not found` });
+      }
+      
+      const video = creator.videos.find(v => v.id === videoId);
+      if (!video) {
+        return res.status(404).json({ error: `Video '${videoId}' not found` });
+      }
+      
+      // Apply updates
+      if (updates.title !== undefined) video.title = updates.title;
+      if (updates.description !== undefined) video.description = updates.description;
+      if (updates.featured !== undefined) video.featured = updates.featured;
+      if (updates.id !== undefined) video.id = updates.id; // Allow fixing the ID
+      
+      await put(BLOB_PATH, JSON.stringify(data, null, 2), {
+        access: 'public',
+        contentType: 'application/json'
+      });
+      
+      console.log('[Guides API] Video updated:', video.title);
+      
+      return res.status(200).json({
+        success: true,
+        message: `Video "${video.title}" updated in ${creator.name}`,
+        video: video
+      });
+    } catch (error) {
+      console.error('[Guides API] PATCH error:', error);
+      return res.status(500).json({ error: 'Failed to update video', message: error.message });
+    }
+  }
+  
   return res.status(405).json({ error: 'Method not allowed' });
 }
