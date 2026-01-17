@@ -218,7 +218,7 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6001",
     name: "A Thankless Coronation",
-    image: "https://upload-os-bbs.hoyolab.com/upload/2025/07/11/1015613/5a5452f36f6e5c54df3a39e6d97e2f5b_7212450849223708226.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
     type: "light_cone",
     separator: true,
     collaboration: "Fate/Stay Night"
@@ -226,7 +226,7 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6002",
     name: "The Hell Where Ideals Burn",
-    image: "https://upload-os-bbs.hoyolab.com/upload/2025/07/11/1015613/1e174786762c62c3d5262c5b7617b80a_431952520627253509.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
     type: "light_cone",
     collaboration: "Fate/Stay Night"
   }
