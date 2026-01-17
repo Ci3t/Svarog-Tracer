@@ -3,14 +3,9 @@
  * Handles all API calls to Vercel backend
  */
 
-// API Base URL - will be set based on environment
+// API Base URL - always use deployed Vercel API
+// (We don't run a local backend, so dev mode uses production API too)
 const getApiBaseUrl = () => {
-  // In development, use local Vercel dev server
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000/api';
-  }
-  
-  // In production, use deployed Vercel API
   return 'https://svarog-tracer.vercel.app/api';
 };
 
