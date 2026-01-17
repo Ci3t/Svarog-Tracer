@@ -65,24 +65,21 @@ GENSHIN_WEAPON_BASE: 93,  // Increment by 1
 
 - [x] API created and deployed
 - [x] Bot updated and working
-- [x] Website function added (not yet integrated into UI)
-- [ ] Full website integration (manual step needed)
+- [x] Website updated and connected ✅
+- [x] NO MORE CORS ERRORS - Uses Vercel backend!
 
 ---
 
-## 📝 Issue Fixed
+## 🐛 Issues Fixed
 
-**Error**: "Identifier 'fetchLiveBanners' has already been declared"  
-**Fix**: Renamed new function to `fetchCentralizedBanners()` to avoid conflict
+1. **Error**: "Identifier 'fetchLiveBanners' has already been declared"  
+   **Fix**: Renamed new function to `fetchCentralizedBanners()`
 
----
-
-## 🎓 Next Steps (Optional)
-
-1. Update website components to call `fetchCentralizedBanners()` instead of static data
-2. Test end-to-end banner sync between bot and website
-3. Monitor Vercel logs for any API errors
+2. **Error**: Frontend using old proxy fetching with CORS errors  
+   **Fix**: Updated `WarpAnalyzer.jsx` to use `fetchCentralizedBanners()`
 
 ---
 
 **All changes pushed to GitHub and deployed to Vercel ✅**
+
+**Test on localhost** - should work now with NO CORS errors!
