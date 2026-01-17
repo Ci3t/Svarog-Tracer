@@ -6,10 +6,9 @@ import LiveModeGuide from '../components/guides/LiveModeGuide';
 import LongStringGuide from '../components/guides/LongStringGuide';
 import KiyoGuide from '../components/guides/KiyoGuide';
 import WarpGuide from '../components/guides/WarpGuide';
-import guidesData from '../data/guides.json';
 
-// Video Data - imported from centralized JSON
-const CREATORS = guidesData.creators;
+// API Configuration
+const API_URL = 'https://svarog-tracer.vercel.app/api/guides';
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -196,9 +195,26 @@ function GuideCard({ guide, onClick, index }) {
 export default function ModernGuidesPage() {
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [creators, setCreators] = useState([]);
   const headerRef = useRef(null);
   const badgeRef = useRef(null);
   const titleRef = useRef(null);
+  
+  // Fetch guides from API
+  useEffect(() => {
+    async function fetchGuides() {
+      try {
+        const response = await fetch(API_URL);
+        if (response.ok) {
+          const data = await response.json();
+          setCreators(data.creators || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch guides:', error);
+      }
+    }
+    fetchGuides();
+  }, []);
 
   const WRITTEN_GUIDES = [
     { id: 'live', title: 'Live Mode Guide', icon: '🔴', description: 'Real-time pattern detection, prediction strategies, and session management', component: LiveModeGuide, color: 'purple', tag: 'Core', readTime: '5 min' },
@@ -281,7 +297,7 @@ export default function ModernGuidesPage() {
               Learn from the community's best relic manipulation content creators
             </p>
           </div>
-          {CREATORS.map((creator, i) => (
+          {creators.map((creator, i) => (
             <CreatorSection key={creator.id} creator={creator} index={i} />
           ))}
         </div>
