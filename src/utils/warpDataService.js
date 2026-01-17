@@ -232,6 +232,11 @@ export const FATE_LIGHT_CONES = [
   }
 ];
 
+// OVERRIDE: Fix incorrect image for Scent Alone Stays True if needed
+// This is handled by main data fetch, but we can verify constants.
+// ID 3102 -> 23032
+
+
 /**
  * Extracts banner ID from a Star Rail Station URL or banner identifier
  * Supported formats:

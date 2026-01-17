@@ -380,11 +380,11 @@ export default function WarpAnalyzer() {
     
     // Include ALL peaks up to hard pity (90) to match Discord bot behavior
     // This ensures pity rolls are shown in the lucky string
+    // Include ALL peaks up to hard pity (90) to match Discord bot behavior
+    // This ensures pity rolls are shown in the lucky string
     const hardPity = selectedGame === 'wuwa'
       ? 80
-      : selectedGame === 'genshin'
-        ? (bannerType === 'character' ? 90 : 77)
-        : (bannerType === 'character' ? 90 : 80);
+      : 90; // Unified hard pity cap (allows 81-90 for LC outliers)
     
     const allPeaks = peaks.filter(p => p.roll <= hardPity).sort((a, b) => a.roll - b.roll);
     if (allPeaks.length === 0) return { string: "---", pity: [], path: [] };
