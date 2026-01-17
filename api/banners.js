@@ -339,17 +339,17 @@ async function fetchWuWaLiveBanners() {
   // Update these IDs when new WuWa patch releases (check wuwatracker.com)
   const CURRENT_BANNERS = [
     { 
-      id: '100031',  // Current character banner
-      name: 'Carlotta',  // Update name when patch changes
+      id: '100032',  // Current character banner
+      name: 'Mornye',  // Current featured character
       type: 'character',
-      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fcarlotta-portrait.webp&w=828&q=75',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75',
       game: 'wuwa'
     },
     { 
-      id: '200031',  // Current weapon banner  
-      name: 'Cadenza',  // Update name when patch changes
+      id: '200032',  // Current weapon banner  
+      name: 'Stringless Echo',  // Current featured weapon
       type: 'weapon',
-      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fcadenza-portrait.png&w=828&q=75',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstringless-echo-portrait.png&w=828&q=75',
       game: 'wuwa'
     }
   ];
