@@ -16,10 +16,23 @@ const CONFIG = {
   TIMEOUT_GENSHIN: 3000, // Faster timeout for Genshin checks
   TIMEOUT_WUWA: 5000,    // WuWa scraping timeout
   
-  // Genshin banner discovery settings (UPDATE WHEN NEW PATCH!)
-  GENSHIN_CHAR_BASE: 92,    // START SEARCH (try lower range)
-  GENSHIN_WEAPON_BASE: 91,  // START SEARCH (try lower range)
-  GENSHIN_SEARCH_RANGE: 10,  // Search MORE IDs to find current banners
+  // Genshin MANUAL CONFIG (easier than auto-discovery) - UPDATE WHEN NEW PATCH!
+  GENSHIN_MANUAL: {
+    characters: [
+      { 
+        bannerId: "300094", 
+        name: "Columbina / Ineffa",
+        image: "https://paimon.moe/images/characters/columbina.png"
+      }
+    ],
+    weapons: [
+      { 
+        bannerId: "400093", 
+        name: "Nocturne's Curtain Call / Fractured Halo",
+        image: "https://paimon.moe/images/weapons/nocturnes_curtain_call.png"
+      }
+    ]
+  },
   
   // API endpoints
   STARRAIL_API: 'https://starrailstation.com/api/v1',
@@ -162,74 +175,33 @@ function extractGenshinWeaponNames(pullList) {
 }
 
 async function fetchActiveGenshinBanners() {
+  // Use manual config instead of auto-discovery (much simpler and reliable!)
   const banners = [];
   
-  // Use config values for banner discovery
-  const charBase = CONFIG.GENSHIN_CHAR_BASE;
-  const weaponBase = CONFIG.GENSHIN_WEAPON_BASE;
+  // Add character banners
+  CONFIG.GENSHIN_MANUAL.characters.forEach(char => {
+    banners.push({
+      id: char.bannerId,
+      name: char.name,
+      type: 'character',
+      image: char.image,
+      game: 'genshin'
+    });
+  });
   
-  const findBanners = async (base, prefix, type) => {
-    const checks = [];
-    // Check current and future IDs
-    for (let i = base; i < base + CONFIG.GENSHIN_SEARCH_RANGE; i++) {
-      const bannerId = `${prefix}${i.toString().padStart(3, '0')}`;
-      
-      // Skip 300093 (Ineffa) - shares data with 300094 (Columbina/Ineffa dual banner)
-      if (bannerId === '300093') continue;
-      
-      checks.push((async () => {
-        try {
-          const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
-          if (res.ok) {
-            const data = await res.json();
-            // Filter by pull count to ensure it's a "known" banner (lowered threshold)
-            if (data.total && data.total.legendary > 100) {
-              let name;
-              if (type === 'weapon') {
-                name = extractGenshinWeaponNames(data.list) || "Epitome Invocation";
-              } else {
-                name = extractGenshinBannerName(data.list);
-              }
-              
-              // Generate image URL (Paimon.moe pattern)
-              const imageName = name.toLowerCase().replace(/ /g, '_').replace(/\//g, '_');
-              const imageUrl = type === 'weapon' 
-                ? `https://paimon.moe/images/weapons/${imageName}.png`
-                : `https://paimon.moe/images/characters/${imageName}.png`;
-              
-              return { 
-                id: bannerId, 
-                name: name || 'Unknown', 
-                type: type,
-                image: imageUrl,
-                game: 'genshin'
-              };
-            }
-          }
-        } catch (e) {
-          console.error(`[Genshin] Error checking ${bannerId}:`, e.message);
-        }
-        return null;
-      })());
-    }
-    const results = (await Promise.all(checks)).filter(b => b !== null);
-    // For weapons, only keep THE LATEST one (highest ID) to avoid duplicates
-    if (type === 'weapon' && results.length > 1) {
-      return [results.sort((a,b) => parseInt(b.id) - parseInt(a.id))[0]];
-    }
-    return results;
-  };
+  // Add weapon banners
+  CONFIG.GENSHIN_MANUAL.weapons.forEach(weapon => {
+    banners.push({
+      id: weapon.bannerId,
+      name: weapon.name,
+      type: 'weapon',
+      image: weapon.image,
+      game: 'genshin'
+    });
+  });
   
-  const [chars, weapons] = await Promise.all([
-    findBanners(charBase, '300', 'character'),
-    findBanners(weaponBase, '400', 'weapon')
-  ]);
-  
-  const all = [...chars, ...weapons];
-  all.sort((a, b) => parseInt(b.id) - parseInt(a.id));
-  
-  console.log('[Genshin] Found', all.length, 'active banners');
-  return all;
+  console.log('[Genshin] Using manual config:', banners.length, 'banners');
+  return banners;
 }
 
 // =========================================================================
