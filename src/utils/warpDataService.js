@@ -154,26 +154,29 @@ export async function fetchCentralizedBanners() {
     if (!response.ok) return [];
     const data = await response.json();
     
-    // Convert API format to website format
+    // Convert API format to website format (preserve 'game' property!)
     const allBanners = [
       ...(data.hsr || []).map(b => ({
         id: b.id,
         name: b.name,
         image: b.image,
         type: b.type,
-        characterId: b.characterId
+        characterId: b.characterId,
+        game: 'hsr'  // IMPORTANT: Keep this for filtering!
       })),
       ...(data.genshin || []).map(b => ({
         id: b.id,
         name: b.name,
         image: b.image,
-        type: b.type
+        type: b.type,
+        game: 'genshin'  // IMPORTANT: Keep this for filtering!
       })),
       ...(data.wuwa || []).map(b => ({
         id: b.id,
         name: b.name,
         image: b.image,
-        type: b.type
+        type: b.type,
+        game: 'wuwa'  // IMPORTANT: Keep this for filtering!
       }))
     ];
     
