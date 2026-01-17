@@ -119,21 +119,42 @@ GENSHIN_MANUAL: {
 
 ### **WuWa (Wuthering Waves)**
 
-#### Automation Level: ✅ 100%
+#### Automation Level: ⚠️ Manual Only
 
-**How it works:**
-- Scrapes wuwatracker.com website
-- Auto-discovers active banners
-- Adaptive HTML parser (self-healing)
-- No manual updates needed!
+**Why manual:** WuWa Tracker blocks all scraping attempts (anti-bot protection).
 
-#### Manual Override (Optional)
+#### Update Process (Every ~6 Weeks)
 
-If scraping fails, you can hardcode banners in [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L278-L350):
+Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L337-L360):
 
-Look for the `fetchWuWaLiveBanners()` function and add fallback data if needed.
+```javascript
+async function fetchWuWaLiveBanners() {
+  const CURRENT_BANNERS = [
+    { 
+      id: '100031',  // ← Update ID when new patch
+      name: 'Carlotta',  // ← Update character name
+      type: 'character',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fcarlotta-portrait.webp&w=828&q=75',  // ← Update image URL
+      game: 'wuwa'
+    },
+    { 
+      id: '200031',  // ← Update ID when new patch
+      name: 'Cadenza',  // ← Update weapon name
+      type: 'weapon',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fcadenza-portrait.png&w=828&q=75',  // ← Update image URL
+      game: 'wuwa'
+    }
+  ];
+```
 
-**When to use:** Only if WuWa Tracker completely changes their HTML structure.
+**How to find banner IDs:**
+1. Visit [wuwatracker.com](https://wuwatracker.com)
+2. Click on current event banner
+3. Banner ID is in URL: `wuwatracker.com/tracker/stats/100031` → ID is `100031`
+
+**Image URL pattern:**
+- Character: Replace `carlotta` with character name (lowercase, no spaces)
+- Weapon: Replace `cadenza` with weapon name (lowercase, no spaces)
 
 ---
 
@@ -177,7 +198,7 @@ curl https://svarog-tracer.vercel.app/api/wuwa/stats?id=100031
 |------|:---------------------:|:---------------------:|:----------------:|
 | **HSR** | ✅ Yes | ❌ None | Never |
 | **Genshin** | ✅ Yes | ⚠️ 5-star lists only | Every 3 weeks |
-| **WuWa** | ✅ Yes | ❌ None | Never |
+| **WuWa** | ❌ Blocked | ✅ Full manual | Every 6 weeks |
 
 ---
 
