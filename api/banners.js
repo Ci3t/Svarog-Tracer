@@ -8,8 +8,8 @@
 // CONFIGURATION - Easy to adjust these values
 // =========================================================================
 const CONFIG = {
-  // How long to cache banner data (in hours)
-  CACHE_HOURS: 1,
+  // How long to cache banner data (in hours) - reduced for fresher data!
+  CACHE_HOURS: 0.25,  // 15 minutes (was 1 hour)
   
   // API timeout settings (in milliseconds)
   TIMEOUT_MS: 8000,      // Default timeout for all requests
@@ -182,16 +182,21 @@ const GENSHIN_5STAR_WEAPONS = [
   'song_of_stillness', 'splendor_of_tranquil_waters', 'staff_of_homa',
   'summit_shaper', 'the_first_great_magic', 'thundering_pulse',
   'tome_of_the_eternal_flow', 'tulaytullahs_remembrance', 'uraku_misugiri',
-  'vortex_vanquisher', 'waveriding_whirl', 'wolfs_gravestone'
+  'vortex_vanquisher', 'wolfs_gravestone'
+  // REMOVED: 'waveriding_whirl' - this is 4-star!
 ];
 
 // Helper: Extract banner name from pull history
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  // Filter by known 5-star list, then take top 2 by count
+  // Double filter: whitelist + pull count (5-stars typically have <100K pulls)
   const fiveStarChars = pullList
-    .filter(p => p.type === 'character' && GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase()))
+    .filter(p => 
+      p.type === 'character' && 
+      GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase()) &&
+      p.count < 100000  // 5-stars have lower counts than 4-stars!
+    )
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -210,9 +215,13 @@ function extractGenshinBannerName(pullList) {
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  // Filter by known 5-star list, then take top 2 by count
+  // Double filter: whitelist + pull count
   const fiveStarWeapons = pullList
-    .filter(p => p.type === 'weapon' && GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase()))
+    .filter(p => 
+      p.type === 'weapon' && 
+      GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase()) &&
+      p.count < 100000  // 5-stars have lower counts!
+    )
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
