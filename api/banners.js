@@ -198,10 +198,10 @@ function extractGenshinBannerName(pullList) {
   
   if (candidates.length === 0) return 'Character Event Wish';
   
-  // 5-stars have LOWER counts than 4-stars, so sort ascending and take first 2
-  // This works even for brand new banners!
+  // Featured 5-stars have HIGHEST counts among 5-stars (not lowest!)
+  // Standard 5-stars from losing 50/50 have much lower counts
   const fiveStarChars = candidates
-    .sort((a, b) => a.count - b.count)  // Ascending! Lowest = featured 5-stars
+    .sort((a, b) => b.count - a.count)  // DESCENDING! Highest = featured
     .slice(0, 2)
     .map(p => p.name);
   
@@ -225,9 +225,9 @@ function extractGenshinWeaponNames(pullList) {
   
   if (candidates.length === 0) return 'Epitome Invocation';
   
-  // 5-stars have LOWER counts, sort ascending
+  // Featured weapons have HIGHEST counts among 5-stars
   const fiveStarWeapons = candidates
-    .sort((a, b) => a.count - b.count)  // Ascending!
+    .sort((a, b) => b.count - a.count)  // DESCENDING!
     .slice(0, 2)
     .map(p => p.name);
   
