@@ -55,7 +55,8 @@ async function getGuidesData() {
     // Initialize Blob with default data
     await put(BLOB_PATH, JSON.stringify(INITIAL_DATA, null, 2), {
       access: 'public',
-      contentType: 'application/json'
+      contentType: 'application/json',
+      addIfNotExists: true
     });
     
     return INITIAL_DATA;
@@ -124,7 +125,8 @@ export default async function handler(req, res) {
       // Upload to Vercel Blob
       const blob = await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addIfNotExists: false
       });
       
       console.log('[Guides API] Video added successfully:', newVideo.title);
@@ -170,7 +172,8 @@ export default async function handler(req, res) {
       
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addIfNotExists: false
       });
       
       console.log('[Guides API] Video deleted:', deletedVideo.title);
@@ -219,7 +222,8 @@ export default async function handler(req, res) {
       
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addIfNotExists: false
       });
       
       console.log('[Guides API] Video updated:', video.title);
