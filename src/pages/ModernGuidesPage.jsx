@@ -6,34 +6,10 @@ import LiveModeGuide from '../components/guides/LiveModeGuide';
 import LongStringGuide from '../components/guides/LongStringGuide';
 import KiyoGuide from '../components/guides/KiyoGuide';
 import WarpGuide from '../components/guides/WarpGuide';
+import guidesData from '../data/guides.json';
 
-// Video Data
-const CREATORS = [
-  {
-    id: 'bbp',
-    name: 'BigBoiPinoy',
-    shortName: 'BBP',
-    channelUrl: 'https://www.youtube.com/@BigBoiPnoy',
-    description: 'OG Relic Manipulation Guide Creator',
-    color: 'amber',
-    videos: [
-      { id: 'QrqPENtcFus', title: 'Relic Manipulation Changed?', description: 'Latest update on how relic manipulation works after patches', featured: true },
-      { id: 'swghREiYFPo', title: 'Relic Manipulation Weight Method', description: 'Relic Manipulation Weight Method Tips', featured: false },
-      { id: 'G0j3imbKw7M', title: 'How to Manipulate Relics', description: 'Original comprehensive guide on relic manipulation (8 months ago)', featured: false },
-    ],
-  },
-  {
-    id: 'ciet',
-    name: 'Ciet',
-    shortName: 'Ciet',
-    channelUrl: 'https://www.youtube.com/@iiciet',
-    description: 'Svarog Tracer Creator & Developer',
-    color: 'purple',
-    videos: [
-      { id: 'nUUx7ur-yUY', title: 'Ultimate Guide: How to Use Svarog Tracer', description: 'Complete walkthrough of the Svarog Tracer site and all its features', featured: true },
-    ],
-  },
-];
+// Video Data - imported from centralized JSON
+const CREATORS = guidesData.creators;
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
