@@ -335,89 +335,27 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 async function fetchWuWaLiveBanners() {
-  try {
-    // Fetch WuWa homepage which lists all current banners
-    const url = 'https://wuwatracker.com';
-    console.log('[WuWa] Fetching homepage:', url);
-    const res = await fetchWithTimeout(url, CONFIG.TIMEOUT_WUWA);
-    if (!res.ok) {
-      console.log('[WuWa] HTTP', res.status);
-      return [];
+  // WuWa Tracker blocks scraping attempts, so we use manual config
+  // Update these IDs when new WuWa patch releases (check wuwatracker.com)
+  const CURRENT_BANNERS = [
+    { 
+      id: '100031',  // Current character banner
+      name: 'Carlotta',  // Update name when patch changes
+      type: 'character',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fcarlotta-portrait.webp&w=828&q=75',
+      game: 'wuwa'
+    },
+    { 
+      id: '200031',  // Current weapon banner  
+      name: 'Cadenza',  // Update name when patch changes
+      type: 'weapon',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fcadenza-portrait.png&w=828&q=75',
+      game: 'wuwa'
     }
-    const html = await res.text();
-    console.log('[WuWa] HTML length:', html.length);
-    
-    // Regex to scrape banner names and IDs from escaped JSON in script tags
-    const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
-    const banners = [];
-    let idMatch;
-    const seen = new Set();
-    
-    while ((idMatch = idPattern.exec(html)) !== null) {
-      const id = idMatch[1];
-      
-      // Strictly filter for WuWa ID ranges
-      // 100xxx: Resonators, 101xxx/200xxx: Weapons
-      const isCharacter = id.startsWith('100');
-      const isWeapon = id.startsWith('101') || id.startsWith('200');
-      if (!isCharacter && !isWeapon) continue;
-      
-      const pos = idMatch.index;
-      
-      // Search forward for the name and type field
-      const forward = html.substring(pos, pos + 3000);
-      
-      // Extract Pool Type (e.g. Featured Character, Featured Weapon)
-      const typeMatch = forward.match(/\\"cardPoolType\\":\s*\\"([^\\"]+)\\"/);
-      const poolType = typeMatch ? typeMatch[1].toLowerCase() : '';
-      
-      const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
-      let name = nameMatch ? nameMatch[1] : 'Unknown Banner';
-      
-      if (seen.has(id)) continue;
-      seen.add(id);
-      
-      // Skip standard banner
-      if (name.toLowerCase().includes('standard')) continue;
-      
-      // Categorize by pool type or ID prefix fallback
-      const finalType = poolType.includes('character') ? 'character' : 
-                       (poolType.includes('weapon') ? 'weapon' : 
-                       (id.startsWith('100') ? 'character' : 'weapon'));
-      
-      // Generate image URL based on WuWa Tracker pattern
-      const nameSlug = name.toLowerCase().replace(/ /g, '-');
-      const imageUrl = finalType === 'character'
-        ? `https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2F${nameSlug}-portrait.webp&w=828&q=75`
-        : `https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2F${nameSlug}-portrait.png&w=828&q=75`;
-      
-      banners.push({ 
-        id, 
-        name, 
-        type: finalType,
-        image: imageUrl,
-        game: 'wuwa'
-      });
-    }
-    
-    console.log('[WuWa] Total scraped:', banners.length);
-    
-    // Return ONLY the most recent banner of each type (1 character + 1 weapon)
-    const charBanners = banners.filter(b => b.type === 'character')
-      .sort((a,b) => parseInt(b.id) - parseInt(a.id))
-      .slice(0, 1);
-    
-    const weaponBanners = banners.filter(b => b.type === 'weapon')
-      .sort((a,b) => parseInt(b.id) - parseInt(a.id))
-      .slice(0, 1);
-    
-    const result = [...charBanners, ...weaponBanners];
-    console.log('[WuWa] Returning', result.length, 'active banners');
-    return result;
-  } catch (error) {
-    console.error('[WuWa] Fetch error:', error);
-    return [];
-  }
+  ];
+  
+  console.log('[WuWa] Using manual config:', CURRENT_BANNERS.length, 'banners');
+  return CURRENT_BANNERS;
 }
 
 // =========================================================================
