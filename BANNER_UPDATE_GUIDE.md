@@ -46,7 +46,7 @@ Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
 
 #### Update Process (Every ~6 Weeks)
 Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
-Find `fetchWuWaLiveBanners()` and update config. **Use direct API image URLs.**
+Find `fetchWuWaLiveBanners()` and update config. **Use Next.js optimized image URLs.**
 
 ```javascript
 const CURRENT_BANNERS = [
@@ -54,15 +54,15 @@ const CURRENT_BANNERS = [
     id: '100031',  // Find ID in wuwatracker.com URL
     name: 'Mornye',
     type: 'character',
-    // Use this format for images:
-    image: 'https://wuwatracker.com/api/character-portraits/file/mornye-portrait.webp',
+    // Use this format (right-click image on site -> Copy Link):
+    image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75',
     game: 'wuwa'
   },
   { 
     id: '200031',
     name: 'Starfield Calibrator',
     type: 'weapon',
-    image: 'https://wuwatracker.com/api/weapon-portraits/file/starfield-calibrator-portrait.png',
+    image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75',
     game: 'wuwa'
   }
 ];

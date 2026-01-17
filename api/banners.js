@@ -342,14 +342,14 @@ async function fetchWuWaLiveBanners() {
       id: '100031',  // Current character banner
       name: 'Mornye',  // Current featured character
       type: 'character',
-      image: 'https://wuwatracker.com/api/character-portraits/file/mornye-portrait.webp',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75',
       game: 'wuwa'
     },
     { 
       id: '200031',  // Current weapon banner  
-      name: 'Starfield Calibrator',  // Current featured weapon (Mornye Signature)
+      name: 'Starfield Calibrator',  // Current featured weapon
       type: 'weapon',
-      image: 'https://wuwatracker.com/api/weapon-portraits/file/starfield-calibrator-portrait.png',
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75',
       game: 'wuwa'
     }
   ];
