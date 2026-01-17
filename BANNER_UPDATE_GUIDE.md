@@ -42,22 +42,29 @@ Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
 #### Automation: ❌ Manual Only
 - Source: Manual Config (WuWa Tracker blocks scraping)
 - Updates: Must manually hardcode current banners.
-- Stats: ❌ **Unavailable** (HTML parsing blocked by anti-bot)
+- Stats: ✅ **Working** (Requires correct Banner ID)
 
 #### Update Process (Every ~6 Weeks)
 Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
-Find `fetchWuWaLiveBanners()` and update `CURRENT_BANNERS`:
+Find `fetchWuWaLiveBanners()` and update config. **Use direct API image URLs.**
 
 ```javascript
 const CURRENT_BANNERS = [
   { 
-    id: '100031',  // New Banner ID (from wuwatracker.com URL)
-    name: 'Mornye',  // Character Name
+    id: '100031',  // Find ID in wuwatracker.com URL
+    name: 'Mornye',
     type: 'character',
-    image: 'https://wuwatracker.com/_next/image?url=...&w=828&q=75',
+    // Use this format for images:
+    image: 'https://wuwatracker.com/api/character-portraits/file/mornye-portrait.webp',
     game: 'wuwa'
   },
-  // Update weapon similarly...
+  { 
+    id: '200031',
+    name: 'Starfield Calibrator',
+    type: 'weapon',
+    image: 'https://wuwatracker.com/api/weapon-portraits/file/starfield-calibrator-portrait.png',
+    game: 'wuwa'
+  }
 ];
 ```
 
