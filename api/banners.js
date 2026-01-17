@@ -156,31 +156,116 @@ async function fetchHSRActiveBanners() {
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  const legendaries = pullList.filter(p => p.rarity === 5);
-  if (legendaries.length === 0) return 'Unknown Banner';
+  // Paimon.moe lists pulls by count - featured 5-stars usually have highest counts
+  // Filter for characters only (exclude weapons) and take top 2 by count
+  const characters = pullList
+    .filter(p => p.type === 'character' && p.count > 100) // Filter out low-count pulls
+    .sort((a, b) => b.count - a.count) // Sort by count descending
+    .slice(0, 2) // Take top 2 (usually the featured 5-stars)
+    .map(p => p.name);
   
-  const names = [...new Set(legendaries.map(p => p.name))].filter(n => n && n !== 'Unknown');
-  return names.length > 0 ? names.join(' / ') : 'Character Event Wish';
+  if (characters.length === 0) return 'Character Event Wish';
+  
+  // Capitalize names (paimon.moe uses lowercase)
+  const formatted = characters.map(name => 
+    name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+  
+  return formatted.join(' / ');
 }
 
 // Helper: Extract weapon banner names
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  const legendaryWeapons = pullList.filter(p => p.rarity === 5 && p.type && p.type !== 'Character');
-  if (legendaryWeapons.length === 0) return null;
+  // Filter for weapons only and take top 2 by count
+  const weapons = pullList
+    .filter(p => p.type === 'weapon' && p.count > 100)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2) // Take top 2 featured weapons
+    .map(p => p.name);
   
-  const weaponNames = [...new Set(legendaryWeapons.map(p => p.name))].filter(n => n && n !== 'Unknown');
-  return weaponNames.length > 0 ? weaponNames.join(' / ') : null;
+  if (weapons.length === 0) return 'Epitome Invocation';
+  
+  // Capitalize names
+  const formatted = weapons.map(name => 
+    name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+  
+  return formatted.join(' / ');
 }
 
 async function fetchActiveGenshinBanners() {
-  // Use manual config instead of auto-discovery (much simpler and reliable!)
-  const banners = [];
+  // Try auto-discovery first, fall back to manual config if needed
+  console.log('[Genshin] Attempting auto-discovery...');
   
-  // Add character banners
+  const findBanners = async (startId, prefix, type) => {
+    const banners = [];
+    
+    // Search recent banner IDs (check last 10 IDs)
+    for (let i = startId; i >= startId - 10 && i >= 0; i--) {
+      const bannerId = `${prefix}${String(i).padStart(3, '0')}`;
+      
+      try {
+        const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Check if banner has enough data (at least 10,000 legendary pulls)
+          if (data.total && data.total.legendary > 10000) {
+            let name;
+            if (type === 'weapon') {
+              name = extractGenshinWeaponNames(data.list);
+            } else {
+              name = extractGenshinBannerName(data.list);
+            }
+            
+            // Generate image URL (use first character/weapon name)
+            const firstName = name.split(' / ')[0].toLowerCase().replace(/ /g, '_');
+            const imageUrl = type === 'weapon'
+              ? `https://paimon.moe/images/weapons/${firstName}.png`
+              : `https://paimon.moe/images/characters/${firstName}.png`;
+            
+            banners.push({
+              id: bannerId,
+              name,
+              type,
+              image: imageUrl,
+              game: 'genshin'
+            });
+            
+            // Only return the MOST RECENT banner (highest ID with data)
+            break;
+          }
+        }
+      } catch (e) {
+        console.error(`[Genshin] Error checking ${bannerId}:`, e.message);
+      }
+    }
+    
+    return banners;
+  };
+  
+  // Search for current banners (start from high IDs and search backwards)
+  const [chars, weapons] = await Promise.all([
+    findBanners(100, '300', 'character'), // Start from 300100 and search back
+    findBanners(100, '400', 'weapon')     // Start from 400100 and search back
+  ]);
+  
+  const discovered = [...chars, ...weapons];
+  
+  // If auto-discovery found banners, use them
+  if (discovered.length > 0) {
+    console.log('[Genshin] Auto-discovered', discovered.length, 'banners');
+    return discovered;
+  }
+  
+  // Fallback to manual config
+  console.log('[Genshin] Auto-discovery failed, using manual config fallback');
+  const fallback = [];
+  
   CONFIG.GENSHIN_MANUAL.characters.forEach(char => {
-    banners.push({
+    fallback.push({
       id: char.bannerId,
       name: char.name,
       type: 'character',
@@ -189,9 +274,8 @@ async function fetchActiveGenshinBanners() {
     });
   });
   
-  // Add weapon banners
   CONFIG.GENSHIN_MANUAL.weapons.forEach(weapon => {
-    banners.push({
+    fallback.push({
       id: weapon.bannerId,
       name: weapon.name,
       type: 'weapon',
@@ -200,8 +284,7 @@ async function fetchActiveGenshinBanners() {
     });
   });
   
-  console.log('[Genshin] Using manual config:', banners.length, 'banners');
-  return banners;
+  return fallback;
 }
 
 // =========================================================================
