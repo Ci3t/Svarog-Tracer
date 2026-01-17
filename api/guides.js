@@ -4,7 +4,7 @@
  * POST: Adds a new video (requires API key)
  */
 
-import { put, head } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 
 const BLOB_PATH = 'guides.json';
 const INITIAL_DATA = {
@@ -38,20 +38,31 @@ const INITIAL_DATA = {
 
 async function getGuidesData() {
   try {
-    // Try to fetch from Blob
-    const response = await fetch(`https://blob.vercel-storage.com/${BLOB_PATH}`, {
-      headers: { 'Accept': 'application/json' }
+    // Use Vercel Blob SDK to list and get the blob
+    const { blobs } = await list({ prefix: BLOB_PATH });
+    
+    if (blobs.length > 0) {
+      // Fetch the blob content
+      const response = await fetch(blobs[0].url);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Guides API] Loaded data from Blob');
+        return data;
+      }
+    }
+    
+    console.log('[Guides API] No Blob found, initializing with default data');
+    // Initialize Blob with default data
+    await put(BLOB_PATH, JSON.stringify(INITIAL_DATA, null, 2), {
+      access: 'public',
+      contentType: 'application/json'
     });
     
-    if (response.ok) {
-      return await response.json();
-    }
+    return INITIAL_DATA;
   } catch (error) {
-    console.log('[Guides API] Blob not found, using initial data');
+    console.error('[Guides API] Blob error:', error);
+    return INITIAL_DATA;
   }
-  
-  // If Blob doesn't exist, return initial data
-  return INITIAL_DATA;
 }
 
 export default async function handler(req, res) {
