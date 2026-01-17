@@ -147,8 +147,8 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 // Banner API endpoint
 const BANNER_API_URL = 'https://svarog-tracer.vercel.app/api/banners';
 
-// Fetch live banners from centralized API
-export async function fetchLiveBanners() {
+// Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
+export async function fetchCentralizedBanners() {
   try {
     const response = await fetch(BANNER_API_URL);
     if (!response.ok) return [];
