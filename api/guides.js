@@ -4,7 +4,7 @@
  * POST: Adds a new video (requires API key)
  */
 
-import { put, list } from '@vercel/blob';
+import { put, list, del } from '@vercel/blob';
 
 const BLOB_PATH = 'guides.json';
 const INITIAL_DATA = {
@@ -122,11 +122,15 @@ export default async function handler(req, res) {
       
       creator.videos.push(newVideo);
       
-      // Upload to Vercel Blob
+      // Upload to Vercel Blob (delete old, create new)
+      const { blobs } = await list({ prefix: BLOB_PATH });
+      if (blobs.length > 0) {
+        await del(blobs[0].url);
+      }
+      
       const blob = await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json',
-        addIfNotExists: false
+        contentType: 'application/json'
       });
       
       console.log('[Guides API] Video added successfully:', newVideo.title);
@@ -170,10 +174,15 @@ export default async function handler(req, res) {
       
       const deletedVideo = creator.videos.splice(videoIndex, 1)[0];
       
+      // Update Blob (delete old, create new)
+      const { blobs: deleteBlobs } = await list({ prefix: BLOB_PATH });
+      if (deleteBlobs.length > 0) {
+        await del(deleteBlobs[0].url);
+      }
+      
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json',
-        addIfNotExists: false
+        contentType: 'application/json'
       });
       
       console.log('[Guides API] Video deleted:', deletedVideo.title);
@@ -220,10 +229,15 @@ export default async function handler(req, res) {
       if (updates.featured !== undefined) video.featured = updates.featured;
       if (updates.id !== undefined) video.id = updates.id; // Allow fixing the ID
       
+      // Update Blob (delete old, create new)
+      const { blobs: patchBlobs } = await list({ prefix: BLOB_PATH });
+      if (patchBlobs.length > 0) {
+        await del(patchBlobs[0].url);
+      }
+      
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json',
-        addIfNotExists: false
+        contentType: 'application/json'
       });
       
       console.log('[Guides API] Video updated:', video.title);
