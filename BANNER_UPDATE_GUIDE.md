@@ -1,137 +1,243 @@
-# How to Add New Banners to the Tracker
+# Banner Update Guide - All Games
 
-## Quick Guide (3 Steps)
+## 🎯 Quick Answer
 
-### Step 1: Edit the CSV File
-Open `debugstxt/banner.csv` and add your new banner entries:
+**Is everything automated?**
+- **HSR**: ✅ 100% automated (no updates needed)
+- **Genshin**: ⚠️ 95% automated (only update 5-star lists when new characters release)
+- **WuWa**: ✅ 100% automated (no updates needed)
 
-```csv
-# of Banners    Versions    Characters
-1              3.9         New Character Name
-2              3.9         Existing Character  
-```
-
-**Format:**
-- **Column 1**: Total appearances for this character (1 for new, increment for reruns)
-- **Column 2**: Version number (e.g., 3.9, 4.0)
-- **Column 3**: Character name (must match StarRailRes metadata)
-
-**Special Cases:**
-- **v3.8** has 3 phases - add 6 characters (first 2 = P1, middle 2 = P2, last 2 = P3)
-- **Dan Heng PT**: Use exactly "Dan Heng PT" or "Imbibitor Lunae"
-- **Topaz**: Use "Topaz" (not "Topaz & Numby")
-
-### Step 2: Run the Converter
-```bash
-node struct_converter.cjs
-```
-
-This will automatically:
-- Parse the CSV
-- Split versions into phases (2 phases normally, 3 for v3.8)
-- Generate `src/data/bannerHistory.json`
-- Calculate drought counters
-
-### Step 3: Refresh Browser
-That's it! The page will automatically show:
-- ✅ New characters in the grid
-- ✅ Updated drought counters
-- ✅ Refreshed rerun predictions
+**Is manual updating easy?**
+✅ Yes! All in one file: [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js)
 
 ---
 
-## Character Name Reference
+## 📁 File Structure
 
-**Important:** Character names must match the StarRailRes GitHub repo format.
+```
+api/
+├── banners.js          ← MAIN FILE (all banner logic)
+├── genshin/
+│   └── stats.js        ← Stats endpoint (no updates needed)
+└── wuwa/
+    └── stats.js        ← Stats endpoint (no updates needed)
+```
 
-### Common Names (Already Mapped):
-- Dan Heng PT → Imbibitor Lunae (auto-mapped)
-- Topaz & Numby → Topaz (auto-mapped)
-
-### Find Character Names:
-1. Go to: https://starrailstation.com/en/characters
-2. Click on the character
-3. Use the displayed name (e.g., "The Herta", "Ruan Mei", "Fu Xuan")
+**You only ever need to edit:** `api/banners.js`
 
 ---
 
-## Examples
+## 🎮 Game-by-Game Guide
 
-### Adding a New Character (v3.9)
-```csv
-1    3.9    Castorice
-1    3.9    Tribbie
-```
+### **HSR (Honkai: Star Rail)**
 
-### Adding a Rerun
-```csv
-4    3.9    Kafka        # 4th appearance
-2    3.9    Feixiao      # 2nd appearance (first rerun)
-```
+#### Automation Level: ✅ 100%
 
-### Multi-Phase Version (Like v3.8)
-```csv
-1    3.8    The Dahlia   # Phase 1
-4    3.8    Firefly      # Phase 1
-3    3.8    Fugue        # Phase 2
-3    3.8    Lingsha      # Phase 2
-3    3.8    Sunday       # Phase 3
-3    3.8    Aglaea       # Phase 3
-```
+**How it works:**
+- Fetches config from StarRailStation API
+- Auto-discovers active banners
+- No manual updates needed!
 
----
+#### Manual Override (Optional)
 
-## Troubleshooting
+If API fails, edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L95-L130):
 
-### Character Image Not Showing?
-1. Check if the name matches StarRailStation exactly
-2. Add a manual override in `src/utils/warpDataService.js`:
 ```javascript
-// In fetchCharacterMetadataMap() function, around line 850
-nameToImage["CSV Name"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/XXXX.png";
+// Lines 95-130: HSR banner mapping
+const hsrBannerMap = {
+  2100: { charId: 8006, type: 'character' }, // Add new banner
+  ...
+};
 ```
 
-### Wrong Phase Split?
-- The converter automatically splits characters evenly (half per phase)
-- For special versions like 3.8, add them to `struct_converter.cjs` (lines 51-70)
+**When to use:** Only if StarRailStation API is down.
 
 ---
 
-## Automatic Updates (Future)
+### **Genshin Impact**
 
-Currently, banner data is managed manually via CSV. **Automatic fetching from StarRailStation** could be implemented:
+#### Automation Level: ⚠️ 95%
 
-### Potential API:
-- **Characters**: `https://starrailstation.com/api/v1/characters`
-- **Banner History**: Not publicly available yet
+**What's automated:**
+- ✅ Banner ID discovery (searches 300100→300090, 400100→400090)
+- ✅ Banner image generation
+- ✅ Stats fetching
 
-### Implementation Steps (Future):
-1. Create a script to fetch current banners from StarRailRes or StarRailStation
-2. Compare with existing data
-3. Auto-append new entries to CSV
-4. Run converter automatically
+**What needs manual update:**
+- ⚠️ 5-star character/weapon lists (when new ones release)
 
-**Note:** This would require stable API endpoints for banner history, which don't exist yet. For now, manual CSV updates are the most reliable method.
+#### Update Process (Every ~3 Weeks)
+
+Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L157-L181):
+
+**1. Add New 5★ Character** (Line 157-166):
+```javascript
+const GENSHIN_5STAR_CHARS = [
+  'albedo', 'alhaitham', 'aloy', ..., // existing
+  'new_character_name',  // ← ADD HERE (lowercase, use underscores)
+];
+```
+
+**2. Add New 5★ Weapon** (Line 169-181):
+```javascript
+const GENSHIN_5STAR_WEAPONS = [
+  'aqua_simulacra', 'amos_bow', ..., // existing
+  'new_weapon_name',  // ← ADD HERE (lowercase, use underscores)
+];
+```
+
+**Examples:**
+- Character: `'columbina'`, `'mavuika'`, `'zhongli'`
+- Weapon: `'nocturnes_curtain_call'`, `'staff_of_homa'`
+
+#### Manual Banner Override (Rarely Needed)
+
+If auto-discovery fails, edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L21-L38):
+
+```javascript
+GENSHIN_MANUAL: {
+  characters: [
+    { 
+      bannerId: "300094",  // ← Change ID
+      name: "Columbina / Ineffa",  // ← Change names
+      image: "https://paimon.moe/images/characters/columbina.png"
+    }
+  ],
+  weapons: [
+    { 
+      bannerId: "400093", 
+      name: "Nocturne's Curtain Call / Fractured Halo",
+      image: "https://paimon.moe/images/weapons/nocturnes_curtain_call.png"
+    }
+  ]
+}
+```
+
+**When to use:** Only if paimon.moe data is wrong/missing.
 
 ---
 
-## Files Reference
+### **WuWa (Wuthering Waves)**
 
-- **CSV Source**: `debugstxt/banner.csv`
-- **Converter**: `struct_converter.cjs`
-- **Generated JSON**: `src/data/bannerHistory.json`
-- **Metadata Service**: `src/utils/warpDataService.js` (line 816+)
-- **Main Component**: `src/pages/BannerTracker.jsx`
+#### Automation Level: ✅ 100%
+
+**How it works:**
+- Scrapes wuwatracker.com website
+- Auto-discovers active banners
+- Adaptive HTML parser (self-healing)
+- No manual updates needed!
+
+#### Manual Override (Optional)
+
+If scraping fails, you can hardcode banners in [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L278-L350):
+
+Look for the `fetchWuWaLiveBanners()` function and add fallback data if needed.
+
+**When to use:** Only if WuWa Tracker completely changes their HTML structure.
 
 ---
 
-## Quick Commands
+## 🚀 Deployment Process
+
+After any manual edit:
 
 ```bash
-# Update banners
-node struct_converter.cjs
-
-# Clear localStorage (forces metadata refresh)
-# Run in browser console:
-localStorage.clear()
+git add api/banners.js
+git commit -m "Update banners: [describe change]"
+git push
 ```
+
+**Vercel auto-deploys in ~2 minutes!**
+
+---
+
+## 🧪 Testing After Update
+
+### Test Banner Discovery
+```bash
+curl https://svarog-tracer.vercel.app/api/banners
+```
+
+Should return JSON with all game banners.
+
+### Test Individual Stats
+```bash
+# Genshin
+curl https://svarog-tracer.vercel.app/api/genshin/stats?id=300094
+
+# WuWa
+curl https://svarog-tracer.vercel.app/api/wuwa/stats?id=100031
+```
+
+---
+
+## 📊 Summary Table
+
+| Game | Auto-Discovers Banners | Manual Updates Needed | Update Frequency |
+|------|:---------------------:|:---------------------:|:----------------:|
+| **HSR** | ✅ Yes | ❌ None | Never |
+| **Genshin** | ✅ Yes | ⚠️ 5-star lists only | Every 3 weeks |
+| **WuWa** | ✅ Yes | ❌ None | Never |
+
+---
+
+## 🎯 Quick Checklist
+
+### When Genshin Patch Drops (Every 3 Weeks)
+
+- [ ] Check if new 5-star character released
+  - [ ] Add to `GENSHIN_5STAR_CHARS` array
+- [ ] Check if new 5-star weapon released
+  - [ ] Add to `GENSHIN_5STAR_WEAPONS` array
+- [ ] Commit and push
+- [ ] Wait 2 min for Vercel deploy
+- [ ] Test on website
+
+**That's it!** Everything else is automated.
+
+---
+
+## 🔧 Troubleshooting
+
+### "Banner not showing on website"
+
+1. **Check API response:**
+   ```bash
+   curl https://svarog-tracer.vercel.app/api/banners | python -m json.tool
+   ```
+
+2. **Check if name is in 5-star list** (Genshin only)
+   - View [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L157-L181)
+   - Add missing character/weapon
+
+3. **Clear cache:**
+   - Wait 15 minutes (cache expiry)
+   - OR redeploy on Vercel (instant cache clear)
+
+### "Stats data missing"
+
+Stats are separate from banners. Check:
+- Genshin: `api/genshin/stats.js`
+- WuWa: `api/wuwa/stats.js`
+
+Usually no edits needed - these just fetch from source APIs.
+
+---
+
+## 💡 Pro Tips
+
+1. **Genshin names**: Always lowercase with underscores
+   - ✅ `'sangonomiya_kokomi'`
+   - ❌ `'Sangonomiya Kokomi'`
+   - ❌ `'sangonomiya-kokomi'`
+
+2. **Cache**: Set to 15 minutes for fresh data
+   - Change in [`api/banners.js` line 12](file:///d:/Coding/HSR_PatternRecord/api/banners.js#L12)
+
+3. **Testing locally**: Run `vercel dev` to test before deploying
+
+4. **Logs**: Check Vercel dashboard for API logs if something breaks
+
+---
+
+**Need help?** Check [`dbgtxt/banner_api_summary.md`](file:///d:/Coding/HSR_PatternRecord/dbgtxt/banner_api_summary.md) for detailed technical info.
