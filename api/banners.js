@@ -335,27 +335,64 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 async function fetchWuWaLiveBanners() {
-  // WuWa Tracker blocks scraping attempts, so we use manual config
-  // Update these IDs when new WuWa patch releases (check wuwatracker.com)
-  const CURRENT_BANNERS = [
+  // 1. Base Configuration (Manual Fallback)
+  // Update these IDs when new WuWa patch releases if auto-discovery fails
+  let currentBanners = [
     { 
-      id: '100031',  // Current character banner
-      name: 'Mornye',  // Current featured character
+      id: '100031',  // Mornye
+      name: 'Mornye', 
       type: 'character',
       image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75',
       game: 'wuwa'
     },
     { 
-      id: '200031',  // Current weapon banner  
-      name: 'Starfield Calibrator',  // Current featured weapon
+      id: '200031',  // Starfield Calibrator
+      name: 'Starfield Calibrator',
       type: 'weapon',
       image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75',
       game: 'wuwa'
     }
   ];
-  
-  console.log('[WuWa] Using manual config:', CURRENT_BANNERS.length, 'banners');
-  return CURRENT_BANNERS;
+
+  // 2. Auto-Discovery: Probe for next ID (Future Proofing)
+  // Logic: Check ID+1. If 200 OK, parse Name/Image and replace Manual Config.
+  const discoveredBanners = await Promise.all(currentBanners.map(async (banner) => {
+    try {
+      const nextId = (parseInt(banner.id) + 1).toString();
+      const probeUrl = `https://wuwatracker.com/tracker/stats/${nextId}`;
+      
+      // Fast check with short timeout
+      const res = await fetchWithTimeout(probeUrl, 3000); // 3s timeout for probe
+      
+      if (res.status === 200) {
+        const html = await res.text();
+        const titleMatch = html.match(/<title>(.*?) ·/);
+        
+        if (titleMatch && titleMatch[1]) {
+          const newName = titleMatch[1].trim();
+          console.log(`[WuWa Auto-Discovery] FOUND NEW BANNER! ${banner.name} (${banner.id}) -> ${newName} (${nextId})`);
+          
+          // Generate new Image URL (slugify name)
+          const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          const ext = banner.type === 'character' ? 'webp' : 'png';
+          const imgType = banner.type === 'character' ? 'character-portraits' : 'weapon-portraits';
+          
+          return {
+            ...banner,
+            id: nextId,
+            name: newName,
+            image: `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imgType}%2Ffile%2F${slug}-portrait.${ext}&w=828&q=75`
+          };
+        }
+      }
+    } catch (e) {
+      // Probe failed (likely 404 Not Found), stick to manual
+      // console.log(`[WuWa Probe] No new banner for ${banner.name} (${e.message})`);
+    }
+    return banner; // Return original if probe fails
+  }));
+
+  return discoveredBanners;
 }
 
 // =========================================================================

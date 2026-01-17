@@ -39,14 +39,14 @@ Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
 
 ### **WuWa (Wuthering Waves)**
 
-#### Automation: ❌ Manual Only
-- Source: Manual Config (WuWa Tracker blocks scraping)
-- Updates: Must manually hardcode current banners.
-- Stats: ✅ **Working** (Requires correct Banner ID)
+#### Automation: 🟡 Semi-Automated (Smart Probe)
+- Source: ID Auto-Discovery (Base ID + 1)
+- Updates: System probes for the *next* banner ID. If found, it updates automatically.
+- Fallback: Manual Config in [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js)
 
-#### Update Process (Every ~6 Weeks)
-Edit [`api/banners.js`](file:///d:/Coding/HSR_PatternRecord/api/banners.js):
-Find `fetchWuWaLiveBanners()` and update config. **Use Next.js optimized image URLs.**
+#### When to Manual Update?
+Only if the probe fails (e.g., ID jumps by more than 1, or anti-bot blocks the probe).
+If you see old banners on patch day, update the `CURRENT_BANNERS` array manually.
 
 ```javascript
 const CURRENT_BANNERS = [
