@@ -17,9 +17,9 @@ const CONFIG = {
   TIMEOUT_WUWA: 5000,    // WuWa scraping timeout
   
   // Genshin banner discovery settings (UPDATE WHEN NEW PATCH!)
-  GENSHIN_CHAR_BASE: 94,    // Character banner patch (increment each patch)
-  GENSHIN_WEAPON_BASE: 93,  // Weapon banner patch (increment each patch)
-  GENSHIN_SEARCH_RANGE: 6,  // How many banner IDs ahead to check
+  GENSHIN_CHAR_BASE: 92,    // START SEARCH (try lower range)
+  GENSHIN_WEAPON_BASE: 91,  // START SEARCH (try lower range)
+  GENSHIN_SEARCH_RANGE: 10,  // Search MORE IDs to find current banners
   
   // API endpoints
   STARRAIL_API: 'https://starrailstation.com/api/v1',
@@ -182,8 +182,8 @@ async function fetchActiveGenshinBanners() {
           const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
           if (res.ok) {
             const data = await res.json();
-            // Filter by pull count to ensure it's a "known" banner
-            if (data.total && data.total.legendary > 300) {
+            // Filter by pull count to ensure it's a "known" banner (lowered threshold)
+            if (data.total && data.total.legendary > 100) {
               let name;
               if (type === 'weapon') {
                 name = extractGenshinWeaponNames(data.list) || "Epitome Invocation";
