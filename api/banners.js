@@ -16,9 +16,9 @@ const CONFIG = {
   TIMEOUT_GENSHIN: 3000, // Faster timeout for Genshin checks
   TIMEOUT_WUWA: 5000,    // WuWa scraping timeout
   
-  // Genshin banner discovery settings
-  GENSHIN_CHAR_BASE: 93,    // Current character banner patch number
-  GENSHIN_WEAPON_BASE: 92,  // Current weapon banner patch number
+  // Genshin banner discovery settings (UPDATE WHEN NEW PATCH!)
+  GENSHIN_CHAR_BASE: 94,    // Character banner patch (increment each patch)
+  GENSHIN_WEAPON_BASE: 93,  // Weapon banner patch (increment each patch)
   GENSHIN_SEARCH_RANGE: 6,  // How many banner IDs ahead to check
   
   // API endpoints
