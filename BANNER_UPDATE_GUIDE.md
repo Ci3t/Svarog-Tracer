@@ -51,7 +51,7 @@ Find `fetchWuWaLiveBanners()` and update `CURRENT_BANNERS`:
 ```javascript
 const CURRENT_BANNERS = [
   { 
-    id: '100032',  // New Banner ID (from wuwatracker.com URL)
+    id: '100031',  // New Banner ID (from wuwatracker.com URL)
     name: 'Mornye',  // Character Name
     type: 'character',
     image: 'https://wuwatracker.com/_next/image?url=...&w=828&q=75',
