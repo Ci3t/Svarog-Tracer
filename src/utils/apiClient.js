@@ -11,8 +11,7 @@ const getApiBaseUrl = () => {
   }
   
   // In production, use deployed Vercel API
-  // TODO: Replace with your actual Vercel URL after deployment
-  return 'https://your-app.vercel.app/api';
+  return 'https://svarog-tracer.vercel.app/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
