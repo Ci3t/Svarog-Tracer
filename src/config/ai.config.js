@@ -5,7 +5,7 @@
 
 export const AI_CONFIG = {
   // Model Selection
-  MODEL: 'gemini-2.5-flash',  // User requested model (Experimental?)
+  MODEL: 'gemini-2.5-flash',  // User requested stable free tier model
   
   // Generation Parameters
   TEMPERATURE: 0.7,
