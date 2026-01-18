@@ -14,9 +14,19 @@ const AI_CONFIG = {
   TOP_P: 0.9
 }
 
-// Initialize Gemini
-// Access env vars directly in Vercel/Node environment
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+// Initialize Gemini with debug logging
+let genAI
+try {
+  console.log('[API] Initializing Gemini...')
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('[API] ERROR: GEMINI_API_KEY is missing in process.env')
+  } else {
+    console.log('[API] Key found:', process.env.GEMINI_API_KEY.substring(0, 5) + '...')
+  }
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+} catch (e) {
+  console.error('[API] Init Error:', e)
+}
 
 // Simple in-memory rate limiter (will add Redis later)
 const requestCounts = new Map()
@@ -49,6 +59,8 @@ async function getUsageStats(userId) {
 }
 
 export default async function handler(req, res) {
+  console.log('[API] Request received:', req.method)
+  
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -68,6 +80,8 @@ export default async function handler(req, res) {
   const startTime = Date.now()
   const { userId, bannerId, bannerName, luckyPeaks, winLossData } = req.body
   
+  console.log('[API] Processing:', { userId, bannerId, peaks: luckyPeaks?.length })
+
   // Validation
   if (!userId || !bannerId || !luckyPeaks) {
     return res.status(400).json({
@@ -81,6 +95,7 @@ export default async function handler(req, res) {
     const rateLimitResult = await checkRateLimit(userId)
     
     if (!rateLimitResult.ok) {
+      console.warn('[API] Rate limit exceeded:', userId)
       return res.status(429).json({
         success: false,
         error: {
@@ -99,6 +114,8 @@ export default async function handler(req, res) {
       winLossData
     })
     
+    console.log('[API] Calling Gemini...')
+    
     // Call Gemini
     const model = genAI.getGenerativeModel({ 
       model: AI_CONFIG.MODEL,
@@ -112,6 +129,8 @@ export default async function handler(req, res) {
     const result = await model.generateContent(prompt)
     const response = await result.response
     let text = response.text()
+    
+    console.log('[API] Gemini Response received. Length:', text.length)
     
     // Strip markdown code blocks if present
     text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
