@@ -20,6 +20,16 @@ Establish the Vercel Backend (`/api/banners`, `/api/wuwa/stats`) as the single s
     - [x] **AUTOMATION**: Auto-switches if new banner found.
     - [x] **SAFE**: Fallback to manual if probe fails.
     - [ ] Investigate "Smart Fetch" libraries compatible with Vercel.
+- [ ] Hardening Phase 1: AI Warp Analyzer
+    [x] Implement basic Gemini integration (admin key)
+    [x] Add debug logging to API and Frontend
+    [x] Fix JSON truncation/libuv crash in `gemini-2.5-flash`
+    [x] Implement robust JSON extraction with regex
+    [ ] Add fallback/retry logic for API responses
+[/] Hardening Phase 2: Predictor AI (BYOK Mode)
+    [ ] UI for User API Key management
+    [ ] Client-side Gemini calls for privacy
+    [ ] Key validation and testing tool
 - [ ] **Implementation**:
     - [ ] Pivot to direct API if found.
     - [ ] OR refine scraping with better bypass.

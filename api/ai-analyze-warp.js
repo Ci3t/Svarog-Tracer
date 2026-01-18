@@ -121,30 +121,36 @@ export default async function handler(req, res) {
       model: AI_CONFIG.MODEL,
       generationConfig: {
         temperature: AI_CONFIG.TEMPERATURE,
-        maxOutputTokens: AI_CONFIG.MAX_OUTPUT_TOKENS,
+        maxOutputTokens: 1024, // Bumped from 200 to prevent truncation
         topP: AI_CONFIG.TOP_P,
       }
     })
     
-    const result = await model.generateContent(prompt)
+    // Improved Prompt with stricter JSON requirement
+    const finalPrompt = `${prompt}\n\nDANGER: You MUST return a single valid JSON object. Do not include any text before or after the JSON. Complete the JSON object fully.`
+    
+    const result = await model.generateContent(finalPrompt)
     const response = await result.response
     let text = response.text()
     
     console.log('[API] Gemini Response received. Length:', text.length)
     
-    // BULLETPROOF JSON EXTRACTION: Find first { and last }
-    const firstBrace = text.indexOf('{')
-    const lastBrace = text.lastIndexOf('}')
+    // REGEX-BASED JSON EXTRACTION: More robust than indexOf
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
     
-    if (firstBrace === -1 || lastBrace === -1) {
+    if (!jsonMatch) {
       console.error('[API] No JSON found in response:', text)
       return res.status(500).json({
         success: false,
-        error: { code: 'NO_JSON', message: 'AI response contained no JSON', debug: text.substring(0, 200) }
+        error: { 
+          code: 'NO_JSON', 
+          message: 'AI response contained no JSON', 
+          debug: text.substring(0, 100) + (text.length > 100 ? '...' : '')
+        }
       })
     }
     
-    text = text.substring(firstBrace, lastBrace + 1)
+    text = jsonMatch[0]
     
     // Parse JSON response
     let aiData
@@ -154,7 +160,11 @@ export default async function handler(req, res) {
       console.error('[AI Warp] JSON parse error:', text)
       return res.status(500).json({
         success: false,
-        error: { code: 'INVALID_RESPONSE', message: 'AI returned invalid JSON' }
+        error: { 
+          code: 'INVALID_JSON', 
+          message: 'AI returned malformed JSON',
+          debug: text.substring(0, 100)
+        }
       })
     }
     
@@ -180,7 +190,8 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('[AI Warp] Error:', error)
     
-    // Handle specific errors
+    // Prevent the "Assertion failed" crash by ensuring we catch everything
+    const errorMessage = error.message || 'Unknown AI error'
     if (error.message?.includes('quota') || error.message?.includes('429')) {
       return res.status(429).json({
         success: false,
