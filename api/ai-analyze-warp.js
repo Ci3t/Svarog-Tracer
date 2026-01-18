@@ -4,14 +4,50 @@
  * Uses admin key (shared service for all users)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { checkRateLimit, getUsageStats } from './utils/rateLimiter.js'
-import { AI_CONFIG } from '../src/config/ai.config.js'
+const { GoogleGenerativeAI } = require('@google/generative-ai')
+
+// AI Configuration (inline for now to avoid import issues)
+const AI_CONFIG = {
+  MODEL: 'gemini-2.0-flash-exp',
+  TEMPERATURE: 0.7,
+  MAX_OUTPUT_TOKENS: 200,
+  TOP_P: 0.9
+}
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-export default async function handler(req, res) {
+// Simple in-memory rate limiter (will add Redis later)
+const requestCounts = new Map()
+
+async function checkRateLimit(userId) {
+  const now = Date.now()
+  const minute = Math.floor(now / 60000)
+  const key = `${userId}:${minute}`
+  
+  const count = requestCounts.get(key) || 0
+  requestCounts.set(key, count + 1)
+  
+  // Cleanup old keys
+  for (const [k, v] of requestCounts.entries()) {
+    const keyMinute = parseInt(k.split(':')[1])
+    if (minute - keyMinute > 2) {
+      requestCounts.delete(k)
+    }
+  }
+  
+  if (count >= 15) {
+    return { ok: false, reason: 'USER_MINUTE_LIMIT', retryAfter: 60 }
+  }
+  
+  return { ok: true, counts: { userMin: count + 1 } }
+}
+
+async function getUsageStats(userId) {
+  return { globalToday: 0, userToday: 0 }
+}
+
+module.exports = async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
