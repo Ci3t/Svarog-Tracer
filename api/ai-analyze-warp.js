@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // AI Configuration (inline for now to avoid import issues)
 const AI_CONFIG = {
-  MODEL: 'gemini-2.5-flash',  // Free tier: 15 RPM, 1500 RPD
+  MODEL: 'gemini-1.5-flash',  // STABLE Free tier model
   TEMPERATURE: 0.7,
   MAX_OUTPUT_TOKENS: 200,
   TOP_P: 0.9
@@ -132,8 +132,19 @@ export default async function handler(req, res) {
     
     console.log('[API] Gemini Response received. Length:', text.length)
     
-    // Strip markdown code blocks if present
-    text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+    // BULLETPROOF JSON EXTRACTION: Find first { and last }
+    const firstBrace = text.indexOf('{')
+    const lastBrace = text.lastIndexOf('}')
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+      console.error('[API] No JSON found in response:', text)
+      return res.status(500).json({
+        success: false,
+        error: { code: 'NO_JSON', message: 'AI response contained no JSON', debug: text.substring(0, 200) }
+      })
+    }
+    
+    text = text.substring(firstBrace, lastBrace + 1)
     
     // Parse JSON response
     let aiData
