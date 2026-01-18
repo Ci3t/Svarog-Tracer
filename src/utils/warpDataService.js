@@ -13,6 +13,7 @@ import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
 // Import Backend API Client
 import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
+import bannerHistory from '../data/bannerHistory.json';
 
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
