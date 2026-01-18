@@ -29,8 +29,15 @@ export default function AIWarpAnalysisCard({ bannerId, bannerName, luckyPeaks, w
       localStorage.setItem('svarog_user_id', userId)
     }
     
-    // Use Vercel API URL or fallback to production
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://ci3t.github.io/Svarog-Tracer'
+    // Determine API URL based on environment
+    let apiUrl
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Local development - use Vercel dev server
+      apiUrl = 'http://localhost:3000'
+    } else {
+      // Production - use deployed URL
+      apiUrl = import.meta.env.VITE_API_URL || 'https://ci3t.github.io/Svarog-Tracer'
+    }
     
     try {
       const response = await fetch(`${apiUrl}/api/ai-analyze-warp`, {
