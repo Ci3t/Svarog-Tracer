@@ -8,7 +8,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai')
 
 // AI Configuration (inline for now to avoid import issues)
 const AI_CONFIG = {
-  MODEL: 'gemini-2.0-flash-exp',
+  MODEL: 'gemini-2.5-flash',  // Free tier: 15 RPM, 1500 RPD
   TEMPERATURE: 0.7,
   MAX_OUTPUT_TOKENS: 200,
   TOP_P: 0.9
