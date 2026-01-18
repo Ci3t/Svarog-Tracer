@@ -4,7 +4,7 @@
  * Uses admin key (shared service for all users)
  */
 
-const { GoogleGenerativeAI } = require('@google/generative-ai')
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // AI Configuration (inline for now to avoid import issues)
 const AI_CONFIG = {
@@ -15,6 +15,7 @@ const AI_CONFIG = {
 }
 
 // Initialize Gemini
+// Access env vars directly in Vercel/Node environment
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 // Simple in-memory rate limiter (will add Redis later)
@@ -47,7 +48,7 @@ async function getUsageStats(userId) {
   return { globalToday: 0, userToday: 0 }
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')

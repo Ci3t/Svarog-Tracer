@@ -30,14 +30,11 @@ export default function AIWarpAnalysisCard({ bannerId, bannerName, luckyPeaks, w
     }
     
     // Determine API URL based on environment
-    let apiUrl
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      // Local development - use Vercel dev server
-      apiUrl = 'http://localhost:3000'
-    } else {
-      // Production - use deployed URL
-      apiUrl = import.meta.env.VITE_API_URL || 'https://ci3t.github.io/Svarog-Tracer'
-    }
+    // In dev: Vite proxy forwards /api to localhost:3000
+    // In prod: Use deployed URL
+    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? '' // Use proxy (same origin)
+      : (import.meta.env.VITE_API_URL || 'https://ci3t.github.io/Svarog-Tracer')
     
     try {
       const response = await fetch(`${apiUrl}/api/ai-analyze-warp`, {
