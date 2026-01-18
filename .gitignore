@@ -25,7 +25,7 @@ dist-ssr
 
 # Environment Variables
 .env
-.env.example
+.env.local
 discord-bot/.env
 
 .vercel

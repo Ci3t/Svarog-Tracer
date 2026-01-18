@@ -12,7 +12,9 @@
     "update-banners": "python scripts/update_banners.py"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.1.17",
+    "@upstash/redis": "^1.36.1",
     "@vercel/blob": "^2.0.0",
     "gsap": "^3.14.2",
     "react": "^19.2.0",
