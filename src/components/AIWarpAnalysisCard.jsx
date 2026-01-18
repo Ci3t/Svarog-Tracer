@@ -29,8 +29,11 @@ export default function AIWarpAnalysisCard({ bannerId, bannerName, luckyPeaks, w
       localStorage.setItem('svarog_user_id', userId)
     }
     
+    // Use Vercel API URL or fallback to production
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://ci3t.github.io/Svarog-Tracer'
+    
     try {
-      const response = await fetch('/api/ai-analyze-warp', {
+      const response = await fetch(`${apiUrl}/api/ai-analyze-warp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
