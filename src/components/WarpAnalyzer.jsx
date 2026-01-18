@@ -898,6 +898,20 @@ export default function WarpAnalyzer() {
                      </div>
                   )}
 
+                   {/* AI Warp Analysis Card */}
+                   {data && activeAnalysis?.peaks && (
+                       <AIWarpAnalysisCard 
+                           bannerId={selectedBannerId}
+                           bannerName={banners.find(b => b.id === selectedBannerId)?.name}
+                           luckyPeaks={activeAnalysis.peaks.slice(0, 8).map(p => p.roll)}
+                           winLossData={{
+                               wins: data.stats?.count_win_5 || 0,
+                               losses: data.stats?.count_lose_5 || 0
+                           }}
+                       />
+                   )}
+
+
                   {/* Config Modal */}
                   {showInputModal && (
                       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowInputModal(false)}>

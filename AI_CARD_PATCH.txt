@@ -1,0 +1,17 @@
+// ADD THIS CODE TO WarpAnalyzer.jsx AT LINE 900 (after line 899 which has ")}") 
+
+                   {/* AI Warp Analysis Card */}
+                   {data && activeAnalysis?.peaks && (
+                       <AIWarpAnalysisCard 
+                           bannerId={selectedBannerId}
+                           bannerName={banners.find(b => b.id === selectedBannerId)?.name}
+                           luckyPeaks={activeAnalysis.peaks.slice(0, 8).map(p => p.roll)}
+                           winLossData={{
+                               wins: data.stats?.count_win_5 || 0,
+                               losses: data.stats?.count_lose_5 || 0
+                           }}
+                       />
+                   )}
+
+// The import is already added at line 4: import AIWarpAnalysisCard from "./AIWarpAnalysisCard";
+// Just add the above code between line 899 and line 901 (before "/* Config Modal */")
