@@ -110,7 +110,10 @@ module.exports = async function handler(req, res) {
     
     const result = await model.generateContent(prompt)
     const response = await result.response
-    const text = response.text()
+    let text = response.text()
+    
+    // Strip markdown code blocks if present
+    text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
     
     // Parse JSON response
     let aiData
@@ -189,7 +192,8 @@ Task:
 
 Keep explanation under 300 characters. Be clear and helpful.
 
-Respond in JSON format:
+IMPORTANT: Respond with ONLY valid JSON. No markdown, no code blocks, no extra text.
+
 {
   "explanation": "Why these peaks are lucky...",
   "recommendations": ["Pull singles to 6, then x10", "Best odds at rolls 6, 16, 26..."],
