@@ -49,7 +49,26 @@ export default function AIWarpAnalysisCard({ bannerId, bannerName, luckyPeaks, w
         })
       })
       
-      const result = await response.json()
+      const text = await response.text()
+      
+      if (!response.ok) {
+        console.error('[AI Warp] Server Error:', text)
+        let errorData
+        try {
+          errorData = JSON.parse(text)
+        } catch (e) {
+          throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`)
+        }
+        throw new Error(errorData.error?.message || 'AI analysis failed')
+      }
+      
+      let result
+      try {
+        result = JSON.parse(text)
+      } catch (e) {
+        console.error('[AI Warp] Malformed JSON from server:', text)
+        throw new Error('Server returned malformed JSON')
+      }
       
       if (!result.success) {
         throw new Error(result.error?.message || 'AI analysis failed')

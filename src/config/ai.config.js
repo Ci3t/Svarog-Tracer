@@ -5,7 +5,7 @@
 
 export const AI_CONFIG = {
   // Model Selection
-  MODEL: 'gemini-1.5-flash',  // Free tier: 15 RPM, 1500 RPD (STABLE)
+  MODEL: 'gemini-2.5-flash',  // User requested model (Experimental?)
   
   // Generation Parameters
   TEMPERATURE: 0.7,

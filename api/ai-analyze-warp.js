@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // AI Configuration (inline for now to avoid import issues)
 const AI_CONFIG = {
-  MODEL: 'gemini-1.5-flash',  // STABLE Free tier model
+  MODEL: 'gemini-2.5-flash',  // User requested model
   TEMPERATURE: 0.7,
   MAX_OUTPUT_TOKENS: 200,
   TOP_P: 0.9
