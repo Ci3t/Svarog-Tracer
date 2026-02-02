@@ -68,8 +68,8 @@ export function usePresence() {
     const now = Date.now();
     
     // Throttling for non-fetch types
-    if (type === 'active' && now - lastActiveRef.current < MIN_PING_INTERVAL) return;
-    if (type === 'prediction' && now - lastPredictionRef.current < 100) return; // Allow rapid input
+    if (type === 'active' && now - lastActiveRef.current < 60000) return; // 1 min grace
+    if (type === 'prediction' && now - lastPredictionRef.current < 100) return; 
     
     if (type === 'active') lastActiveRef.current = now;
     if (type === 'prediction') lastPredictionRef.current = now;
@@ -79,7 +79,7 @@ export function usePresence() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: sessionIdRef.current,
+          sessionId: (type === 'active' || type === 'prediction') ? sessionIdRef.current : null,
           type
         })
       });
@@ -105,25 +105,21 @@ export function usePresence() {
     }
   }, []);
   
-  // Initial ping and periodic refresh
+  // PASSIVE LOAD ONLY: Fetch stats once on mount without counting as 'Online'
   useEffect(() => {
-    // 1. Initial "active" ping on mount
-    const timer = setTimeout(() => pingPresence('active'), 500);
+    // Just get the numbers, don't register a session yet
+    pingPresence('fetch');
     
-    // 2. Periodic background refresh (every 30s)
-    const interval = setInterval(() => pingPresence('fetch'), 30000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+    // No background intervals - save Vercel Execution time
   }, [pingPresence]);
   
   const trackPrediction = useCallback(() => {
+    // Register as 'active' only when they actually roll
     pingPresence('prediction');
   }, [pingPresence]);
 
   const trackActivity = useCallback(() => {
+    // Only used when explicitly called (e.g. entering a live session)
     pingPresence('active');
   }, [pingPresence]);
   
