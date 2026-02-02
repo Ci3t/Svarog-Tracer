@@ -1,0 +1,12 @@
+{
+  "total": 14,
+  "today": 14,
+  "lastResetDate": "2026-02-01",
+  "activePredictors": {},
+  "activeUsers": {},
+  "ipTimestamps": {
+    "::1": {
+      "fetch": 1769952578125
+    }
+  }
+}

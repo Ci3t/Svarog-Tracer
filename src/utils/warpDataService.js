@@ -181,8 +181,36 @@ export async function fetchCentralizedBanners() {
       }))
     ];
     
-    console.log('[WarpDataService] Fetched', allBanners.length, 'banners from API');
-    return allBanners;
+    // HSR OVERLAP FIX:
+    // If we receive >2 limited banners (due to phase overlap), keep only the NEWEST 2.
+    // This forces Aglaea/Sunday (2103/2104) to show and hides Fugue/Lingsha (2101/2102).
+    const hsrBanners = allBanners.filter(b => b.game === 'hsr');
+    const otherBanners = allBanners.filter(b => b.game !== 'hsr');
+    
+    if (hsrBanners.length > 0) {
+       const hsrChars = hsrBanners.filter(b => b.type === 'character')
+         .sort((a, b) => parseInt(b.id) - parseInt(a.id)) // Newest first
+         .slice(0, 2); // Keep top 2
+         
+       const hsrLCs = hsrBanners.filter(b => b.type === 'light_cone')
+         .sort((a, b) => parseInt(b.id) - parseInt(a.id))
+         .slice(0, 2);
+         
+       // Re-merge filtered HSR with others
+       const filteredBanners = [...otherBanners, ...hsrChars, ...hsrLCs];
+       
+       // Run standard deduplication (just in case)
+       const cleanBanners = deduplicateBanners(filteredBanners);
+       
+       console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (filtered overlap)');
+       return cleanBanners;
+    }
+    
+    // Deduplicate the combined results to handle reruns/duplicates from API
+    const cleanBanners = deduplicateBanners(allBanners);
+    
+    console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (deduplicated)');
+    return cleanBanners;
   } catch (error) {
     console.error('[WarpDataService] Banner fetch error:', error);
     return [];
@@ -326,6 +354,49 @@ export async function fetchWarpStats(bannerId, maxRetries = 3) {
 }
 
 /**
+ * Helper: Deduplicate banners by character ID
+ * If a character has multiple banners (e.g., original + rerun), keep only the most recent (highest ID)
+ */
+function deduplicateBanners(banners) {
+  const seenCharacters = new Map(); // charId -> banner object
+  const deduplicatedBanners = [];
+  
+  for (const banner of banners) {
+    const charId = banner.characterId;
+    
+    // If no character ID, it's likely a standard/weapon banner - don't deduplicate
+    if (!charId) {
+      deduplicatedBanners.push(banner);
+      continue;
+    }
+    
+    const existingBanner = seenCharacters.get(charId);
+    
+    if (!existingBanner) {
+      // First time seeing this character
+      seenCharacters.set(charId, banner);
+      deduplicatedBanners.push(banner);
+    } else {
+      // Character already exists - keep the one with higher banner ID (more recent)
+      const existingId = parseInt(existingBanner.id);
+      const currentId = parseInt(banner.id);
+      
+      if (currentId > existingId) {
+        // Replace with more recent banner
+        const indexToReplace = deduplicatedBanners.findIndex(b => b.characterId === charId);
+        if (indexToReplace !== -1) {
+          deduplicatedBanners[indexToReplace] = banner;
+          seenCharacters.set(charId, banner);
+        }
+      }
+      // If current ID is lower, ignore it (keep existing)
+    }
+  }
+  
+  return deduplicatedBanners;
+}
+
+/**
  * Fetches latest banners from SRS + StarRailRes with Caching
  * Returns { status: 'uptodate' | 'updated' | 'error', data: [] }
  */
@@ -342,8 +413,13 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         // Allow check only every 10 seconds to prevent button spamming
         if (nowTs - lastCheck < 10000) {
           const cached = JSON.parse(localStorage.getItem('cached_banner_data') || '[]');
+          
           // INTEGRITY CHECK: Ensure we actually have data
-          if (cached.length > 0) return { status: 'uptodate', data: cached };
+          if (cached.length > 0) {
+            // Apply deduplication even to cached data to fix existing bad state
+            const cleanCached = deduplicateBanners(cached);
+            return { status: 'uptodate', data: cleanCached };
+          }
         }
     } else {
         // If ignoring throttle, we still assume 'uptodate' if smart check passes later
@@ -413,6 +489,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     const lcMap = await lcRes.json();
     const IMG_BASE = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/";
 
+    
     // 6. Construct Final Banner List
     const finalBanners = [];
     for (const b of activeBanners) {
@@ -441,12 +518,16 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         }
     }
 
+    // 6.5. DEDUPLICATE: If a character has multiple active banners (e.g., original + rerun),
+    // keep only the one with the highest banner ID (most recent)
+    const cleanBanners = deduplicateBanners(finalBanners);
+
     // 7. Update Cache
-    if (finalBanners.length > 0) {
-        localStorage.setItem('cached_banner_data', JSON.stringify(finalBanners));
+    if (cleanBanners.length > 0) {
+        localStorage.setItem('cached_banner_data', JSON.stringify(cleanBanners));
         localStorage.setItem(CACHE_ID_KEY, JSON.stringify(newIds));
         localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
-        return { status: 'updated', data: finalBanners };
+        return { status: 'updated', data: cleanBanners };
     } else {
         return { status: 'error', message: 'No valid characters mappings found' };
     }
@@ -518,14 +599,19 @@ export function detectLuckyPeaks(pullsData, chanceData, options = {}) {
     
     for (let roll = start; roll <= end; roll++) {
       const chance = chanceData[roll] || 0;
+      const count = pullsData[roll] || 0;
       const zScore = segmentAnalysis.zScores[roll] || 0;
       const isPeak = isLocalMax(chanceData, roll);
-      const compositeScore = zScore + (isPeak ? 0.5 : 0);
+      
+      // Gentle sample-size bonus (max +0.3 for 200+ samples)
+      const sampleBonus = Math.min(count / 200, 0.3);
+      const compositeScore = zScore + (isPeak ? 0.5 : 0) + sampleBonus;
       
       if (zScore >= minZScore || isPeak) {
         rolls.push({
           roll,
           chance,
+          count,
           zScore: zScore.toFixed(2),
           isPeak,
           compositeScore,

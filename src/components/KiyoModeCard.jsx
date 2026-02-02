@@ -48,6 +48,7 @@ import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
 import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
 import RecommendationPanel from "./kiyo/RecommendationPanel";
 import CompactCaesarShift from "./kiyo/CompactCaesarShift";
+import { usePresenceContext } from "../contexts/PresenceContext";
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -79,6 +80,9 @@ export default function KiyoModeCard({
     lastPredictions: { col2: null, col3: null },
   });
   const [liveRolls, setLiveRolls] = useState([]);
+  
+  // Track predictions for live stats
+  const { trackPrediction } = usePresenceContext();
 
   const live3Rolls = useMemo(() => {
     return entries
@@ -879,6 +883,9 @@ export default function KiyoModeCard({
       const ts = windowInfo?.startMs || Date.now();
       setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
       setTestInput("");
+      
+      // Track this prediction for live stats
+      trackPrediction();
     } else {
       setTestInput("");
     }

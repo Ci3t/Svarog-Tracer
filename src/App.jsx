@@ -630,6 +630,12 @@ export default function App() {
       time: nowIso  // Fixed: was 'ts', should be 'time'
     }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
+    
+    // 🔥 Track prediction in live stats
+    if (window.__trackPrediction) {
+      window.__trackPrediction();
+    }
+
     if (manualValue === null) {
       setRollInput("");
     }

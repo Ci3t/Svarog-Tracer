@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
+import HomeStatsWidget from '../components/HomeStatsWidget';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -56,15 +57,15 @@ export default function HomePage() {
   ];
 
   useEffect(() => {
-    // Initial cleanup
-    gsap.set(".hero-content > *, .mode-card", { opacity: 0, y: 20 });
+    // Initial setup - don't start at 0 opacity to avoid stuck ghosts
+    gsap.set(".hero-content > *, .mode-card", { y: 20 });
     gsap.set(".splash-matte", { scale: 0, opacity: 0 });
 
     const tl = gsap.timeline({
       onComplete: () => {
         setIsSplashDone(true);
-        // Failsafe: force visibility
-        gsap.to(".hero-content, .mode-card", { opacity: 1, duration: 0.2 });
+        // Failsafe: ensure everything is visible
+        gsap.to(".hero-content, .home-stats-widget, .mode-card", { opacity: 1, y: 0, duration: 0.1 });
       }
     });
     tlRef.current = tl;
@@ -107,7 +108,14 @@ export default function HomePage() {
       ease: "sine.inOut"
     });
 
+    // Failsafe: Force splash done after 1 second no matter what
+    const failsafe = setTimeout(() => {
+      setIsSplashDone(true);
+      gsap.to(".hero-content, .home-stats-widget, .mode-card", { opacity: 1, y: 0, duration: 0.1 });
+    }, 1000);
+
     return () => {
+      clearTimeout(failsafe);
       if (tlRef.current) tlRef.current.kill();
     };
   }, []);
@@ -159,9 +167,9 @@ export default function HomePage() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-32 pb-12 px-4 max-w-7xl mx-auto">
+      <div className="relative z-[60] flex flex-col items-center justify-center min-h-screen pt-32 pb-12 px-4 max-w-7xl mx-auto">
         
-        <div className="hero-content text-center mb-20 opacity-0">
+        <div className="hero-content text-center mb-20">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900/90 border border-slate-800 text-slate-300 text-[10px] sm:text-xs font-bold uppercase tracking-[0.4em] mb-12 shadow-2xl">
              <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shadow-[0_0_15px_#a855f7]" />
              Svarog Neural Network Active
@@ -191,6 +199,10 @@ export default function HomePage() {
                SYS-Status: Validated
              </div>
           </div>
+          
+          <div className="mt-20">
+            <HomeStatsWidget />
+          </div>
         </div>
 
         {/* MODES GRID */}
@@ -199,7 +211,7 @@ export default function HomePage() {
             <div 
               key={mode.path}
               onClick={() => navigate(mode.path)}
-              className="mode-card opacity-0 group cursor-pointer relative p-12 rounded-[3rem] bg-slate-900/60 border border-slate-800/80 backdrop-blur-3xl hover:border-purple-500/50 hover:bg-slate-900/80 hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition-all duration-500 overflow-hidden"
+              className="mode-card group cursor-pointer relative p-12 rounded-[3rem] bg-slate-900/60 border border-slate-800/80 backdrop-blur-3xl hover:border-purple-500/50 hover:bg-slate-900/80 hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition-all duration-500 overflow-hidden"
             >
               <div className="relative z-10">
                 <div className="text-[10px] font-black text-purple-400 uppercase tracking-[0.5em] mb-8 inline-block border-b border-purple-500/30 pb-1.5">{mode.title}</div>

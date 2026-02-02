@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
 import svarog from '/svarog.png';
+import LiveStatsBanner from './LiveStatsBanner';
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
 
@@ -49,6 +50,9 @@ export default function Layout({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Live Stats Banner */}
+      <LiveStatsBanner />
+      
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-[1920px] mx-auto px-4 py-3">

@@ -86,6 +86,24 @@ const MODE_EXAMPLES = {
       </>
     ),
   },
+  "2-gram": {
+    title: "BBP: 2-Gram Logic",
+    description: "Uses a sequence of 2 previous rolls for higher context",
+    body: (
+      <>
+        Searches for exact pairs in history to find ultra-specific patterns.
+        <br />
+        <span className="text-slate-400">Sequence:</span>{" "}
+        <span className="text-violet-300">41 → 42 → 43 ... 41 → 42</span>
+        <br />
+        <span className="text-slate-400">→ Pattern Match:</span>{" "}
+        <span className="text-emerald-300">41, 42 followed by 43</span>
+        <br />
+        <span className="text-slate-400">→ Predicts:</span>{" "}
+        <span className="text-emerald-300 font-bold">43</span>
+      </>
+    ),
+  },
 
   // Legacy/Basic
   "BBP-alternating": {
@@ -178,6 +196,7 @@ const MODE_GROUPS = {
     "BBP-overdue",
     "BBP-trend",
     "BBP-double-tap",
+    "2-gram",
   ],
   "Basic BBP patterns": [
     "BBP-alternating",
