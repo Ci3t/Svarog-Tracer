@@ -318,43 +318,60 @@ export default function WarpAnalyzer() {
   const pullStrategy = useMemo(() => {
     const peaks = activeAnalysis?.peaks || [];
     if (!peaks.length) return [];
+    
     const sortedPeaks = [...peaks].sort((a, b) => a.roll - b.roll);
     const strategy = [];
     let currentRoll = 0;
+    
     for (const peak of sortedPeaks) {
       const targetRoll = peak.roll;
-      const distance = targetRoll - currentRoll;
-      if (distance <= 0) continue;
-      const x10Count = Math.floor(distance / 10);
-      const remainder = distance % 10;
-      if (x10Count > 0) {
-        const x10EndRoll = currentRoll + (x10Count * 10);
-        strategy.push({ 
-          type: 'x10', 
-          from: currentRoll, 
-          to: x10EndRoll, 
-          result: '---', 
-          chance: (peak.chance * 100).toFixed(2) 
+      
+      // SWEEP PATH LOGIC: Singles first to align digit, then x10 to land.
+      const targetDigit = targetRoll % 10;
+      const currentDigit = currentRoll % 10;
+      const singlesNeeded = (targetDigit - currentDigit + 10) % 10;
+      
+      // 1. Initial Singles to reach alignment
+      if (singlesNeeded > 0) {
+        const nextRoll = currentRoll + singlesNeeded;
+        strategy.push({
+          type: 'x1',
+          from: currentRoll,
+          to: nextRoll,
+          count: singlesNeeded,
+          chance: (peak.chance * 100).toFixed(2)
         });
-        if (remainder > 0) {
-          strategy.push({ 
-            type: 'x1', 
-            from: x10EndRoll, 
-            to: targetRoll, 
-            result: '---', 
-            chance: (peak.chance * 100).toFixed(2) 
-          });
-        }
-      } else {
-        strategy.push({ 
-          type: 'x1', 
-          from: currentRoll, 
-          to: targetRoll, 
-          result: '---', 
-          chance: (peak.chance * 100).toFixed(2) 
-        });
+        currentRoll = nextRoll;
       }
-      currentRoll = targetRoll;
+      
+      // 2. Multis to reach target decade
+      const distanceLeft = targetRoll - currentRoll;
+      if (distanceLeft > 0) {
+        const x10Count = Math.floor(distanceLeft / 10);
+        if (x10Count > 0) {
+          const nextRoll = currentRoll + (x10Count * 10);
+          strategy.push({
+            type: 'x10',
+            from: currentRoll,
+            to: nextRoll,
+            count: x10Count,
+            chance: (peak.chance * 100).toFixed(2)
+          });
+          currentRoll = nextRoll;
+        }
+      }
+      
+      // 3. Final Landing check (should be 0 if math is right)
+      if (currentRoll < targetRoll) {
+        strategy.push({
+          type: 'x1',
+          from: currentRoll,
+          to: targetRoll,
+          count: targetRoll - currentRoll,
+          chance: (peak.chance * 100).toFixed(2)
+        });
+        currentRoll = targetRoll;
+      }
     }
     return strategy;
   }, [activeAnalysis]);
@@ -399,26 +416,28 @@ export default function WarpAnalyzer() {
     let currentPosition = 0; // Track cumulative position
     
     for (const peak of allPeaks) {
-      // The "landing digit" - how many singles to do so x10s end on this peak
-      const landingDigit = peak.roll % 10;
-      digits.push(landingDigit.toString());
+      // The "Shortcut Digit" is the final digit of the pity
+      const targetDigit = peak.roll % 10;
+      digits.push(targetDigit.toString());
       pityNumbers.push(peak.roll);
       
-      // Calculate distance from current position to this peak
-      const distance = peak.roll - currentPosition;
+      // RELATIVE SWEEP CALCULATION:
+      // How many singles to do NOW to align with the target's digit
+      const currentDigit = currentPosition % 10;
+      const singlesNeeded = (targetDigit - currentDigit + 10) % 10;
+      const totalDistance = peak.roll - currentPosition;
       
-      // How many x10s needed to cover the distance (after doing singles)
-      // Singles are done first, then x10s
-      const x10Count = Math.floor((distance - landingDigit) / 10);
+      // Multis needed after the singles adjustment
+      const x10Count = Math.floor((totalDistance - singlesNeeded) / 10);
       
       path.push({
-        singles: landingDigit,
+        singles: singlesNeeded,
         x10s: x10Count,
         landsOn: peak.roll,
         chance: peak.chance
       });
       
-      // Update current position
+      // Update current position for next iteration
       currentPosition = peak.roll;
     }
     

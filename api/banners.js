@@ -1,42 +1,53 @@
-/**
- * Banners API Endpoint (Vercel Backend)
- * GET: Returns live banner data for HSR, Genshin, and WuWa
- * This is the SINGLE SOURCE OF TRUTH for all banner data
- */
-
 // =========================================================================
-// CONFIGURATION - Easy to adjust these values
+// 🎮 GENSHIN CONTROL CENTER - Edit this for new characters!
 // =========================================================================
-const CONFIG = {
-  // How long to cache banner data (in hours) - reduced for fresher data!
-  CACHE_HOURS: 0.25,  // 15 minutes (was 1 hour)
-  
-  // API timeout settings (in milliseconds)
-  TIMEOUT_MS: 8000,      // Default timeout for all requests
-  TIMEOUT_GENSHIN: 3000, // Faster timeout for Genshin checks
-  TIMEOUT_WUWA: 5000,    // WuWa scraping timeout
-  
-  // ========== GENSHIN MANUAL OVERRIDE (easy to edit!) ==========
-  // Set these to empty arrays to use auto-discovery
-  // OR manually specify banner IDs and names:
-  GENSHIN_MANUAL: {
-    characters: [
-      { 
-        bannerId: "300094", 
-        name: "Columbina / Ineffa",
-        image: "https://paimon.moe/images/characters/columbina.png"
-      }
-    ],
-    weapons: [
-      { 
-        bannerId: "400093", 
-        name: "Nocturne's Curtain Call / Fractured Halo",
-        image: "https://paimon.moe/images/weapons/nocturnes_curtain_call.png"
-      }
-    ]
+const GENSHIN_CONFIG = {
+  // 1. Current Active Banner IDs (Check Paimon.moe/wish/tally)
+  active: {
+    charBannerId: "300095",
+    weaponBannerId: "400094",
+    // If you want to FORCE a specific name/image, set these. Otherwise leave null.
+    forceName: "Zibai / Neuvillette", 
+    forceWeaponName: "Lightbearing Moonshard / Tome of the Eternal Flow",
+    forceImage: "https://paimon.moe/images/characters/zibai.png",
   },
+
+  // 2. Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
+  characters: [
+    'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
+    'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'emilie', 
+    'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa', 'kazuha', 'klee',
+    'kokomi', 'lyney', 'mavuika', 'mualani', 'nahida', 'navia', 'neuvillette',
+    'nilou', 'raiden_shogun', 'shenhe', 'sigewinne', 'tartaglia', 'traveler', 
+    'venti', 'wanderer', 'wriothesley', 'xiao', 'xianyun', 'yae_miko', 'yelan', 
+    'yoimiya', 'zhongli', 'zibai'
+  ],
+
+  // 3. Weapon Whitelist (Add new 5-star weapons here - LOWERCASE ONLY)
+  weapons: [
+    'absolution', 'aqua_simulacra', 'amos_bow', 'beacon_of_the_reed_sea', 
+    'calamity_queller', 'cashflow_supervision', 'cranes_echoing_call', 
+    'crimson_moons_semblance', 'elegy_for_the_end', 'engulfing_lightning', 
+    'everlasting_moonglow', 'fang_of_the_mountain_king', 'fractured_halo',
+    'freedom_sworn', 'haran_geppaku_futsu', 'hunters_path', 'kaguras_verity', 
+    'light_of_foliar_incision', 'lost_prayer', 'lumidouce_elegy', 
+    'mistsplitter_reforged', 'nocturnes_curtain_call', 'polar_star', 
+    'primordial_jade_cutter', 'primordial_jade_winged_spear', 'redhorn_stonethresher',
+    'splendor_of_tranquil_waters', 'staff_of_homa', 'thundering_pulse',
+    'tome_of_the_eternal_flow', 'tulaytullahs_remembrance', 'uraku_misugiri',
+    'vortex_vanquisher', 'wolfs_gravestone', 'lightbearing_moonshard'
+  ],
+
+  // Standard characters that should NEVER be the banner name
+  standard: ['tighnari', 'dehya', 'diluc', 'jean', 'keqing', 'mona', 'qiqi']
+};
+
+const CONFIG = {
+  CACHE_HOURS: 0.016, // ~1 minute cache
+  TIMEOUT_MS: 8000,
+  TIMEOUT_GENSHIN: 3000,
+  TIMEOUT_WUWA: 5000,
   
-  // API endpoints
   STARRAIL_API: 'https://starrailstation.com/api/v1',
   PAIMON_API: 'https://api.paimon.moe/wish',
   WUWA_TRACKER: 'https://wuwatracker.com/tracker/stats',
@@ -154,54 +165,22 @@ async function fetchHSRActiveBanners() {
 // GENSHIN BANNER FETCHING
 // =========================================================================
 
-// Known 5-star characters - ADD NEW ONES WHEN THEY RELEASE!
-const GENSHIN_5STAR_CHARS = [
-  'albedo', 'alhaitham', 'aloy', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
-  'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'dehya', 'diluc',
-  'eula', 'emilie', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa', 'jean',
-  'kaedehara_kazuha', 'kamisato_ayaka', 'kamisato_ayato', 'keqing', 'klee',
-  'kokomi', 'lyney', 'mavuika', 'mona', 'mualani', 'nahida', 'navia', 'neuvillette',
-  'nilou', 'qiqi', 'raiden_shogun', 'sangonomiya_kokomi', 'shenhe', 'sigewinne',
-  'tartaglia', 'tighnari', 'traveler', 'venti', 'wanderer', 'wriothesley',
-  'xiao', 'xianyun', 'yae_miko', 'yelan', 'yoimiya', 'zhongli'
-];
-
-// Known 5-star weapons - ADD NEW ONES WHEN THEY RELEASE!
-const GENSHIN_5STAR_WEAPONS = [
-  'a_thousand_floating_dreams', 'absolution', 'aqua_simulacra', 'amos_bow',
-  'beacon_of_the_reed_sea', 'calamity_queller', 'cashflow_supervision',
-  'cranes_echoing_call', 'crimson_moons_semblance', 'elegy_for_the_end',
-  'engulfing_lightning', 'everlasting_moonglow', 'finale_of_the_deep',
-  'fang_of_the_mountain_king', 'forbidden_curse', 'fractured_halo',
-  'freedom_sworn', 'haran_geppaku_futsu', 'hunters_path',
-  'kaguras_verity', 'key_of_khaj_nisut', 'light_of_foliar_incision',
-  'lost_prayer', 'lumidouce_elegy', 'memory_of_dust', 'mistsplitter_reforged',
-  'nocturnes_curtain_call', 'polar_star', 'primordial_jade_cutter',
-  'primordial_jade_winged_spear', 'redhorn_stonethresher',
-  'skyward_atlas', 'skyward_blade', 'skyward_harp', 'skyward_pride', 'skyward_spine',
-  'song_of_stillness', 'splendor_of_tranquil_waters', 'staff_of_homa',
-  'summit_shaper', 'the_first_great_magic', 'thundering_pulse',
-  'tome_of_the_eternal_flow', 'tulaytullahs_remembrance', 'uraku_misugiri',
-  'vortex_vanquisher', 'wolfs_gravestone'
-  // REMOVED: 'waveriding_whirl' - this is 4-star!
-];
-
 // Helper: Extract banner name from pull history
 function extractGenshinBannerName(pullList) {
   if (!pullList || pullList.length === 0) return 'Unknown Banner';
   
-  // Filter by whitelist first
+  // NEW: Exclude standard pool characters from being the "Banner Name"
   const candidates = pullList.filter(p => 
     p.type === 'character' && 
-    GENSHIN_5STAR_CHARS.includes(p.name.toLowerCase())
+    GENSHIN_CONFIG.characters.includes(p.name.toLowerCase()) &&
+    !GENSHIN_CONFIG.standard.includes(p.name.toLowerCase())
   );
   
   if (candidates.length === 0) return 'Character Event Wish';
   
-  // Featured 5-stars have HIGHEST counts among 5-stars (not lowest!)
-  // Standard 5-stars from losing 50/50 have much lower counts
+  // Featured 5-stars have HIGHEST counts
   const fiveStarChars = candidates
-    .sort((a, b) => b.count - a.count)  // DESCENDING! Highest = featured
+    .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
   
@@ -217,21 +196,18 @@ function extractGenshinBannerName(pullList) {
 function extractGenshinWeaponNames(pullList) {
   if (!pullList || pullList.length === 0) return null;
   
-  // Filter by whitelist first
   const candidates = pullList.filter(p => 
     p.type === 'weapon' && 
-    GENSHIN_5STAR_WEAPONS.includes(p.name.toLowerCase())
+    GENSHIN_CONFIG.weapons.includes(p.name.toLowerCase())
   );
   
   if (candidates.length === 0) return 'Epitome Invocation';
   
-  // Featured weapons have HIGHEST counts among 5-stars
   const fiveStarWeapons = candidates
-    .sort((a, b) => b.count - a.count)  // DESCENDING!
+    .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
   
-  // Capitalize names
   const formatted = fiveStarWeapons.map(name => 
     name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   );
@@ -240,95 +216,64 @@ function extractGenshinWeaponNames(pullList) {
 }
 
 async function fetchActiveGenshinBanners() {
-  // Try auto-discovery first, fall back to manual config if needed
+  const manualBanners = [];
+  
+  // PRIORITY 1: Force names from config
+  if (GENSHIN_CONFIG.active.forceName || GENSHIN_CONFIG.active.forceWeaponName) {
+     if (GENSHIN_CONFIG.active.charBannerId) {
+       manualBanners.push({
+         id: GENSHIN_CONFIG.active.charBannerId,
+         name: GENSHIN_CONFIG.active.forceName || "Character Event Wish",
+         type: 'character',
+         image: GENSHIN_CONFIG.active.forceImage || `https://paimon.moe/images/characters/${(GENSHIN_CONFIG.active.forceName || "").split(' / ')[0].toLowerCase().replace(/ /g, '_')}.png`,
+         game: 'genshin'
+       });
+     }
+     if (GENSHIN_CONFIG.active.weaponBannerId) {
+       manualBanners.push({
+         id: GENSHIN_CONFIG.active.weaponBannerId,
+         name: GENSHIN_CONFIG.active.forceWeaponName || "Epitome Invocation",
+         type: 'weapon',
+         image: `https://paimon.moe/images/banners/Epitome%20Invocation%20${GENSHIN_CONFIG.active.weaponBannerId.slice(-2)}.png`,
+         game: 'genshin'
+       });
+     }
+     return manualBanners;
+  }
+
+  // PRIORITY 2: Auto-Discovery with Whitelist
   console.log('[Genshin] Attempting auto-discovery...');
   
   const findBanners = async (startId, prefix, type) => {
     const banners = [];
-    
-    // Search recent banner IDs (check last 10 IDs)
     for (let i = startId; i >= startId - 10 && i >= 0; i--) {
       const bannerId = `${prefix}${String(i).padStart(3, '0')}`;
-      
       try {
         const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
         if (res.ok) {
           const data = await res.json();
-          
-          // Check if banner has enough data (at least 10,000 legendary pulls)
-          if (data.total && data.total.legendary > 10000) {
-            let name;
-            if (type === 'weapon') {
-              name = extractGenshinWeaponNames(data.list);
-            } else {
-              name = extractGenshinBannerName(data.list);
-            }
-            
-            // Generate image URL (use first character/weapon name)
-            const firstName = name.split(' / ')[0].toLowerCase().replace(/ /g, '_');
+          if (data.total && data.total.legendary > 5000) { // Lowered threshold for new banners
+            let name = (type === 'weapon') ? extractGenshinWeaponNames(data.list) : extractGenshinBannerName(data.list);
+            const firstName = (name || "").split(' / ')[0].toLowerCase().replace(/ /g, '_');
             const imageUrl = type === 'weapon'
-              ? `https://paimon.moe/images/weapons/${firstName}.png`
+              ? `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`
               : `https://paimon.moe/images/characters/${firstName}.png`;
             
-            banners.push({
-              id: bannerId,
-              name,
-              type,
-              image: imageUrl,
-              game: 'genshin'
-            });
-            
-            // Only return the MOST RECENT banner (highest ID with data)
-            break;
+            banners.push({ id: bannerId, name, type, image: imageUrl, game: 'genshin' });
+            break; 
           }
         }
-      } catch (e) {
-        console.error(`[Genshin] Error checking ${bannerId}:`, e.message);
-      }
+      } catch (e) {}
     }
-    
     return banners;
   };
-  
-  // Search for current banners (start from high IDs and search backwards)
+
   const [chars, weapons] = await Promise.all([
-    findBanners(100, '300', 'character'), // Start from 300100 and search back
-    findBanners(100, '400', 'weapon')     // Start from 400100 and search back
+    findBanners(110, '300', 'character'),
+    findBanners(110, '400', 'weapon')
   ]);
   
-  const discovered = [...chars, ...weapons];
-  
-  // If auto-discovery found banners, use them
-  if (discovered.length > 0) {
-    console.log('[Genshin] Auto-discovered', discovered.length, 'banners');
-    return discovered;
-  }
-  
-  // Fallback to manual config
-  console.log('[Genshin] Auto-discovery failed, using manual config fallback');
-  const fallback = [];
-  
-  CONFIG.GENSHIN_MANUAL.characters.forEach(char => {
-    fallback.push({
-      id: char.bannerId,
-      name: char.name,
-      type: 'character',
-      image: char.image,
-      game: 'genshin'
-    });
-  });
-  
-  CONFIG.GENSHIN_MANUAL.weapons.forEach(weapon => {
-    fallback.push({
-      id: weapon.bannerId,
-      name: weapon.name,
-      type: 'weapon',
-      image: weapon.image,
-      game: 'genshin'
-    });
-  });
-  
-  return fallback;
+  return [...chars, ...weapons];
 }
 
 // =========================================================================

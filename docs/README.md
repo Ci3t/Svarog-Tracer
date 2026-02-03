@@ -47,6 +47,7 @@ Project Root/
 
 - **[Discord Bot Banners](bot-banners.md)** - Update `/wcheck` display
 - **[Website Banners](website-banners.md)** - Update `/ids` and website
+- **[Genshin Banner Guide](genshin-banner-guide.md)** - 🆕 Quick Update for Genshin
 - **[Finding Banner IDs](finding-banner-ids.md)** - How to find IDs
 
 ---

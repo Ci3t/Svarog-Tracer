@@ -1,12 +1,15 @@
 {
   "total": 14,
-  "today": 14,
-  "lastResetDate": "2026-02-01",
+  "today": 0,
+  "lastResetDate": "2026-02-03",
   "activePredictors": {},
-  "activeUsers": {},
+  "activeUsers": {
+    "f07baf28-debc-4107-a48f-b743efb92185": 1770161583774,
+    "758e3c1c-d983-45a3-a926-ef46c97fea28": 1770161782560
+  },
   "ipTimestamps": {
     "::1": {
-      "fetch": 1769952578125
+      "active": 1770161782560
     }
   }
 }

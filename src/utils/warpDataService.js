@@ -145,8 +145,8 @@ async function fetchWithProxyFallback(targetUrl) {
 // Genshin Character Image Base (Ambr.top has good icons)
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
-// Banner API endpoint
-const BANNER_API_URL = 'https://svarog-tracer.vercel.app/api/banners';
+// Banner API endpoint - Use relative path for local dev support
+const BANNER_API_URL = '/api/banners';
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners() {
