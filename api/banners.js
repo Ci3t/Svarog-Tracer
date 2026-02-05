@@ -280,12 +280,41 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 async function fetchWuWaLiveBanners() {
+  const statsUrl = `${CONFIG.WUWA_TRACKER}`;
+  let html = null;
+
+  // 1. Try Direct Fetch (Server-to-Server)
   try {
-    const res = await fetchWithTimeout(`${CONFIG.WUWA_TRACKER}`, 5000);
-    if (!res.ok) throw new Error('Failed to fetch WuWa tracker');
-    const html = await res.text();
-    
-    // 1. Identify all 100xxx and 200xxx IDs first
+      const directRes = await fetch(statsUrl, {
+          headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          }
+      });
+      if (directRes.ok) html = await directRes.text();
+  } catch (e) { console.warn(`[WuWa] Direct fetch failed: ${e.message}`); }
+
+  // 2. Proxy Fallbacks
+  if (!html) {
+      const PROXIES = [
+          (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+          (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+          (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+      ];
+      for (const proxyFormat of PROXIES) {
+          try {
+              const res = await fetchWithTimeout(proxyFormat(statsUrl), 5000);
+              if (res.ok) {
+                  html = await res.text();
+                  if (html.includes('WuWa Tracker')) break;
+              }
+          } catch (e) {}
+      }
+  }
+
+  if (!html) return [];
+
+  try {
     const idPattern = /[\\"]+bannerId[\\"]+:\s*(\d{6})/g;
     const banners = [];
     const seen = new Set();
@@ -300,30 +329,25 @@ async function fetchWuWaLiveBanners() {
       const isWeapon = id.startsWith('101') || id.startsWith('200');
       if (!isCharacter && !isWeapon) continue;
       
+      // Extract Name from Context (Matches Bot Logic)
       const pos = match.index;
       const context = html.substring(pos, pos + 5000);
-      
-      // Extraction Strategy:
-      // A) Find "5stars": [...] block
-      // B) Inside that, find "name":"The Real Name"
-      const rateUpBlock = context.match(/[\\"]+5stars[\\"]+:\s*\[([\s\S]*?)\]/);
-      let name = null;
-      if (rateUpBlock) {
-        const nameMatch = rateUpBlock[1].match(/[\\"]+name[\\"]+:\s*[\\"]+([^\\"]+)[\\"]+/);
-        if (nameMatch) name = nameMatch[1];
-      }
-      
-      // Fallback to top-level name if 5-stars lookup fails or is generic
-      if (!name || name.includes("Featured") || name.includes("Convene")) {
-        const topNameMatch = context.match(/[\\"]+name[\\"]+:\s*[\\"]+([^\\"]+)[\\"]+/);
-        name = topNameMatch ? topNameMatch[1] : `Banner ${id}`;
-      }
+      const names = [...context.matchAll(/[\\"]+name[\\"]+:\s*[\\\"']+([^\\\"']+)[\\\"']+/g)];
+      const validName = names.find(m => 
+          m[1].length > 2 && 
+          !m[1].includes("Featured") && 
+          !m[1].includes("next-size-adjust") &&
+          !m[1].includes("Standard") &&
+          !m[1].includes("Convene")
+      );
 
+      // Fallback
+      let name = validName ? validName[1] : `Banner ${id}`;
       if (name.toLowerCase().includes('standard')) continue;
-      
+
       const type = isCharacter ? 'character' : 'weapon';
       const nameSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const ext = 'png'; // Use PNG for improved compatibility with newer units
+      const ext = 'png';
       const imgPath = isCharacter ? 'character-portraits' : 'weapon-portraits';
       const fileName = isCharacter ? `${nameSlug}-portrait.${ext}` : `${nameSlug}.${ext}`;
       
@@ -336,8 +360,7 @@ async function fetchWuWaLiveBanners() {
       });
     }
 
-    // 2. ULTRA-ROBUST EMERGENCY FALLBACK (For Aemeath/Patch transitions)
-    // If we only found historical banners, check if the SEO description mentions the new one
+    // Emergency Fallback for Aemeath
     if (!banners.some(b => b.id === '100032') && html.includes('Aemeath')) {
        banners.push({
          id: '100032',
@@ -347,6 +370,7 @@ async function fetchWuWaLiveBanners() {
          game: 'wuwa'
        });
     }
+    // Emergency Fallback for Everbright Polestar
     if (!banners.some(b => b.id === '200032') && html.includes('Everbright Polestar')) {
        banners.push({
          id: '200032',
@@ -357,7 +381,7 @@ async function fetchWuWaLiveBanners() {
        });
     }
     
-    // Sort to get latest of each type
+    // Sort and return latest
     const latestChar = banners.filter(b => b.type === 'character').sort((a,b) => b.id.localeCompare(a.id))[0];
     const latestWeapon = banners.filter(b => b.type === 'weapon').sort((a,b) => b.id.localeCompare(a.id))[0];
     
