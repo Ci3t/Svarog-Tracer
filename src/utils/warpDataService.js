@@ -145,8 +145,11 @@ async function fetchWithProxyFallback(targetUrl) {
 // Genshin Character Image Base (Ambr.top has good icons)
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
-// Banner API endpoint - Use relative path for local dev support
-const BANNER_API_URL = '/api/banners';
+// Banner API endpoint - Intelligent switching between Local and Prod
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const BANNER_API_URL = isLocal 
+  ? '/api/banners' 
+  : 'https://svarog-tracer.vercel.app/api/banners';
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners() {
@@ -859,9 +862,9 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300093_varesa", bannerId: "300093", name: "Varesa", type: "character", image: `${GENSHIN_IMG_BASE}Varesa.png`, characterId: "varesa", game: "genshin" },
-  { id: "300093_xilonen", bannerId: "300093", name: "Xilonen", type: "character", image: `${GENSHIN_IMG_BASE}Xilonen.png`, characterId: "xilonen", game: "genshin" },
-  { id: "400092_weapon", bannerId: "400092", name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2092.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "300095_zibai", bannerId: "300095", name: "Zibai", type: "character", image: `https://paimon.moe/images/characters/zibai.png`, characterId: "zibai", game: "genshin" },
+  { id: "300095_neuvillette", bannerId: "300095", name: "Neuvillette", type: "character", image: `https://paimon.moe/images/characters/neuvillette.png`, characterId: "neuvillette", game: "genshin" },
+  { id: "400094_weapon", bannerId: "400094", name: "Lightbearing Moonshard / Tome of the Eternal Flow", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2094.png", characterId: "weapon_banner", game: "genshin" },
 ];
 
 

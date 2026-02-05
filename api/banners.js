@@ -392,7 +392,7 @@ export default async function handler(req, res) {
     console.log(`[Banners API] Success! HSR:${hsr.length} Genshin:${genshin.length} WuWa:${wuwa.length}`);
     
     res.setHeader('X-Cache-Status', 'MISS');
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
     return res.status(200).json(response);
     
   } catch (error) {

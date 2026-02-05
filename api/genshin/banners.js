@@ -4,10 +4,9 @@
  */
 
 const OVERRIDE_MAP = {
-  "300094": { name: "Columbina", type: "character", image: "https://paimon.moe/images/characters/columbina.png" },
-  "300093": { name: "Ineffa", type: "character", image: "https://paimon.moe/images/characters/ineffa.png", shareDataWith: "300094" },
-  "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon", image: "https://paimon.moe/images/weapons/nocturnes_curtain_call.png" },
-  "400092": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon", image: "https://paimon.moe/images/weapons/fractured_halo.png" }
+  "300095": { name: "Zibai", type: "character", image: "https://paimon.moe/images/characters/zibai.png" },
+  "300094": { name: "Neuvillette", type: "character", image: "https://paimon.moe/images/characters/neuvillette.png" },
+  "400094": { name: "Lightbearing Moonshard / Tome of the Eternal Flow", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2094.png" }
 };
 
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
@@ -27,8 +26,8 @@ export default async function handler(req, res) {
     // DYNAMIC DISCOVERY - Probe recent ID ranges to auto-detect new banners
     // Character banners: 300xxx (probe current ±5)
     // Weapon banners: 400xxx (probe current ±5)
-    const currentCharBase = 93; // Update this occasionally (every ~6 months)
-    const currentWeaponBase = 92;
+    const currentCharBase = 95; 
+    const currentWeaponBase = 94;
     const probeRange = 2; // Look ahead only (avoid old banners)
     
     // Helper function to probe banner IDs
@@ -141,7 +140,7 @@ function extractGenshinBannerName(list) {
     'Yanfei', 'Rosaria', 'Xinyan', 'Sayu', 'Kujou Sara', 'Thoma', 'Gorou',
     'Yun Jin', 'Kuki Shinobu', 'Heizou', 'Collei', 'Dori', 'Candace', 'Layla',
     'Faruzan', 'Yaoyao', 'Mika', 'Kaveh', 'Kirara', 'Lynette', 'Freminet',
-    'Charlotte', 'Gaming', 'Chevreuse', 'Sethos', 'Kachina', 'Ororon'
+    'Charlotte', 'Gaming', 'Chevreuse', 'Sethos', 'Kachina', 'Ororon', 'Lan Yan'
   ].map(n => n.toLowerCase());
   
   const characterCandidates = list.filter(item => {

@@ -233,7 +233,7 @@ export default function Layout({
             <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
               Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
               <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                Ver 3.8.7b
+                Ver 3.8.8
               </span>
             </h4>
             <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2025 Ciet</p>
