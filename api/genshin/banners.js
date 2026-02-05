@@ -3,11 +3,8 @@
  * Discovers live Genshin banners from paimon.moe
  */
 
-const OVERRIDE_MAP = {
-  "300095": { name: "Zibai", type: "character", image: "https://paimon.moe/images/characters/zibai.png" },
-  "300094": { name: "Neuvillette", type: "character", image: "https://paimon.moe/images/characters/neuvillette.png" },
-  "400094": { name: "Lightbearing Moonshard / Tome of the Eternal Flow", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2094.png" }
-};
+// DYNAMIC DISCOVERY - No more hardcoding needed
+const OVERRIDE_MAP = {};
 
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
 const GENSHIN_BANNER_IMG_BASE = 'https://paimon.moe/images/banners/';
@@ -23,23 +20,20 @@ export default async function handler(req, res) {
     console.log('[Genshin Banners API] Auto-discovering current banners...');
     const banners = [];
     
-    // DYNAMIC DISCOVERY - Probe recent ID ranges to auto-detect new banners
-    // Character banners: 300xxx (probe current ±5)
-    // Weapon banners: 400xxx (probe current ±5)
-    const currentCharBase = 95; 
+    // Probing recent ID ranges to auto-detect new banners
+    const currentCharBase = 94; 
     const currentWeaponBase = 94;
-    const probeRange = 2; // Look ahead only (avoid old banners)
+    const probeRange = 3; 
     
     // Helper function to probe banner IDs
     const probeBanners = async (baseId, prefix, type) => {
       const discovered = [];
       const checks = [];
       
-      // Probe range: base-2 to base+5 (to catch new releases)
       for (let i = baseId; i <= baseId + probeRange; i++) {
         const bannerId = `${prefix}${i.toString().padStart(3, '0')}`;
         
-        // Skip 300093 (Ineffa) - shares data with 300094 (Columbina/Ineffa dual banner)
+        // Skip anomalies
         if (bannerId === '300093') continue;
         
         checks.push((async () => {
@@ -48,24 +42,20 @@ export default async function handler(req, res) {
               headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
               },
-              signal: AbortSignal.timeout(3000) // 3 second timeout
+              signal: AbortSignal.timeout(3000)
             });
             
             if (response.ok) {
               const data = await response.json();
               
-              // Validate: Must have significant pull data (>300 legendary pulls)
-              if (data.total && data.total.legendary > 300) {
-                const override = OVERRIDE_MAP[bannerId];
+              // Validate: Must have enough pull data (>200 legendary pulls)
+              if (data.total && data.total.legendary > 200) {
                 let name;
                 let image;
                 
-                if (override) {
-                  name = override.name;
-                  image = override.image;
-                } else if (type === 'character') {
+                if (type === 'character') {
                   name = extractGenshinBannerName(data.list);
-                  image = `${GENSHIN_CHAR_IMG_BASE}${name.toLowerCase().replace(/\s+/g, '')}.png`;
+                  image = `${GENSHIN_CHAR_IMG_BASE}${name.toLowerCase().replace(/[\s·•]+/g, '_')}.png`;
                 } else {
                   // Weapon banner
                   name = extractGenshinWeaponNames(data.list) || "Epitome Invocation";
@@ -77,28 +67,23 @@ export default async function handler(req, res) {
                   id: `${bannerId}_${type}`,
                   bannerId,
                   name,
-                  type: override?.type || type,
+                  type,
                   image,
-                  characterId: type === 'character' ? name.toLowerCase().replace(/\s+/g, '_') : 'weapon_banner',
+                  characterId: type === 'character' ? name.toLowerCase().replace(/[\s·•]+/g, '_') : 'weapon_banner',
                   game: 'genshin',
-                  pullCount: data.total.legendary // For sorting
+                  pullCount: data.total.legendary 
                 };
               }
             }
-          } catch (e) {
-            // Timeout or network error - skip this ID
-          }
+          } catch (e) {}
           return null;
         })());
       }
       
       const results = (await Promise.all(checks)).filter(b => b !== null);
-      
-      // For weapons, only keep the LATEST one (highest ID) to avoid duplicates
       if (type === 'weapon' && results.length > 1) {
         return [results.sort((a, b) => parseInt(b.bannerId) - parseInt(a.bannerId))[0]];
       }
-      
       return results;
     };
     
@@ -109,8 +94,6 @@ export default async function handler(req, res) {
     ]);
     
     const allBanners = [...characterBanners, ...weaponBanners];
-    
-    // Sort by banner ID descending (newest first)
     allBanners.sort((a, b) => parseInt(b.bannerId) - parseInt(a.bannerId));
     
     console.log('[Genshin Banners API] Discovered', allBanners.length, 'active banner(s):', 
@@ -128,20 +111,15 @@ export default async function handler(req, res) {
 function extractGenshinBannerName(list) {
   if (!list || list.length === 0) return "Unknown";
   
-  // Standard 5-star characters (permanent banner)
-  const standard = ['Diluc', 'Jean', 'Keqing', 'Mona', 'Qiqi', 'Tighnari', 'Dehya'];
-  
-  // Comprehensive 4-star character blocklist (case-insensitive)
+  // Characters to exclude from "featured" status
+  const standard = ['Diluc', 'Jean', 'Keqing', 'Mona', 'Qiqi', 'Tighnari', 'Dehya', 'Ororon', 'Lan Yan', 'Mualani', 'Kachina'];
   const fourStarBlocklist = [
-    // Original list
-    'Fischl', 'Bennett', 'Xiangling', 'Xingqiu', 'Barbara', 'Noelle',
-    // Extended list (all 4-stars)
-    'Sucrose', 'Diona', 'Chongyun', 'Razor', 'Beidou', 'Ningguang',
-    'Yanfei', 'Rosaria', 'Xinyan', 'Sayu', 'Kujou Sara', 'Thoma', 'Gorou',
-    'Yun Jin', 'Kuki Shinobu', 'Heizou', 'Collei', 'Dori', 'Candace', 'Layla',
-    'Faruzan', 'Yaoyao', 'Mika', 'Kaveh', 'Kirara', 'Lynette', 'Freminet',
-    'Charlotte', 'Gaming', 'Chevreuse', 'Sethos', 'Kachina', 'Ororon', 'Lan Yan'
+    'Fischl', 'Bennett', 'Xiangling', 'Xingqiu', 'Barbara', 'Noelle', 'Sucrose', 'Diona', 'Chongyun', 'Razor', 
+    'Beidou', 'Ningguang', 'Yanfei', 'Rosaria', 'Xinyan', 'Sayu', 'Kujou Sara', 'Thoma', 'Gorou', 'Yun Jin', 
+    'Kuki Shinobu', 'Heizou', 'Collei', 'Dori', 'Candace', 'Layla', 'Faruzan', 'Yaoyao', 'Mika', 'Kaveh', 
+    'Kirara', 'Lynette', 'Freminet', 'Charlotte', 'Gaming', 'Chevreuse', 'Sethos', 'Kachina', 'Ororon', 'Lan Yan', 'Aino'
   ].map(n => n.toLowerCase());
+
   
   const characterCandidates = list.filter(item => {
     if (item.type !== 'character') return false;

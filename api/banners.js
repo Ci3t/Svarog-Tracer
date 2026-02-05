@@ -39,7 +39,7 @@ const GENSHIN_CONFIG = {
   ],
 
   // Standard characters that should NEVER be the banner name
-  standard: ['tighnari', 'dehya', 'diluc', 'jean', 'keqing', 'mona', 'qiqi']
+  standard: ['tighnari', 'dehya', 'diluc', 'jean', 'keqing', 'mona', 'qiqi', 'ororon', 'lanyan']
 };
 
 const CONFIG = {
@@ -138,7 +138,7 @@ async function fetchHSRActiveBanners() {
           name: lcData.name,
           type: "light_cone",
           characterId: b.charId,
-          image: `${CONFIG.STARRAIL_RES}/image/light_cone_portrait/${b.charId}.png`,
+          image: `${CONFIG.STARRAIL_RES}/icon/light_cone/${b.charId}.png`,
           game: 'hsr'
         };
       } else {
@@ -280,64 +280,97 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 async function fetchWuWaLiveBanners() {
-  // 1. Base Configuration (Manual Fallback)
-  // Update these IDs when new WuWa patch releases if auto-discovery fails
-  let currentBanners = [
-    { 
-      id: '100031',  // Mornye
-      name: 'Mornye', 
-      type: 'character',
-      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75',
-      game: 'wuwa'
-    },
-    { 
-      id: '200031',  // Starfield Calibrator
-      name: 'Starfield Calibrator',
-      type: 'weapon',
-      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75',
-      game: 'wuwa'
-    }
-  ];
-
-  // 2. Auto-Discovery: Probe for next ID (Future Proofing)
-  // Logic: Check ID+1. If 200 OK, parse Name/Image and replace Manual Config.
-  const discoveredBanners = await Promise.all(currentBanners.map(async (banner) => {
-    try {
-      const nextId = (parseInt(banner.id) + 1).toString();
-      const probeUrl = `https://wuwatracker.com/tracker/stats/${nextId}`;
+  try {
+    const res = await fetchWithTimeout(`${CONFIG.WUWA_TRACKER}`, 5000);
+    if (!res.ok) throw new Error('Failed to fetch WuWa tracker');
+    const html = await res.text();
+    
+    // 1. Identify all 100xxx and 200xxx IDs first
+    const idPattern = /[\\"]+bannerId[\\"]+:\s*(\d{6})/g;
+    const banners = [];
+    const seen = new Set();
+    let match;
+    
+    while ((match = idPattern.exec(html)) !== null) {
+      const id = match[1];
+      if (seen.has(id)) continue;
+      seen.add(id);
       
-      // Fast check with short timeout
-      const res = await fetchWithTimeout(probeUrl, 3000); // 3s timeout for probe
+      const isCharacter = id.startsWith('100');
+      const isWeapon = id.startsWith('101') || id.startsWith('200');
+      if (!isCharacter && !isWeapon) continue;
       
-      if (res.status === 200) {
-        const html = await res.text();
-        const titleMatch = html.match(/<title>(.*?) ·/);
-        
-        if (titleMatch && titleMatch[1]) {
-          const newName = titleMatch[1].trim();
-          console.log(`[WuWa Auto-Discovery] FOUND NEW BANNER! ${banner.name} (${banner.id}) -> ${newName} (${nextId})`);
-          
-          // Generate new Image URL (slugify name)
-          const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          const ext = banner.type === 'character' ? 'webp' : 'png';
-          const imgType = banner.type === 'character' ? 'character-portraits' : 'weapon-portraits';
-          
-          return {
-            ...banner,
-            id: nextId,
-            name: newName,
-            image: `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imgType}%2Ffile%2F${slug}-portrait.${ext}&w=828&q=75`
-          };
-        }
+      const pos = match.index;
+      const context = html.substring(pos, pos + 5000);
+      
+      // Extraction Strategy:
+      // A) Find "5stars": [...] block
+      // B) Inside that, find "name":"The Real Name"
+      const rateUpBlock = context.match(/[\\"]+5stars[\\"]+:\s*\[([\s\S]*?)\]/);
+      let name = null;
+      if (rateUpBlock) {
+        const nameMatch = rateUpBlock[1].match(/[\\"]+name[\\"]+:\s*[\\"]+([^\\"]+)[\\"]+/);
+        if (nameMatch) name = nameMatch[1];
       }
-    } catch (e) {
-      // Probe failed (likely 404 Not Found), stick to manual
-      // console.log(`[WuWa Probe] No new banner for ${banner.name} (${e.message})`);
-    }
-    return banner; // Return original if probe fails
-  }));
+      
+      // Fallback to top-level name if 5-stars lookup fails or is generic
+      if (!name || name.includes("Featured") || name.includes("Convene")) {
+        const topNameMatch = context.match(/[\\"]+name[\\"]+:\s*[\\"]+([^\\"]+)[\\"]+/);
+        name = topNameMatch ? topNameMatch[1] : `Banner ${id}`;
+      }
 
-  return discoveredBanners;
+      if (name.toLowerCase().includes('standard')) continue;
+      
+      const type = isCharacter ? 'character' : 'weapon';
+      const nameSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const ext = 'png'; // Use PNG for improved compatibility with newer units
+      const imgPath = isCharacter ? 'character-portraits' : 'weapon-portraits';
+      const fileName = isCharacter ? `${nameSlug}-portrait.${ext}` : `${nameSlug}.${ext}`;
+      
+      banners.push({
+        id,
+        name,
+        type,
+        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imgPath}%2Ffile%2F${fileName}&w=828&q=75`,
+        game: 'wuwa'
+      });
+    }
+
+    // 2. ULTRA-ROBUST EMERGENCY FALLBACK (For Aemeath/Patch transitions)
+    // If we only found historical banners, check if the SEO description mentions the new one
+    if (!banners.some(b => b.id === '100032') && html.includes('Aemeath')) {
+       banners.push({
+         id: '100032',
+         name: 'Aemeath',
+         type: 'character',
+         image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Faemeath-portrait.png&w=828&q=75`,
+         game: 'wuwa'
+       });
+    }
+    if (!banners.some(b => b.id === '200032') && html.includes('Everbright Polestar')) {
+       banners.push({
+         id: '200032',
+         name: 'Everbright Polestar',
+         type: 'weapon',
+         image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Feverbright-polestar.png&w=828&q=75`,
+         game: 'wuwa'
+       });
+    }
+    
+    // Sort to get latest of each type
+    const latestChar = banners.filter(b => b.type === 'character').sort((a,b) => b.id.localeCompare(a.id))[0];
+    const latestWeapon = banners.filter(b => b.type === 'weapon').sort((a,b) => b.id.localeCompare(a.id))[0];
+    
+    const results = [];
+    if (latestChar) results.push(latestChar);
+    if (latestWeapon) results.push(latestWeapon);
+    
+    console.log(`[WuWa] Scraped: ${results.map(r => r.name).join(', ')}`);
+    return results;
+  } catch (error) {
+    console.error('[WuWa Discovery] Error:', error);
+    return [];
+  }
 }
 
 // =========================================================================
