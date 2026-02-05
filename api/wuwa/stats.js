@@ -29,22 +29,60 @@ export default async function handler(req, res) {
     const statsUrl = `https://wuwatracker.com/tracker/stats/${id}`;
     console.log('[WuWa API] Fetching:', statsUrl);
     
-    // Use CORS proxy to bypass anti-bot protection
-    // (Same approach as frontend - works reliably!)
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(statsUrl)}`;
-    
-    const response = await fetch(proxyUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    let html = null;
+
+    // 1. Try Direct Fetch (Server-to-Server) - The Ideal Way
+    try {
+        const directRes = await fetch(statsUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        });
+        if (directRes.ok) {
+            html = await directRes.text();
+            console.log('[WuWa API] ✓ Direct fetch successful');
+        } else {
+            console.warn(`[WuWa API] Direct fetch failed: ${directRes.status}`);
+        }
+    } catch (e) {
+        console.warn(`[WuWa API] Direct fetch error:`, e.message);
     }
     
-    const html = await response.text();
+    // 2. Proxy Fallbacks (If Direct Failed)
+    if (!html) {
+        console.log('[WuWa API] Trying proxy fallbacks...');
+        const PROXIES = [
+            // 1. CodeTabs (cors-anywhere-alt in frontend) - Confirmed working
+            (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+            // 2. CorsProxy.io - Often blocked but worth a shot as fallback
+            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            // 3. AllOrigins - Reliable fallback
+            (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            // 4. ThingProxy - Last resort
+            (url) => `https://thingproxy.freeboard.io/fetch/${url}`
+        ];
+        
+        for (const proxyFormat of PROXIES) {
+            try {
+                const proxyUrl = proxyFormat(statsUrl);
+                const res = await fetch(proxyUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+                
+                if (res.ok) {
+                    html = await res.text();
+                    if (html.includes('WuWa Tracker')) break;
+                }
+            } catch (e) { /* continue */ }
+        }
+    }
+    
+    if (!html) {
+      throw new Error(`All fetch methods failed for ${id}`);
+    }
     console.log('[WuWa API] HTML length:', html.length);
     
     const stats = parseWuWaHTML_Adaptive(html);
