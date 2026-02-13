@@ -44,6 +44,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
+  CACHE_VERSION: 2, // Increment this to force cache refresh (was 1, now 2 for 4-banner support)
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -55,13 +56,15 @@ const CONFIG = {
 };
 
 const CACHE_DURATION = CONFIG.CACHE_HOURS * 60 * 60 * 1000;
+const CACHE_KEY = `banner_cache_v${CONFIG.CACHE_VERSION}`;
 
 // =========================================================================
 // CACHE - Stores banner data temporarily to reduce API calls
 // =========================================================================
 let BANNER_CACHE = {
   data: null,
-  timestamp: 0
+  timestamp: 0,
+  version: CONFIG.CACHE_VERSION
 };
 
 // =========================================================================
@@ -416,11 +419,20 @@ export default async function handler(req, res) {
   }
   
   try {
-    // Check cache
-    if (BANNER_CACHE.data && (Date.now() - BANNER_CACHE.timestamp < CACHE_DURATION)) {
-      console.log('[Banners API] Returning cached data');
+    // Check cache (validate both time AND version)
+    const cacheValid = BANNER_CACHE.data && 
+                       BANNER_CACHE.version === CONFIG.CACHE_VERSION &&
+                       (Date.now() - BANNER_CACHE.timestamp < CACHE_DURATION);
+    
+    if (cacheValid) {
+      console.log('[Banners API] Returning cached data (v' + CONFIG.CACHE_VERSION + ')');
       res.setHeader('X-Cache-Status', 'HIT');
+      res.setHeader('X-Cache-Version', CONFIG.CACHE_VERSION);
       return res.status(200).json(BANNER_CACHE.data);
+    }
+    
+    if (BANNER_CACHE.data && BANNER_CACHE.version !== CONFIG.CACHE_VERSION) {
+      console.log('[Banners API] Cache version mismatch - invalidating old cache');
     }
     
     console.log('[Banners API] Fetching fresh data from all sources...');
@@ -443,7 +455,8 @@ export default async function handler(req, res) {
     // Update cache
     BANNER_CACHE = {
       data: response,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      version: CONFIG.CACHE_VERSION
     };
     
     console.log(`[Banners API] Success! HSR:${hsr.length} Genshin:${genshin.length} WuWa:${wuwa.length}`);

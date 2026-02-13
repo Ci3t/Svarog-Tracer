@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:prod": "node scripts/bump-cache-version.js && npm run build",
     "build:beta": "cross-env VITE_BASE_PATH=/Svarog-Tracer-Beta/ vite build",
+    "cache:bump": "node scripts/bump-cache-version.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "update-banners": "python scripts/update_banners.py"
