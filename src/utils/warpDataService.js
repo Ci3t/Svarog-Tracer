@@ -184,20 +184,17 @@ export async function fetchCentralizedBanners() {
       }))
     ];
     
-    // HSR OVERLAP FIX:
-    // If we receive >2 limited banners (due to phase overlap), keep only the NEWEST 2.
-    // This forces Aglaea/Sunday (2103/2104) to show and hides Fugue/Lingsha (2101/2102).
+    // HSR Banner Processing:
+    // Sort by ID (newest first) and deduplicate by character ID
     const hsrBanners = allBanners.filter(b => b.game === 'hsr');
     const otherBanners = allBanners.filter(b => b.game !== 'hsr');
     
     if (hsrBanners.length > 0) {
        const hsrChars = hsrBanners.filter(b => b.type === 'character')
-         .sort((a, b) => parseInt(b.id) - parseInt(a.id)) // Newest first
-         .slice(0, 2); // Keep top 2
+         .sort((a, b) => parseInt(b.id) - parseInt(a.id)); // Newest first
          
        const hsrLCs = hsrBanners.filter(b => b.type === 'light_cone')
-         .sort((a, b) => parseInt(b.id) - parseInt(a.id))
-         .slice(0, 2);
+         .sort((a, b) => parseInt(b.id) - parseInt(a.id));
          
        // Re-merge filtered HSR with others
        const filteredBanners = [...otherBanners, ...hsrChars, ...hsrLCs];
