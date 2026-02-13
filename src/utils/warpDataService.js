@@ -15,6 +15,9 @@ import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
 import bannerHistory from '../data/bannerHistory.json';
 
+// Import Banner Display Configuration
+import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
+
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
   // Primary: Most reliable globally
@@ -185,16 +188,24 @@ export async function fetchCentralizedBanners() {
     ];
     
     // HSR Banner Processing:
-    // Sort by ID (newest first) and deduplicate by character ID
+    // Sort by ID (newest first) and apply configurable limits
     const hsrBanners = allBanners.filter(b => b.game === 'hsr');
     const otherBanners = allBanners.filter(b => b.game !== 'hsr');
     
     if (hsrBanners.length > 0) {
-       const hsrChars = hsrBanners.filter(b => b.type === 'character')
+       let hsrChars = hsrBanners.filter(b => b.type === 'character')
          .sort((a, b) => parseInt(b.id) - parseInt(a.id)); // Newest first
-         
-       const hsrLCs = hsrBanners.filter(b => b.type === 'light_cone')
+       
+       let hsrLCs = hsrBanners.filter(b => b.type === 'light_cone')
          .sort((a, b) => parseInt(b.id) - parseInt(a.id));
+       
+       // Apply limits from config (if set)
+       if (BANNER_DISPLAY_CONFIG.hsr.maxCharacterBanners !== null) {
+         hsrChars = hsrChars.slice(0, BANNER_DISPLAY_CONFIG.hsr.maxCharacterBanners);
+       }
+       if (BANNER_DISPLAY_CONFIG.hsr.maxLightConeBanners !== null) {
+         hsrLCs = hsrLCs.slice(0, BANNER_DISPLAY_CONFIG.hsr.maxLightConeBanners);
+       }
          
        // Re-merge filtered HSR with others
        const filteredBanners = [...otherBanners, ...hsrChars, ...hsrLCs];
