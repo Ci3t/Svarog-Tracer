@@ -392,63 +392,48 @@ export function getDistribution(rolls) {
  * @returns {Object} Commons, noise, distribution, and rising noise detection
  */
 export function identifyCommonsNoise(rolls) {
-  // 🆕 IMPROVEMENT 1: COMMONS STABILIZATION
-  // Phase 1 (first 8 rolls): wider 10-roll window to establish initial commons
-  // Phase 2 (8+ rolls): use 6-roll window BUT apply sticky label protection
   const n = rolls.length;
-  const windowSize = n <= 8 ? Math.min(10, n) : Math.min(6, n);
-  const recentRolls = rolls.slice(-windowSize);
-  
-  // Get distribution from rolling window
-  const distribution = getDistribution(recentRolls);
-  
-  // Also get full session distribution for comparison
+
+  // =========================================================================
+  // 🆕 D: COMMONS CONSENSUS VOTING (3-window system)
+  // Run 3 different window sizes and vote on common/noise classification.
+  // A value is only NOISE if it's in the bottom 2 in ALL 3 windows.
+  // A value is COMMON if it's in the top 2 in 2+ of 3 windows.
+  // This prevents the constant flip-flopping in chaotic near-flat sessions.
+  // =========================================================================
   const fullDistribution = getDistribution(rolls);
-  
-  let sorted = VALUES
-    .map(v => ({ value: v, pct: distribution[v] }))
-    .sort((a, b) => b.pct - a.pct);
-  
-  // Top 2 are commons, bottom 2 are noise
-  let commons = sorted.slice(0, 2).map(x => x.value);
-  let noise = sorted.slice(2).map(x => x.value);
-  
-  // 🆕 STICKY LABEL PROTECTION: When we're in Phase 2, require a STRONG signal
-  // before reclassifying a value as noise (it must be clearly dominant in recent window)
-  // This prevents the constant flip-flopping seen in debug sessions
-  if (n > 10) {
-    const top1pct = sorted[0].pct;
-    const top2pct = sorted[1].pct;
-    const bot1pct = sorted[2].pct;
-    // Only accept the top-2 as commons if there's a clear gap (≥10%) between #2 and #3
-    // Otherwise, use full-session frequency to break the tie
-    if (top2pct - bot1pct < 10) {
-      // Tie-break using full session distribution
-      const fullSorted = VALUES
-        .map(v => ({ value: v, pct: fullDistribution[v] }))
-        .sort((a, b) => b.pct - a.pct);
-      // Keep the rolling window's #1 but use full-session for #2
-      const rollingTop1 = commons[0];
-      const fullTop2 = fullSorted.find(x => x.value !== rollingTop1);
-      if (fullTop2) {
-        commons = [rollingTop1, fullTop2.value];
-        noise = VALUES.filter(v => !commons.includes(v));
-      }
-    }
-  }
-  
-  // NOISE RISING DETECTION: Check if noise values are appearing frequently in last 6 rolls
+
+  const windowSizes = [4, 8, 12].map(w => Math.min(w, n));
+  const windowVotes = {};
+  VALUES.forEach(v => { windowVotes[v] = 0; });
+
+  let primaryDistribution = fullDistribution;
+  windowSizes.forEach((wSize, i) => {
+    const wRolls = rolls.slice(-wSize);
+    const wDist = getDistribution(wRolls);
+    if (i === 1) primaryDistribution = wDist; // 8-roll window as display dist
+    const wSorted = VALUES.map(v => ({ value: v, pct: wDist[v] })).sort((a, b) => b.pct - a.pct);
+    wSorted.slice(0, 2).forEach(({ value }) => { windowVotes[value]++; });
+  });
+
+  // Rank by votes, tie-break by full-session frequency
+  const ranked = VALUES
+    .map(v => ({ value: v, votes: windowVotes[v], fullPct: fullDistribution[v] }))
+    .sort((a, b) => b.votes - a.votes || b.fullPct - a.fullPct);
+
+  let commons = ranked.slice(0, 2).map(x => x.value);
+  let noise   = ranked.slice(2).map(x => x.value);
+  const distribution = primaryDistribution;
+
+  // =========================================================================
+  // NOISE RISING DETECTION
+  // =========================================================================
   const last6 = rolls.slice(-6);
   const noiseRising = [];
-  
   noise.forEach(noiseVal => {
     const countInLast6 = last6.filter(r => r === noiseVal).length;
-    if (countInLast6 >= 3) {
-      noiseRising.push(noiseVal);
-    }
+    if (countInLast6 >= 3) noiseRising.push(noiseVal);
   });
-  
-  // If noise is rising, swap it with the weaker common
   if (noiseRising.length > 0) {
     const risingNoise = noiseRising[0];
     const weakerCommon = commons[1];
@@ -460,26 +445,21 @@ export function identifyCommonsNoise(rolls) {
       noise.push(weakerCommon);
     }
   }
-  
-  // RUN BREAK DETECTION: Check for long runs that might break
+
+  // RUN BREAK DETECTION
   const lastRoll = rolls[rolls.length - 1];
   let currentRunLength = 0;
   for (let i = rolls.length - 1; i >= 0; i--) {
-    if (rolls[i] === lastRoll) {
-      currentRunLength++;
-    } else {
-      break;
-    }
+    if (rolls[i] === lastRoll) currentRunLength++;
+    else break;
   }
-
-  // Run-break fires earlier for commons (≥2) vs noise (≥3)
   const isLastRollCommon = commons.includes(lastRoll);
   const runBreakThreshold = isLastRollCommon ? 2 : 3;
-  
-  return { 
-    commons, 
-    noise, 
-    distribution, 
+
+  return {
+    commons,
+    noise,
+    distribution,
     fullDistribution,
     noiseRising,
     currentRunLength,
@@ -678,6 +658,7 @@ export function predictWithPairs(rolls) {
   let prediction = null;
   let alt = null;
   let confidence = 0;
+  let _chaosNoiseWatch = null; // Set by chaos mode, shown in UI as ⚡ Watch indicator
 
   // Get frequency-based prediction (highest %)
   const freqSorted = VALUES
@@ -815,28 +796,53 @@ export function predictWithPairs(rolls) {
     // Longer session average runs → higher confidence to keep riding
     confidence = Math.min(runContinueConfBase + (currentRunLen - 2) * 0.07, 0.70);
   }
-  // 🆕 CHAOS MODE: When session is chaotic, use commons-aware pair logic
+  // 🆕 A: CHAOS MODE — Full-session pair matrix + commons-only prediction
+  // In chaos, we use ALL session rolls (not just recent window) for the pair matrix
+  // because more data = better transition estimates even when distribution is flat.
+  // IMPORTANT: Both main AND alt must be commons. Noise goes to noiseWatch only.
   else if (isChaotic) {
-    // In chaos, use pair matrix from last roll but prioritize commons as alt
-    const lastRollRow = matrix[lastRoll] || {};
-    const pairSorted = VALUES
-      .map(v => ({ value: v, pct: lastRollRow[v]?.pct || 0 }))
+    // Build full-session pair matrix (key change: uses all rolls not just recent)
+    const fullMatrix = {};
+    VALUES.forEach(v => { fullMatrix[v] = {}; VALUES.forEach(v2 => { fullMatrix[v][v2] = 0; }); });
+    for (let i = 0; i < rolls.length - 1; i++) {
+      const from = rolls[i]; const to = rolls[i + 1];
+      if (VALUES.includes(from) && VALUES.includes(to)) fullMatrix[from][to]++;
+    }
+    // Convert counts to percentages
+    VALUES.forEach(v => {
+      const total = VALUES.reduce((s, v2) => s + fullMatrix[v][v2], 0);
+      VALUES.forEach(v2 => {
+        fullMatrix[v][v2] = total > 0 ? Math.round((fullMatrix[v][v2] / total) * 100) : 0;
+      });
+    });
+
+    // From the full-session matrix, find the strongest transition from last roll
+    const fullPairSorted = VALUES
+      .map(v => ({ value: v, pct: fullMatrix[lastRoll]?.[v] || 0 }))
       .sort((a, b) => b.pct - a.pct);
-    
-    if (pairSorted[0].pct > 0) {
-      prediction = pairSorted[0].value;
-      // 🆕 FIX: Alt should always be the other common if available, not random noise
-      const otherCommon = commons.find(c => c !== prediction);
-      alt = otherCommon || pairSorted[1]?.value || freqSorted[1]?.value;
+
+    // Identify the strongest-suggested common (may be noise value — we handle below)
+    const strongestValue = fullPairSorted[0]?.value;
+    const noiseWatchCandidate = noise.includes(strongestValue) ? strongestValue : (
+      fullPairSorted.find(x => noise.includes(x.value))?.value || null
+    );
+
+    // Main prediction: strongest COMMON from full-session pair matrix
+    const topCommonByPair = fullPairSorted.find(x => commons.includes(x.value));
+    if (topCommonByPair && topCommonByPair.pct > 0) {
+      prediction = topCommonByPair.value;
+      alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || commons[1];
       method = 'chaos-pair';
-      confidence = Math.min(pairSorted[0].pct / 100, 0.55);
+      confidence = Math.min(topCommonByPair.pct / 100 + 0.05, 0.52);
     } else {
-      // Fallback to frequency + commons-aware alt
+      // Fallback: just use the 2 commons by full-session frequency
       prediction = commons[0] || freqSorted[0].value;
       alt = commons[1] || freqSorted[1]?.value;
       method = 'chaos-freq';
-      confidence = 0.35;
+      confidence = 0.33;
     }
+    // Store noise watch candidate separately (shown in UI as ⚡ Watch, not a pick)
+    _chaosNoiseWatch = noiseWatchCandidate;
   }
   // Standard logic when NOT chaotic
   else if (isAlternating && alternatingPair) {
@@ -1118,11 +1124,60 @@ export function predictWithPairs(rolls) {
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
 
+  // =========================================================================
+  // 🆕 TOPIC 2+3: LABEL, REASON LINE, NOISE WATCH
+  // Compute the user-friendly label badge and one-line reason.
+  // Both main and alt are always commons. Noise only appears in noiseWatch.
+  // =========================================================================
+
+  // Commons guardian: last safety net — if somehow prediction is noise, swap to top common
+  if (noise.includes(prediction)) {
+    prediction = commons[0] || freqSorted.find(f => commons.includes(f.value))?.value || prediction;
+  }
+  if (noise.includes(alt) || alt === prediction) {
+    alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || alt;
+  }
+
+  // Noise watch: is a noise value likely to appear soon? (for ⚡ Watch indicator)
+  const noiseWatchValue = _chaosNoiseWatch ||
+    (waveSignals?.isWaveWarning && noise[0]) ||
+    (noiseRising.length > 0 ? noiseRising[0] : null);
+
+  // Label badge and reason line lookup
+  const baseMethod = method.replace(/\+.*/, ''); // strip modifiers for lookup
+  const currentRun = waveSignals?.lastCommonRunLength || currentRunLen || 0;
+  const altCommon = alt || commons.find(c => c !== prediction);
+  const pairPct = Math.round((matrix[lastRoll]?.[prediction]?.pct || 0));
+  const overdueRolls = mostOverdue && lastSeen[mostOverdue] >= 0 ? lastSeen[mostOverdue] : 0;
+  const postNoiseCount2 = commonPostNoise[0]?.count || 0;
+
+  const labelMap = {
+    'hot-run':             { label: '🔥 Running',    reason: `${prediction} × ${currentRun} streak — riding it` },
+    'hot-run+run-break':   { label: '🔥 Running',    reason: `${lastRoll} × ${currentRun} — break expected, predict ${prediction}` },
+    'alternating':         { label: '🔄 Alternating', reason: `${alternatingPair?.[0]} ↔ ${alternatingPair?.[1]} ping-pong — next: ${prediction}` },
+    'pattern-shift':       { label: '🔀 Shifted',     reason: `New signal: ${shiftedToValue || prediction} taking over` },
+    '2-gram':              { label: '🔁 Sequence',    reason: `${prediction} follows ${last2Rolls} pattern${gram2Confidence > 0 ? ` (${Math.round(gram2Confidence)}%)` : ''}` },
+    'pair-matrix':         { label: '🎯 Pair',        reason: `${prediction} most likely after ${lastRoll}${pairPct > 0 ? ` (${pairPct}%)` : ''}` },
+    'overdue-wave':        { label: '🔔 Overdue',     reason: `${prediction} not seen in ${overdueRolls} rolls — due` },
+    'overdue-wave+pair':   { label: '🔔 Overdue',     reason: `${prediction} overdue + pair edge — due` },
+    'post-noise-recovery': { label: '🌀 Recovery',    reason: `After noise, ${prediction} returns (${postNoiseCount2}×)` },
+    'chaos-pair':          { label: '⚠️ Chaotic',    reason: `Edge: ${lastRoll}→${prediction} strongest link` },
+    'chaos-freq':          { label: '⚠️ Chaotic',    reason: 'No clear pattern — most frequent' },
+    'insufficient-data':   { label: '⏳ Warming Up',  reason: 'Need more rolls — building picture' },
+  };
+  // Try exact method first, then base method
+  const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: '🎯 Pair', reason: `${prediction} most likely after ${lastRoll}` };
+
   return {
     prediction,
     alt,
     confidence,
     method,
+    // 🆕 User-facing display fields
+    label: labelEntry.label,
+    reasonLine: labelEntry.reason,
+    noiseWatch: noiseWatchValue,
+    isChaotic,
     pairMatrix: matrix,
     pairMatrix2gram: matrix2gram,
     lastRoll,
@@ -1167,8 +1222,7 @@ export function predictWithPairs(rolls) {
     commonsFlipDetected,
     newCommons,
     flipConfidence,
-    // 🆕 CHAOS data
-    isChaotic,
+    // Chaos data
     noiseRate: Math.round(noiseRate * 100),
     isFlat
   };
