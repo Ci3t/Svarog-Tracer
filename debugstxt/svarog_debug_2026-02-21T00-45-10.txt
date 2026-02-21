@@ -1,0 +1,244 @@
+=== Svarog Tracer Debug Export ===
+
+--- 2-str ---
+[2:41:04 AM] 2-str → pred: 42 (52%) | alt: 44 | mode: — | Dist: 41:0%,42:33%,43:33%,44:33% | ❌ MISS | actual: 44 | ctx: 44, 42, 43, 42, 44, 43 | Commons: [42, 43] | Noise: [44, 41]
+
+[2:41:25 AM] 2-str → pred: 44 (57%) | alt: 43 | mode: — | Dist: 41:0%,42:29%,43:29%,44:43% | ✅ | actual: 44 | ctx: 44, 42, 43, 42, 44, 43, 44 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:32 AM] 2-str → pred: 44 (44%) | alt: 42 | mode: — | Dist: 41:0%,42:25%,43:25%,44:50% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:44 AM] 2-str → pred: 43 (45%) | alt: 44 | mode: — | Dist: 41:0%,42:33%,43:17%,44:50% | ✅ | actual: 43 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:57 AM] 2-str → pred: 44 (65%) | alt: 42 | mode: — | Dist: 41:0%,42:17%,43:33%,44:50% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43 | Commons: [44, 43] | Noise: [42, 41]
+
+[2:42:21 AM] 2-str → pred: 42 (57%) | alt: 43 | mode: — | Dist: 41:0%,42:33%,43:33%,44:33% | ❌ MISS | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42 | Commons: [42, 44] | Noise: [41, 43]
+
+[2:42:46 AM] 2-str → pred: 42 (32%) | alt: 44 | mode: — | Dist: 41:17%,42:33%,43:17%,44:33% | ❌ MISS | actual: 43 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41 | Commons: [42, 44] | Noise: [41, 43]
+
+[2:43:38 AM] 2-str → pred: 43 (44%) | alt: 42 | mode: — | Dist: 41:17%,42:33%,43:33%,44:17% | ❌ MISS | actual: 44 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43 | Commons: [42, 43] | Noise: [41, 44]
+
+[2:44:01 AM] 2-str → pred: 43 (44%) | alt: 42 | mode: — | Dist: 41:17%,42:33%,43:33%,44:17% | ❌ MISS | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44 | Commons: [42, 43] | Noise: [41, 44]
+
+[2:44:40 AM] 2-str → pred: 41 (44%) | alt: 43 | mode: — | Dist: 41:33%,42:17%,43:33%,44:17% | ✅ | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44, 41 | Commons: [41, 43] | Noise: [42, 44]
+
+[2:44:53 AM] 2-str → pred: 41 (61%) | alt: 44 | mode: — | Dist: 41:50%,42:17%,43:17%,44:17% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44, 41, 41 | Commons: [41, 44] | Noise: [42, 43]
+
+
+--- 🎯 MAIN PREDICTOR (Pair Matrix) ---
+(Replaying each roll with predictor)
+
+[2:41:04 AM] 🧪 EXP → pred: 42 (52%) | alt: 44 | method: pattern-shift
+         ↳ actual: 44 | ⚡ ALT-HIT
+         📈 PAIR-EXPECT: Boosting 43
+         🔥 MOMENTUM: 41:0,42:0.28,43:1.13,44:0.42 | Hot: [43,44]
+         🔍 LAST-SEEN: 41:-1,42:2,43:0,44:1 | Overdue: [41]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 44 is rising!
+
+[2:41:25 AM] 🧪 EXP → pred: 44 (57%) | alt: 43 | method: pattern-shift+pair-expect
+         ↳ actual: 44 | ✅ HIT
+         📈 PAIR-EXPECT: Boosting 44
+         🔥 MOMENTUM: 41:0,42:0.19,43:0.44,44:1.25 | Hot: [44,43]
+         🔍 LAST-SEEN: 41:-1,42:3,43:1,44:0 | Overdue: [41]
+         🔀 PATTERN SHIFT: 43 is rising!
+
+[2:41:32 AM] 🧪 EXP → pred: 44 (44%) | alt: 42 | method: hot-run
+         ↳ actual: 42 | ⚡ ALT-HIT
+         🔥 MOMENTUM: 41:0,42:0.14,43:0.26,44:1.52 | Hot: [44,43]
+         🔍 LAST-SEEN: 41:-1,42:4,43:2,44:0 | Overdue: [41]
+         🔀 PATTERN SHIFT: 43 is rising!
+
+[2:41:44 AM] 🧪 EXP → pred: 43 (45%) | alt: 44 | method: 2-gram
+         ↳ actual: 43 | ✅ HIT
+         📈 PAIR-EXPECT: Boosting 42
+         🔥 MOMENTUM: 41:0,42:1.11,43:0.18,44:0.67 | Hot: [42,44]
+         🔍 LAST-SEEN: 41:-1,42:0,43:3,44:1 | Overdue: [41]
+
+[2:41:57 AM] 🧪 EXP → pred: 44 (65%) | alt: 42 | method: pattern-shift
+         ↳ actual: 42 | ⚡ ALT-HIT
+         📈 PAIR-EXPECT: Boosting 43
+         🔥 MOMENTUM: 41:0,42:0.44,43:1.13,44:0.42 | Hot: [43,42]
+         🔍 LAST-SEEN: 41:-1,42:1,43:0,44:2 | Overdue: [41]
+         🔀 PATTERN SHIFT: 42 is rising!
+
+[2:42:21 AM] 🧪 EXP → pred: 42 (57%) | alt: 43 | method: pattern-shift+pair-expect
+         ↳ actual: 41 | ❌ MISS
+         📈 PAIR-EXPECT: Boosting 42
+         🔥 MOMENTUM: 41:0,42:1.27,43:0.46,44:0.3 | Hot: [42,43]
+         🔍 LAST-SEEN: 41:-1,42:0,43:1,44:3 | Overdue: [41]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 43 is rising!
+         🔄 COMMONS FLIP: New commons [42, 43] (50%)
+
+[2:42:46 AM] 🧪 EXP → pred: 42 (32%) | alt: 44 | method: chaos-freq+momentum-confirm
+         ↳ actual: 43 | ❌ MISS
+         📈 PAIR-EXPECT: Boosting 41
+         🔥 MOMENTUM: 41:1,42:0.54,43:0.28,44:0.23 | Hot: [41,42]
+         🔍 LAST-SEEN: 41:0,42:1,43:2,44:4 | Overdue: [44]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 41 is rising!
+
+[2:43:38 AM] 🧪 EXP → pred: 43 (44%) | alt: 42 | method: chaos-pair+momentum-tie
+         ↳ actual: 44 | ❌ MISS
+         📈 PAIR-EXPECT: Boosting 43
+         🔥 MOMENTUM: 41:0.35,42:0.34,43:1.2,44:0.16 | Hot: [43,41]
+         🔍 LAST-SEEN: 41:1,42:2,43:0,44:5 | Overdue: [44]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 41 is rising!
+
+[2:44:01 AM] 🧪 EXP → pred: 43 (44%) | alt: 42 | method: chaos-pair+momentum-tie
+         ↳ actual: 41 | ❌ MISS
+         🔁 DOUBLE-TAP: Expecting 44 repeat!
+         📈 PAIR-EXPECT: Boosting 44
+         🔥 MOMENTUM: 41:0.19,42:0.22,43:0.5,44:1.13 | Hot: [44,43]
+         🔍 LAST-SEEN: 41:2,42:3,43:1,44:0 | Overdue: [none]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 44 is rising!
+
+[2:44:40 AM] 🧪 EXP → pred: 41 (44%) | alt: 43 | method: chaos-pair+momentum-tie
+         ↳ actual: 41 | ✅ HIT
+         📈 PAIR-EXPECT: Boosting 41
+         🔥 MOMENTUM: 41:1.13,42:0.17,43:0.29,44:0.46 | Hot: [41,44]
+         🔍 LAST-SEEN: 41:0,42:4,43:2,44:1 | Overdue: [42]
+         ⚠️ UNCERTAIN (gap: 0%)
+         🔀 PATTERN SHIFT: 44 is rising!
+
+[2:44:53 AM] 🧪 EXP → pred: 41 (61%) | alt: 44 | method: chaos-pair
+         ↳ actual: 42 | ❌ MISS
+         🔥 MOMENTUM: 41:1.44,42:0.11,43:0.21,44:0.29 | Hot: [41,44]
+         🔍 LAST-SEEN: 41:0,42:5,43:3,44:2 | Overdue: [42]
+         🔄 COMMONS FLIP: New commons [41, 42] (75%)
+
+--- PREDICTOR SUMMARY ---
+Hits (main):    3/11 = 27%
+Top-2 (±alt):   6/11 = 55%
+
+🎯 BBP ADAPTIVE: 6/11 = 55% (hit main OR alt = valid)
+
+
+--- 🔄 PREDICTOR COMPARISON: KIYO vs BBP ADAPTIVE ---
+(Running both predictors on same roll data)
+
+[1] actual: 44
+     LIVE: 42/44 ⚡ | KIYO: 42/44 ⚡
+[2] actual: 44
+     LIVE: 44/43 ✅ | KIYO: 44/43 ✅
+[3] actual: 42
+     LIVE: 44/42 ⚡ | KIYO: 44/42 ⚡
+[4] actual: 43
+     LIVE: 43/44 ✅ | KIYO: 43/44 ✅
+[5] actual: 42
+     LIVE: 44/42 ⚡ | KIYO: 44/42 ⚡
+[6] actual: 41
+     LIVE: 42/43 ❌ | KIYO: 42/43 ❌
+[7] actual: 43
+     LIVE: 42/44 ❌ | KIYO: 42/44 ❌
+[8] actual: 44
+     LIVE: 43/42 ❌ | KIYO: 43/42 ❌
+[9] actual: 41
+     LIVE: 43/42 ❌ | KIYO: 43/42 ❌
+[10] actual: 41
+     LIVE: 41/43 ✅ | KIYO: 41/43 ✅
+[11] actual: 42
+     LIVE: 41/44 ❌ | KIYO: 41/44 ❌
+
+--- COMPARISON SUMMARY ---
+                    BBP ADAPTIVE    vs    KIYO
+Main Hits:          3/11 (27%)         3/11 (27%)
+Top-2:              6/11 (55%)         6/11 (55%)
+
+🏆 WINNER: TIE (0% difference)
+LIVE caught what KIYO missed: 0 rolls
+KIYO caught what LIVE missed: 0 rolls
+
+--- 📊 COMMONS SUB-PATTERN ANALYSIS ---
+
+COMMONS: [41, 42]
+NOISE:   [44, 43]
+
+ROLL SEQUENCE (last 11):
+Roll: 44 | 44 | 42 | 43 | 42 | 41 | 43 | 44 | 41 | 41 | 42
+Type:  N |  N |  B |  N |  B |  A |  N |  N |  A |  A |  B
+
+PAIR TRANSITIONS:
+  41 → 41: 1x (run)
+  41 → 42: 1x (alt)
+  42 → 41: 1x (alt)
+  42 → 42: 0x (run)
+  Noise → 41: 1x
+  Noise → 42: 2x
+  41 → Noise: 1x
+  42 → Noise: 1x
+
+PATTERN DETECTED: ALTERNATING (A-B-A-B)
+  Alternating transitions: 2
+  Run transitions: 1
+  Noise insertions: 2
+  Avg noise every: ~3 commons
+  Commons since last noise: 3
+
+
+--- 4-str ---
+(none)
+
+
+--- merged (all) ---
+[2:40:10 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[2:40:16 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[2:40:28 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[2:40:34 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[2:40:39 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[2:40:54 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[2:41:04 AM] 2-str → pred: 42 (52%) | alt: 44 | mode: — | Dist: 41:0%,42:33%,43:33%,44:33% | ❌ MISS | actual: 44 | ctx: 44, 42, 43, 42, 44, 43 | Commons: [42, 43] | Noise: [44, 41]
+
+[2:41:04 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[2:41:25 AM] 2-str → pred: 44 (57%) | alt: 43 | mode: — | Dist: 41:0%,42:29%,43:29%,44:43% | ✅ | actual: 44 | ctx: 44, 42, 43, 42, 44, 43, 44 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:25 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[2:41:32 AM] 2-str → pred: 44 (44%) | alt: 42 | mode: — | Dist: 41:0%,42:25%,43:25%,44:50% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:32 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[2:41:44 AM] 2-str → pred: 43 (45%) | alt: 44 | mode: — | Dist: 41:0%,42:33%,43:17%,44:50% | ✅ | actual: 43 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42 | Commons: [44, 42] | Noise: [43, 41]
+
+[2:41:44 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[2:41:57 AM] 2-str → pred: 44 (65%) | alt: 42 | mode: — | Dist: 41:0%,42:17%,43:33%,44:50% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43 | Commons: [44, 43] | Noise: [42, 41]
+
+[2:41:57 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+[2:42:21 AM] 2-str → pred: 42 (57%) | alt: 43 | mode: — | Dist: 41:0%,42:33%,43:33%,44:33% | ❌ MISS | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42 | Commons: [42, 44] | Noise: [41, 43]
+
+[2:42:21 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[2:42:46 AM] 2-str → pred: 42 (32%) | alt: 44 | mode: — | Dist: 41:17%,42:33%,43:17%,44:33% | ❌ MISS | actual: 43 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41 | Commons: [42, 44] | Noise: [41, 43]
+
+[2:42:46 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 43
+
+[2:43:38 AM] 2-str → pred: 43 (44%) | alt: 42 | mode: — | Dist: 41:17%,42:33%,43:33%,44:17% | ❌ MISS | actual: 44 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43 | Commons: [42, 43] | Noise: [41, 44]
+
+[2:43:38 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 44
+
+[2:44:01 AM] 2-str → pred: 43 (44%) | alt: 42 | mode: — | Dist: 41:17%,42:33%,43:33%,44:17% | ❌ MISS | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44 | Commons: [42, 43] | Noise: [41, 44]
+
+[2:44:01 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[2:44:40 AM] 2-str → pred: 41 (44%) | alt: 43 | mode: — | Dist: 41:33%,42:17%,43:33%,44:17% | ✅ | actual: 41 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44, 41 | Commons: [41, 43] | Noise: [42, 44]
+
+[2:44:40 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 41
+
+[2:44:53 AM] 2-str → pred: 41 (61%) | alt: 44 | mode: — | Dist: 41:50%,42:17%,43:17%,44:17% | ❌ MISS | actual: 42 | ctx: 44, 42, 43, 42, 44, 43, 44, 44, 42, 43, 42, 41, 43, 44, 41, 41 | Commons: [41, 44] | Noise: [42, 43]
+
+[2:44:53 AM] 3-str → pred: — (0%) | mode: insufficient-data-3str | ❌ MISS | actual: 42
+
+
+--- Long String (chronological) ---
+42424141414144444343414142424343424244444444434442434244

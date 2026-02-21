@@ -9,6 +9,7 @@
     "build:prod": "node scripts/bump-cache-version.js && npm run build",
     "build:beta": "cross-env VITE_BASE_PATH=/Svarog-Tracer-Beta/ vite build",
     "cache:bump": "node scripts/bump-cache-version.js",
+    "migrate:redis": "node scripts/migrate-stats-to-redis.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "update-banners": "python scripts/update_banners.py"

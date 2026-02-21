@@ -392,8 +392,11 @@ export function getDistribution(rolls) {
  * @returns {Object} Commons, noise, distribution, and rising noise detection
  */
 export function identifyCommonsNoise(rolls) {
-  // Use SHORT ROLLING WINDOW for faster adaptation (last 6 rolls - from Gemini)
-  const windowSize = Math.min(6, rolls.length);
+  // 🆕 IMPROVEMENT 1: COMMONS STABILIZATION
+  // Phase 1 (first 8 rolls): wider 10-roll window to establish initial commons
+  // Phase 2 (8+ rolls): use 6-roll window BUT apply sticky label protection
+  const n = rolls.length;
+  const windowSize = n <= 8 ? Math.min(10, n) : Math.min(6, n);
   const recentRolls = rolls.slice(-windowSize);
   
   // Get distribution from rolling window
@@ -402,7 +405,7 @@ export function identifyCommonsNoise(rolls) {
   // Also get full session distribution for comparison
   const fullDistribution = getDistribution(rolls);
   
-  const sorted = VALUES
+  let sorted = VALUES
     .map(v => ({ value: v, pct: distribution[v] }))
     .sort((a, b) => b.pct - a.pct);
   
@@ -410,30 +413,50 @@ export function identifyCommonsNoise(rolls) {
   let commons = sorted.slice(0, 2).map(x => x.value);
   let noise = sorted.slice(2).map(x => x.value);
   
+  // 🆕 STICKY LABEL PROTECTION: When we're in Phase 2, require a STRONG signal
+  // before reclassifying a value as noise (it must be clearly dominant in recent window)
+  // This prevents the constant flip-flopping seen in debug sessions
+  if (n > 10) {
+    const top1pct = sorted[0].pct;
+    const top2pct = sorted[1].pct;
+    const bot1pct = sorted[2].pct;
+    // Only accept the top-2 as commons if there's a clear gap (≥10%) between #2 and #3
+    // Otherwise, use full-session frequency to break the tie
+    if (top2pct - bot1pct < 10) {
+      // Tie-break using full session distribution
+      const fullSorted = VALUES
+        .map(v => ({ value: v, pct: fullDistribution[v] }))
+        .sort((a, b) => b.pct - a.pct);
+      // Keep the rolling window's #1 but use full-session for #2
+      const rollingTop1 = commons[0];
+      const fullTop2 = fullSorted.find(x => x.value !== rollingTop1);
+      if (fullTop2) {
+        commons = [rollingTop1, fullTop2.value];
+        noise = VALUES.filter(v => !commons.includes(v));
+      }
+    }
+  }
+  
   // NOISE RISING DETECTION: Check if noise values are appearing frequently in last 6 rolls
   const last6 = rolls.slice(-6);
   const noiseRising = [];
   
-  noise.forEach(n => {
-    const countInLast6 = last6.filter(r => r === n).length;
+  noise.forEach(noiseVal => {
+    const countInLast6 = last6.filter(r => r === noiseVal).length;
     if (countInLast6 >= 3) {
-      // This noise value is appearing frequently - it's becoming a common!
-      noiseRising.push(n);
+      noiseRising.push(noiseVal);
     }
   });
   
   // If noise is rising, swap it with the weaker common
   if (noiseRising.length > 0) {
     const risingNoise = noiseRising[0];
-    const weakerCommon = commons[1]; // The less frequent common
-    
-    // Only swap if the rising noise has more recent appearances
+    const weakerCommon = commons[1];
     const risingCount = last6.filter(r => r === risingNoise).length;
     const weakerCount = last6.filter(r => r === weakerCommon).length;
-    
     if (risingCount > weakerCount) {
       commons = [commons[0], risingNoise];
-      noise = noise.filter(n => n !== risingNoise);
+      noise = noise.filter(nv => nv !== risingNoise);
       noise.push(weakerCommon);
     }
   }
@@ -448,6 +471,10 @@ export function identifyCommonsNoise(rolls) {
       break;
     }
   }
+
+  // Run-break fires earlier for commons (≥2) vs noise (≥3)
+  const isLastRollCommon = commons.includes(lastRoll);
+  const runBreakThreshold = isLastRollCommon ? 2 : 3;
   
   return { 
     commons, 
@@ -456,7 +483,7 @@ export function identifyCommonsNoise(rolls) {
     fullDistribution,
     noiseRising,
     currentRunLength,
-    runBreakLikely: currentRunLength >= 3
+    runBreakLikely: currentRunLength >= runBreakThreshold
   };
 }
 
@@ -503,10 +530,54 @@ export function predictWithPairs(rolls) {
   const distValues = Object.values(distribution);
   const maxDist = Math.max(...distValues);
   const minDist = Math.min(...distValues);
-  const isFlat = (maxDist - minDist) < 15; // Less than 15% difference = flat
+  const isFlat = (maxDist - minDist) < 15;
   
   // Chaos = high noise rate OR flat distribution
   const isChaotic = noiseRate >= 0.40 || isFlat;
+
+  // =========================================================================
+  // 🆕 IMPROVEMENT 2: SESSION RUN-LENGTH CALIBRATION
+  // Track average run length observed so far to calibrate hot-run confidence
+  // =========================================================================
+  const observedRuns = [];
+  let runVal = rolls[0]; let runLen = 1;
+  for (let i = 1; i < rolls.length; i++) {
+    if (rolls[i] === runVal) {
+      runLen++;
+    } else {
+      if (runLen >= 2 && commons.includes(runVal)) observedRuns.push(runLen);
+      runVal = rolls[i]; runLen = 1;
+    }
+  }
+  // Include the current run if it's a common
+  if (runLen >= 2 && commons.includes(runVal)) observedRuns.push(runLen);
+  const avgObservedRunLen = observedRuns.length > 0
+    ? observedRuns.reduce((s, r) => s + r, 0) / observedRuns.length
+    : 2.5; // default assumption
+  // If session tends to have short runs → lower confidence for continuation
+  // If session tends to have long runs → higher confidence for continuation
+  const runContinueConfBase = avgObservedRunLen <= 2 ? 0.44 : avgObservedRunLen <= 3 ? 0.52 : 0.58;
+
+  // =========================================================================
+  // 🆕 IMPROVEMENT 3: POST-NOISE RECOVERY TRACKING
+  // Track which common tends to appear after noise in this session
+  // =========================================================================
+  const postNoiseCount = {};
+  VALUES.forEach(v => { postNoiseCount[v] = 0; });
+  for (let i = 0; i < rolls.length - 1; i++) {
+    if (noise.includes(rolls[i]) && VALUES.includes(rolls[i + 1])) {
+      postNoiseCount[rolls[i + 1]]++;
+    }
+  }
+  // Determine preferred post-noise common (only counts commons, not noise-after-noise)
+  const commonPostNoise = commons
+    .map(c => ({ value: c, count: postNoiseCount[c] }))
+    .sort((a, b) => b.count - a.count);
+  const preferredPostNoiseCommon = commonPostNoise[0]?.count > 0 ? commonPostNoise[0].value : null;
+  const secondPostNoiseCommon = commonPostNoise[1]?.count > 0 ? commonPostNoise[1].value : null;
+  // Only trust the post-noise preference if we've seen it at least twice
+  const postNoiseTrustable = commonPostNoise[0]?.count >= 2 &&
+    commonPostNoise[0].count > commonPostNoise[1]?.count;
 
   // =========================================================================
   // 🔥 BEAST MODE: MOMENTUM FLOW (Strategy 3)
@@ -715,10 +786,38 @@ export function predictWithPairs(rolls) {
   // 🔥 ENHANCED PREDICTION LOGIC (Standard v3.7 Priority)
   // =========================================================================
 
-  // 🆕 CHAOS MODE: When session is chaotic, skip complex patterns
-  // Use simple pair matrix + frequency approach
-  if (isChaotic) {
-    // In chaos, just use pair matrix from last roll
+  // 🆕 POST-NOISE RECOVERY: When last roll is noise AND we have learned recovery pattern
+  // Fires BEFORE hot-run so we don't ride a noise value by mistake
+  const isLastNoise = noise.includes(lastRoll);
+  if (isLastNoise && postNoiseTrustable && preferredPostNoiseCommon) {
+    prediction = preferredPostNoiseCommon;
+    alt = secondPostNoiseCommon || commons.find(c => c !== preferredPostNoiseCommon) || freqSorted[0].value;
+    method = 'post-noise-recovery';
+    // Confidence scales with how much stronger the preference is vs the alternative
+    const preferRatio = commonPostNoise[0].count / Math.max(1, commonPostNoise[0].count + (commonPostNoise[1]?.count || 0));
+    confidence = Math.min(0.45 + preferRatio * 0.25, 0.70);
+  }
+
+  // 🆕 HOT-RUN FAST-LOCK: When last 2+ rolls are the same common, predict it to continue
+  // BEFORE any other logic — reduces the 3-roll detection lag seen in debug sessions
+  // Only applies when: it's a common (not noise), run length >= 2, and distribution backs it
+  const isLastCommon = commons.includes(lastRoll);
+  const isHotRun = isLastCommon && currentRunLen >= 2 && momentumScores[lastRoll] >= 0.8;
+  
+  if (isHotRun && !isChaotic) {
+    // Riding the run — predict the running value to continue
+    prediction = lastRoll;
+    // Alt is always the OTHER common (the next most likely when the run breaks)
+    const otherCommonForRun = commons.find(c => c !== lastRoll) || freqSorted[1]?.value;
+    alt = otherCommonForRun;
+    method = 'hot-run';
+    // 🆕 FIX: Use session-calibrated base confidence instead of fixed 0.50
+    // Longer session average runs → higher confidence to keep riding
+    confidence = Math.min(runContinueConfBase + (currentRunLen - 2) * 0.07, 0.70);
+  }
+  // 🆕 CHAOS MODE: When session is chaotic, use commons-aware pair logic
+  else if (isChaotic) {
+    // In chaos, use pair matrix from last roll but prioritize commons as alt
     const lastRollRow = matrix[lastRoll] || {};
     const pairSorted = VALUES
       .map(v => ({ value: v, pct: lastRollRow[v]?.pct || 0 }))
@@ -726,13 +825,15 @@ export function predictWithPairs(rolls) {
     
     if (pairSorted[0].pct > 0) {
       prediction = pairSorted[0].value;
-      alt = pairSorted[1]?.value || freqSorted[1]?.value;
+      // 🆕 FIX: Alt should always be the other common if available, not random noise
+      const otherCommon = commons.find(c => c !== prediction);
+      alt = otherCommon || pairSorted[1]?.value || freqSorted[1]?.value;
       method = 'chaos-pair';
-      confidence = Math.min(pairSorted[0].pct / 100, 0.55); // Cap at 55% in chaos
+      confidence = Math.min(pairSorted[0].pct / 100, 0.55);
     } else {
-      // Fallback to frequency
-      prediction = freqSorted[0].value;
-      alt = freqSorted[1]?.value;
+      // Fallback to frequency + commons-aware alt
+      prediction = commons[0] || freqSorted[0].value;
+      alt = commons[1] || freqSorted[1]?.value;
       method = 'chaos-freq';
       confidence = 0.35;
     }
@@ -847,14 +948,16 @@ export function predictWithPairs(rolls) {
     confidence = Math.min(waveSignals.waveFlipProbability + 10, 85) / 100;
   }
   
-  // Step 4: RUN BREAK - If 3+ consecutive same value
+  // Step 4: RUN BREAK - If run of commons likely to break soon
+  // 🆕 FIX: Now fires at ≥2 for commons. Predict the OTHER common, alt is the run value.
   if (!prediction && runBreakLikely) {
     const otherCommon = commons.find(c => c !== lastRoll);
     if (otherCommon) {
-      prediction = otherCommon;
-      alt = lastRoll;
+      prediction = otherCommon;   // Break target = the other common
+      alt = lastRoll;             // Alt = run might continue one more time
       method = 'run-break';
-      confidence = currentRunLen >= 4 ? 0.80 : 0.70;
+      // Higher confidence for longer runs (more likely to break)
+      confidence = currentRunLen >= 4 ? 0.75 : currentRunLen >= 3 ? 0.65 : 0.55;
     }
   }
   

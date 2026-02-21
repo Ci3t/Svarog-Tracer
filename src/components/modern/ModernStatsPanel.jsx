@@ -11,6 +11,7 @@ export default function ModernStatsPanel({
 }) {
   const [manualLine, setManualLine] = useState("");
   const [activeTab, setActiveTab] = useState("2"); // 2, 3, or 4
+  const [reverseInput, setReverseInput] = useState("");
 
   // Select active prediction based on tab
   const prediction =
@@ -54,6 +55,17 @@ export default function ModernStatsPanel({
     alt && manualEffectiveLine
       ? caesarShiftForLine(alt, manualEffectiveLine)
       : null;
+
+  // Reverse Suggest: user types raw 4xx prediction, shifted to their chosen line
+  const reverseResult = manualLine && reverseInput.trim()
+    ? reverseInput
+        .trim()
+        .split(/\s+/)
+        .filter(t => /^[1-4]{2,3}$/.test(t))
+        .map(t => caesarShiftForLine(t, Number(manualLine)))
+        .filter(Boolean)
+        .join("  ")
+    : "";
 
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 shadow-xl">
@@ -135,12 +147,10 @@ export default function ModernStatsPanel({
           )}
         </div>
 
-        {/* Line selection buttons */}
-        <div className="flex gap-3 items-center mb-4">
-          <label className="text-xs text-slate-400 w-20 shrink-0">
-            Your line:
-          </label>
-          <div className="flex flex-wrap gap-2">
+        {/* Line selection buttons — 2×2 grid */}
+        <div className="mb-3">
+          <label className="text-xs text-slate-400 block mb-2">Your line:</label>
+          <div className="grid grid-cols-4 gap-2 w-fit">
             {[1, 2, 3, 4].map((line) => (
               <button
                 key={line}
@@ -154,52 +164,65 @@ export default function ModernStatsPanel({
                 {line}
               </button>
             ))}
-            {manualLine && (
-              <button
-                onClick={() => setManualLine("")}
-                className="px-4 text-xs text-slate-500 hover:text-red-400 transition-colors"
-              >
-                ✕ Clear
-              </button>
-            )}
           </div>
+
+          {/* Clear — below buttons */}
+          {manualLine && (
+            <button
+              onClick={() => setManualLine("")}
+              className="mt-1 text-xs text-slate-500 hover:text-red-400 transition-colors block"
+            >
+              ✕ Clear
+            </button>
+          )}
+
+          {/* Reverse Suggest — full-width block below clear */}
+          {manualLine && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <input
+                  value={reverseInput}
+                  onChange={e => setReverseInput(e.target.value.replace(/[^1-4 ]/g, ""))}
+                  placeholder="41 43  (type suggestion)"
+                  className="flex-1 bg-slate-900/60 border border-amber-500/30 rounded-lg px-3 py-2 text-sm font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40 placeholder-slate-600"
+                />
+                {reverseResult && (
+                  <>
+                    <span className="text-slate-500 text-xs">→</span>
+                    <span className="font-mono font-bold text-amber-300 text-lg tracking-wider">{reverseResult}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Manual shifted results */}
         {manualLine &&
         manualEffectiveLine &&
         (manualShiftedMain || manualShiftedAlt) ? (
-          <div className="space-y-3">
-            {/* Shifted Main */}
+          <div className="space-y-2">
+            {/* Shifted Main - compact */}
             {manualShiftedMain && (
-              <div className="bg-gradient-to-br from-violet-900/30 to-purple-900/30 rounded-xl p-4 border border-violet-500/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-violet-300 font-semibold uppercase tracking-wider">
-                    Main → What to Click
-                  </span>
-                  <span className="text-[9px] text-slate-500 font-mono">
-                    {mainPred} @ line {manualEffectiveLine} ={" "}
-                    {manualShiftedMain}
-                  </span>
+              <div className="bg-gradient-to-br from-violet-900/30 to-purple-900/30 rounded-lg px-3 py-2 border border-violet-500/30 flex items-center justify-between">
+                <div>
+                  <div className="text-[9px] text-violet-300 font-semibold uppercase tracking-wider">Main → What to Click</div>
+                  <div className="text-[9px] text-slate-500 font-mono mt-0.5">{mainPred} @ line {manualEffectiveLine}</div>
                 </div>
-                <div className="text-4xl font-mono font-black bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent text-center tracking-wider">
+                <div className="text-2xl font-mono font-black bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent tracking-wider">
                   {manualShiftedMain}
                 </div>
               </div>
             )}
 
-            {/* Shifted Alt */}
+            {/* Shifted Alt - compact */}
             {manualShiftedAlt && (
-              <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-xl p-4 border border-cyan-500/20">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-cyan-300 font-semibold uppercase tracking-wider">
-                    Alt → Backup Option
-                  </span>
-                  <span className="text-[9px] text-slate-500 font-mono">
-                    {alt} @ line {manualEffectiveLine} = {manualShiftedAlt}
-                  </span>
+              <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-lg px-3 py-2 border border-cyan-500/20 flex items-center justify-between">
+                <div>
+                  <div className="text-[9px] text-cyan-300 font-semibold uppercase tracking-wider">Alt → Backup Option</div>
+                  <div className="text-[9px] text-slate-500 font-mono mt-0.5">{alt} @ line {manualEffectiveLine}</div>
                 </div>
-                <div className="text-3xl font-mono font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent text-center tracking-wider">
+                <div className="text-2xl font-mono font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent tracking-wider">
                   {manualShiftedAlt}
                 </div>
               </div>

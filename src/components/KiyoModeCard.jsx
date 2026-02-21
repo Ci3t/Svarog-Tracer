@@ -41,7 +41,7 @@ import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import PrefixPredictors from "./kiyo/PrefixPredictors";
 import BettingRecommendationCard from "./kiyo/BettingRecommendationCard";
-import FiveMinWindowTracker from "./FiveMinWindowTracker";
+import FiveMinWindowTracker, { FiveMinProgressBar, WindowStatsMini } from "./FiveMinWindowTracker";
 // NOTE: GuideModal removed - all guides are now centralized in the Guides page (accessible from navbar)
 import AdvancedToolsSection from "./AdvancedToolsSection";
 import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
@@ -1023,10 +1023,15 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      {/* Sticky Input + Timer Cards */}
-      <div className="sticky top-[80px] sm:top-[70px] z-10 pb-4 mb-4 mt-2">
-        <div className="flex flex-col lg:flex-row gap-3 items-stretch">
-          {/* Left: Roll Input */}
+      {/* Sticky Input: progress bar on top, then 2-col row */}
+      <div className="sticky top-[80px] sm:top-[70px] z-10 pb-3 mb-4 mt-2">
+        {/* Progress bar spanning full width — always rendered when windowInfo exists */}
+        {windowInfo && analyzeWavePatterns && (
+          <FiveMinProgressBar windowInfo={windowInfo} analyzeWavePatterns={analyzeWavePatterns} />
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+          {/* Roll Input + window stats below it */}
           <div className="flex-1 min-w-0">
             <RollInput
               testInput={testInput}
@@ -1035,25 +1040,18 @@ export default function KiyoModeCard({
               onAddRoll={submitRoll}
               setActivePrefix={setActivePrefix}
             />
+            {windowInfo && analyzeWavePatterns && (
+              <WindowStatsMini windowInfo={windowInfo} analyzeWavePatterns={analyzeWavePatterns} />
+            )}
           </div>
-          
-          {/* Middle: Compact Caesar Shift */}
+
+          {/* Caesar Shift */}
           <div className="flex-1 min-w-0">
             <CompactCaesarShift
               caesarInput={caesarInput}
               setCaesarInput={setCaesarInput}
             />
           </div>
-          
-          {/* Right: 5-Minute Window Timer */}
-          {combinedRolls.length >= 4 && analyzeWavePatterns && (
-            <div className="flex-1 lg:flex-[1.25] min-w-0">
-              <FiveMinWindowTracker
-                windowInfo={windowInfo}
-                analyzeWavePatterns={analyzeWavePatterns}
-              />
-            </div>
-          )}
         </div>
       </div>
 

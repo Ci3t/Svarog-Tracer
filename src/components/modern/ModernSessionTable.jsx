@@ -54,6 +54,44 @@ export default function ModernSessionTable({
     URL.revokeObjectURL(url);
   };
 
+  // Download a specific history session as TXT
+  // Rolls are in chronological order (oldest = earliest input, at top of file)
+  const handleDownloadSession = (sess) => {
+    if (!sess || !sess.entries || sess.entries.length === 0) return;
+
+    const sessionNum = prevSessions.length - prevSessions.findIndex(s => s.id === sess.id);
+    const startTime = new Date(sess.startedAt).toLocaleTimeString();
+    const lines = [
+      "=== Session Data Export ===",
+      "",
+      `--- Session #${sessionNum} (started ${startTime}) ---`,
+    ];
+
+    // entries are stored oldest-first — chronological order matches how they were entered
+    sess.entries.forEach((e) => {
+      const timeStr = e.time && !isNaN(new Date(e.time).getTime())
+        ? new Date(e.time).toLocaleTimeString()
+        : "--:--:--";
+      lines.push(
+        `[${timeStr}] RAW: ${e.raw} | TRANSLATED: ${e.translated} | ` +
+        `2-str: ${toTranslatedPadded(e.s2)} | 3-str: ${toTranslatedPadded(e.s3)} | ` +
+        `4-str: ${toTranslatedPadded(e.s4)} | 5-str: ${toTranslatedPadded(e.s5)}`
+      );
+    });
+
+    const txtContent = lines.join("\n");
+    const blob = new Blob([txtContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const dateStr = new Date(sess.startedAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    link.download = `session_${sessionNum}_${dateStr}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden">
       {/* Header with Tabs */}
@@ -290,6 +328,19 @@ export default function ModernSessionTable({
                   <span className="text-xs text-slate-500 px-2 py-1 bg-slate-800/50 rounded">
                     {sess.entries.length} rows
                   </span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDownloadSession(sess);
+                    }}
+                    title="Download rolls as TXT"
+                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors duration-150 px-2 py-1 rounded hover:bg-emerald-500/10 flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    TXT
+                  </button>
                   <button
                     onClick={(e) => {
                       e.preventDefault();
