@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { decodeLongString } from '../utils/stringHelpers.js';
 // OLD: import { predictNext2BBPMode } from '../utils/bbp-mode-2str.js';
 import { predictWithPairs } from '../utils/pairTransitionPredictor.js';
+import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import ModernTimerCard from '../components/modern/ModernTimerCard';
 
@@ -13,6 +14,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
   const [stringHistory, setStringHistory] = useState([]);
+  const [predictorMode, setPredictorMode] = useState('simple'); // 'simple' | 'advanced'
 
   // Timer countdown effect
   useEffect(() => {
@@ -296,201 +298,190 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
           </div>
               </div>
 
-          {/* Right Column - Prediction only */}
-          <div className="lg:col-span-2">
-            {prediction ? (
-              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-2xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-violet-400 uppercase tracking-wider">
-                    🎯 SUGGEST
-                  </h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-700/50 text-slate-400 border border-slate-600/50">
-                    {prediction.method || 'pair-matrix'}
-                  </span>
-                </div>
+          {/* Right Column — BBP Predictor with mode toggle */}
+          <div className="lg:col-span-2 space-y-3">
+            {/* Mode toggle */}
+            <div className="flex items-center gap-2 bg-slate-900/60 rounded-xl border border-slate-700/50 p-1">
+              {['simple','advanced'].map(m => (
+                <button
+                  key={m}
+                  onClick={() => setPredictorMode(m)}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                    predictorMode === m
+                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-purple-900/30'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {m === 'simple' ? '🎯 Simple' : '🔬 Advanced'}
+                </button>
+              ))}
+            </div>
 
-                {/* Circular Display + Alt */}
-                <div className="flex items-center justify-center gap-6 mb-4">
-                  <div className="relative w-28 h-28">
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="56" cy="56" r="48" stroke="rgb(51, 65, 85)" strokeWidth="8" fill="none" />
-                      <circle
-                        cx="56" cy="56" r="48"
-                        stroke="url(#suggestGradient)"
-                        strokeWidth="8"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 48}`}
-                        strokeDashoffset={`${2 * Math.PI * 48 * (1 - (prediction.confidence || 0.5))}`}
-                        strokeLinecap="round"
-                        className="transition-all duration-500"
-                      />
-                      <defs>
-                        <linearGradient id="suggestGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#a855f7" />
-                          <stop offset="100%" stopColor="#22c55e" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className="text-3xl font-bold text-white">{prediction.prediction || '—'}</div>
-                      <div className="text-xs font-medium text-violet-400">{Math.round((prediction.confidence || 0.5) * 100)}%</div>
-                    </div>
-                  </div>
-                  {prediction.alt && (
-                    <div className="flex flex-col items-center">
-                      <div className="text-2xl font-bold text-slate-400">{prediction.alt}</div>
-                      <div className="text-xs text-slate-500">alt {Math.max(Math.round((prediction.confidence || 0.5) * 100) - 10, 20)}%</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Freq vs Pair comparison */}
-                {prediction.freqPrediction && prediction.pairPrediction && prediction.freqPrediction !== prediction.pairPrediction && (
-                  <div className="text-center text-[10px] text-slate-500 mb-3">
-                    <span className="text-slate-400">Freq: {prediction.freqPrediction}</span>
-                    <span className="mx-2">vs</span>
-                    <span className="text-cyan-400">Pair: {prediction.pairPrediction}</span>
-                  </div>
-                )}
-
-                {/* Commons + Noise Labels */}
-                <div className="flex justify-between text-[10px] mb-3">
-                  {prediction.commons && prediction.commons.length > 0 && (
-                    <div>
-                      <span className="text-slate-500 uppercase">Commons: </span>
-                      <span className="text-emerald-400 font-bold">{prediction.commons.join(', ')}</span>
-                    </div>
-                  )}
-                  {prediction.noise && prediction.noise.length > 0 && (
-                    <div>
-                      <span className="text-slate-500 uppercase">Noise: </span>
-                      <span className="text-amber-400 font-bold">{prediction.noise.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Wave Signals Grid */}
-                {prediction.waveSignals && (
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
-                      <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
-                      <div className={`text-md font-bold ${prediction.waveSignals.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
-                        {prediction.waveSignals.lastCommonRunLength || 0}
-                      </div>
-                    </div>
-                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
-                      <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
-                      <div className={`text-md font-bold ${prediction.waveSignals.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
-                        {prediction.waveSignals.noiseAppearanceCount || 0}
-                      </div>
-                    </div>
-                    <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
-                      <div className="text-[9px] text-slate-500 uppercase">Flip Prob</div>
-                      <div className={`text-md font-bold ${prediction.waveSignals.waveFlipProbability >= 50 ? 'text-red-400' : 'text-slate-300'}`}>
-                        {prediction.waveSignals.waveFlipProbability || 0}%
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* TRENDS section */}
-                {prediction.trends && (
-                  <div className="mb-4">
-                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">TRENDS</div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {['41', '42', '43', '44'].map(value => {
-                        const trend = prediction.trends?.[value];
-                        const pct = prediction.distribution?.[value] || 0;
-                        const isHot = prediction.hotValues?.includes(value);
-                        const isCold = prediction.coldValues?.includes(value);
-                        return (
-                          <div
-                            key={value}
-                            className={`p-2 rounded-lg border text-center ${
-                              isHot ? 'border-emerald-500/50 bg-emerald-500/10' :
-                              isCold ? 'border-red-500/30 bg-red-500/10' :
-                              'border-slate-700/50 bg-slate-800/30'
-                            }`}
-                          >
-                            <div className="text-lg font-bold text-white">{value}</div>
-                            <div className={`text-lg ${
-                              trend === 'up' ? 'text-emerald-400' :
-                              trend === 'down' ? 'text-red-400' :
-                              'text-slate-500'
-                            }`}>
-                              {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}
-                            </div>
-                            <div className="text-[10px] text-slate-500">{pct}%</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* AFTER X → ? section */}
-                {prediction.pairMatrix && prediction.lastRoll && (
-                  <div className="mb-4">
-                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">
-                      AFTER {prediction.lastRoll} → ?
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {['41', '42', '43', '44'].map(value => {
-                        const pairData = prediction.pairMatrix?.[prediction.lastRoll]?.[value];
-                        const pct = pairData?.pct || 0;
-                        const samples = pairData?.samples || 0;
-                        const momentum = prediction.momentumScores?.[value] || 0;
-                        const isTop = pct >= 80;
-                        return (
-                          <div
-                            key={value}
-                            className={`p-2 rounded-lg border text-center ${
-                              isTop ? 'border-amber-500/50 bg-amber-500/20' :
-                              samples === 0 ? 'border-red-500/30 bg-red-500/10' :
-                              'border-slate-700/50 bg-slate-800/30'
-                            }`}
-                          >
-                            <div className="text-sm font-bold text-white">{value}</div>
-                            <div className="text-xs text-slate-400">↺{samples}</div>
-                            <div className={`text-sm font-bold ${isTop ? 'text-amber-400' : samples === 0 ? 'text-red-400' : 'text-slate-300'}`}>
-                              {samples === 0 ? 'N/A' : `${pct}%`}
-                            </div>
-                            <div className="text-[10px] text-slate-500">({momentum.toFixed(2)})</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-
-                {/* Sequence (Last 12) */}
-                <div className="border-t border-slate-700/50 pt-3">
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">SEQUENCE (LAST 12)</div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {decoded.rolls.slice(-12).map((roll, idx) => {
-                      const isCommon = prediction.commons?.includes(roll);
-                      const isNoise = prediction.noise?.includes(roll);
-                      return (
-                        <span
-                          key={idx}
-                          className={`px-2 py-1 rounded text-xs font-bold ${
-                            isCommon ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' :
-                            isNoise ? 'bg-red-500/30 text-red-300 border border-red-500/50' :
-                            'bg-slate-700/50 text-slate-400 border border-slate-600/50'
-                          }`}
-                        >
-                          {roll}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : (
+            {decoded.rolls.length < 6 ? (
               <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl py-8 px-6 border border-violet-500/30 shadow-2xl flex items-center justify-center">
                 <p className="text-slate-500 text-sm">Need at least 6 rolls for prediction</p>
               </div>
+            ) : (
+              <>
+                {/* ── SIMPLE MODE: full BBP card ───────────────────────── */}
+                {predictorMode === 'simple' && (
+                  <ModernPairPredictorCard
+                    entries={decoded.rolls.map(r => ({ translated: r }))}
+                  />
+                )}
+
+                {/* ── ADVANCED MODE: trends + pair matrix breakdown ────── */}
+                {predictorMode === 'advanced' && prediction && (
+                  <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl p-4 border border-violet-500/30 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-violet-400 uppercase tracking-wider">🔬 Advanced View</h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-700/50 text-slate-400 border border-slate-600/50">
+                        {prediction.method || 'pair-matrix'}
+                      </span>
+                    </div>
+
+                    {/* Circular + Alt */}
+                    <div className="flex items-center justify-center gap-6">
+                      <div className="relative w-28 h-28">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="56" cy="56" r="48" stroke="rgb(51,65,85)" strokeWidth="8" fill="none" />
+                          <circle cx="56" cy="56" r="48" stroke="url(#advGrad)" strokeWidth="8" fill="none"
+                            strokeDasharray={`${2 * Math.PI * 48}`}
+                            strokeDashoffset={`${2 * Math.PI * 48 * (1 - (prediction.confidence || 0.5))}`}
+                            strokeLinecap="round" className="transition-all duration-500"
+                          />
+                          <defs>
+                            <linearGradient id="advGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#a855f7" />
+                              <stop offset="100%" stopColor="#22c55e" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <div className="text-3xl font-bold text-white">{prediction.prediction || '—'}</div>
+                          <div className="text-xs font-medium text-violet-400">{Math.round((prediction.confidence || 0.5) * 100)}%</div>
+                        </div>
+                      </div>
+                      {prediction.alt && (
+                        <div className="flex flex-col items-center">
+                          <div className="text-2xl font-bold text-slate-400">{prediction.alt}</div>
+                          <div className="text-xs text-slate-500">alt {Math.max(Math.round((prediction.confidence || 0.5) * 100) - 10, 20)}%</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Commons + Noise */}
+                    <div className="flex justify-between text-[10px]">
+                      {prediction.commons?.length > 0 && (
+                        <div><span className="text-slate-500 uppercase">Commons: </span><span className="text-emerald-400 font-bold">{prediction.commons.join(', ')}</span></div>
+                      )}
+                      {prediction.noise?.length > 0 && (
+                        <div><span className="text-slate-500 uppercase">Noise: </span><span className="text-amber-400 font-bold">{prediction.noise.join(', ')}</span></div>
+                      )}
+                    </div>
+
+                    {/* Wave Signals */}
+                    {prediction.waveSignals && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                          <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
+                          <div className={`text-md font-bold ${prediction.waveSignals.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
+                            {prediction.waveSignals.lastCommonRunLength || 0}
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                          <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
+                          <div className={`text-md font-bold ${prediction.waveSignals.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
+                            {prediction.waveSignals.noiseAppearanceCount || 0}
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/30">
+                          <div className="text-[9px] text-slate-500 uppercase">Flip Prob</div>
+                          <div className={`text-md font-bold ${prediction.waveSignals.waveFlipProbability >= 50 ? 'text-red-400' : 'text-slate-300'}`}>
+                            {prediction.waveSignals.waveFlipProbability || 0}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trends */}
+                    {prediction.trends && (
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">TRENDS</div>
+                        <div className="grid grid-cols-4 gap-2">
+                          {['41','42','43','44'].map(value => {
+                            const trend = prediction.trends?.[value];
+                            const pct = prediction.distribution?.[value] || 0;
+                            const isHot = prediction.hotValues?.includes(value);
+                            const isCold = prediction.coldValues?.includes(value);
+                            return (
+                              <div key={value} className={`p-2 rounded-lg border text-center ${
+                                isHot ? 'border-emerald-500/50 bg-emerald-500/10' :
+                                isCold ? 'border-red-500/30 bg-red-500/10' :
+                                'border-slate-700/50 bg-slate-800/30'
+                              }`}>
+                                <div className="text-lg font-bold text-white">{value}</div>
+                                <div className={`text-lg ${
+                                  trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-slate-500'
+                                }`}>{trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}</div>
+                                <div className="text-[10px] text-slate-500">{pct}%</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* After X → ? pair matrix */}
+                    {prediction.pairMatrix && prediction.lastRoll && (
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">AFTER {prediction.lastRoll} → ?</div>
+                        <div className="grid grid-cols-4 gap-2">
+                          {['41','42','43','44'].map(value => {
+                            const pairData = prediction.pairMatrix?.[prediction.lastRoll]?.[value];
+                            const pct = pairData?.pct || 0;
+                            const samples = pairData?.samples || 0;
+                            const momentum = prediction.momentumScores?.[value] || 0;
+                            const isTop = pct >= 80;
+                            return (
+                              <div key={value} className={`p-2 rounded-lg border text-center ${
+                                isTop ? 'border-amber-500/50 bg-amber-500/20' :
+                                samples === 0 ? 'border-red-500/30 bg-red-500/10' :
+                                'border-slate-700/50 bg-slate-800/30'
+                              }`}>
+                                <div className="text-sm font-bold text-white">{value}</div>
+                                <div className="text-xs text-slate-400">↺{samples}</div>
+                                <div className={`text-sm font-bold ${isTop ? 'text-amber-400' : samples === 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                                  {samples === 0 ? 'N/A' : `${pct}%`}
+                                </div>
+                                <div className="text-[10px] text-slate-500">({momentum.toFixed(2)})</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sequence */}
+                    <div className="border-t border-slate-700/50 pt-3">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">SEQUENCE (LAST 12)</div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {decoded.rolls.slice(-12).map((roll, idx) => {
+                          const isCommon = prediction.commons?.includes(roll);
+                          const isNoise = prediction.noise?.includes(roll);
+                          return (
+                            <span key={idx} className={`px-2 py-1 rounded text-xs font-bold ${
+                              isCommon ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' :
+                              isNoise ? 'bg-red-500/30 text-red-300 border border-red-500/50' :
+                              'bg-slate-700/50 text-slate-400 border border-slate-600/50'
+                            }`}>{roll}</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* History Section */}

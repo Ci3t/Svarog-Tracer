@@ -27,6 +27,7 @@ import {
 import { translateTo4 } from "../utils/stringHelpers";
 import { getWindowTracker } from "../utils/windowPerformanceTracker";
 import { predictWithCascadingPriority } from "../utils/cascadingPredictor";
+import { predictWithPairs } from "../utils/pairTransitionPredictor";
 import { getSmartRecommendation } from "../utils/smartDecisionSystem";
 import { analyzePatternWithWindow } from "../utils/patternRecognition";
 import { 
@@ -670,14 +671,25 @@ export default function KiyoModeCard({
       currentPrefix = lastRoll.slice(0, 2);
     }
 
-    // 2-STR PREDICTION (for 2nd digit)
-    const prediction2str = predictWithCascadingPriority(
-      combinedRolls, // Use combinedRolls (already translated)
-      [], // No separate import data (already in combinedRolls)
-      sheet2str,
-      currentPrefix ? currentPrefix[0] : null, // First digit only for 2-str
-      '2str'
+    // 2-STR PREDICTION — uses live BBP pair-matrix predictor (same as live session card)
+    const bbp2str = predictWithPairs(
+      combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)) // use 2-digit prefix (41/42/43/44)
     );
+    const prediction2str = bbp2str.prediction
+      ? {
+          prediction: bbp2str.prediction,
+          alt: bbp2str.alt,
+          confidence: bbp2str.confidence,
+          source: 'live',
+          reasoning: bbp2str.reasonLine || bbp2str.method || '',
+        }
+      : predictWithCascadingPriority(
+          combinedRolls,
+          [],
+          sheet2str,
+          currentPrefix ? currentPrefix[0] : null,
+          '2str'
+        );
 
     // 3-STR PREDICTION (for 3rd digit)
     const prediction3str = predictWithCascadingPriority(
