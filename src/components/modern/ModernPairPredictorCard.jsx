@@ -72,8 +72,14 @@ export default function ModernPairPredictorCard({ entries = [] }) {
     momentumScores, currentRunLen, lastSeen, overdueValues, mostOverdue,
     commonsFlipDetected, newCommons, flipConfidence,
     noiseRate, alternatingPair, shiftedToValue, gram2Confidence,
-    isAlternating
+    isAlternating,
+    // 🆕 Noise Trap
+    isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
+    // 🚨 Emergency brake
+    isSessionReset
   } = data;
+
+  // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
 
   const confidencePct = Math.round(confidence * 100);
   const cardStyle = getCardStyle(isChaotic, false);
@@ -149,6 +155,30 @@ export default function ModernPairPredictorCard({ entries = [] }) {
     return { desc: descs[label] || '', ex };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [label, prediction, lastRoll, last2Rolls, currentRunLen, noiseRate, rolls.length]);
+
+  // 🚨 SESSION RESET: all hooks done — safe to return early now
+  if (isSessionReset) {
+    return (
+      <div className="rounded-2xl border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-900/30 p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-red-400 text-lg animate-pulse">🔴</span>
+          <span className="text-red-300 text-sm font-bold uppercase tracking-wide">Session Reset Detected</span>
+        </div>
+        <p className="text-red-200/80 text-[12px] leading-relaxed">
+          All 4 values appearing equally (~25%). Server re-salted.<br/>
+          <span className="text-red-300 font-semibold">Stand by — skip this window.</span> Patterns return in 5–8 rolls.
+        </p>
+        <div className="mt-3 grid grid-cols-4 gap-1.5">
+          {['41','42','43','44'].map(v => (
+            <div key={v} className="bg-slate-800/50 rounded-lg p-1.5 text-center">
+              <div className="text-slate-300 text-sm font-bold">{v}</div>
+              <div className="text-slate-500 text-[10px]">{distribution?.[v] ?? '?'}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Warming-up: render after all hooks have run ───────────────────────────
   if (isWarming) {
@@ -274,16 +304,39 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           </div>
         )}
 
-        {/* ⏰ Overdue Noise Comeback — noise absent unusually long */}
+        {/* ⚠️ Noise Trap Strip — high-confidence noise warning */}
+        {isNoiseTrap && trapCandidate && (
+          <div className="mt-3 flex items-center justify-between gap-2 bg-orange-500/15 border border-orange-500/40 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-orange-400 text-sm">⚠️</span>
+              <div>
+                <span className="text-orange-300 text-[11px] font-bold uppercase tracking-wide">Trap Signal</span>
+                <span className="text-orange-200 text-[11px] ml-2">🎯 {trapCandidate} likely next</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-orange-400 text-[11px] font-medium">{noiseTrapProb}%</div>
+              <div className="text-slate-500 text-[10px]">{commonsSinceNoise}/{avgNoiseGap?.toFixed(1)} gap</div>
+            </div>
+          </div>
+        )}
+
+        {/* ⏰ Overdue Noise Comeback — sorted by likelihood (overdue + pair link), not just absence */}
         {overdueNoise?.length > 0 && (
-          <div className="mt-2 flex items-center justify-center gap-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-1.5">
+          <div className="mt-2 flex items-center justify-center gap-2 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-1.5 flex-wrap">
             <span className="text-rose-400 text-xs">⏰</span>
-            <span className="text-rose-300 text-[11px] font-medium">
-              {overdueNoise.map(v => {
-                const ago = lastSeen?.[v] ?? '?';
-                return `${v} not seen ${ago} rolls — may come back`;
-              }).join(' | ')}
-            </span>
+            {overdueNoise.map((v, i) => {
+              const ago = lastSeen?.[v] ?? '?';
+              const isTop = i === 0;
+              return (
+                <span key={v} className={isTop
+                  ? 'text-rose-200 text-[11px] font-bold'
+                  : 'text-rose-400/60 text-[11px]'}>
+                  {isTop ? `🎯 ${v}` : v} ({ago}r)
+                </span>
+              );
+            })}
+            <span className="text-rose-500/50 text-[10px]">— comeback order</span>
           </div>
         )}
 

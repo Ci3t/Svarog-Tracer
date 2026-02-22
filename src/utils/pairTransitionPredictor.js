@@ -520,6 +520,44 @@ export function predictWithPairs(rolls) {
   
   // Chaos = high noise rate OR flat distribution
   const isChaotic = noiseRate >= 0.40 || isFlat;
+  
+  // =========================================================================
+  // 🚨 EMERGENCY BRAKE: Full-flat state = server reset / salt change detected
+  // When ALL 4 values are within 6% (i.e. ~25/25/25/25) the session has
+  // flipped salts and NO predictor can win here. Return a stand-by warning.
+  // =========================================================================
+  const isTotallyFlat = (maxDist - minDist) < 6; // Stricter than isFlat (15)
+  // Also check recent 6 rolls: if they contain 4 unique values it's chaos onset
+  const last6 = rolls.slice(-6);
+  const uniqueInLast6 = new Set(last6.filter(r => VALUES.includes(r))).size;
+  const isChaoticOnset = uniqueInLast6 >= 4 && isTotallyFlat;
+  
+  if (isTotallyFlat && rolls.length >= 8) {
+    // Don't fire too early — need enough rolls to confirm, not just warmup
+    return {
+      prediction: null,
+      alt: null,
+      confidence: 0,
+      method: 'session-reset',
+      label: '🔴 Reset',
+      reasonLine: 'All values ~25% — server re-salted. Stand by.',
+      isSessionReset: true,
+      isChaotic: true,
+      noiseWatch: null,
+      overdueNoise: [],
+      isNoiseTrap: false,
+      trapCandidate: null,
+      commons,
+      noise,
+      distribution,
+      lastRoll,
+      pairMatrix: matrix,
+      waveSignals,
+      trends,
+      noiseRate: Math.round(noiseRate * 100),
+      isFlat: true
+    };
+  }
 
   // =========================================================================
   // 🆕 IMPROVEMENT 2: SESSION RUN-LENGTH CALIBRATION
@@ -1306,10 +1344,59 @@ export function predictWithPairs(rolls) {
   const noiseOverdueThreshold = avgNoiseGap !== null
     ? Math.max(Math.round(avgNoiseGap * 1.8), 4)
     : 5;
+  const noiseScoreForSort = (v) => {
+    const absent     = lastSeen[v] >= 0 ? lastSeen[v] : 0;
+    const maxAbs     = Math.max(...noise.map(n => lastSeen[n] >= 0 ? lastSeen[n] : 0), 1);
+    // SHORTER absence = HIGHER score: noise still active in the rotation
+    // Very long absence may mean the server has deprioritized that value
+    const freshnessScore = (1 - absent / (maxAbs + 1)) * 70;  // 70% — freshness primary
+    const pairWeight     = ((matrix[lastRoll]?.[v]?.pct || 0) / 100) * 30; // 30% — pair link tiebreaker
+    return freshnessScore + pairWeight;
+  };
   const overdueNoise = noise.filter(v =>
     lastSeen[v] !== -1 &&          // has appeared at least once this session
     lastSeen[v] >= noiseOverdueThreshold   // absent long enough
-  ).sort((a, b) => (lastSeen[b] || 0) - (lastSeen[a] || 0)); // most overdue first
+  ).sort((a, b) => noiseScoreForSort(b) - noiseScoreForSort(a)); // highest likelihood first
+
+  // =========================================================================
+  // 🆕 REFINED NOISE TRAP DETECTION (Consensus + Composite Scoring)
+  // Session-stage aware • Pair-chain vetoed • Does NOT pollute Alt box
+  // =========================================================================
+  // How many distinct noise events have occurred this session?
+  const totalNoiseEvents = noiseGapLengths.length; // each gap = one noise event boundary
+  
+  // Session-stage threshold — only fire when we have enough calibration data
+  const trapThreshold = totalNoiseEvents < 2 ? Infinity  // Early: don't fire
+    : totalNoiseEvents >= 5 ? 65                         // Late: well-calibrated, more sensitive
+    : 75;                                                // Mid: standard threshold
+  
+  const maxAbsent = Math.max(...noise.map(v => lastSeen[v] >= 0 ? lastSeen[v] : 0), 1);
+  
+  // Red Zone: are we PAST the session's avg noise gap? (+0.5 buffer to avoid firing at exactly avg)
+  // Also veto if main predictor is very confident on a common (>=75%) - trust the pair matrix
+  const inRedZone = avgNoiseGap !== null 
+    && commonsSinceNoise > avgNoiseGap + 0.5   // need to exceed avg, not just match it
+    && confidence < 0.75;                       // don't fire if pair matrix is very confident
+  
+  // Rank noise candidates by composite score, with pair-chain veto
+  const noiseCandidates = noise
+    .filter(v => lastSeen[v] !== -1) // must have appeared at least once
+    .map(v => {
+      const overdueScore = lastSeen[v] >= 0 ? (lastSeen[v] / maxAbsent) * 50 : 0;
+      const pairLinkPct  = matrix[lastRoll]?.[v]?.pct || 0;
+      const pairScore    = (pairLinkPct / 100) * 30;
+      const zoneBonus    = inRedZone ? 20 : 0;
+      const pairVetoed   = pairLinkPct < 10 && totalNoiseEvents < 5; // veto low-evidence links early session
+      return { value: v, score: overdueScore + pairScore + zoneBonus, pairLinkPct, pairVetoed };
+    })
+    .filter(c => !c.pairVetoed)         // remove vetoed candidates
+    .sort((a, b) => b.score - a.score); // highest score first
+  
+  const bestNoiseTrapCandidate = noiseCandidates[0];
+  const noiseTrapProb  = bestNoiseTrapCandidate?.score ?? 0;
+  const trapCandidate  = bestNoiseTrapCandidate?.value ?? null;
+  const isNoiseTrap    = noiseTrapProb >= trapThreshold && !!trapCandidate && inRedZone;
+  // Note: does NOT override alt — expose as separate ui strip data
 
   // Label badge and reason line lookup
   const baseMethod = method.replace(/\+.*/, ''); // strip modifiers for lookup
@@ -1339,6 +1426,7 @@ export function predictWithPairs(rolls) {
     'overdue-wave':        { label: '🔔 Overdue',     reason: `${prediction} not seen in ${overdueRolls} rolls — due` },
     'overdue-wave+pair':   { label: '🔔 Overdue',     reason: `${prediction} overdue + pair edge — due` },
     'post-noise-recovery': { label: '🌀 Recovery',    reason: `After noise, ${prediction} returns (${postNoiseCount2}×)` },
+    'noise-trap':          { label: '⚠️ Trap Due',    reason: `🎯 Target ${alt} — noise gap exhausted (${commonsSinceNoise} rolls)` },
     'chaos-pair':          { label: '⚠️ Chaotic',    reason: `Edge: ${lastRoll}→${prediction} strongest link` },
     'chaos-freq':          { label: '⚠️ Chaotic',    reason: 'No clear pattern — most frequent' },
     'insufficient-data':   { label: '⏳ Warming Up',  reason: 'Need more rolls — building picture' },
@@ -1403,7 +1491,14 @@ export function predictWithPairs(rolls) {
     flipConfidence,
     // Chaos data
     noiseRate: Math.round(noiseRate * 100),
-    isFlat
+    isFlat,
+    // 🆕 NOISE TRAP data (for dedicated UI strip)
+    isNoiseTrap,
+    trapCandidate,
+    noiseTrapProb: Math.round(noiseTrapProb),
+    inRedZone,
+    commonsSinceNoise,
+    avgNoiseGap
   };
 }
 
