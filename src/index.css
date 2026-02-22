@@ -5,6 +5,7 @@ body {
   /* slate-950 */
   color: #e2e8f0;
   /* slate-200-ish */
+  font-family: 'Outfit', system-ui, sans-serif;
 }
 
 /* Hide scrollbar but keep functionality */

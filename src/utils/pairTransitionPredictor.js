@@ -129,13 +129,19 @@ export function buildPairMatrix(rolls) {
   const sampleCounts2gram = {};
 
   // Count transitions with recency weighting
-  for (let i = 0; i < rolls.length - 1; i++) {
-    const from = rolls[i];
-    const to = rolls[i + 1];
+  // 🆕 SLUGGISHNESS FIX: Only use the last 24 rolls for transition counts
+  // This ensures the predictor adapts to server flips within few minutes
+  const windowSize = 24;
+  const startIdx = Math.max(0, rolls.length - windowSize);
+  const matrixRolls = rolls.slice(startIdx);
+
+  for (let i = 0; i < matrixRolls.length - 1; i++) {
+    const from = matrixRolls[i];
+    const to = matrixRolls[i + 1];
     
     if (!VALUES.includes(from) || !VALUES.includes(to)) continue;
     
-    const age = rolls.length - 1 - i;
+    const age = matrixRolls.length - 1 - i;
     let weight = 1;
     if (age < 3) weight = 3;
     else if (age < 6) weight = 2;
@@ -146,7 +152,7 @@ export function buildPairMatrix(rolls) {
     
     // 2-gram tracking (if we have a previous roll)
     if (i >= 1) {
-      const prevRoll = rolls[i - 1];
+      const prevRoll = matrixRolls[i - 1];
       if (VALUES.includes(prevRoll)) {
         const key2gram = `${prevRoll},${from}`;
         if (!counts2gram[key2gram]) {
@@ -191,7 +197,7 @@ export function buildPairMatrix(rolls) {
     });
   });
 
-  // Get last 2 rolls for 2-gram lookup
+  // Get last 2 rolls for 2-gram lookup (from original rolls array, not window)
   const lastRoll = rolls[rolls.length - 1];
   const last2Rolls = rolls.length >= 2 
     ? `${rolls[rolls.length - 2]},${rolls[rolls.length - 1]}`
@@ -560,6 +566,52 @@ export function predictWithPairs(rolls) {
     commonPostNoise[0].count > commonPostNoise[1]?.count;
 
   // =========================================================================
+  // 🔄 NOISE GAP TRACKING: Avg commons between noise events (EU server pattern)
+  // EU server: noise fires every ~1-3 commons, then recovers within 1-2 noise rolls
+  // We track this to know when noise is 'statistically due' and warn accordingly
+  // =========================================================================
+  const noiseGapLengths = []; // how many commons appeared between each noise event
+  let commonsSinceLastNoise = 0;
+  let noiseStreakLengths = []; // how many consecutive noise appeared together
+  let currentNoiseStreak = 0;
+  for (let i = 0; i < rolls.length; i++) {
+    if (noise.includes(rolls[i])) {
+      if (commons.includes(rolls[Math.max(0, i - 1)])) {
+        // Just transitioned from commons to noise
+        noiseGapLengths.push(commonsSinceLastNoise);
+      }
+      currentNoiseStreak++;
+      commonsSinceLastNoise = 0;
+    } else if (commons.includes(rolls[i])) {
+      if (currentNoiseStreak > 0) {
+        noiseStreakLengths.push(currentNoiseStreak);
+        currentNoiseStreak = 0;
+      }
+      commonsSinceLastNoise++;
+    }
+  }
+  // If session currently ends on commons, finalize the streak tracking  
+  if (currentNoiseStreak > 0) noiseStreakLengths.push(currentNoiseStreak);
+  
+  const avgNoiseGap = noiseGapLengths.length >= 1
+    ? noiseGapLengths.reduce((s, g) => s + g, 0) / noiseGapLengths.length
+    : null; // null = no noise gaps observed yet
+  const avgNoiseStreakLen = noiseStreakLengths.length >= 1
+    ? noiseStreakLengths.reduce((s, g) => s + g, 0) / noiseStreakLengths.length
+    : 1; // default: noise is usually single
+
+  // How many commons have appeared since the last noise roll?
+  let commonsSinceNoise = 0;
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (noise.includes(rolls[i])) break;
+    if (commons.includes(rolls[i])) commonsSinceNoise++;
+  }
+  // 'Noise due' = avg gap known AND we've hit/exceeded that gap without noise
+  // Lower confidence when noise is statistically due
+  const noiseDue = avgNoiseGap !== null && commonsSinceNoise >= Math.max(avgNoiseGap - 0.5, 1);
+  const noiseDueStrong = avgNoiseGap !== null && commonsSinceNoise >= avgNoiseGap + 0.5;
+
+  // =========================================================================
   // 🔥 BEAST MODE: MOMENTUM FLOW (Strategy 3)
   // Calculate momentum score for each value using exponential decay
   // Score = Sum(1 / (Distance + 1)^2) - higher = more recent/frequent
@@ -607,6 +659,12 @@ export function predictWithPairs(rolls) {
   const OVERDUE_THRESHOLD = 4 + dominancePenalty; // 4 for balanced, 5-6 for dominant
   
   const overdueValues = VALUES.filter(v => lastSeen[v] >= OVERDUE_THRESHOLD || lastSeen[v] === -1);
+  
+  // 🆕 SPLIT OVERDUE TRACKING: Separate common vs noise
+  const mostOverdueCommon = commons
+    .filter(v => lastSeen[v] !== -1)
+    .sort((a, b) => lastSeen[b] - lastSeen[a])[0] || null;
+    
   const mostOverdue = VALUES
     .filter(v => lastSeen[v] !== -1)
     .sort((a, b) => lastSeen[b] - lastSeen[a])[0] || null;
@@ -739,17 +797,74 @@ export function predictWithPairs(rolls) {
     pairAlt = pairSorted[1].value;
     pairConfidence = pairSorted[0].pct;
   }
+
+  // ── FREQ/PAIR BLEND based on sample count ─────────────────────────────────
+  // How many times has lastRoll appeared? That's how many pair samples we have.
+  const pairSamplesForLastRoll = rolls.filter(r => r === lastRoll).length;
+  // Weight schedule:
+  //   < 3 samples → freq dominates (pair data too noisy)
+  //   3–5 samples → equal blend
+  //   6+ samples  → pair dominates
+  const pairWeight = pairSamplesForLastRoll < 3 ? 0.20
+    : pairSamplesForLastRoll < 6 ? 0.50
+    : 0.80;
+  const freqWeight = 1 - pairWeight;
+
+  // Compute a blended score for each value (used instead of raw pair % when sparse)
+  const blendedScores = VALUES.map(v => ({
+    value: v,
+    blended: freqWeight * (distribution[v] || 0) + pairWeight * (matrix[lastRoll]?.[v]?.pct || 0)
+  })).sort((a, b) => b.blended - a.blended);
+
+  // Blended pair prediction (commons-filtered for main use)
+  const blendedCommons = blendedScores.filter(x => commons.includes(x.value));
+  const blendedPairPrediction = blendedCommons[0]?.value || pairPrediction;
+  const blendedPairAlt        = blendedCommons[1]?.value || pairAlt;
+  // Use blended confidence (scale down when freq-heavy since freq is weaker)
+  const blendedPairConfidence = pairSamplesForLastRoll < 3
+    ? Math.min((blendedCommons[0]?.blended || 0), 40)   // Freq-heavy: cap low
+    : pairSamplesForLastRoll < 6
+    ? Math.min((blendedCommons[0]?.blended || 0), 60)   // Blend: medium cap
+    : (blendedCommons[0]?.blended || pairConfidence);   // Pair-heavy: full trust
   
-  // 6. ALTERNATING PATTERN DETECTION
+  // 6. ALTERNATING PATTERN DETECTION (noise-tolerant, data-driven)
+  // Classic: requires strict ABAB in last 4 raw rolls — breaks on any noise insertion
+  // NEW: also fires when session alt-to-run ratio >= 0.65 AND last 4 commons-only roll alternate
+  // This way: EU high-flip sessions activate sooner; NA/Asia low-flip sessions stay unaffected
   let isAlternating = false;
   let alternatingPair = null;
+
+  // Session-level common transition analysis (alt vs run)
+  let sessionAltCount = 0; let sessionRunCount = 0;
+  const commonsOnly = rolls.filter(r => commons.includes(r));
+  for (let i = 0; i < commonsOnly.length - 1; i++) {
+    if (commonsOnly[i] !== commonsOnly[i + 1]) sessionAltCount++;
+    else sessionRunCount++;
+  }
+  const sessionAltRatio = (sessionAltCount + sessionRunCount) > 0
+    ? sessionAltCount / (sessionAltCount + sessionRunCount) : 0;
+  const highFlipSession = sessionAltRatio >= 0.65 && (sessionAltCount + sessionRunCount) >= 4;
+
+  // Classic strict check: last 4 raw rolls ABAB with only 2 unique values
   if (rolls.length >= 4) {
     const last4 = rolls.slice(-4);
     const uniqueVals = [...new Set(last4)];
     if (uniqueVals.length === 2) {
       let alternates = true;
-      for (let i = 0; i < 3; i++) { if (last4[i] === last4[i+1]) alternates = false; }
+      for (let i = 0; i < 3; i++) { if (last4[i] === last4[i + 1]) alternates = false; }
       if (alternates) { isAlternating = true; alternatingPair = uniqueVals; }
+    }
+  }
+
+  // Noise-tolerant check: for high-flip sessions, check last 4 COMMONS-ONLY rolls
+  // This recovers alternating mode after a noise insertion breaks the raw window
+  if (!isAlternating && highFlipSession && commonsOnly.length >= 4) {
+    const last4c = commonsOnly.slice(-4);
+    const uniqueC = [...new Set(last4c)];
+    if (uniqueC.length === 2) {
+      let altC = true;
+      for (let i = 0; i < 3; i++) { if (last4c[i] === last4c[i + 1]) altC = false; }
+      if (altC) { isAlternating = true; alternatingPair = uniqueC; }
     }
   }
   
@@ -769,23 +884,49 @@ export function predictWithPairs(rolls) {
 
   // 🆕 POST-NOISE RECOVERY: When last roll is noise AND we have learned recovery pattern
   // Fires BEFORE hot-run so we don't ride a noise value by mistake
+  // POST-NOISE RECOVERY: When last roll is noise, find which common tends to follow
+  // FIX: Uses pair matrix row for the SPECIFIC noise value (e.g. "after 41, 42 = 60%")
+  // Falls back to session-level postNoiseCount only if pair data is sparse
   const isLastNoise = noise.includes(lastRoll);
-  if (isLastNoise && postNoiseTrustable && preferredPostNoiseCommon) {
-    prediction = preferredPostNoiseCommon;
-    alt = secondPostNoiseCommon || commons.find(c => c !== preferredPostNoiseCommon) || freqSorted[0].value;
-    method = 'post-noise-recovery';
-    // Confidence scales with how much stronger the preference is vs the alternative
-    const preferRatio = commonPostNoise[0].count / Math.max(1, commonPostNoise[0].count + (commonPostNoise[1]?.count || 0));
-    confidence = Math.min(0.45 + preferRatio * 0.25, 0.70);
+  if (isLastNoise) {
+    const pairRowForNoise = matrix[lastRoll];
+    const pairSamplesNoise = pairRowForNoise
+      ? VALUES.reduce((s, v) => s + (pairRowForNoise[v]?.samples || 0), 0)
+      : 0;
+    const topCommonFromNoisePair = pairRowForNoise
+      ? commons
+          .map(c => ({ value: c, pct: pairRowForNoise[c]?.pct || 0, samples: pairRowForNoise[c]?.samples || 0 }))
+          .sort((a, b) => b.pct - a.pct)
+      : [];
+    const pairNoisePref = topCommonFromNoisePair[0]?.pct > 30 && pairSamplesNoise >= 2
+      ? topCommonFromNoisePair[0].value : null;
+    const pairNoiseAlt  = topCommonFromNoisePair[1]?.value || null;
+
+    const postNoiseMain   = pairNoisePref || preferredPostNoiseCommon || commons[0];
+    const postNoiseSecond = (pairNoiseAlt && pairNoiseAlt !== postNoiseMain ? pairNoiseAlt : null)
+      || secondPostNoiseCommon || commons.find(c => c !== postNoiseMain);
+
+    const noiseRecoveryTrustable = pairNoisePref !== null || postNoiseTrustable;
+    if (noiseRecoveryTrustable && postNoiseMain) {
+      prediction = postNoiseMain;
+      alt = postNoiseSecond || freqSorted.find(f => commons.includes(f.value) && f.value !== postNoiseMain)?.value || freqAlt;
+      method = 'post-noise-recovery';
+      const preferRatio = pairNoisePref
+        ? (topCommonFromNoisePair[0]?.samples || 1) / Math.max(1, pairSamplesNoise)
+        : commonPostNoise[0].count / Math.max(1, commonPostNoise[0].count + (commonPostNoise[1]?.count || 0));
+      confidence = Math.min(0.45 + preferRatio * 0.25, 0.70);
+    }
   }
 
   // 🆕 HOT-RUN FAST-LOCK: When last 2+ rolls are the same common, predict it to continue
   // BEFORE any other logic — reduces the 3-roll detection lag seen in debug sessions
   // Only applies when: it's a common (not noise), run length >= 2, and distribution backs it
   const isLastCommon = commons.includes(lastRoll);
+  const shortBurstSession = avgObservedRunLen <= 2.2;
+  const shortBurstGuard   = shortBurstSession && currentRunLen === 2;
   const isHotRun = isLastCommon && currentRunLen >= 2 && momentumScores[lastRoll] >= 0.8;
-  
-  if (isHotRun && !isChaotic) {
+
+  if (isHotRun && !isChaotic && !shortBurstGuard) {
     // Riding the run — predict the running value to continue
     prediction = lastRoll;
     // Alt is always the OTHER common (the next most likely when the run breaks)
@@ -795,6 +936,12 @@ export function predictWithPairs(rolls) {
     // 🆕 FIX: Use session-calibrated base confidence instead of fixed 0.50
     // Longer session average runs → higher confidence to keep riding
     confidence = Math.min(runContinueConfBase + (currentRunLen - 2) * 0.07, 0.70);
+  } else if (isHotRun && shortBurstGuard) {
+    // Short burst session: run of 2 is the typical break point - predict the other common
+    prediction = commons.find(c => c !== lastRoll) || freqSorted[1]?.value;
+    alt = lastRoll;
+    method = 'hot-run-break';
+    confidence = Math.min(runContinueConfBase, 0.55);
   }
   // 🆕 A: CHAOS MODE — Full-session pair matrix + commons-only prediction
   // In chaos, we use ALL session rolls (not just recent window) for the pair matrix
@@ -827,13 +974,13 @@ export function predictWithPairs(rolls) {
       fullPairSorted.find(x => noise.includes(x.value))?.value || null
     );
 
-    // Main prediction: strongest COMMON from full-session pair matrix
-    const topCommonByPair = fullPairSorted.find(x => commons.includes(x.value));
-    if (topCommonByPair && topCommonByPair.pct > 0) {
-      prediction = topCommonByPair.value;
-      alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || commons[1];
-      method = 'chaos-pair';
-      confidence = Math.min(topCommonByPair.pct / 100 + 0.05, 0.52);
+    // Main prediction: strongest COMMON using freq/pair blend (respects data sparsity)
+    const topCommonByBlend = blendedCommons[0];
+    if (topCommonByBlend && topCommonByBlend.blended > 0) {
+      prediction = topCommonByBlend.value;
+      alt = blendedCommons[1]?.value || commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || commons[1];
+      method = pairSamplesForLastRoll < 3 ? 'chaos-freq' : 'chaos-pair';
+      confidence = Math.min(topCommonByBlend.blended / 100 + 0.05, 0.52);
     } else {
       // Fallback: just use the 2 commons by full-session frequency
       prediction = commons[0] || freqSorted[0].value;
@@ -846,12 +993,22 @@ export function predictWithPairs(rolls) {
   }
   // Standard logic when NOT chaotic
   else if (isAlternating && alternatingPair) {
-    // Sort pair by momentum - pick the HOTTER one
-    const sortedPair = [...alternatingPair].sort((a, b) => 
-      (momentumScores[b] || 0) - (momentumScores[a] || 0)
-    );
-    prediction = sortedPair[0]; // Higher momentum
-    alt = sortedPair[1]; // Lower momentum
+    // FIX: Use lastRoll to pick the OTHER common directly instead of sorting by momentum.
+    // Momentum lags — it stays on the previously-running value and causes main/alt swap.
+    // In a true alternating session, after roll X the next is always the other one.
+    const isLastRollInPair = alternatingPair.includes(lastRoll);
+    if (isLastRollInPair) {
+      // Strict: last roll IS one of the alternating pair → predict the other
+      prediction = alternatingPair.find(v => v !== lastRoll);
+      alt = lastRoll; // alt: might run one more time
+    } else {
+      // Last roll is noise — fall back to momentum to pick which common returns
+      const sortedPair = [...alternatingPair].sort((a, b) =>
+        (momentumScores[b] || 0) - (momentumScores[a] || 0)
+      );
+      prediction = sortedPair[0];
+      alt = sortedPair[1];
+    }
     method = 'alternating';
     confidence = 0.75;
   }
@@ -873,13 +1030,11 @@ export function predictWithPairs(rolls) {
   }
   
   // Step 2b: OVERDUE WAVE - Individual wave cycle detection
-  // 🔧 User insight: When a value hasn't appeared in 4+ rolls, it tends to return
-  // 🔧 FIX: Raised momentum threshold from 0.15 to 0.35 to avoid "dead" predictions
-  // 🔧 FIX: Skip overdue if commons are hot and alternating - trust the pattern instead
-  // 🔧 FIX: Skip overdue if there's a clearly DOMINANT value (momentum >1.5, pair >80%)
-  else if (mostOverdue && lastSeen[mostOverdue] >= OVERDUE_THRESHOLD) {
-    const overdueMomentum = momentumScores[mostOverdue] || 0;
-    const isOnlyOverdue = overdueValues.length <= 1;
+  // 🔧 FIX: Only predict COMMONS for overdue-wave method. Noise-overdue is shown in Watch strip.
+  else if (mostOverdueCommon && lastSeen[mostOverdueCommon] >= OVERDUE_THRESHOLD) {
+    const overdueMomentum = momentumScores[mostOverdueCommon] || 0;
+    const isOnlyOverdue = overdueValues.includes(mostOverdueCommon) && 
+      overdueValues.filter(v => commons.includes(v)).length <= 1;
     
     // 🔥 NEW: Check for DOMINANT value - skip overdue if one value is crushing it
     const lastRollRow = matrix[lastRoll] || {};
@@ -914,12 +1069,12 @@ export function predictWithPairs(rolls) {
       }
       // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
       else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
-        prediction = mostOverdue;
-        // Alt is the next most overdue, or the hottest value
-        const secondOverdue = VALUES
-          .filter(v => v !== mostOverdue && lastSeen[v] >= 0)
+        prediction = mostOverdueCommon;
+        // Alt is the next most overdue common, or the hottest value
+        const secondOverdueCommon = commons
+          .filter(v => v !== mostOverdueCommon && lastSeen[v] >= 0)
           .sort((a, b) => lastSeen[b] - lastSeen[a])[0];
-        alt = secondOverdue || hotValues[0] || freqPrediction;
+        alt = secondOverdueCommon || hotValues.find(v => v !== prediction) || freqPrediction;
         method = 'overdue-wave';
         confidence = 0.60;
       } else {
@@ -927,7 +1082,7 @@ export function predictWithPairs(rolls) {
         // Get pair matrix percentages for overdue values
         const lastRollMatrix2 = matrix[lastRoll] || {};
         const overdueWithPairPct = overdueValues
-          .filter(v => lastSeen[v] >= OVERDUE_THRESHOLD && (momentumScores[v] || 0) >= 0.20)
+          .filter(v => commons.includes(v) && lastSeen[v] >= OVERDUE_THRESHOLD && (momentumScores[v] || 0) >= 0.20)
           .map(v => ({
             value: v,
             pct: lastRollMatrix2[v]?.pct || 0,
@@ -999,12 +1154,12 @@ export function predictWithPairs(rolls) {
     confidence = 0.60;
   }
   
-  // Step 9: Use 1-GRAM pair matrix if available
-  if (!prediction && pairPrediction && pairConfidence > 0) {
-    prediction = pairPrediction;
-    alt = pairAlt || freqAlt;
-    confidence = pairConfidence / 100;
-    method = 'pair-matrix';
+  // Step 9: Use freq/pair BLEND (sample-count-gated) — replaces raw 1-gram pair
+  if (!prediction && blendedPairPrediction && blendedPairConfidence > 0) {
+    prediction = blendedPairPrediction;
+    alt = blendedPairAlt || freqAlt;
+    confidence = blendedPairConfidence / 100;
+    method = pairSamplesForLastRoll < 3 ? 'freq-blend' : pairSamplesForLastRoll < 6 ? 'freq+pair-blend' : 'pair-matrix';
   }
   
   // Step 10: FREQUENCY FALLBACK - Use distribution
@@ -1143,19 +1298,42 @@ export function predictWithPairs(rolls) {
     (waveSignals?.isWaveWarning && noise[0]) ||
     (noiseRising.length > 0 ? noiseRising[0] : null);
 
+  // Overdue noise: noise values that have been absent unusually long
+  // Threshold: avgNoiseGap * 2.5 rolls (if known), else 7 rolls as fallback
+  // This catches 'silent noise comeback' — a noise value that hasn't appeared for many rolls
+  // Threshold: avgNoiseGap * 1.8 rolls (if known), else 5 rolls as fallback
+  // Lowered multiplier from 2.5x to 1.8x to catch noise snaps sooner (e.g. at 5 rolls for 2.5-avg gap)
+  const noiseOverdueThreshold = avgNoiseGap !== null
+    ? Math.max(Math.round(avgNoiseGap * 1.8), 4)
+    : 5;
+  const overdueNoise = noise.filter(v =>
+    lastSeen[v] !== -1 &&          // has appeared at least once this session
+    lastSeen[v] >= noiseOverdueThreshold   // absent long enough
+  ).sort((a, b) => (lastSeen[b] || 0) - (lastSeen[a] || 0)); // most overdue first
+
   // Label badge and reason line lookup
   const baseMethod = method.replace(/\+.*/, ''); // strip modifiers for lookup
   const currentRun = waveSignals?.lastCommonRunLength || currentRunLen || 0;
   const altCommon = alt || commons.find(c => c !== prediction);
   const pairPct = Math.round((matrix[lastRoll]?.[prediction]?.pct || 0));
-  const overdueRolls = mostOverdue && lastSeen[mostOverdue] >= 0 ? lastSeen[mostOverdue] : 0;
+  const overdueRolls = method.includes('overdue-wave') && lastSeen[prediction] >= 0
+    ? lastSeen[prediction]
+    : -1;
   const postNoiseCount2 = commonPostNoise[0]?.count || 0;
 
   const labelMap = {
     'hot-run':             { label: '🔥 Running',    reason: `${prediction} × ${currentRun} streak — riding it` },
     'hot-run+run-break':   { label: '🔥 Running',    reason: `${lastRoll} × ${currentRun} — break expected, predict ${prediction}` },
     'alternating':         { label: '🔄 Alternating', reason: `${alternatingPair?.[0]} ↔ ${alternatingPair?.[1]} ping-pong — next: ${prediction}` },
-    'pattern-shift':       { label: '🔀 Shifted',     reason: `New signal: ${shiftedToValue || prediction} taking over` },
+    'pattern-shift':       { label: '🔀 Shifted',     reason: (() => {
+      const sv = shiftedToValue || prediction;
+      const svCount = rolls.filter(r => r === sv).length;
+      const svPct = distribution[sv] || 0;
+      // 25% = baseline in a 4-value game — not "taking over"
+      // Needs 4+ appearances AND 30%+ distribution to say "taking over"
+      if (svCount <= 3 || svPct < 30) return `${sv} emerging — watch it`;
+      return `New signal: ${sv} taking over`;
+    })() },
     '2-gram':              { label: '🔁 Sequence',    reason: `${prediction} follows ${last2Rolls} pattern${gram2Confidence > 0 ? ` (${Math.round(gram2Confidence)}%)` : ''}` },
     'pair-matrix':         { label: '🎯 Pair',        reason: `${prediction} most likely after ${lastRoll}${pairPct > 0 ? ` (${pairPct}%)` : ''}` },
     'overdue-wave':        { label: '🔔 Overdue',     reason: `${prediction} not seen in ${overdueRolls} rolls — due` },
@@ -1177,6 +1355,7 @@ export function predictWithPairs(rolls) {
     label: labelEntry.label,
     reasonLine: labelEntry.reason,
     noiseWatch: noiseWatchValue,
+    overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,
     pairMatrix: matrix,
     pairMatrix2gram: matrix2gram,
