@@ -52,6 +52,8 @@ export default async function handler(req, res) {
     const by_rollnum_pulls_5 = {};
     const by_rollnum_chance_5 = {};
     
+    // Sum from the actual pityArray so totalPulls matches exactly what the chart data represents.
+    // Using data.total.legendary can diverge if Paimon's server total drifts from the array sum.
     let totalPulls = 0;
     pityArray.forEach((count, index) => {
       const roll = index + 1;
@@ -59,6 +61,7 @@ export default async function handler(req, res) {
       totalPulls += count;
     });
     
+    // Use totalPulls (array sum) — same denominator Paimon.moe uses for its own % display
     if (totalPulls > 0) {
       for (const [roll, count] of Object.entries(by_rollnum_pulls_5)) {
         by_rollnum_chance_5[roll] = count / totalPulls;
@@ -67,7 +70,8 @@ export default async function handler(req, res) {
     
     const result = {
       stats: {
-        total_pulls_5: data.total?.legendary || totalPulls,
+        // Use summed totalPulls (not data.total.legendary) so it matches the array denominator
+        total_pulls_5: totalPulls || data.total?.legendary || 0,
         by_rollnum_pulls_5,
         by_rollnum_chance_5,
         count_win_5: 0,
