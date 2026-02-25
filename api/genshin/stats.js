@@ -52,11 +52,12 @@ export default async function handler(req, res) {
     const by_rollnum_pulls_5 = {};
     const by_rollnum_chance_5 = {};
     
-    // Sum from the actual pityArray so totalPulls matches exactly what the chart data represents.
-    // Using data.total.legendary can diverge if Paimon's server total drifts from the array sum.
+    // pityCount.legendary is 0-indexed: index 0 = pity 0 (always 0), index 3 = pity 3.
+    // So roll N maps to index N directly (NOT index N-1).
     let totalPulls = 0;
     pityArray.forEach((count, index) => {
-      const roll = index + 1;
+      const roll = index; // Pity 0 = index 0, Pity 3 = index 3
+      if (roll === 0) return; // Skip pity-0 (always 0, impossible to get 5* at pity 0)
       by_rollnum_pulls_5[roll] = count;
       totalPulls += count;
     });
