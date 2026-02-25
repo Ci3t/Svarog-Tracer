@@ -933,23 +933,36 @@ export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
  */
 function transformGenshinData(data, bannerId) {
   // Transform pity array to object format
+  // pityCount.legendary is 0-indexed: index 0 = pity 0 (always 0), index 3 = pity 3.
+  // So roll N maps to index N directly — NOT index + 1.
   const pityArray = data.pityCount?.legendary || [];
+  const countEachPity = data.countEachPity || []; // players who pulled at each pity depth
   const by_rollnum_pulls_5 = {};
   const by_rollnum_chance_5 = {};
   
   let totalPulls = 0;
   pityArray.forEach((count, index) => {
-    const roll = index + 1;
+    const roll = index; // pity 3 = index 3
+    if (roll === 0) return; // Skip pity-0 (impossible, always 0)
     by_rollnum_pulls_5[roll] = count;
     totalPulls += count;
   });
   
-  // Calculate chance percentages
-  if (totalPulls > 0) {
-    for (const [roll, count] of Object.entries(by_rollnum_pulls_5)) {
-      by_rollnum_chance_5[roll] = count / totalPulls;
+  // Calculate chance percentages.
+  // Paimon.moe uses CONDITIONAL probability: pityCount[N] / countEachPity[N-1]
+  // = "of all players who were at pity N when they pulled, what % got a 5★?"
+  // This matches the Chance% shown on paimon.moe exactly.
+  // Fallback: divide by totalPulls if countEachPity is missing.
+  pityArray.forEach((count, index) => {
+    const roll = index;
+    if (roll === 0) return;
+    const playersAtThisPity = countEachPity[index - 1]; // index-1 because countEachPity[0] = pity 1
+    if (playersAtThisPity && playersAtThisPity > 0) {
+      by_rollnum_chance_5[roll] = count / playersAtThisPity;
+    } else if (totalPulls > 0) {
+      by_rollnum_chance_5[roll] = count / totalPulls; // fallback
     }
-  }
+  });
   
   // Calculate 50/50 win rate from list data
   // Featured 5★ characters have "guaranteed" field = how many got via guarantee (lost 50/50 before)
@@ -957,7 +970,7 @@ function transformGenshinData(data, bannerId) {
   
   return {
     stats: {
-      total_pulls_5: data.total?.legendary || totalPulls,
+      total_pulls_5: totalPulls || data.total?.legendary || 0,
       by_rollnum_pulls_5,
       by_rollnum_chance_5,
       count_win_5: countWin,

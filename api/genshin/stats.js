@@ -49,25 +49,31 @@ export default async function handler(req, res) {
     
     // Transform to unified format
     const pityArray = data.pityCount?.legendary || [];
+    const countEachPity = data.countEachPity || [];
     const by_rollnum_pulls_5 = {};
     const by_rollnum_chance_5 = {};
     
     // pityCount.legendary is 0-indexed: index 0 = pity 0 (always 0), index 3 = pity 3.
-    // So roll N maps to index N directly (NOT index N-1).
     let totalPulls = 0;
     pityArray.forEach((count, index) => {
-      const roll = index; // Pity 0 = index 0, Pity 3 = index 3
-      if (roll === 0) return; // Skip pity-0 (always 0, impossible to get 5* at pity 0)
+      const roll = index;
+      if (roll === 0) return;
       by_rollnum_pulls_5[roll] = count;
       totalPulls += count;
     });
     
-    // Use totalPulls (array sum) — same denominator Paimon.moe uses for its own % display
-    if (totalPulls > 0) {
-      for (const [roll, count] of Object.entries(by_rollnum_pulls_5)) {
-        by_rollnum_chance_5[roll] = count / totalPulls;
+    // Paimon.moe Chance% = conditional probability: pityCount[N] / countEachPity[N-1]
+    // = "of all players who were at pity N when they pulled, what % triggered a 5★?"
+    pityArray.forEach((count, index) => {
+      const roll = index;
+      if (roll === 0) return;
+      const playersAtThisPity = countEachPity[index - 1];
+      if (playersAtThisPity && playersAtThisPity > 0) {
+        by_rollnum_chance_5[roll] = count / playersAtThisPity;
+      } else if (totalPulls > 0) {
+        by_rollnum_chance_5[roll] = count / totalPulls; // fallback
       }
-    }
+    });
     
     const result = {
       stats: {
