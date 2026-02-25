@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     const banners = [];
     
     // Probing recent ID ranges to auto-detect new banners
-    const currentCharBase = 94; 
+    const currentCharBase = 96; 
     const currentWeaponBase = 94;
     const probeRange = 3; 
     

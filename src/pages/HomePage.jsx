@@ -193,7 +193,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap justify-center gap-6">
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
-               Ver.3.8.8 FCS
+               Ver.4.0.0 FCS
              </div>
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
                SYS-Status: Validated

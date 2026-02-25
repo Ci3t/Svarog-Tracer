@@ -4,12 +4,12 @@
 const GENSHIN_CONFIG = {
   // 1. Current Active Banner IDs (Check Paimon.moe/wish/tally)
   active: {
-    charBannerId: "300095",
-    weaponBannerId: "400094",
+    charBannerId: "300096",
+    weaponBannerId: "400095",
     // If you want to FORCE a specific name/image, set these. Otherwise leave null.
-    forceName: "Zibai / Neuvillette", 
-    forceWeaponName: "Lightbearing Moonshard / Tome of the Eternal Flow",
-    forceImage: "https://paimon.moe/images/characters/zibai.png",
+    forceName: "Varka / Flins", 
+    forceWeaponName: "Gest of the Mighty Wolf / Bloodsoaked Ruins",
+    forceImage: "https://paimon.moe/images/characters/varka.png",
   },
 
   // 2. Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
@@ -44,7 +44,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 2, // Increment this to force cache refresh (was 1, now 2 for 4-banner support)
+  CACHE_VERSION: 3, // Increment this to force cache refresh (was 1, now 2 for 4-banner support)
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -272,8 +272,8 @@ async function fetchActiveGenshinBanners() {
   };
 
   const [chars, weapons] = await Promise.all([
-    findBanners(110, '300', 'character'),
-    findBanners(110, '400', 'weapon')
+    findBanners(115, '300', 'character'),
+    findBanners(115, '400', 'weapon')
   ]);
   
   return [...chars, ...weapons];

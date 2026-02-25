@@ -23,8 +23,8 @@ const CONFIG = {
   TIMEOUT_WUWA: 5000,     // WuWa scraping timeout
   
   // Genshin banner discovery
-  GENSHIN_CHAR_BASE: 93,     // Update when new patch releases
-  GENSHIN_WEAPON_BASE: 92,   // Update when new patch releases
+  GENSHIN_CHAR_BASE: 96,     // Update when new patch releases
+  GENSHIN_WEAPON_BASE: 94,   // Update when new patch releases
   GENSHIN_SEARCH_RANGE: 6,   // How many banner IDs to check
   
   // API URLs (change if APIs move)

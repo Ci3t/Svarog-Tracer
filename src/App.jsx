@@ -62,7 +62,7 @@ export default function App() {
   const [prevSessions, setPrevSessions] = useState([]);
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
-  const [patch, setPatch] = useState("3.8");
+  const [patch, setPatch] = useState("4.0");
 
   const entriesRef = useRef([]); // 👈 ADD: Ref for calculations to avoid stale closures
   useEffect(() => {
