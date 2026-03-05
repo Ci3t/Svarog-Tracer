@@ -1,13 +1,16 @@
 /**
- * Kiyo Wave Analysis Utility
- * Core logic for column-based wave predictions
+ * Kiyo Wave Analysis Utility — v2 (N-Run Adaptive Flip Detection)
+ *
+ * Core change from v1:
+ * - Detects the dominant run-length N from current window data only
+ * - Predicts FLIP only at currentRun >= N (not 1 roll too early)
+ * - Previous window used ONLY to extend run count (continuity), never for direction bias
  */
 
 export const WAVE_SCHEMES = {
   col1: {
     name: "Column 1",
     label: "Odds/Evens",
-    // 🔥 EXPANDED: Support raw digits 1-8 (5=1, 6=2, 7=3, 8=4 in game logic)
     pairA: ["1", "3", "5", "7"], // Odd digits
     pairB: ["2", "4", "6", "8"], // Even digits
     pairALabel: "Odd",
@@ -31,26 +34,59 @@ export const WAVE_SCHEMES = {
   },
 };
 
+// Helper: build run-length array from a states sequence
+function buildRuns(states) {
+  if (!states || states.length === 0) return [];
+  const runs = [];
+  let curVal = states[0], curLen = 1;
+  for (let i = 1; i < states.length; i++) {
+    if (states[i] === curVal) curLen++;
+    else { runs.push({ side: curVal, length: curLen }); curVal = states[i]; curLen = 1; }
+  }
+  runs.push({ side: curVal, length: curLen }); // last (possibly in-progress) run
+  return runs;
+}
+
+// Helper: find dominant run-length mode from completed runs
+function findDominantN(completedRuns) {
+  if (!completedRuns || completedRuns.length === 0) return { n: 1, confidence: 0 };
+  const counts = {};
+  completedRuns.forEach(r => {
+    counts[r.length] = (counts[r.length] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const n = parseInt(sorted[0][0]);
+  const confidence = sorted[0][1] / completedRuns.length;
+  return { n, confidence };
+}
+
+// Shared "not enough data" return shape
+function buildInvalidReturn(message = "Need 4+ rolls") {
+  return {
+    valid: false,
+    currentSide: null,
+    currentLabel: "—",
+    runLength: 0,
+    dominance: 0,
+    dominantSide: null,
+    swapRate: 0,
+    action: "SKIP",
+    confidence: 0.3,
+    reliability: "NONE",
+    betAdvice: "SKIP",
+    message,
+    flipTarget: [],
+    flipLabel: "—",
+    patternStatus: { type: "none", confidence: 0, runLength: null },
+  };
+}
+
 export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = null) {
   if (!rolls || rolls.length < 4) {
-    return {
-      valid: false,
-      currentSide: null,
-      currentLabel: "—",
-      runLength: 0,
-      dominance: 0,
-      dominantSide: null,
-      swapRate: 0,
-      action: "SKIP",
-      confidence: 0.3,
-      reliability: "NONE",
-      betAdvice: "SKIP",
-      message: "Need 4+ rolls",
-      flipTarget: [],
-      flipLabel: "—",
-    };
+    return buildInvalidReturn("Need 4+ rolls");
   }
 
+  // --- Map rolls to A/B states ---
   const states = rolls
     .map((r) => {
       const digit = String(r)[digitPosition];
@@ -60,70 +96,51 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
     })
     .filter(Boolean);
 
-  if (states.length < 4) {
-    return {
-      valid: false,
-      currentSide: null,
-      currentLabel: "—",
-      runLength: 0,
-      dominance: 0,
-      dominantSide: null,
-      swapRate: 0,
-      action: "SKIP",
-      confidence: 0.3,
-      reliability: "NONE",
-      betAdvice: "SKIP",
-      message: "Insufficient data",
-      flipTarget: [],
-      flipLabel: "—",
-    };
-  }
+  if (states.length < 4) return buildInvalidReturn("Insufficient data");
 
-  // Current run
+  // --- Current side & run length ---
   const currentSide = states[states.length - 1];
+  const currentLabel = currentSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
+
   let runLength = 1;
   for (let i = states.length - 2; i >= 0; i--) {
     if (states[i] === currentSide) runLength++;
     else break;
   }
 
-  // Dominance (last 12)
-  const window = states.slice(-12);
-  const aCount = window.filter((s) => s === "A").length;
-  const bCount = window.length - aCount;
+  // --- Overall dominance (last 12, for reference only) ---
+  const domWindow = states.slice(-12);
+  const aCount = domWindow.filter((s) => s === "A").length;
+  const bCount = domWindow.length - aCount;
   const dominantSide = aCount >= bCount ? "A" : "B";
-  const dominance = Math.max(aCount, bCount) / window.length;
+  const dominance = Math.max(aCount, bCount) / domWindow.length;
 
-  // Swap rate
+  // --- Swap rate (last 12) ---
   let swaps = 0;
-  for (let i = 1; i < window.length; i++) {
-    if (window[i] !== window[i - 1]) swaps++;
+  for (let i = 1; i < domWindow.length; i++) {
+    if (domWindow[i] !== domWindow[i - 1]) swaps++;
   }
-  const swapRate = swaps / (window.length - 1);
+  const swapRate = swaps / (domWindow.length - 1 || 1);
 
-  const currentLabel =
-    currentSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
-  // const oppositeLabel = currentSide === "A" ? scheme.pairBLabel : scheme.pairALabel;
-  // const dominantLabel = dominantSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
-
-  // Pattern detection logic
-  let patternWindow;
-  if (windowContext?.windowStates) {
-    const currentStates = windowContext.windowStates;
-    const previousStates = windowContext.previousStates || [];
-    patternWindow = [...previousStates, ...currentStates];
-  } else {
-    patternWindow = states.slice(-Math.min(8, states.length));
-  }
-  
-  const isNewWindow = windowContext?.isNewWindow || false;
+  // --- Determine pattern window (current window ONLY for direction/N detection) ---
+  const hasPreviousWindow = (windowContext?.previousStates?.length ?? 0) > 0;
   const windowRollCount = windowContext?.rollCount || 0;
-  const hasPreviousWindow = windowContext?.previousStates?.length > 0;
-  
-  // First window of session requires 6 rolls, subsequent windows require 4
-  const minRollsRequired = hasPreviousWindow ? 4 : 6;
-  const buildingLabel = hasPreviousWindow ? `(${windowRollCount}/4)` : `(${windowRollCount}/6)`;
-  
+
+  let patternWindow;
+  if (windowContext?.windowStates && windowContext.windowStates.length > 0) {
+    patternWindow = windowContext.windowStates;
+  } else {
+    patternWindow = states.slice(-8);
+  }
+
+  // --- Building phase check ---
+  // First window: need ~5 rolls to see 2+ completed runs and reliably detect N
+  // Subsequent windows: N is already known from previous session, 3 new rolls is enough
+  const minRollsRequired = hasPreviousWindow ? 3 : 5;
+  const buildingLabel = hasPreviousWindow
+    ? `(${windowRollCount}/3)`
+    : `(${windowRollCount}/5)`;
+
   if (patternWindow.length < minRollsRequired) {
     return {
       valid: true,
@@ -137,62 +154,95 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
       confidence: 0.35,
       reliability: "BUILDING",
       betAdvice: "WAIT FOR PATTERN",
-      message: `🔄 Building pattern ${buildingLabel}`,
+      message: `⏳ Building pattern ${buildingLabel}`,
       flipTarget: null,
       flipLabel: "Wait",
       urgency: "low",
       icon: "⏳",
-      patternStatus: { type: 'building', confidence: 0, runLength: null }
+      patternStatus: { type: "building", confidence: 0, runLength: null },
     };
   }
 
-  // Detect pattern - now works with 4+ rolls for faster detection
-  let detectedPattern = null;
-  let patternConfidence = 0;
-  
-  if (patternWindow.length >= 4) {
-    const aCountP = patternWindow.filter(s => s === 'A').length;
-    const bCountP = patternWindow.length - aCountP;
-    const dominanceRate = Math.max(aCountP, bCountP) / patternWindow.length;
-    
-    // Lower threshold for small windows (4-5 rolls use 60%, 6+ use 70%)
-    const domThreshold = patternWindow.length <= 5 ? 0.60 : 0.70;
-    
-    if (dominanceRate >= domThreshold) {
-      detectedPattern = {
-        type: 'dominance',
-        dominantSide: aCountP >= bCountP ? 'A' : 'B',
-        dominanceRate: dominanceRate,
-        confidence: dominanceRate
-      };
-      patternConfidence = dominanceRate;
-    } else {
-      // Run pattern detection (alternating, 2x-run, etc.)
-      const runs = [];
-      let cVal = patternWindow[0], cLen = 1;
-      for (let i = 1; i < patternWindow.length; i++) {
-        if (patternWindow[i] === cVal) cLen++;
-        else { runs.push(cLen); cVal = patternWindow[i]; cLen = 1; }
+  // --- STEP 1: Detect dominant run-length N from current window only ---
+  const allRuns = buildRuns(patternWindow);
+  // Completed runs = all except the last (which is still in-progress)
+  const completedRuns = allRuns.slice(0, -1);
+
+  let { n: dominantN, confidence: patternConfidence } = findDominantN(completedRuns);
+
+  // --- STEP 2: Previous window continuity (extend run, NOT bias direction) ---
+  let effectiveRunLength = runLength;
+
+  if (hasPreviousWindow) {
+    const prevStates = windowContext.previousStates;
+    const prevLastSide = prevStates[prevStates.length - 1];
+
+    if (prevLastSide === currentSide) {
+      // Current run appears to be continuing from previous window
+      let prevRunLen = 0;
+      for (let i = prevStates.length - 1; i >= 0; i--) {
+        if (prevStates[i] === currentSide) prevRunLen++;
+        else break;
       }
-      runs.push(cLen);
-      
-      const counts = {};
-      runs.forEach(l => counts[l] = (counts[l] || 0) + 1);
-      const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-      
-      if (sorted.length > 0) {
-        const freq = sorted[0][1] / runs.length;
-        // Lower threshold for small windows
-        const runThreshold = patternWindow.length <= 5 ? 0.40 : 0.50;
-        if (freq >= runThreshold) {
-          detectedPattern = { type: parseInt(sorted[0][0]) === 1 ? 'alternating' : `${sorted[0][0]}x-run`, runLength: parseInt(sorted[0][0]), confidence: freq };
-          patternConfidence = freq;
-        }
+      effectiveRunLength = runLength + prevRunLen;
+    }
+
+    // Bootstrap dominantN from prev window if current window doesn't have enough completed runs
+    if (completedRuns.length < 2 && prevStates.length >= 4) {
+      const prevAllRuns = buildRuns(prevStates);
+      const prevCompleted = prevAllRuns.slice(0, -1);
+      if (prevCompleted.length >= 2) {
+        const { n: prevN, confidence: prevConf } = findDominantN(prevCompleted);
+        // Use previous N but with reduced confidence (it's from the last session)
+        dominantN = prevN;
+        patternConfidence = prevConf * 0.65; // discount factor
       }
     }
   }
 
-  if (!detectedPattern || patternConfidence < 0.5) {
+  // --- STEP 3: Dominance shortcut (strong skew = just predict that side) ---
+  const pwACount = patternWindow.filter((s) => s === "A").length;
+  const pwBCount = patternWindow.length - pwACount;
+  const pwDominanceRate = Math.max(pwACount, pwBCount) / patternWindow.length;
+  const pwDominantSide = pwACount >= pwBCount ? "A" : "B";
+
+  if (pwDominanceRate >= 0.75 && patternWindow.length >= 5) {
+    const domLabel =
+      pwDominantSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
+    const domTarget =
+      pwDominantSide === "A" ? scheme.pairA : scheme.pairB;
+
+    return {
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "CONTINUE",
+      confidence: pwDominanceRate,
+      reliability: "HIGH",
+      message: `🔥 ${domLabel} dominance`,
+      flipTarget: domTarget,
+      flipLabel: domLabel,
+      icon: "🔥",
+      patternDetected: {
+        type: "dominance",
+        dominantSide: pwDominantSide,
+        dominanceRate: pwDominanceRate,
+        confidence: pwDominanceRate,
+      },
+      patternStatus: {
+        type: "dominance",
+        confidence: pwDominanceRate,
+        runLength: null,
+      },
+    };
+  }
+
+  // --- STEP 4: No clear pattern — SKIP ---
+  if (patternConfidence < 0.40 || completedRuns.length < 1) {
     return {
       valid: true,
       currentSide,
@@ -203,54 +253,136 @@ export function analyzeColumnWave(rolls, scheme, digitPosition, windowContext = 
       swapRate,
       action: "SKIP",
       confidence: patternConfidence || 0.35,
-      message: `⚠️ Chaotic (${Math.round(swapRate * 100)}% swap)`,
+      message: `⚠️ No clear pattern (${Math.round(swapRate * 100)}% swap)`,
       flipTarget: null,
       icon: "⚠️",
-      patternStatus: { type: 'chaotic', confidence: patternConfidence || 0, runLength: null }
+      patternStatus: {
+        type: "chaotic",
+        confidence: patternConfidence || 0,
+        runLength: null,
+      },
     };
   }
 
-  // Final prediction
-  const expectedRunLength = detectedPattern.runLength;
-  if (detectedPattern.type === 'dominance') {
-    // Use the DETECTED dominant side, not the current roll's side
-    const domSide = detectedPattern.dominantSide;
-    const domLabel = domSide === "A" ? scheme.pairALabel : scheme.pairBLabel;
-    const domTarget = domSide === "A" ? scheme.pairA : scheme.pairB;
-    
-    return {
-      valid: true, currentSide, currentLabel, runLength, dominance, dominantSide, swapRate,
-      action: "CONTINUE", confidence: detectedPattern.dominanceRate, reliability: "HIGH",
-      message: `🔥 ${domLabel} dominance`,
-      flipTarget: domTarget,
-      flipLabel: domLabel,
-      icon: "🔥", patternDetected: detectedPattern
-    };
-  }
+  // --- STEP 5: Predict FLIP or CONTINUE based on effectiveRun vs dominantN ---
+  // Confidence grows with number of confirmed runs observed
+  const baseConfidence = Math.min(
+    0.55 +
+      completedRuns.length * 0.05 +
+      patternConfidence * 0.15,
+    0.88
+  );
 
-  if (runLength >= expectedRunLength) {
+  if (effectiveRunLength >= dominantN) {
+    // Check if the run is OVERSHOOTING N and the current side is dominant in the window.
+    // If so, this is a dominance pattern masquerading as an N-run — switch to CONTINUE
+    // rather than keep wrongly predicting FLIP every roll past N.
+    const currentSideCountInWindow = patternWindow.filter((s) => s === currentSide).length;
+    const currentSideWindowDominance = currentSideCountInWindow / patternWindow.length;
+    const isOvershooting = effectiveRunLength > dominantN;
+
+    if (isOvershooting && currentSideWindowDominance >= 0.65) {
+      // Dominant run — treat like dominance, not a flip
+      const cTarget = currentSide === "A" ? scheme.pairA : scheme.pairB;
+      return {
+        valid: true,
+        currentSide,
+        currentLabel,
+        runLength,
+        effectiveRunLength,
+        dominance,
+        dominantSide,
+        swapRate,
+        action: "CONTINUE",
+        confidence: currentSideWindowDominance,
+        reliability: "HIGH",
+        message: `🔥 ${currentLabel} extending (${runLength}/${dominantN})`,
+        flipTarget: cTarget,
+        flipLabel: currentLabel,
+        icon: "🔥",
+        patternDetected: {
+          type: "dominance",
+          dominantSide: currentSide,
+          dominanceRate: currentSideWindowDominance,
+          confidence: currentSideWindowDominance,
+        },
+        patternStatus: {
+          type: "dominance",
+          confidence: currentSideWindowDominance,
+          runLength: null,
+        },
+      };
+    }
+
+    // === FLIP PREDICTED (run == N, not overshooting or not yet dominant) ===
     const fTarget = currentSide === "A" ? scheme.pairB : scheme.pairA;
-    const fLabel = currentSide === "A" ? scheme.pairBLabel : scheme.pairALabel;
+    const fLabel =
+      currentSide === "A" ? scheme.pairBLabel : scheme.pairALabel;
+
     return {
-      valid: true, currentSide, currentLabel, runLength, dominance, dominantSide, swapRate,
-      action: "FLIP", confidence: 0.75, reliability: "HIGH",
-      message: `🎯 ${detectedPattern.type} → ${fLabel}`,
-      flipTarget: fTarget, flipLabel: fLabel,
-      icon: "🎯", patternDetected: detectedPattern
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      effectiveRunLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "FLIP",
+      confidence: Math.min(baseConfidence + 0.05, 0.90),
+      reliability: "HIGH",
+      message: `🎯 Flip → ${fLabel} (N=${dominantN})`,
+      flipTarget: fTarget,
+      flipLabel: fLabel,
+      icon: "🎯",
+      patternDetected: {
+        type: `${dominantN}x-run`,
+        runLength: dominantN,
+        confidence: patternConfidence,
+      },
+      patternStatus: {
+        type: `${dominantN}x-run`,
+        confidence: baseConfidence,
+        runLength: dominantN,
+      },
     };
   } else {
+    // === CONTINUE PREDICTED ===
+    const cTarget = currentSide === "A" ? scheme.pairA : scheme.pairB;
+
     return {
-      valid: true, currentSide, currentLabel, runLength, dominance, dominantSide, swapRate,
-      action: "CONTINUE", confidence: 0.65, reliability: "MODERATE",
-      message: `📊 ${detectedPattern.type} → ${currentLabel}`,
-      flipTarget: currentSide === "A" ? scheme.pairA : scheme.pairB,
+      valid: true,
+      currentSide,
+      currentLabel,
+      runLength,
+      effectiveRunLength,
+      dominance,
+      dominantSide,
+      swapRate,
+      action: "CONTINUE",
+      confidence: baseConfidence,
+      reliability: "MODERATE",
+      message: `📊 Hold ${currentLabel} (${runLength}/${dominantN})`,
+      flipTarget: cTarget,
       flipLabel: currentLabel,
-      icon: "📊", patternDetected: detectedPattern
+      icon: "📊",
+      patternDetected: {
+        type: `${dominantN}x-run`,
+        runLength: dominantN,
+        confidence: patternConfidence,
+      },
+      patternStatus: {
+        type: `${dominantN}x-run`,
+        confidence: baseConfidence,
+        runLength: dominantN,
+      },
     };
   }
 }
 
 export function getExpectedLabel(flipTarget, scheme) {
   if (!flipTarget || flipTarget.length === 0) return "—";
-  return scheme.pairA.some(d => flipTarget.includes(d)) ? scheme.pairALabel : scheme.pairBLabel;
+  return scheme.pairA.some((d) => flipTarget.includes(d))
+    ? scheme.pairALabel
+    : scheme.pairBLabel;
 }

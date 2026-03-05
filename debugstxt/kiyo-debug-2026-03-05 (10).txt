@@ -1,0 +1,103 @@
+═══════════════════════════════════════════════════════════
+         KIYO MODE DEBUG EXPORT
+═══════════════════════════════════════════════════════════
+
+Generated: 3/5/2026, 5:45:03 AM
+Total Predictions: 13
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  Actual = What you got in-game
+  Wave-C1 = Column 1 (Odds/Evens) - based on raw first digit
+  Wave-C2/C3 = Wave predictions (digits suggested)
+  Suggest = What wave card recommended (message)
+  2str/3str = Prefix predictions
+  Y-Grp = 2str wave pairing group of this roll's Y-digit
+  ✓ = Hit, ✗ = Miss, - = No prediction
+
+Session pairing: Outer/Inner — A:Outer[41/44] vs B:Inner[42/43]
+
+#   Time         Actual   Y-Grp    Wave-Verdict             Bet        BetHit  Wave-C2    ✓  2str-M ✓  2str-A ✓ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+1   5:44:57 AM   41       Outer    FLIP→Inner (2/1)         42/43      ✗       [2,3]      ✗  41     ✓  44     ✗ 
+2   5:44:32 AM   44       Outer    FLIP→Inner (1/1)         42/43      ✗       [2,3]      ✗  41     ✗  42     ✗ 
+3   5:44:22 AM   43       Inner    DOM Inner(64%)           42/43      ✓       [2,3]      ✓  41     ✗  42     ✗ 
+4   5:44:09 AM   41       Outer    DOM Inner(60%)           42/43      ✗       []         ✗  42     ✗  41     ✓ 
+5   5:43:31 AM   43       Inner    WAIT                     —          -       []         ✗  42     ✗  41     ✗ 
+6   5:43:09 AM   44       Outer    DOM Low(75%)             41/42      ✗       [1,4]      ✓  41     ✗  44     ✓ 
+7   5:43:03 AM   42       Inner    DOM Inner(71%)           42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+8   5:42:52 AM   42       Inner    DOM Inner(67%)           42/43      ✓       []         ✗  41     ✗  44     ✗ 
+9   5:42:41 AM   42       Inner    DOM Inner(60%)           42/43      ✓       []         ✗  41     ✗  44     ✗ 
+10  5:42:24 AM   42       Inner    HOLD Inner (1/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+11  5:41:37 AM   41       Outer    WAIT                     —          -       [1,4]      ✓  41     ✓  44     ✗ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
+12  5:41:36 AM   41       Outer    —                        —          -       []         ✗  41     ✓  44     ✗ 
+13  5:41:21 AM   43       Inner    —                        —          -       []         ✗  44     ✗  41     ✗ 
+┌─────────────────────────────────────────────────────────┐
+│  📈 ACCURACY SUMMARY                                     │
+└─────────────────────────────────────────────────────────┘
+
+WAVE BET PERFORMANCE:
+  🎯 Wave Bet (2-str):   5 / 9 (55.6%)  ← follow this
+  Column 2 (Outer/Inner): 3 / 7 (42.9%)  ← 3-str Z-digit, N/A for 2-str
+
+VERDICT TYPE BREAKDOWN:
+  DOMINANT :  4/6 (66.7%) [███████░░░]
+  HOLD     :  1/1 (100.0%) [██████████]
+  FLIP     :  0/2 (0.0%) [░░░░░░░░░░]
+
+BASELINE COMPARISON:
+  Always bet dominant (Inner): 7/13 (53.8%)
+  Wave Bet:                                          5/9 (55.6%)
+  Delta vs naive:  +1.7%
+
+Y-SEQUENCE RUNS (oldest→newest):
+  I(1) → O(2) → I(4) → O(1) → I(1) → O(1) → I(1) → O(2)
+  Avg run length: 1.6 · Max run: 4 · N (mode): 1
+
+EARLY vs LATE ACCURACY:
+  First half (6 rolls): 3/3 (100.0%) — pairing still learning
+  Second half (7 rolls): 2/6 (33.3%) — pairing stable
+
+PREFIX PERFORMANCE:
+  2-Str Main: 3 / 13 (23.1%)
+  2-Str Alt:  2 / 13 (15.4%)
+  2-Str Top2: 5 / 13 (38.5%)
+
+┌─────────────────────────────────────────────────────────┐
+│  🎲 ALL ROLLS (Translated 4xx)                           │
+└─────────────────────────────────────────────────────────┘
+
+41, 44, 43, 41, 43, 44, 42, 42, 42, 42, 41, 41, 43
+
+┌─────────────────────────────────────────────────────────┐
+│  🎰 ALL ROLLS (Raw Input)                                │
+└─────────────────────────────────────────────────────────┘
+
+41, 44, 43, 41, 43, 44, 42, 42, 42, 42, 41, 41, 43
+
+┌─────────────────────────────────────────────────────────┐
+│  🌊 2-STRING WAVE ANALYSIS                               │
+└─────────────────────────────────────────────────────────┘
+
+⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A
+
+Pairing Detected : Outer/Inner (low confidence)
+Confidence Score : 40%
+Dominant Side    : Inner [42 / 43] — 54% of rolls
+Flip N           : 1 (rolls before side flip)
+Current Run      : Inner [42 / 43] — 1 consecutive
+VERDICT          : ⏳ Building... (13 rolls, 3 completed runs)
+Next Bet         : —
+
+Y-Sequence (all rolls, oldest first):
+  O O I O I O I I I I O O I
+
+Pairing scores   : Outer/Inner:40% | Low/High:38% | Odd/Even:29%
+
+═══════════════════════════════════════════════════════════
+Generated by Modern Kiyo Debug System
+═══════════════════════════════════════════════════════════

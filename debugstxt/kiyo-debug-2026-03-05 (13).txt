@@ -1,0 +1,112 @@
+═══════════════════════════════════════════════════════════
+         KIYO MODE DEBUG EXPORT
+═══════════════════════════════════════════════════════════
+
+Generated: 3/5/2026, 6:15:15 AM
+Total Predictions: 23
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  Actual = What you got in-game
+  Wave-C1 = Column 1 (Odds/Evens) - based on raw first digit
+  Wave-C2/C3 = Wave predictions (digits suggested)
+  Suggest = What wave card recommended (message)
+  2str/3str = Prefix predictions
+  Y-Grp = 2str wave pairing group of this roll's Y-digit
+  ✓ = Hit, ✗ = Miss, - = No prediction
+
+Session pairing: Low/High — A:Low[41/42] vs B:High[43/44]
+
+#   Time         Actual   Y-Grp    Wave-Verdict             Bet        BetHit  Wave-C2    ✓  2str-M ✓  2str-A ✓ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+1   6:15:05 AM   43       High     DOM Outer(74%)           41/44      ✗       [1,4]      ✗  41     ✗  42     ✗ 
+2   6:14:59 AM   43       High     DOM Outer(77%)           41/44      ✗       [1,4]      ✗  41     ✗  42     ✗ 
+3   6:14:58 AM   44       High     DOM Outer(81%)           41/44      ✓       [1,4]      ✓  42     ✗  41     ✗ 
+4   6:14:57 AM   41       Low      DOM Outer(80%)           41/44      ✓       [1,4]      ✓  41     ✓  42     ✗ 
+5   6:14:13 AM   41       Low      DOM Outer(79%)           41/44      ✓       [1,4]      ✓  42     ✗  41     ✓ 
+6   6:12:44 AM   41       Low      DOM Outer(78%)           41/44      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+7   6:12:28 AM   42       Low      DOM Outer(76%)           41/44      ✗       [1,4]      ✗  41     ✗  44     ✗ 
+8   6:12:10 AM   41       Low      DOM Low(69%)             41/42      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+9   6:11:55 AM   42       Low      WAIT                     —          -       [1,4]      ✗  41     ✗  44     ✗ 
+10  6:11:47 AM   44       High     WAIT                     —          -       [1,4]      ✓  41     ✗  44     ✓ 
+11  6:11:27 AM   41       Low      DOM Low(69%)             41/42      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
+12  6:11:01 AM   41       Low      DOM Low(67%)             41/42      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+13  6:10:54 AM   41       Low      DOM Low(64%)             41/42      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+14  6:10:24 AM   41       Low      DOM Low(60%)             41/42      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+15  6:09:47 AM   44       High     HOLD High (2/1)          41/42      ✗       [1,4]      ✓  44     ✓  41     ✗ 
+16  6:09:36 AM   44       High     DOM Outer(75%)           41/44      ✓       [1,4]      ✓  41     ✗  42     ✗ 
+17  6:08:46 AM   42       Low      DOM Outer(71%)           41/44      ✗       [1,4]      ✗  41     ✗  44     ✗ 
+18  6:08:19 AM   44       High     DOM Outer(83%)           41/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+19  6:07:57 AM   41       Low      DOM Outer(80%)           41/44      ✓       [2,3]      ✗  42     ✗  41     ✓ 
+20  6:07:11 AM   41       Low      DOM Outer(75%)           41/44      ✓       [1,4]      ✓  42     ✗  44     ✗ 
+21  6:06:27 AM   44       High     WAIT                     —          -       [2,3]      ✗  41     ✗  44     ✓ 
+22  6:06:25 AM   42       Low      —                        —          -       []         ✗  41     ✗  44     ✗ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
+23  6:06:13 AM   41       Low      —                        —          -       []         ✗  42     ✗  44     ✗ 
+┌─────────────────────────────────────────────────────────┐
+│  📈 ACCURACY SUMMARY                                     │
+└─────────────────────────────────────────────────────────┘
+
+WAVE BET PERFORMANCE:
+  🎯 Wave Bet (2-str):   13 / 18 (72.2%)  ← follow this
+  Column 2 (Outer/Inner): 13 / 21 (61.9%)  ← 3-str Z-digit, N/A for 2-str
+
+VERDICT TYPE BREAKDOWN:
+  DOMINANT : 13/17 (76.5%) [████████░░]
+  HOLD     :  0/1 (0.0%) [░░░░░░░░░░]
+
+BASELINE COMPARISON:
+  Always bet dominant (Outer): 17/23 (73.9%)
+  Wave Bet:                                          13/18 (72.2%)
+  Delta vs naive:  -1.7%
+
+Y-SEQUENCE RUNS (oldest→newest):
+  O(1) → I(1) → O(4) → I(1) → O(7) → I(1) → O(1) → I(1) → O(4) → I(2)
+  Avg run length: 2.3 · Max run: 7 · N (mode): 1
+
+EARLY vs LATE ACCURACY:
+  First half (11 rolls): 6/8 (75.0%) — pairing still learning
+  Second half (12 rolls): 7/10 (70.0%) — pairing stable
+
+PREFIX PERFORMANCE:
+  2-Str Main: 8 / 23 (34.8%)
+  2-Str Alt:  5 / 23 (21.7%)
+  2-Str Top2: 13 / 23 (56.5%)
+
+┌─────────────────────────────────────────────────────────┐
+│  🎲 ALL ROLLS (Translated 4xx)                           │
+└─────────────────────────────────────────────────────────┘
+
+43, 43, 44, 41, 41, 41, 42, 41, 42, 44, 41, 41, 41, 41, 44, 44, 42, 44, 41, 41, 44, 42, 41
+
+┌─────────────────────────────────────────────────────────┐
+│  🎰 ALL ROLLS (Raw Input)                                │
+└─────────────────────────────────────────────────────────┘
+
+43, 43, 44, 41, 41, 41, 42, 41, 42, 44, 41, 41, 41, 41, 44, 44, 42, 44, 41, 41, 44, 42, 41
+
+┌─────────────────────────────────────────────────────────┐
+│  🌊 2-STRING WAVE ANALYSIS                               │
+└─────────────────────────────────────────────────────────┘
+
+⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A
+
+Pairing Detected : Low/High ★
+Confidence Score : 69%
+Dominant Side    : Low [41 / 42] — 65% of rolls 🏆 DOMINANT
+VERDICT          : 🏆 DOMINANT: Low [41 / 42] — 65% of rolls. Stay on dominant side.
+Next Bet         : 41 or 42
+
+Y-Sequence (all rolls, oldest first):
+  H H H L L L L L L H L L L L H H L H L L
+  H L L
+
+Pairing scores   : Low/High:69% | Outer/Inner:69% | Odd/Even:59%
+
+═══════════════════════════════════════════════════════════
+Generated by Modern Kiyo Debug System
+═══════════════════════════════════════════════════════════

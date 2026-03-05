@@ -196,86 +196,59 @@ export default function App() {
       if (contextRolls.length < 3) return;
       
       // const actual3 = String(roll).slice(0, 3); // actual3 is already the roll value
-      if (String(actual3).slice(0, 3).length !== 3) return;
+      // Allow 2-digit (2-str) rolls — actual may be 2 or 3 chars
+      if (String(actual3).length < 2) return;
 
       const p = predictNext3(contextRolls);
       const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
-      const alt = p.alt || (candidates[1]?.value ?? null);
 
-      if (
-        p.prediction &&
-        p.prediction !== "—" &&
-        !String(p.prediction).toLowerCase().startsWith("insufficient")
-      ) {
-        // Get latest Kiyo snapshot for column data
+      // Always create a log entry — even for 2-str sessions where predictNext3 returns "—"
+      {
         const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
-        
+        const actualStr = String(actual3).slice(0, 3); // 2 or 3 chars depending on mode
+
         const newLog = {
-          ts: Date.now() + idx, // Slight offset to maintain order
+          ts: Date.now() + idx,
           kind: "3",
-          prediction: p.prediction,
+          prediction: (p.prediction && p.prediction !== "—" && !String(p.prediction).toLowerCase().startsWith("insufficient"))
+            ? p.prediction : "—",
           confidence: p.confidence || 0,
-          alt: p.alt,
+          alt: p.alt || null,
           mode: p.mode || "—",
-          actual: String(actual3).slice(0, 3),
+          actual: actualStr,
           ctx: contextRolls.slice(-8),
-          candidates: p.candidates,
+          candidates: p.candidates || [],
           source: "kiyo",
           time: new Date().toLocaleTimeString(),
-          rawActual: latestSnapshot?.latestRawRoll || null, // 🔥 NEW: Raw roll for Column 1
-          
-          // 🔥 NEW: Accurate 2str and 3str predictions (Main + Alt)
-          // 2str: Predict 2nd digit using 1-digit prefix
+          rawActual: latestSnapshot?.latestRawRoll || null,
+
           pred2: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_2STR_RECENT, String(actual3)[0], '2str').prediction,
           alt2: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_2STR_RECENT, String(actual3)[0], '2str').alt,
-          
-          // 3str: Predict 3rd digit using 2-digit prefix
           pred3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').prediction,
           alt3: predictWithCascadingPriority(contextRolls, [], EU_SEQUENTIAL_3STR_RECENT, String(actual3).slice(0, 2), '3str').alt,
-          
-          // 🔥 NEW: Column 1 wave analysis (uses raw roll first digit from snapshot)
-          // Use latest snapshot data if available, otherwise calculate from context
+
           waveC1: latestSnapshot?.waveC1 || analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).flipTarget || [],
-          col1Expected: latestSnapshot?.col1Expected || getExpectedLabel(
-            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).flipTarget, 
-            WAVE_SCHEMES.col1
-          ),
+          col1Expected: latestSnapshot?.col1Expected || getExpectedLabel(analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).flipTarget, WAVE_SCHEMES.col1),
           col1Confidence: latestSnapshot?.col1Confidence || analyzeColumnWave(contextRolls, WAVE_SCHEMES.col1, 0).confidence || 0,
-          
-          // 🔥 NEW: Calculate wave predictions directly for consistent logs
           waveC2: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget || [],
           waveC3: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).flipTarget || [],
-          col2Expected: getExpectedLabel(
-            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget, 
-            WAVE_SCHEMES.col2
-          ),
-          col3Expected: getExpectedLabel(
-            analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).flipTarget, 
-            WAVE_SCHEMES.col3
-          ),
+          col2Expected: getExpectedLabel(analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).flipTarget, WAVE_SCHEMES.col2),
+          col3Expected: getExpectedLabel(analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).flipTarget, WAVE_SCHEMES.col3),
           col2Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col2, 1).confidence || 0,
           col3Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).confidence || 0,
-          col2Status: "unknown", // Will be updated by next roll
-          col3Status: "unknown", // Will be updated by next roll
-          
-          livePrefix: livePrefixPredictionRef.current
-            ? { ...livePrefixPredictionRef.current }
-            : null,
+          col2Status: "unknown",
+          col3Status: "unknown",
+          livePrefix: livePrefixPredictionRef.current ? { ...livePrefixPredictionRef.current } : null,
         };
 
         setDebugLogs((prev) => {
           const next = [...prev];
-          // Find the newest kind "3" log to update its status with current roll
           const lastKiyoLog = next.find(l => l.kind === "3");
           if (lastKiyoLog) {
             const digit2 = String(actual3)[1];
             const digit3 = String(actual3)[2];
-            if (lastKiyoLog.waveC2 && lastKiyoLog.waveC2.length > 0) {
-              lastKiyoLog.col2Status = lastKiyoLog.waveC2.includes(digit2) ? "hit" : "miss";
-            }
-            if (lastKiyoLog.waveC3 && lastKiyoLog.waveC3.length > 0) {
-              lastKiyoLog.col3Status = lastKiyoLog.waveC3.includes(digit3) ? "hit" : "miss";
-            }
+            if (lastKiyoLog.waveC2?.length > 0) lastKiyoLog.col2Status = lastKiyoLog.waveC2.includes(digit2) ? "hit" : "miss";
+            if (lastKiyoLog.waveC3?.length > 0) lastKiyoLog.col3Status = lastKiyoLog.waveC3.includes(digit3) ? "hit" : "miss";
           }
           return [newLog, ...next].slice(0, 300);
         });

@@ -35,6 +35,8 @@ import {
   analyzeColumnWave, 
   getExpectedLabel 
 } from "../utils/kiyoLogic";
+import { getSessionCommons, getYZCommons } from "../utils/kiyoCommons";
+import { analyzeAllPrefixWaves, getPrefixWavePrediction, analyze2strWave } from "../utils/kiyoPrefixWave";
 
 import RollInput from "./kiyo/RollInput";
 import AddedRollsPanel from "./kiyo/AddedRollsPanel";
@@ -517,6 +519,58 @@ export default function KiyoModeCard({
       };
     }
 
+    // --- Commons Overlay: which side of each column is the session "commons" ---
+    const buildCommonsInfo = (analysis, scheme, rolls, digitPos) => {
+      if (!analysis || !analysis.valid || !analysis.dominantSide) return null;
+      const isCommonsA = analysis.dominantSide === 'A';
+      const commonsLabel = isCommonsA ? scheme.pairALabel : scheme.pairBLabel;
+      const commonsDigits = isCommonsA ? scheme.pairA : scheme.pairB;
+      const noiseDigits = isCommonsA ? scheme.pairB : scheme.pairA;
+      const noiseLabel = isCommonsA ? scheme.pairBLabel : scheme.pairALabel;
+      const dominancePct = Math.round((analysis.dominance ?? 0.5) * 100);
+
+      // Build per-digit frequency for 2str (col2 → y digit → "4y") or col3 (z digit)
+      const freq = {};
+      const total = rolls.length;
+      for (const r of rolls) {
+        const d = String(r)[digitPos];
+        if (d) freq[d] = (freq[d] || 0) + 1;
+      }
+      // Map digits → "4y" or show as parts of 3str
+      const mkPair = digitPos === 1
+        ? (d) => `4${d}` // col2: show "41","42" etc.
+        : (d) => `z=${d}`;   // col3: show z-digit
+
+      const commonsPairs = commonsDigits
+        .filter(d => freq[d])
+        .sort((a, b) => (freq[b] || 0) - (freq[a] || 0))
+        .map(d => ({ pair: mkPair(d), digit: d, count: freq[d] || 0, pct: Math.round(((freq[d] || 0) / total) * 100) }));
+      const noisePairs = noiseDigits
+        .filter(d => freq[d])
+        .sort((a, b) => (freq[b] || 0) - (freq[a] || 0))
+        .map(d => ({ pair: mkPair(d), digit: d, count: freq[d] || 0, pct: Math.round(((freq[d] || 0) / total) * 100) }));
+
+      // Is the wave's predicted target in the commons or noise group?
+      let flipAlignment = null;
+      let flipToLabel = null;
+      if (analysis.flipTarget && analysis.flipTarget.length > 0) {
+        const flipIsCommons = commonsDigits.some(d => analysis.flipTarget.includes(d));
+        flipAlignment = flipIsCommons ? 'toward_commons' : 'toward_noise';
+        flipToLabel = flipIsCommons ? commonsLabel : noiseLabel;
+      }
+
+      return {
+        commonsLabel, commonsDigits, noiseLabel, noiseDigits, dominancePct,
+        flipAlignment, flipToLabel,
+        action: analysis.action,
+        flipTarget: analysis.flipTarget,
+        commonsPairs, noisePairs,
+      };
+    };
+
+    const col2CommonsInfo = buildCommonsInfo(col2Analysis, WAVE_SCHEMES.col2, baseRolls, 1);
+    const col3CommonsInfo = buildCommonsInfo(col3Analysis, WAVE_SCHEMES.col3, baseRolls, 2);
+
     return {
       columns,
       columnAnalysis: {
@@ -533,9 +587,28 @@ export default function KiyoModeCard({
       lookbackUsed: baseRolls.length,
       window: windowInfo,
       windowQuality: windowInfo?.quality ?? null,
-      bettingRecommendation, // NEW: Betting recommendation
+      bettingRecommendation,
+      col2CommonsInfo,    // ← commons overlay
+      col3CommonsInfo,    // ← commons overlay
     };
   }, [combinedRolls, windowInfo, windowAnalysis]);
+
+  // 🔬 PER-PREFIX WAVE ANALYSIS (correct Kiyo approach)
+  const prefixWaveData = useMemo(() => {
+    if (!combinedRolls || combinedRolls.length < 3) return null;
+    return analyzeAllPrefixWaves(combinedRolls);
+  }, [combinedRolls]);
+
+  const prefixWavePrediction = useMemo(() => {
+    if (!prefixWaveData) return null;
+    return getPrefixWavePrediction(prefixWaveData, testInput, combinedRolls);
+  }, [prefixWaveData, testInput, combinedRolls]);
+
+  // 📊 2-STRING WAVE — lighter entry point, Y-digit pairing across all rolls
+  const twoStrWave = useMemo(() => {
+    if (!combinedRolls || combinedRolls.length < 3) return null;
+    return analyze2strWave(combinedRolls);
+  }, [combinedRolls]);
 
   const smartPrefixPrediction = useMemo(() => {
     if (combinedRolls.length < 3) return null;
@@ -812,7 +885,7 @@ export default function KiyoModeCard({
   }, [combinedRolls.length, testRolls.length]);
 
   useEffect(() => {
-    if (!prediction || combinedRolls.length < 4) return;
+    if (combinedRolls.length < 4) return;
     const fingerprint = combinedRolls.join(",");
     if (lastSentRef.current !== fingerprint) {
       lastSentRef.current = fingerprint;
@@ -889,14 +962,19 @@ export default function KiyoModeCard({
   const submitRoll = () => {
     const value = testInput.trim();
 
-    if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
-      // Store both raw and translated
+    if (value.length === 2 && /^[1-8]{2}$/.test(value)) {
+      // 2-str input — translate to 4x format (e.g. "32" → "43")
+      const translated = translateTo4(value + "1").slice(0, 2); // translate Y digit, ignore Z
+      const ts = windowInfo?.startMs || Date.now();
+      setTestRolls((prev) => [...prev, { roll: translated, raw: value, ts, is2str: true }]);
+      setTestInput("");
+      trackPrediction();
+    } else if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
+      // 3-str input — translate normally
       const translated = translateTo4(value);
       const ts = windowInfo?.startMs || Date.now();
       setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
       setTestInput("");
-      
-      // Track this prediction for live stats
       trackPrediction();
     } else {
       setTestInput("");
@@ -1093,6 +1171,270 @@ export default function KiyoModeCard({
         combinedRolls={combinedRolls}
         analyzeWavePatterns={analyzeWavePatterns}
       />
+
+      {/* 📊 Commons Overlay Card */}
+      {analyzeWavePatterns && (analyzeWavePatterns.col2CommonsInfo || analyzeWavePatterns.col3CommonsInfo) && combinedRolls.length >= 4 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97))',
+          border: '1px solid rgba(99,102,241,0.25)',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          marginBottom: '8px',
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#818cf8' }}>📊 Session Commons
+            </span>
+            <span style={{ fontSize: '10px', color: '#475569' }}>which side owns this session, and does wave flip agree?</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {[{
+              label: 'Col 2 (Outer/Inner)',
+              info: analyzeWavePatterns.col2CommonsInfo,
+              accentColor: '#6ee7b7',
+            }, {
+              label: 'Col 3 (Low/High)',
+              info: analyzeWavePatterns.col3CommonsInfo,
+              accentColor: '#f59e0b',
+            }].map(({ label, info, accentColor }) => {
+              if (!info) return null;
+              const isFlip = info.action === 'FLIP';
+              const isWait = info.action === 'WAIT' || info.action === 'SKIP';
+              const alignColor = info.flipAlignment === 'toward_commons' ? '#34d399'
+                : info.flipAlignment === 'toward_noise' ? '#f87171' : '#94a3b8';
+              const alignIcon = info.flipAlignment === 'toward_commons' ? '✅'
+                : info.flipAlignment === 'toward_noise' ? '⚠️' : '⏳';
+              const alignText = info.flipAlignment === 'toward_commons'
+                ? `→ Commons flip — confidence ↑`
+                : info.flipAlignment === 'toward_noise'
+                ? `→ Noise flip — may snap back`
+                : `→ Hold…`;
+
+              return (
+                <div key={label} style={{
+                  padding: '10px 12px',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '9px',
+                  borderLeft: `3px solid ${accentColor}`,
+                }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 600 }}>{label}</div>
+
+                  {/* Commons pairs */}
+                  <div style={{ marginBottom: '6px' }}>
+                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px', fontWeight: 600 }}>
+                      COMMONS → {info.commonsLabel} [{info.commonsDigits.join(',')}] — {info.dominancePct}%
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {info.commonsPairs.length > 0 ? info.commonsPairs.map(p => (
+                        <span key={p.pair} style={{
+                          fontSize: '12px', fontWeight: 700, color: accentColor,
+                          background: `${accentColor}15`, padding: '1px 7px', borderRadius: '4px'
+                        }}>
+                          {p.pair} <span style={{ opacity: 0.55, fontSize: '10px' }}>{p.pct}%</span>
+                        </span>
+                      )) : <span style={{ fontSize: '10px', color: '#475569' }}>none yet</span>}
+                    </div>
+                  </div>
+
+                  {/* Noise pairs */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '9px', color: '#475569', marginBottom: '3px', fontWeight: 600 }}>
+                      NOISE → {info.noiseLabel}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {info.noisePairs.length > 0 ? info.noisePairs.map(p => (
+                        <span key={p.pair} style={{ fontSize: '11px', color: '#475569' }}>
+                          · {p.pair} <span style={{ opacity: 0.5, fontSize: '9px' }}>{p.pct}%</span>
+                        </span>
+                      )) : <span style={{ fontSize: '10px', color: '#334155' }}>not appearing</span>}
+                    </div>
+                  </div>
+
+                  {/* Wave prediction + alignment */}
+                  {isWait ? (
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>⏳ Building pattern…</div>
+                  ) : (
+                    <div style={{
+                      padding: '5px 8px',
+                      borderRadius: '6px',
+                      background: info.flipAlignment === 'toward_noise'
+                        ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)',
+                      border: `1px solid ${alignColor}30`,
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: isFlip ? '#f59e0b' : '#94a3b8' }}>
+                        {isFlip ? '🎯 FLIP → ' : '📊 HOLD '}{info.flipToLabel || '—'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: alignColor, marginTop: '2px' }}>
+                        {alignIcon} {alignText}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 📊 2-String Wave */}
+      {twoStrWave && combinedRolls.length >= 3 && (() => {
+        const w = twoStrWave;
+        const isFlip = w.action === 'FLIP';
+        const isHold = w.action === 'HOLD';
+        const isWait = w.action === 'WAIT' || w.action === 'SKIP';
+        const actionColor = isFlip ? '#f59e0b' : isHold ? '#34d399' : '#64748b';
+        const borderColor = isFlip ? 'rgba(245,158,11,0.45)' : isHold && w.pairingConfidence >= 0.6 ? 'rgba(52,211,153,0.30)' : 'rgba(99,102,241,0.20)';
+        return (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97))',
+            border: `2px solid ${borderColor}`,
+            borderRadius: '12px', padding: '14px 16px', marginBottom: '8px',
+          }}>
+            {/* Title row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#818cf8' }}>
+                📊 2-String Wave
+                <span style={{ fontSize: '10px', fontWeight: 400, color: '#475569', marginLeft: '8px' }}>
+                  {w.pairingName}{w.pairingConfidence >= 0.6 ? ' ★' : ''} · {w.count} rolls
+                </span>
+              </span>
+              <span style={{ fontSize: '10px', color: '#64748b' }}>
+                {w.pairing ? `A:${w.pairing.pairALabel}[${w.pairing.pairA.map(d=>`4${d}`).join('/')}] · B:${w.pairing.pairBLabel}[${w.pairing.pairB.map(d=>`4${d}`).join('/')}]` : ''}
+              </span>
+            </div>
+
+            {/* ── BIG PREDICTION BOX ── */}
+            <div style={{
+              padding: '10px 14px', borderRadius: '10px', marginBottom: '12px',
+              background: isWait ? 'rgba(255,255,255,0.03)' : `${actionColor}14`,
+              border: `1px solid ${isWait ? 'rgba(255,255,255,0.06)' : `${actionColor}40`}`,
+            }}>
+              <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, marginBottom: '4px', letterSpacing: '1px' }}>
+                NEXT ROLL — EXPECT
+              </div>
+              {isWait ? (
+                <div style={{ fontSize: '14px', color: '#64748b' }}>{w.message}</div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                    <span style={{ fontSize: '26px', fontWeight: 800, color: actionColor, letterSpacing: '3px' }}>
+                      {(isFlip ? w.flipPrefixes : w.currentPrefixes).join(' / ')}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      ({isFlip ? 'FLIP' : 'HOLD'} · {isFlip ? w.flipLabel : w.currentLabel})
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
+                    run {w.runLength}/{w.dominantN} · {Math.round(w.confidence * 100)}% conf
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Run history dots */}
+            {w.states && w.states.length > 0 && w.pairing && (
+              <div>
+                <div style={{ fontSize: '9px', color: '#475569', marginBottom: '4px' }}>Y-SEQUENCE (oldest → newest)</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                  {w.states.map((s, i) => {
+                    const isA = s === 'A';
+                    const isLast = i === w.states.length - 1;
+                    return (
+                      <span key={i} title={isA ? w.pairing.pairALabel : w.pairing.pairBLabel} style={{
+                        fontSize: '10px', fontWeight: 700, width: '22px', height: '22px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: '5px',
+                        background: isA ? 'rgba(99,102,241,0.22)' : 'rgba(245,158,11,0.18)',
+                        color: isA ? '#818cf8' : '#f59e0b',
+                        outline: isLast ? `2px solid ${isA ? '#818cf8' : '#f59e0b'}` : 'none',
+                        outlineOffset: '1px',
+                      }}>
+                        {isA ? w.pairing.pairALabel[0] : w.pairing.pairBLabel[0]}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 🔬 Prefix Wave — DISABLED for now, enable when testing 3str */}
+      {false && prefixWaveData && combinedRolls.length >= 3 && (() => {
+        const PREFIXES = ['41', '42', '43', '44'];
+        const pred = prefixWavePrediction;
+        return (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97))',
+            border: '1px solid rgba(139,92,246,0.30)',
+            borderRadius: '12px', padding: '14px 16px', marginBottom: '8px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#a78bfa' }}>🔬 Prefix Wave</span>
+                <span style={{ fontSize: '10px', color: '#475569', marginLeft: '8px' }}>each prefix has its own independent Z pairing</span>
+              </div>
+              {pred && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: '8px',
+                  background: pred.action === 'FLIP' ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.15)',
+                  border: pred.action === 'FLIP' ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(139,92,246,0.4)',
+                }}>
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{pred.activePrefix}x →</span>
+                  <span style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', color: pred.action === 'FLIP' ? '#f59e0b' : '#c4b5fd' }}>{pred.prediction}</span>
+                  {pred.alt && <span style={{ fontSize: '11px', color: '#64748b' }}>/ {pred.alt}</span>}
+                  <span style={{ fontSize: '9px', color: '#64748b' }}>{pred.pairingName}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+              {PREFIXES.map(px => {
+                const a = prefixWaveData.analyses[px];
+                const isActive = pred?.activePrefix === px;
+                const isCommons = a.isCommons && a.freq > 0;
+                const actionColor = a.action === 'FLIP' ? '#f59e0b' : a.action === 'HOLD' ? '#6ee7b7' : '#475569';
+                return (
+                  <div key={px} style={{
+                    padding: '10px 12px', borderRadius: '9px',
+                    background: isActive ? 'rgba(139,92,246,0.08)' : isCommons ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.015)',
+                    border: `1px solid ${isActive ? 'rgba(139,92,246,0.6)' : isCommons ? 'rgba(99,102,241,0.30)' : 'rgba(255,255,255,0.05)'}`,
+                    opacity: a.freq === 0 ? 0.38 : 1,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: isActive ? '#a78bfa' : '#e2e8f0' }}>{px}x</span>
+                      {isCommons && <span style={{ fontSize: '8px', fontWeight: 700, color: '#818cf8', background: 'rgba(99,102,241,0.15)', padding: '1px 5px', borderRadius: '3px' }}>COMMONS</span>}
+                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#64748b' }}>{a.freq}× {a.freqPct > 0 ? `(${a.freqPct}%)` : ''}</span>
+                    </div>
+                    {a.pairing && a.hasData ? (
+                      <>
+                        <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>
+                          Pairing: <span style={{ color: '#c4b5fd', fontWeight: 600 }}>{a.pairingName}</span>
+                          {a.pairingConfidence >= 0.6 && <span style={{ color: '#34d399', marginLeft: '4px' }}>★</span>}
+                        </div>
+                        <div style={{ fontSize: '9px', color: '#475569', marginBottom: '5px' }}>
+                          A:{a.pairing.pairALabel}[{a.pairing.pairA.join(',')}] · B:{a.pairing.pairBLabel}[{a.pairing.pairB.join(',')}]
+                        </div>
+                        {a.action !== 'WAIT' && a.action !== 'SKIP' && (
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
+                            Run: <span style={{ color: '#e2e8f0' }}>{a.currentLabel}</span>{' '}
+                            {Array(Math.min(a.runLength, 6)).fill('●').join('')}{a.runLength > 6 ? `+${a.runLength-6}` : ''}
+                            <span style={{ opacity: 0.45 }}> /N={a.dominantN}</span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: actionColor }}>{a.message}</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '10px', color: '#475569' }}>{a.message}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Sticky Advanced Tools (Caesar Shift) */}
       <div style={{

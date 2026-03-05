@@ -37,7 +37,7 @@ export default function RollInput({
             }
           }}
           onKeyDown={handleTestRollSubmit}
-          placeholder="Type 3-digit roll (e.g. 234)"
+          placeholder="2-str (e.g. 32) or 3-str (e.g. 234)"
           maxLength={3}
           className="flex-1 bg-slate-900/50 border border-purple-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
         />

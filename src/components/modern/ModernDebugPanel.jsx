@@ -8,6 +8,7 @@ import { runKiyoBacktest } from "../../utils/kiyoBacktester";
 import BacktestComparison from "../BacktestComparison";
 import { LongStringBacktestResults } from "./LongStringBacktestResults";
 import { KiyoBacktestResults } from "./KiyoBacktestResults";
+import { analyze2strWave } from "../../utils/kiyoPrefixWave";
 
 export default function ModernDebugPanel({
   debugLogs,
@@ -23,6 +24,24 @@ export default function ModernDebugPanel({
   const [backtestResults, setBacktestResults] = useState(null);
   const [longStringBacktestResults, setLongStringBacktestResults] = useState(null);
   const [kiyoBacktestResults, setKiyoBacktestResults] = useState(null);
+
+  // 2str wave pairing detection for live Kiyo table
+  const kiyoLogsForDisplay = useMemo(() =>
+    (debugLogs || []).filter(l => l.kind === '3' && l.source === 'kiyo'),
+    [debugLogs]
+  );
+  const livePairing2str = useMemo(() =>
+    analyze2strWave(kiyoLogsForDisplay.map(l => l.actual).filter(Boolean)),
+    [kiyoLogsForDisplay]
+  );
+  const getGroupBadge2str = (roll) => {
+    if (!livePairing2str?.pairing || !roll) return null;
+    const y = String(roll)[1];
+    const isA = livePairing2str.pairing.pairA.includes(y);
+    const isB = livePairing2str.pairing.pairB.includes(y);
+    if (!isA && !isB) return null;
+    return { label: isA ? livePairing2str.pairing.pairALabel : livePairing2str.pairing.pairBLabel, isA, pairingName: livePairing2str.pairingName };
+  };
 
   // Base tabs always visible
   const tabs = [
@@ -258,7 +277,7 @@ export default function ModernDebugPanel({
                   Kiyo Mode Predictions (kind="3", source="kiyo")
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={() => { try {
                     const kiyoLogs = debugLogs.filter((log) => log.kind === "3" && log.source === "kiyo");
                     if (kiyoLogs.length === 0) {
                       alert("No Kiyo logs to download");
@@ -286,156 +305,219 @@ export default function ModernDebugPanel({
                     lines.push("  Wave-C2/C3 = Wave predictions (digits suggested)");
                     lines.push("  Suggest = What wave card recommended (message)");
                     lines.push("  2str/3str = Prefix predictions");
+                    lines.push("  Y-Grp = 2str wave pairing group of this roll's Y-digit");
                     lines.push("  ✓ = Hit, ✗ = Miss, - = No prediction");
                     lines.push("");
+
+                    // Pre-compute 2str wave pairing from session rolls
+                    const sessionRollsAll = kiyoLogs.map(l => l.actual).filter(Boolean);
+                    const finalW2 = analyze2strWave(sessionRollsAll);
+                    const getYGroup = (roll) => {
+                      if (!finalW2?.pairing || !roll) return '-';
+                      const y = String(roll)[1];
+                      if (finalW2.pairing.pairA.includes(y)) return finalW2.pairing.pairALabel;
+                      if (finalW2.pairing.pairB.includes(y)) return finalW2.pairing.pairBLabel;
+                      return '-';
+                    };
+                    if (finalW2) {
+                      lines.push(`Session pairing: ${finalW2.pairingName} — A:${finalW2.pairing.pairALabel}[4${finalW2.pairing.pairA.join('/4')}] vs B:${finalW2.pairing.pairBLabel}[4${finalW2.pairing.pairB.join('/4')}]`);
+                      lines.push("");
+                    }
 
                     const header = [
                       "#".padEnd(3),
                       "Time".padEnd(12),
                       "Actual".padEnd(8),
-                      "Wave-C1".padEnd(10),
-                      "✓".padEnd(2),
-                      "C1-Suggest".padEnd(12),
+                      "Y-Grp".padEnd(8),
+                      "Wave-Verdict".padEnd(24),
+                      "Bet".padEnd(10),
+                      "BetHit".padEnd(7),
                       "Wave-C2".padEnd(10),
                       "✓".padEnd(2),
-                      "C2-Suggest".padEnd(12),
-                      "Wave-C3".padEnd(10),
-                      "✓".padEnd(2),
-                      "C3-Suggest".padEnd(12),
                       "2str-M".padEnd(6),
                       "✓".padEnd(2),
                       "2str-A".padEnd(6),
                       "✓".padEnd(2),
-                      "3str-M".padEnd(6),
-                      "✓".padEnd(2),
-                      "3str-A".padEnd(6),
-                      "✓".padEnd(2),
                     ].join(" ");
 
                     lines.push(header);
-                    lines.push("─".repeat(160));
+                    lines.push("─".repeat(120));
+
+                    // Pre-compute wave snapshot at each roll (oldest → newest)
+                    const chronoRolls = [...kiyoLogs].reverse().map(l => l.actual).filter(Boolean);
+                    const w2Snapshots = chronoRolls.map((_, i) => {
+                      if (i < 2) return null;
+                      return analyze2strWave(chronoRolls.slice(0, i + 1));
+                    });
+
+
+                    let betHitTotal = 0, betHitHits = 0;
 
                     kiyoLogs.forEach((log, idx) => {
                       const actual = log.actual || "---";
-                      const rawActual = log.rawActual || actual; // Use raw roll for Col 1
-                      const rawD1 = rawActual[0] || "-"; // Raw first digit for Col 1
-                      const actualD2 = actual[1] || "-"; // Translated for Col 2
-                      const actualD3 = actual[2] || "-"; // Translated for Col 3
+                      const rawActual = log.rawActual || actual;
+                      const actualD2 = actual[1] || "-";
 
-                      // Column 1 predictions (Odds/Evens based on RAW first digit)
-                      const waveC1 = log.waveC1 ? `[${log.waveC1.join(",")}]` : "-";
-                      const c1Hit = log.waveC1 && rawD1 !== "-" ? (log.waveC1.includes(rawD1) ? "✓" : "✗") : "-";
-                      const c1Suggest = log.col1Expected ? log.col1Expected.substring(0, 12) : "-";
+                      // Wave snapshot for this roll (newest first → index in chrono is reversed)
+                      const chronoIdx = chronoRolls.length - 1 - idx;
+                      const snap = w2Snapshots[chronoIdx];
+                      let waveVerdict = "—";
+                      let betRollsStr = "—";
+                      let betHit = "-";
+                      if (snap) {
+                        const a = snap.action;
+                        if (a === 'DOMINANT')
+                          waveVerdict = `DOM ${snap.dominantLabel}(${snap.dominantPct}%)`;
+                        else if (a === 'FLIP')
+                          waveVerdict = `FLIP→${snap.flipLabel} (${snap.runLength}/${snap.dominantN})`;
+                        else if (a === 'HOLD')
+                          waveVerdict = `HOLD ${snap.currentLabel} (${snap.runLength}/${snap.dominantN})`;
+                        else
+                          waveVerdict = a || "—";
+                        if (snap.betRolls) {
+                          betRollsStr = snap.betRolls.join("/");
+                          const hit = snap.betRolls.some(b => actual.startsWith(b));
+                          betHit = hit ? "✓" : "✗";
+                          if (betRollsStr !== "—") { betHitTotal++; if (hit) betHitHits++; }
+                        }
+                      }
 
-                      // Wave predictions
+                      // Wave-C2 (Z-digit)
                       const waveC2 = log.waveC2 ? `[${log.waveC2.join(",")}]` : "-";
-                      const waveC3 = log.waveC3 ? `[${log.waveC3.join(",")}]` : "-";
-
-                      // Check wave hits
                       const c2Hit = log.waveC2 && actualD2 !== "-" ? (log.waveC2.includes(actualD2) ? "✓" : "✗") : "-";
-                      const c3Hit = log.waveC3 && actualD3 !== "-" ? (log.waveC3.includes(actualD3) ? "✓" : "✗") : "-";
 
-                      // Suggestions
-                      const c2Suggest = log.col2Expected ? log.col2Expected.substring(0, 12) : "-";
-                      const c3Suggest = log.col3Expected ? log.col3Expected.substring(0, 12) : "-";
-
-                      // Prefix predictions: 2str
+                      // Prefix 2str
                       const p2m = log.pred2 || "-";
                       const h2m = p2m !== "-" && actual.startsWith(p2m) ? "✓" : (p2m !== "-" ? "✗" : "-");
                       const p2a = log.alt2 || "-";
                       const h2a = p2a !== "-" && actual.startsWith(p2a) ? "✓" : (p2a !== "-" ? "✗" : "-");
-                      
-                      // Prefix predictions: 3str
-                      const p3m = log.pred3 || "-";
-                      const h3m = p3m !== "-" && actual === p3m ? "✓" : (p3m !== "-" ? "✗" : "-");
-                      const p3a = log.alt3 || "-";
-                      const h3a = p3a !== "-" && actual === p3a ? "✓" : (p3a !== "-" ? "✗" : "-");
 
                       const row = [
                         String(idx + 1).padEnd(3),
                         (log.time || "—").padEnd(12),
                         actual.padEnd(8),
-                        waveC1.padEnd(10),
-                        c1Hit.padEnd(2),
-                        c1Suggest.padEnd(12),
+                        getYGroup(actual).padEnd(8),
+                        waveVerdict.padEnd(24),
+                        betRollsStr.padEnd(10),
+                        betHit.padEnd(7),
                         waveC2.padEnd(10),
                         c2Hit.padEnd(2),
-                        c2Suggest.padEnd(12),
-                        waveC3.padEnd(10),
-                        c3Hit.padEnd(2),
-                        c3Suggest.padEnd(12),
                         p2m.padEnd(6),
                         h2m.padEnd(2),
                         p2a.padEnd(6),
                         h2a.padEnd(2),
-                        p3m.padEnd(6),
-                        h3m.padEnd(2),
-                        p3a.padEnd(6),
-                        h3a.padEnd(2),
                       ].join(" ");
 
                       lines.push(row);
-                      
+
                       // 5-minute window separator
                       if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
-                        lines.push("─".repeat(160) + " ◄ 5-min window boundary");
+                        lines.push("─".repeat(120) + " ◄ 5-min window");
                       }
                     });
 
-                    lines.push("");
-                    lines.push("");
-
+                    // ── Compute aggregate stats ───────────────────────────────────────────
                     const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
-                    let c1Total = 0, c1Hits = 0, c2Total = 0, c2Hits = 0, c3Total = 0, c3Hits = 0;
+                    let c2Total = 0, c2Hits = 0;
                     let p2mTotal = 0, p2mHits = 0, p2aHits = 0;
-                    let p3mTotal = 0, p3mHits = 0, p3aHits = 0;
-
                     kiyoLogs.forEach(log => {
                       const actual = String(log.actual || "");
-                      const rawActual = String(log.rawActual || actual); // Raw for Col 1
-                      const rawD1 = rawActual[0]; // Raw first digit
-                      const d2 = actual[1]; // Translated for Col 2
-                      const d3 = actual[2]; // Translated for Col 3
-                      
-                      // Column 1 Accuracy (Odds/Evens using RAW roll)
-                      if (log.waveC1 && Array.isArray(log.waveC1) && log.waveC1.length > 0) {
-                        c1Total++;
-                        if (log.waveC1.includes(rawD1)) c1Hits++;
-                      }
-                      
-                      // Wave Accuracy (using translated rolls)
-                      if (log.waveC2 && Array.isArray(log.waveC2) && log.waveC2.length > 0) { 
-                        c2Total++; 
-                        if (log.waveC2.includes(d2)) c2Hits++; 
-                      }
-                      if (log.waveC3 && Array.isArray(log.waveC3) && log.waveC3.length > 0) { 
-                        c3Total++; 
-                        if (log.waveC3.includes(d3)) c3Hits++; 
-                      }
-                      
-                      // 2-Str Prefix Accuracy
+                      const d2 = actual[1];
+                      if (log.waveC2 && Array.isArray(log.waveC2) && log.waveC2.length > 0) { c2Total++; if (log.waveC2.includes(d2)) c2Hits++; }
                       if (log.pred2) {
                         p2mTotal++;
                         if (actual.startsWith(log.pred2)) p2mHits++;
                         else if (log.alt2 && actual.startsWith(log.alt2)) p2aHits++;
                       }
-
-                      // 3-Str Prefix Accuracy
-                      if (log.pred3) {
-                        p3mTotal++;
-                        if (actual === log.pred3) p3mHits++;
-                        else if (log.alt3 && actual === log.alt3) p3aHits++;
-                      }
                     });
+
+                    // ── Accuracy summary ──────────────────────────────────────────────────
 
                     lines.push("┌─────────────────────────────────────────────────────────┐");
                     lines.push("│  📈 ACCURACY SUMMARY                                     │");
                     lines.push("└─────────────────────────────────────────────────────────┘");
                     lines.push("");
-                    lines.push("WAVE PERFORMANCE:");
-                    lines.push(`  Column 1 (Odds/Evens): ${c1Hits} / ${c1Total} (${pct(c1Hits, c1Total)}%)`);
-                    lines.push(`  Column 2 (Outer/Inner): ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)`);
-                    lines.push(`  Column 3 (Low/High): ${c3Hits} / ${c3Total} (${pct(c3Hits, c3Total)}%)`);
+                    lines.push("WAVE BET PERFORMANCE:");
+                    lines.push(`  🎯 Wave Bet (2-str):   ${betHitHits} / ${betHitTotal} (${pct(betHitHits, betHitTotal)}%)  ← follow this`);
+                    lines.push(`  Column 2 (Outer/Inner): ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)  ← 3-str Z-digit, N/A for 2-str`);
+                    lines.push("");
+
+                    // ── Verdict type breakdown ────────────────────────────────────────────
+                    lines.push("VERDICT TYPE BREAKDOWN:");
+                    const verdictStats = {};
+                    chronoRolls.forEach((actual, i) => {
+                      const snap = w2Snapshots[i];
+                      if (!snap || !snap.betRolls) return;
+                      const a = snap.action || 'OTHER';
+                      if (!verdictStats[a]) verdictStats[a] = { total: 0, hits: 0 };
+                      verdictStats[a].total++;
+                      if (snap.betRolls.some(b => actual.startsWith(b))) verdictStats[a].hits++;
+                    });
+                    const verdictOrder = ['DOMINANT','LEAN','HOLD','FLIP'];
+                    verdictOrder.forEach(v => {
+                      if (verdictStats[v]) {
+                        const s = verdictStats[v];
+                        const bar = '█'.repeat(Math.round(s.hits / s.total * 10)) + '░'.repeat(10 - Math.round(s.hits / s.total * 10));
+                        lines.push(`  ${v.padEnd(9)}: ${String(s.hits).padStart(2)}/${s.total} (${pct(s.hits, s.total)}%) [${bar}]`);
+                      }
+                    });
+                    lines.push("");
+
+                    // ── Baseline: always bet dominant side ───────────────────────────────
+                    lines.push("BASELINE COMPARISON:");
+                    const finalW2full = analyze2strWave(chronoRolls);
+                    if (finalW2full?.dominantPrefixes) {
+                      const domPfx = finalW2full.dominantPrefixes;
+                      const naiveHits = chronoRolls.filter(r => domPfx.some(b => r.startsWith(b))).length;
+                      const naivePct = pct(naiveHits, chronoRolls.length);
+                      lines.push(`  Always bet dominant (${finalW2full.dominantLabel}): ${naiveHits}/${chronoRolls.length} (${naivePct}%)`);
+                      lines.push(`  Wave Bet:                                          ${betHitHits}/${betHitTotal} (${pct(betHitHits, betHitTotal)}%)`);
+                      const gain = ((betHitHits / betHitTotal) - (naiveHits / chronoRolls.length)) * 100;
+                      lines.push(`  Delta vs naive:  ${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%`);
+                    }
+                    lines.push("");
+
+                    // ── Run streak visualization ──────────────────────────────────────────
+                    lines.push("Y-SEQUENCE RUNS (oldest→newest):");
+                    if (finalW2full?.states && finalW2full?.pairing) {
+                      const states = finalW2full.states;
+                      const pa = finalW2full.pairing;
+                      let runStr = "";
+                      let prev = states[0]; let len = 1;
+                      const labelOf = s => s === 'A' ? pa.pairALabel[0] : pa.pairBLabel[0];
+                      for (let i = 1; i < states.length; i++) {
+                        if (states[i] === prev) { len++; }
+                        else { runStr += `${labelOf(prev)}(${len}) → `; prev = states[i]; len = 1; }
+                      }
+                      runStr += `${labelOf(prev)}(${len})`;
+                      lines.push("  " + runStr);
+                      // N analysis
+                      const runLens = [];
+                      let prev2 = states[0]; let len2 = 1;
+                      for (let i = 1; i < states.length; i++) {
+                        if (states[i] === prev2) len2++;
+                        else { runLens.push(len2); prev2 = states[i]; len2 = 1; }
+                      }
+                      runLens.push(len2);
+                      const avgRun = (runLens.reduce((a,b)=>a+b,0)/runLens.length).toFixed(1);
+                      const maxRun = Math.max(...runLens);
+                      lines.push(`  Avg run length: ${avgRun} · Max run: ${maxRun} · N (mode): ${finalW2full.dominantN}`);
+                    }
+                    lines.push("");
+
+                    // ── Early vs late accuracy ────────────────────────────────────────────
+                    lines.push("EARLY vs LATE ACCURACY:");
+                    const half = Math.floor(chronoRolls.length / 2);
+                    let earlyHits = 0, earlyTotal = 0, lateHits = 0, lateTotal = 0;
+                    chronoRolls.forEach((actual, i) => {
+                      const snap = w2Snapshots[i];
+                      if (!snap?.betRolls) return;
+                      const hit = snap.betRolls.some(b => actual.startsWith(b));
+                      if (i < half) { earlyTotal++; if (hit) earlyHits++; }
+                      else { lateTotal++; if (hit) lateHits++; }
+                    });
+                    lines.push(`  First half (${half} rolls): ${earlyHits}/${earlyTotal} (${pct(earlyHits, earlyTotal)}%) — pairing still learning`);
+                    lines.push(`  Second half (${chronoRolls.length - half} rolls): ${lateHits}/${lateTotal} (${pct(lateHits, lateTotal)}%) — pairing stable`);
                     lines.push("");
 
                     lines.push("PREFIX PERFORMANCE:");
@@ -443,10 +525,7 @@ export default function ModernDebugPanel({
                     lines.push(`  2-Str Alt:  ${p2aHits} / ${p2mTotal} (${pct(p2aHits, p2mTotal)}%)`);
                     lines.push(`  2-Str Top2: ${(p2mHits + p2aHits)} / ${p2mTotal} (${pct(p2mHits + p2aHits, p2mTotal)}%)`);
                     lines.push("");
-                    lines.push(`  3-Str Main: ${p3mHits} / ${p3mTotal} (${pct(p3mHits, p3mTotal)}%)`);
-                    lines.push(`  3-Str Alt:  ${p3aHits} / ${p3mTotal} (${pct(p3aHits, p3mTotal)}%)`);
-                    lines.push(`  3-Str Top2: ${(p3mHits + p3aHits)} / ${p3mTotal} (${pct(p3mHits + p3aHits, p3mTotal)}%)`);
-                    lines.push("");
+
 
                     // Translated Rolls Section (4xx format)
                     lines.push("┌─────────────────────────────────────────────────────────┐");
@@ -466,6 +545,41 @@ export default function ModernDebugPanel({
                     lines.push(allRawRolls);
                     lines.push("");
 
+                    // 2-String Wave Analysis — computed from session rolls
+                    lines.push("┌─────────────────────────────────────────────────────────┐");
+                    lines.push("│  🌊 2-STRING WAVE ANALYSIS                               │");
+                    lines.push("└─────────────────────────────────────────────────────────┘");
+                    lines.push("");
+                    const sessionRollsFor2str = kiyoLogs.map(l => l.actual).filter(Boolean);
+                    const is2strOnly = sessionRollsFor2str.every(r => String(r).length <= 2);
+                    const w2 = analyze2strWave(sessionRollsFor2str);
+                    if (is2strOnly) lines.push("⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A");
+                    lines.push("");
+                    if (w2) {
+                      lines.push(`Pairing Detected : ${w2.pairingName}${w2.pairingConfidence >= 0.6 ? ' ★' : ' (low confidence)'}`);
+                      lines.push(`Confidence Score : ${Math.round(w2.pairingConfidence * 100)}%`);
+                      lines.push(`Dominant Side    : ${w2.dominantLabel} [${(w2.dominantPrefixes||[]).join(' / ')}] — ${w2.dominantPct}% of rolls${w2.isDominant ? ' 🏆 DOMINANT' : ''}`);
+                      if (!w2.isDominant) {
+                        lines.push(`Flip N           : ${w2.dominantN} (rolls before side flip)`);
+                        lines.push(`Current Run      : ${w2.currentLabel} [${(w2.currentPrefixes||[]).join(' / ')}] — ${w2.runLength} consecutive`);
+                      }
+                      lines.push(`VERDICT          : ${w2.message}`);
+                      lines.push(`Next Bet         : ${w2.betRolls ? w2.betRolls.join(' or ') : '—'}`);
+                      lines.push("");
+                      lines.push("Y-Sequence (all rolls, oldest first):");
+                      if (w2.pairing && w2.states) {
+                        const labels = w2.states.map(s => s === 'A' ? w2.pairing.pairALabel[0] : w2.pairing.pairBLabel[0]);
+                        for (let i = 0; i < labels.length; i += 20) {
+                          lines.push("  " + labels.slice(i, i + 20).join(" "));
+                        }
+                      }
+                      lines.push("");
+                      lines.push(`Pairing scores   : ${w2.allPairings.map(p => `${p.pairing.name}:${Math.round(p.score * 100)}%`).join(' | ')}`);
+                    } else {
+                      lines.push("Not enough rolls yet (need 3+).");
+                    }
+                    lines.push("");
+
                     lines.push("═══════════════════════════════════════════════════════════");
                     lines.push("Generated by Modern Kiyo Debug System");
                     lines.push("═══════════════════════════════════════════════════════════");
@@ -479,111 +593,106 @@ export default function ModernDebugPanel({
                     a.download = `kiyo-debug-${new Date().toISOString().slice(0, 10)}.txt`;
                     a.click();
                     URL.revokeObjectURL(url);
-                  }}
+                  } catch (err) { alert('Download error: ' + err?.message); }}}
                   className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-semibold rounded-lg transition-all"
                 >
                   📥 Download Kiyo Logs
                 </button>
               </div>
               
-              {debugLogs && debugLogs.length > 0 ? (
-                debugLogs
-                  .filter((log) => log.kind === "3" && log.source === "kiyo")
-                  .slice(0, 50)
-                  .map((log, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs font-mono bg-slate-950/50 p-3 rounded-lg border border-slate-700/30"
-                    >
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-slate-500">{log.time || "—"}</span>
-                        <span className="text-cyan-400 font-bold pr-2">ROLL: {log.actual}</span>
-                        {log.rawActual && (
-                          <span className="text-amber-400 font-bold border-r border-slate-700 pr-2">Raw: {log.rawActual}</span>
-                        )}
-                        
-                        {/* 2str Info */}
-                        <div className="flex items-center gap-1 px-2 border-r border-slate-700">
-                          <span className="text-slate-500">2s:</span>
-                          <span className="text-emerald-400 font-mono">{log.pred2 || "—"}</span>
-                          {log.pred2 && (String(log.actual).startsWith(log.pred2) ? <span className="text-green-500">✓M</span> : log.alt2 && String(log.actual).startsWith(log.alt2) ? <span className="text-blue-400">✓A</span> : <span className="text-red-500">✗</span>)}
-                        </div>
+              {kiyoLogsForDisplay.length > 0 ? (
+                kiyoLogsForDisplay.slice(0, 50).map((log, idx) => (
+                  <div
+                    key={idx}
+                    className="text-xs font-mono bg-slate-950/50 p-3 rounded-lg border border-slate-700/30"
+                  >
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-slate-500">{log.time || "—"}</span>
+                      <span className="text-cyan-400 font-bold pr-2">ROLL: {log.actual}</span>
+                      {log.rawActual && (
+                        <span className="text-amber-400 font-bold border-r border-slate-700 pr-2">Raw: {log.rawActual}</span>
+                      )}
+                      {/* 2str Wave Pairing Group badge */}
+                      {(() => {
+                        const g = getGroupBadge2str(log.actual);
+                        if (!g) return null;
+                        return (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            g.isA ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          }`}>
+                            {g.pairingName}: {g.label}
+                          </span>
+                        );
+                      })()}
+                      {/* 2str Info */}
+                      <div className="flex items-center gap-1 px-2 border-r border-slate-700">
+                        <span className="text-slate-500">2s:</span>
+                        <span className="text-emerald-400 font-mono">{log.pred2 || "—"}</span>
+                        {log.pred2 && (String(log.actual).startsWith(log.pred2) ? <span className="text-green-500">✓M</span> : log.alt2 && String(log.actual).startsWith(log.alt2) ? <span className="text-blue-400">✓A</span> : <span className="text-red-500">✗</span>)}
+                      </div>
+                      {/* 3str Info */}
+                      <div className="flex items-center gap-1 px-2">
+                        <span className="text-slate-500">3s:</span>
+                        <span className="text-amber-400 font-mono">{log.pred3 || "—"}</span>
+                        {log.pred3 && (String(log.actual) === log.pred3 ? <span className="text-green-500">✓M</span> : log.alt3 && String(log.actual) === log.alt3 ? <span className="text-blue-400">✓A</span> : <span className="text-red-500">✗</span>)}
+                      </div>
+                    </div>
 
-                        {/* 3str Info */}
-                        <div className="flex items-center gap-1 px-2">
-                          <span className="text-slate-500">3s:</span>
-                          <span className="text-amber-400 font-mono">{log.pred3 || "—"}</span>
-                          {log.pred3 && (String(log.actual) === log.pred3 ? <span className="text-green-500">✓M</span> : log.alt3 && String(log.actual) === log.alt3 ? <span className="text-blue-400">✓A</span> : <span className="text-red-500">✗</span>)}
+                    {/* Column Predictions */}
+                    {(log.col1Expected || log.col2Expected || log.col3Expected) && (
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded p-2">
+                          <div className="text-[10px] text-slate-500 mb-1">Column 2 (Outer/Inner)</div>
+                          <div className="text-blue-300">
+                            Suggest: {log.col2Expected || "—"}
+                            {log.col2Confidence && (
+                              <span className="text-[10px] text-slate-500 ml-1">
+                                ({Math.round(log.col2Confidence * 100)}%)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] mt-1 text-slate-400">
+                            Result: {log.actual ? (["1", "4"].includes(log.actual[1]) ? "Outer" : "Inner") : "—"}
+                          </div>
+                        </div>
+                        <div className="bg-purple-500/10 border border-purple-500/30 rounded p-2">
+                          <div className="text-[10px] text-slate-500 mb-1">Column 3 (Low/High)</div>
+                          <div className="text-purple-300">
+                            Suggest: {log.col3Expected || "—"}
+                            {log.col3Confidence && (
+                              <span className="text-[10px] text-slate-500 ml-1">
+                                ({Math.round(log.col3Confidence * 100)}%)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] mt-1 text-slate-400">
+                            Result: {log.actual ? (["1", "2"].includes(log.actual[2]) ? "Low" : "High") : "—"}
+                          </div>
+                        </div>
+                        <div className="bg-slate-500/10 border border-slate-500/30 rounded p-2">
+                          <div className="text-[10px] text-slate-500 mb-1">2str Wave Group</div>
+                          {(() => {
+                            const g = getGroupBadge2str(log.actual);
+                            return g ? (
+                              <div className={`text-[11px] font-bold ${g.isA ? 'text-indigo-300' : 'text-amber-300'}`}>
+                                {g.pairingName}: {g.label}
+                              </div>
+                            ) : <div className="text-slate-600 text-[10px]">Detecting...</div>;
+                          })()}
                         </div>
                       </div>
-                      
-                      {/* Column Predictions */}
-                      {(log.col1Expected || log.col2Expected || log.col3Expected) && (
-                        <div className="grid grid-cols-3 gap-2 mb-2">
-                          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2">
-                            <div className="text-[10px] text-slate-500 mb-1">Column 1 (Odds/Evens) {log.rawActual && <span className="text-amber-400">Raw: {log.rawActual}</span>}</div>
-                            <div className="text-emerald-300">
-                              Suggest: {log.col1Expected || "—"}
-                              {log.col1Confidence && (
-                                <span className="text-[10px] text-slate-500 ml-1">
-                                  ({Math.round(log.col1Confidence * 100)}%)
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] mt-1 text-slate-400">
-                              {log.rawActual ? (
-                                <>
-                                  Result: {["1", "3", "5", "7"].includes(String(log.rawActual[0])) ? "Odd" : "Even"}
-                                  {log.waveC1 && log.waveC1.length > 0 && (
-                                    log.waveC1.includes(log.rawActual[0]) 
-                                      ? <span className="text-green-400 font-bold ml-1">✓</span> 
-                                      : <span className="text-red-400 font-bold ml-1">✗</span>
-                                  )}
-                                </>
-                              ) : "—"}
-                            </div>
-                          </div>
-                          <div className="bg-blue-500/10 border border-blue-500/30 rounded p-2">
-                            <div className="text-[10px] text-slate-500 mb-1">Column 2 (Outer/Inner)</div>
-                            <div className="text-blue-300">
-                              Suggest: {log.col2Expected || "—"}
-                              {log.col2Confidence && (
-                                <span className="text-[10px] text-slate-500 ml-1">
-                                  ({Math.round(log.col2Confidence * 100)}%)
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] mt-1 text-slate-400">
-                              Result: {log.actual ? (["1", "4"].includes(log.actual[1]) ? "Outer" : "Inner") : "—"}
-                            </div>
-                          </div>
-                          <div className="bg-purple-500/10 border border-purple-500/30 rounded p-2">
-                            <div className="text-[10px] text-slate-500 mb-1">Column 3 (Low/High)</div>
-                            <div className="text-purple-300">
-                              Suggest: {log.col3Expected || "—"}
-                              {log.col3Confidence && (
-                                <span className="text-[10px] text-slate-500 ml-1">
-                                  ({Math.round(log.col3Confidence * 100)}%)
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] mt-1 text-slate-400">
-                              Result: {log.actual ? (["1", "2"].includes(log.actual[2]) ? "Low" : "High") : "—"}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Wave Predictions */}
-                      {(log.waveC2 || log.waveC3) && (
-                        <div className="text-[10px] text-slate-500 border-t border-slate-700/30 pt-2">
-                          <span className="text-blue-400">Wave C2: {JSON.stringify(log.waveC2) || "—"}</span>
-                          <span className="mx-2">|</span>
-                          <span className="text-purple-400">Wave C3: {JSON.stringify(log.waveC3) || "—"}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))
+                    )}
+
+                    {/* Wave Predictions */}
+                    {(log.waveC2 || log.waveC3) && (
+                      <div className="text-[10px] text-slate-500 border-t border-slate-700/30 pt-2">
+                        <span className="text-blue-400">Wave C2: {JSON.stringify(log.waveC2) || "—"}</span>
+                        <span className="mx-2">|</span>
+                        <span className="text-purple-400">Wave C3: {JSON.stringify(log.waveC3) || "—"}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
               ) : (
                 <div className="text-slate-500 text-center py-8 border border-dashed border-slate-700 rounded-lg">
                   <div className="text-4xl mb-2">🎯</div>

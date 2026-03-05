@@ -1,0 +1,122 @@
+═══════════════════════════════════════════════════════════
+         KIYO MODE DEBUG EXPORT
+═══════════════════════════════════════════════════════════
+
+Generated: 3/5/2026, 6:45:38 AM
+Total Predictions: 31
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  Actual = What you got in-game
+  Wave-C1 = Column 1 (Odds/Evens) - based on raw first digit
+  Wave-C2/C3 = Wave predictions (digits suggested)
+  Suggest = What wave card recommended (message)
+  2str/3str = Prefix predictions
+  Y-Grp = 2str wave pairing group of this roll's Y-digit
+  ✓ = Hit, ✗ = Miss, - = No prediction
+
+Session pairing: Odd/Even — A:Odd[41/43] vs B:Even[42/44]
+
+#   Time         Actual   Y-Grp    Wave-Verdict             Bet        BetHit  Wave-C2    ✓  2str-M ✓  2str-A ✓ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+1   6:45:09 AM   43       Odd      HOLD Odd (2/1)           41/43      ✓       [2,3]      ✓  43     ✓  44     ✗ 
+2   6:44:26 AM   41       Odd      HOLD Odd (1/1)           41/43      ✓       [2,3]      ✗  41     ✓  44     ✗ 
+3   6:44:18 AM   44       Even     HOLD Even (1/1)          42/44      ✓       [2,3]      ✗  43     ✗  41     ✗ 
+4   6:43:47 AM   41       Odd      HOLD Odd (3/1)           41/43      ✓       [2,3]      ✗  43     ✗  44     ✗ 
+5   6:43:14 AM   43       Odd      HOLD Odd (2/1)           41/43      ✓       [2,3]      ✓  44     ✗  43     ✓ 
+6   6:42:54 AM   43       Odd      HOLD Odd (1/1)           41/43      ✓       [2,3]      ✓  43     ✓  44     ✗ 
+7   6:42:48 AM   44       Even     HOLD Even (1/1)          42/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+8   6:42:17 AM   43       Odd      HOLD Odd (1/1)           41/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+9   6:42:10 AM   44       Even     HOLD Even (1/1)          42/44      ✓       [1,4]      ✓  43     ✗  42     ✗ 
+10  6:41:39 AM   43       Odd      DOM High(68%)            43/44      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+11  6:41:14 AM   42       Even     DOM High(67%)            43/44      ✗       [1,4]      ✗  43     ✗  44     ✗ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
+12  6:40:54 AM   43       Odd      WAIT                     —          -       [2,3]      ✓  43     ✓  44     ✗ 
+13  6:40:52 AM   43       Odd      HOLD Inner (2/3)         42/43      ✓       [2,3]      ✓  43     ✓  44     ✗ 
+14  6:40:40 AM   42       Even     WAIT                     —          -       [2,3]      ✓  44     ✗  43     ✗ 
+15  6:40:39 AM   41       Odd      DOM High(71%)            43/44      ✗       [2,3]      ✗  41     ✓  44     ✗ 
+16  6:40:25 AM   44       Even     DOM Even(63%)            42/44      ✓       [1,4]      ✓  44     ✓  43     ✗ 
+17  6:40:20 AM   44       Even     WAIT                     —          -       [1,4]      ✓  41     ✗  44     ✓ 
+18  6:39:38 AM   43       Odd      WAIT                     —          -       [1,4]      ✗  41     ✗  44     ✗ 
+19  6:39:18 AM   43       Odd      DOM High(69%)            43/44      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+20  6:38:57 AM   43       Odd      HOLD Inner (2/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+21  6:38:48 AM   42       Even     DOM Even(73%)            42/44      ✓       [2,3]      ✓  41     ✗  44     ✗ 
+22  6:38:32 AM   44       Even     DOM Even(70%)            42/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
+23  6:38:17 AM   44       Even     DOM High(67%)            43/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+24  6:38:09 AM   44       Even     DOM High(63%)            43/44      ✓       [1,4]      ✓  42     ✗  43     ✗ 
+25  6:37:29 AM   43       Odd      HOLD Odd (2/1)           42/44      ✗       [1,4]      ✗  42     ✗  43     ✓ 
+26  6:37:01 AM   41       Odd      HOLD Low (2/1)           41/42      ✓       [2,3]      ✗  41     ✓  44     ✗ 
+27  6:36:51 AM   42       Even     DOM High(60%)            43/44      ✗       [1,4]      ✗  44     ✗  43     ✗ 
+28  6:36:44 AM   43       Odd      DOM High(75%)            43/44      ✓       [2,3]      ✓  44     ✗  43     ✓ 
+29  6:36:20 AM   42       Even     WAIT                     —          -       [1,4]      ✗  41     ✗  44     ✗ 
+30  6:36:19 AM   44       Even     —                        —          -       []         ✗  41     ✗  44     ✓ 
+31  6:36:04 AM   44       Even     —                        —          -       []         ✗  43     ✗  -      - 
+┌─────────────────────────────────────────────────────────┐
+│  📈 ACCURACY SUMMARY                                     │
+└─────────────────────────────────────────────────────────┘
+
+WAVE BET PERFORMANCE:
+  🎯 Wave Bet (2-str):   20 / 24 (83.3%)  ← follow this
+  Column 2 (Outer/Inner): 12 / 29 (41.4%)  ← 3-str Z-digit, N/A for 2-str
+
+VERDICT TYPE BREAKDOWN:
+  DOMINANT :  8/11 (72.7%) [███████░░░]
+  HOLD     : 12/13 (92.3%) [█████████░]
+
+BASELINE COMPARISON:
+  Always bet dominant (Odd): 16/31 (51.6%)
+  Wave Bet:                                          20/24 (83.3%)
+  Delta vs naive:  +31.7%
+
+Y-SEQUENCE RUNS (oldest→newest):
+  E(3) → O(1) → E(1) → O(2) → E(4) → O(3) → E(2) → O(1) → E(1) → O(2) → E(1) → O(1) → E(1) → O(1) → E(1) → O(3) → E(1) → O(2)
+  Avg run length: 1.7 · Max run: 4 · N (mode): 1
+
+EARLY vs LATE ACCURACY:
+  First half (15 rolls): 8/10 (80.0%) — pairing still learning
+  Second half (16 rolls): 12/14 (85.7%) — pairing stable
+
+PREFIX PERFORMANCE:
+  2-Str Main: 8 / 31 (25.8%)
+  2-Str Alt:  8 / 31 (25.8%)
+  2-Str Top2: 16 / 31 (51.6%)
+
+┌─────────────────────────────────────────────────────────┐
+│  🎲 ALL ROLLS (Translated 4xx)                           │
+└─────────────────────────────────────────────────────────┘
+
+43, 41, 44, 41, 43, 43, 44, 43, 44, 43, 42, 43, 43, 42, 41, 44, 44, 43, 43, 43, 42, 44, 44, 44, 43, 41, 42, 43, 42, 44, 44
+
+┌─────────────────────────────────────────────────────────┐
+│  🎰 ALL ROLLS (Raw Input)                                │
+└─────────────────────────────────────────────────────────┘
+
+43, 41, 44, 41, 43, 43, 44, 43, 44, 43, 42, 43, 43, 42, 41, 44, 44, 43, 43, 43, 42, 44, 44, 44, 43, 41, 42, 43, 42, 44, 44
+
+┌─────────────────────────────────────────────────────────┐
+│  🌊 2-STRING WAVE ANALYSIS                               │
+└─────────────────────────────────────────────────────────┘
+
+⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A
+
+Pairing Detected : Odd/Even ★
+Confidence Score : 70%
+Dominant Side    : Odd [41 / 43] — 52% of rolls
+Flip N           : 1 (rolls before side flip)
+Current Run      : Even [42 / 44] — 3 consecutive
+VERDICT          : 📊 HOLD Even [→ Even] — flip signal weak
+Next Bet         : 42 or 44
+
+Y-Sequence (all rolls, oldest first):
+  O O E O O O E O E O E O O E O E E O O O
+  E E E E O O E O E E E
+
+Pairing scores   : Odd/Even:70% | Outer/Inner:66% | Low/High:52%
+
+═══════════════════════════════════════════════════════════
+Generated by Modern Kiyo Debug System
+═══════════════════════════════════════════════════════════
