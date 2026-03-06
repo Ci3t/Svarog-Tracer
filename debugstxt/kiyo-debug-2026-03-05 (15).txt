@@ -2,8 +2,8 @@
          KIYO MODE DEBUG EXPORT
 ═══════════════════════════════════════════════════════════
 
-Generated: 3/5/2026, 5:50:25 AM
-Total Predictions: 28
+Generated: 3/5/2026, 8:14:59 PM
+Total Predictions: 27
 
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │
@@ -18,82 +18,80 @@ Legend:
   Y-Grp = 2str wave pairing group of this roll's Y-digit
   ✓ = Hit, ✗ = Miss, - = No prediction
 
-Session pairing: Outer/Inner — A:Outer[41/44] vs B:Inner[42/43]
+Session pairing: Low/High — A:Low[41/42] vs B:High[43/44]
 
 #   Time         Actual   Y-Grp    Wave-Verdict             Bet        BetHit  Wave-C2    ✓  2str-M ✓  2str-A ✓ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-1   5:49:49 AM   41       Outer    DOM Odd(61%)             41/43      ✓       [2,3]      ✗  41     ✓  43     ✗ 
-2   5:49:33 AM   44       Outer    HOLD Even (1/3)          42/44      ✓       [1,4]      ✓  41     ✗  44     ✓ 
-3   5:49:18 AM   43       Inner    HOLD Inner (2/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
-4   5:49:03 AM   43       Inner    HOLD Inner (1/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
-5   5:48:40 AM   41       Outer    HOLD Outer (1/2)         41/44      ✓       [2,3]      ✗  41     ✓  44     ✗ 
-6   5:48:04 AM   42       Inner    HOLD Inner (1/2)         42/43      ✓       [2,3]      ✓  41     ✗  44     ✗ 
-7   5:47:35 AM   41       Outer    FLIP→Even (5/1)          42/44      ✗       [1,4]      ✓  41     ✓  44     ✗ 
-8   5:47:23 AM   41       Outer    HOLD Low (1/2)           41/42      ✓       []         ✗  41     ✓  44     ✗ 
-9   5:46:31 AM   43       Inner    FLIP→Even (3/1)          42/44      ✗       [2,3]      ✓  41     ✗  44     ✗ 
-10  5:45:54 AM   43       Inner    FLIP→Even (2/1)          42/44      ✗       []         ✗  41     ✗  44     ✗ 
-11  5:45:53 AM   41       Outer    FLIP→Even (1/1)          42/44      ✗       [2,3]      ✗  41     ✓  44     ✗ 
+1   8:14:53 PM   42       Low      HOLD Inner (3/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+2   8:14:49 PM   43       High     HOLD Inner (2/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+3   8:14:38 PM   42       Low      HOLD Inner (1/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+4   8:14:23 PM   41       Low      HOLD Outer (1/1)         41/44      ✓       [1,4]      ✓  41     ✓  44     ✗ 
+5   8:13:24 PM   43       High     DOM High(70%)            43/44      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+6   8:12:27 PM   41       Low      HOLD Outer (5/1)         42/43      ✗       [2,3]      ✗  41     ✓  44     ✗ 
+7   8:12:22 PM   44       High     HOLD Outer (4/1)         42/43      ✗       [2,3]      ✗  43     ✗  41     ✗ 
+8   8:12:17 PM   44       High     DOM Inner(60%)           42/43      ✗       [2,3]      ✗  41     ✗  43     ✗ 
+9   8:11:57 PM   41       Low      DOM Inner(63%)           42/43      ✗       [2,3]      ✗  43     ✗  44     ✗ 
+10  8:11:44 PM   41       Low      DOM Inner(67%)           42/43      ✗       [2,3]      ✗  41     ✓  44     ✗ 
+11  8:11:23 PM   43       High     HOLD Odd (1/3)           41/43      ✓       [2,3]      ✓  41     ✗  44     ✗ 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
-12  5:45:38 AM   44       Outer    HOLD Even (1/1)          42/44      ✓       [1,4]      ✓  41     ✗  44     ✓ 
-13  5:45:38 AM   43       Inner    DOM Inner(63%)           42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
-14  5:45:24 AM   42       Inner    DOM Inner(60%)           42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
-15  5:45:18 AM   42       Inner    FLIP→Outer (1/1)         41/44      ✗       [2,3]      ✓  41     ✗  44     ✗ 
-16  5:44:57 AM   41       Outer    FLIP→Inner (2/1)         42/43      ✗       [2,3]      ✗  41     ✓  44     ✗ 
-17  5:44:32 AM   44       Outer    FLIP→Inner (1/1)         42/43      ✗       [2,3]      ✗  41     ✗  42     ✗ 
-18  5:44:22 AM   43       Inner    DOM Inner(64%)           42/43      ✓       [2,3]      ✓  41     ✗  42     ✗ 
-19  5:44:09 AM   41       Outer    DOM Inner(60%)           42/43      ✗       []         ✗  42     ✗  41     ✓ 
-20  5:43:31 AM   43       Inner    WAIT                     —          -       []         ✗  42     ✗  41     ✗ 
-21  5:43:09 AM   44       Outer    DOM Low(75%)             41/42      ✗       [1,4]      ✓  41     ✗  44     ✓ 
-22  5:43:03 AM   42       Inner    DOM Inner(71%)           42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
+12  8:11:08 PM   44       High     HOLD Even (1/3)          42/44      ✓       [2,3]      ✗  42     ✗  43     ✗ 
+13  8:10:59 PM   43       High     DOM High(73%)            43/44      ✓       []         ✗  41     ✗  44     ✗ 
+14  8:10:17 PM   43       High     DOM High(71%)            43/44      ✓       [1,4]      ✗  43     ✓  42     ✗ 
+15  8:10:08 PM   43       High     WAIT                     —          -       [1,4]      ✗  43     ✓  44     ✗ 
+16  8:10:01 PM   44       High     DOM Even(67%)            42/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+17  8:09:34 PM   42       Low      DOM High(64%)            43/44      ✗       [2,3]      ✓  42     ✓  43     ✗ 
+18  8:09:07 PM   42       Low      DOM High(70%)            43/44      ✗       [2,3]      ✓  43     ✗  42     ✓ 
+19  8:08:57 PM   43       High     DOM High(78%)            43/44      ✓       [2,3]      ✓  41     ✗  44     ✗ 
+20  8:08:23 PM   44       High     DOM High(75%)            43/44      ✓       [2,3]      ✗  43     ✗  42     ✗ 
+21  8:07:24 PM   44       High     DOM High(71%)            43/44      ✓       [2,3]      ✗  41     ✗  44     ✓ 
+22  8:07:11 PM   43       High     DOM High(67%)            43/44      ✓       [2,3]      ✓  41     ✗  44     ✗ 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ◄ 5-min window
-23  5:42:52 AM   42       Inner    DOM Inner(67%)           42/43      ✓       []         ✗  41     ✗  44     ✗ 
-24  5:42:41 AM   42       Inner    DOM Inner(60%)           42/43      ✓       []         ✗  41     ✗  44     ✗ 
-25  5:42:24 AM   42       Inner    HOLD Inner (1/1)         42/43      ✓       [1,4]      ✗  41     ✗  44     ✗ 
-26  5:41:37 AM   41       Outer    WAIT                     —          -       [1,4]      ✓  41     ✓  44     ✗ 
-27  5:41:36 AM   41       Outer    —                        —          -       []         ✗  41     ✓  44     ✗ 
-28  5:41:21 AM   43       Inner    —                        —          -       []         ✗  44     ✗  41     ✗ 
+23  8:06:41 PM   43       High     DOM High(60%)            43/44      ✓       [2,3]      ✓  43     ✓  42     ✗ 
+24  8:06:35 PM   42       Low      HOLD Low (1/1)           41/42      ✓       [2,3]      ✓  41     ✗  44     ✗ 
+25  8:06:02 PM   43       High     WAIT                     —          -       [1,4]      ✗  41     ✗  44     ✗ 
+26  8:05:55 PM   42       Low      —                        —          -       []         ✗  41     ✗  44     ✗ 
+27  8:05:42 PM   44       High     —                        —          -       []         ✗  43     ✗  42     ✗ 
 ┌─────────────────────────────────────────────────────────┐
 │  📈 ACCURACY SUMMARY                                     │
 └─────────────────────────────────────────────────────────┘
 
 WAVE BET PERFORMANCE:
-  🎯 Wave Bet (2-str):   15 / 24 (62.5%)  ← follow this
-  Column 2 (Outer/Inner): 9 / 20 (45.0%)  ← 3-str Z-digit, N/A for 2-str
+  🎯 Wave Bet (2-str):   16 / 23 (69.6%)  ← follow this
+  Column 2 (Outer/Inner): 8 / 24 (33.3%)  ← 3-str Z-digit, N/A for 2-str
 
 VERDICT TYPE BREAKDOWN:
-  DOMINANT :  7/9 (77.8%) [████████░░]
-  HOLD     :  8/8 (100.0%) [██████████]
-  FLIP     :  0/7 (0.0%) [░░░░░░░░░░]
+  DOMINANT :  9/14 (64.3%) [██████░░░░]
+  HOLD     :  7/9 (77.8%) [████████░░]
 
 BASELINE COMPARISON:
-  Always bet dominant (Odd): 17/28 (60.7%)
-  Wave Bet:                                          15/24 (62.5%)
-  Delta vs naive:  +1.8%
+  Always bet dominant (Inner): 16/27 (59.3%)
+  Wave Bet:                                          16/23 (69.6%)
+  Delta vs naive:  +10.3%
 
 Y-SEQUENCE RUNS (oldest→newest):
-  O(3) → E(5) → O(3) → E(1) → O(1) → E(2) → O(1) → E(1) → O(5) → E(1) → O(3) → E(1) → O(1)
-  Avg run length: 2.2 · Max run: 5 · N (mode): 1
+  O(1) → I(5) → O(2) → I(3) → O(1) → I(3) → O(1) → I(1) → O(5) → I(1) → O(1) → I(3)
+  Avg run length: 2.3 · Max run: 5 · N (mode): 1
 
 EARLY vs LATE ACCURACY:
-  First half (14 rolls): 5/10 (50.0%) — pairing still learning
-  Second half (14 rolls): 10/14 (71.4%) — pairing stable
+  First half (13 rolls): 7/9 (77.8%) — pairing still learning
+  Second half (14 rolls): 9/14 (64.3%) — pairing stable
 
 PREFIX PERFORMANCE:
-  2-Str Main: 8 / 28 (28.6%)
-  2-Str Alt:  4 / 28 (14.3%)
-  2-Str Top2: 12 / 28 (42.9%)
+  2-Str Main: 7 / 27 (25.9%)
+  2-Str Alt:  3 / 27 (11.1%)
+  2-Str Top2: 10 / 27 (37.0%)
 
 ┌─────────────────────────────────────────────────────────┐
 │  🎲 ALL ROLLS (Translated 4xx)                           │
 └─────────────────────────────────────────────────────────┘
 
-41, 44, 43, 43, 41, 42, 41, 41, 43, 43, 41, 44, 43, 42, 42, 41, 44, 43, 41, 43, 44, 42, 42, 42, 42, 41, 41, 43
+42, 43, 42, 41, 43, 41, 44, 44, 41, 41, 43, 44, 43, 43, 43, 44, 42, 42, 43, 44, 44, 43, 43, 42, 43, 42, 44
 
 ┌─────────────────────────────────────────────────────────┐
 │  🎰 ALL ROLLS (Raw Input)                                │
 └─────────────────────────────────────────────────────────┘
 
-41, 44, 43, 43, 41, 42, 41, 41, 43, 43, 41, 44, 43, 42, 42, 41, 44, 43, 41, 43, 44, 42, 42, 42, 42, 41, 41, 43
+42, 43, 42, 41, 43, 41, 44, 44, 41, 41, 43, 44, 43, 43, 43, 44, 42, 42, 43, 44, 44, 43, 43, 42, 43, 42, 44
 
 ┌─────────────────────────────────────────────────────────┐
 │  🌊 2-STRING WAVE ANALYSIS                               │
@@ -101,19 +99,17 @@ PREFIX PERFORMANCE:
 
 ⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A
 
-Pairing Detected : Outer/Inner (low confidence)
-Confidence Score : 37%
-Dominant Side    : Inner [42 / 43] — 54% of rolls
-Flip N           : 1 (rolls before side flip)
-Current Run      : Inner [42 / 43] — 1 consecutive
-VERDICT          : ⏳ Building... (28 rolls, 3 completed runs)
-Next Bet         : —
+Pairing Detected : Low/High ★
+Confidence Score : 69%
+Dominant Side    : High [43 / 44] — 63% of rolls 🏆 DOMINANT
+VERDICT          : 🏆 DOMINANT: High [43 / 44] — 63% of rolls. Stay on dominant side.
+Next Bet         : 43 or 44
 
 Y-Sequence (all rolls, oldest first):
-  O O I I O I O O I I O O I I I O O I O I
-  O I I I I O O I
+  L H L L H L H H L L H H H H H H L L H H
+  H H H L H L H
 
-Pairing scores   : Outer/Inner:37% | Low/High:37% | Odd/Even:32%
+Pairing scores   : Low/High:69% | Odd/Even:50% | Outer/Inner:40%
 
 ═══════════════════════════════════════════════════════════
 Generated by Modern Kiyo Debug System

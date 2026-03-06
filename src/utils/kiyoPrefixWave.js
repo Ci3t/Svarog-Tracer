@@ -301,7 +301,11 @@ export function getPrefixWavePrediction(prefixWaveData, testInput, sessionRolls)
  *
  * @param {string[]} sessionRolls - Translated 3-digit rolls
  */
-export function analyze2strWave(sessionRolls) {
+/**
+ * @param {string[]} sessionRolls - Translated rolls
+ * @param {string|null} prevPairingName - Previously committed pairing name (for hysteresis)
+ */
+export function analyze2strWave(sessionRolls, prevPairingName = null, tablePairingHint = null) {
   if (!sessionRolls || sessionRolls.length < 3) return null;
 
   const yValues = sessionRolls
@@ -344,10 +348,55 @@ export function analyze2strWave(sessionRolls) {
   });
   scored.sort((a, b) => b.score !== a.score ? b.score - a.score : b.confidence - a.confidence);
 
+  // ─── TABLE tiebreaker ─────────────────────────────────────────────────────
+  // When the top two pairings score within 5% of each other AND the TABLE
+  // has a preferred pairing, promote that pairing to #1.
+  // This prevents the Z_PAIRINGS array order from arbitrarily picking Low/High
+  // in tied situations (e.g. all rolls are 41 & 43 → Low/High and Outer/Inner tie).
+  const TABLE_TIEBREAK_MARGIN = 0.05;
+  if (tablePairingHint && scored.length >= 2) {
+    const diff = Math.abs(scored[0].score - scored[1].score);
+    if (diff < TABLE_TIEBREAK_MARGIN) {
+      const hintIdx = scored.findIndex(s => s.pairing.name === tablePairingHint);
+      if (hintIdx > 0) {
+        // promote the TABLE-preferred pairing to the top
+        const [promoted] = scored.splice(hintIdx, 1);
+        scored.unshift(promoted);
+      }
+    }
+  }
+
+  // ─── Hysteresis lock ─────────────────────────────────────────────────────
+  // Require the leading pairing to beat the locked one by ≥12% before switching.
+  // This prevents single-roll flips like High→Outer→Even.
+  const HYSTERESIS = 0.15;
+  if (prevPairingName && scored[0].pairing.name !== prevPairingName) {
+    const prevIdx = scored.findIndex(s => s.pairing.name === prevPairingName);
+    if (prevIdx > 0) {
+      const margin = scored[0].score - scored[prevIdx].score;
+      if (margin < HYSTERESIS) {
+        // Not enough margin — keep the locked pairing at the top
+        const [prev] = scored.splice(prevIdx, 1);
+        scored.unshift(prev);
+      }
+    }
+  }
+
   const best = scored[0];
   const n = yValues.length;
   const isConfident = best.confidence >= 0.5 && n >= 4;
   const isChaotic = best.score < 0.28 && n >= 6;
+
+  // ─── Ambiguity gate ───────────────────────────────────────────────────────
+  // Two triggers for ambiguity:
+  //  1) Top 2 pairings within 8% AND n < 8 (early session)
+  //  2) Top 2 pairings within 3% at ANY roll count (genuinely tied — session-17 case)
+  const AMBIGUITY_MARGIN = 0.08;
+  const TIGHT_TIE_MARGIN = 0.03;   // ← NEW: catches 77%=77% style ties
+  const scoreDiff = scored.length >= 2 ? Math.abs(scored[0].score - scored[1].score) : 1;
+  const isAmbiguous = scored.length >= 2
+    && (scoreDiff < TIGHT_TIE_MARGIN                          // genuinely tied, any n
+    || (scoreDiff < AMBIGUITY_MARGIN && n < 8));              // close + early session
 
   const currentRun = best.currentRun;
   const currentSide = currentRun?.side ?? null;
@@ -401,10 +450,17 @@ export function analyze2strWave(sessionRolls) {
     message = `⏳ Building... (${n} rolls, ${best.completed?.length ?? 0} completed runs)`;
     betRolls = null;
 
-  } else if (isDominant) {
-    // 60%+ → stay on dominant, never chase flips
+  } else if (isDominant && !isAmbiguous) {
+    // 60%+ clear pairing → stay on dominant
     action = 'DOMINANT'; confidence = dominantPct / 100;
     message = `🏆 DOMINANT: ${dominantLabel} [${dominantPrefixes.join(' / ')}] — ${dominantPct}% of rolls. Stay on dominant side.`;
+    betRolls = dominantPrefixes;
+
+  } else if (isDominant && isAmbiguous) {
+    // Dominant but pairing is ambiguous early — bet the side but flag caution
+    action = 'DOMINANT'; confidence = (dominantPct / 100) * 0.75;
+    const margin = Math.round(Math.abs(scored[0].score - scored[1].score) * 100);
+    message = `⚡ LIKELY ${dominantLabel} [${dominantPrefixes.join(' / ')}] — ${dominantPct}%, pairing uncertain (${scored[0].pairing.name} vs ${scored[1].pairing.name}, margin only ${margin}%). Bet cautiously.`;
     betRolls = dominantPrefixes;
 
   } else if (runLength >= best.n && enoughDataForFlip && flipConfident) {
@@ -432,21 +488,37 @@ export function analyze2strWave(sessionRolls) {
   // betRolls = the specific 4X rolls the wave says to bet next
   // e.g. ['42', '44'] when Even is dominant/hold
 
+  // ─── Session mode ─────────────────────────────────────────────────────────
+  // Human-readable description of what kind of session this is.
+  const sessionMode = isChaotic
+    ? 'CHAOTIC'
+    : !isConfident
+      ? 'BUILDING'
+      : isAmbiguous
+        ? 'AMBIGUOUS'
+        : isDominant
+          ? 'DOMINANT'
+          : best.n === 1
+            ? 'ALTERNATING'
+            : `RUN-N${best.n}`;
+
   return {
     count: n,
     action, message, confidence,
-    betRolls,           // 🆕 wave-guided bet: specific rolls to play next
+    betRolls,
     pairing: best.pairing,
     pairingName: best.pairing.name,
     pairingScore: best.score,
     pairingConfidence: best.confidence,
     allPairings: scored,
     dominantN: best.n,
-    isDominant,         // 🆕
-    dominantSide,       // 🆕
-    dominantPct,        // 🆕
-    dominantLabel,      // 🆕
-    dominantPrefixes,   // 🆕
+    isDominant,
+    isAmbiguous,
+    sessionMode,              // 🆕 DOMINANT | RUN-N3 | ALTERNATING | CHAOTIC | AMBIGUOUS | BUILDING
+    dominantSide,
+    dominantPct,
+    dominantLabel,
+    dominantPrefixes,
     currentSide, currentLabel, currentDigits, currentPrefixes, runLength,
     flipSide, flipLabel, flipDigits, flipPrefixes,
     states: best.states,
@@ -454,4 +526,3 @@ export function analyze2strWave(sessionRolls) {
     yValues,
   };
 }
-

@@ -22,7 +22,7 @@ export default function RollInput({
           type="text"
           value={testInput}
           onChange={(e) => {
-            const value = e.target.value.replace(/[^1-8]/g, "");
+            const value = e.target.value.replace(/[^1-8]/g, "").slice(0, 2);
             setTestInput(value);
             
             // Real-time prefix tracking for predictions
@@ -37,8 +37,8 @@ export default function RollInput({
             }
           }}
           onKeyDown={handleTestRollSubmit}
-          placeholder="2-str (e.g. 32) or 3-str (e.g. 234)"
-          maxLength={3}
+          placeholder="e.g. 32  (2-str only)"
+          maxLength={2}
           className="flex-1 bg-slate-900/50 border border-purple-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
         />
         <button

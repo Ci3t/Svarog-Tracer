@@ -300,13 +300,12 @@ export default function ModernDebugPanel({
                     lines.push("└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘");
                     lines.push("");
                     lines.push("Legend:");
-                    lines.push("  Actual = What you got in-game");
-                    lines.push("  Wave-C1 = Column 1 (Odds/Evens) - based on raw first digit");
-                    lines.push("  Wave-C2/C3 = Wave predictions (digits suggested)");
-                    lines.push("  Suggest = What wave card recommended (message)");
-                    lines.push("  2str/3str = Prefix predictions");
-                    lines.push("  Y-Grp = 2str wave pairing group of this roll's Y-digit");
-                    lines.push("  ✓ = Hit, ✗ = Miss, - = No prediction");
+                    lines.push("  Actual        = What you got in-game");
+                    lines.push("  Y-Grp         = Which side of active pairing (Outer/Inner/High/Low/Even/Odd)");
+                    lines.push("  Mode          = Session type: DOMINANT / RUN-N3 / ALTERNATING / AMBIGUOUS / CHAOTIC");
+                    lines.push("  Wave-Verdict  = DOM / HOLD / FLIP / WAIT signal from 2-str wave");
+                    lines.push("  Bet           = Rolls wave said to bet on");
+                    lines.push("  BetHit        = ✓ if betting those rolls would have won, ✗ = miss, - = no bet yet");
                     lines.push("");
 
                     // Pre-compute 2str wave pairing from session rolls
@@ -329,26 +328,28 @@ export default function ModernDebugPanel({
                       "Time".padEnd(12),
                       "Actual".padEnd(8),
                       "Y-Grp".padEnd(8),
-                      "Wave-Verdict".padEnd(24),
+                      "Mode".padEnd(13),
+                      "Wave-Verdict".padEnd(26),
                       "Bet".padEnd(10),
                       "BetHit".padEnd(7),
-                      "Wave-C2".padEnd(10),
-                      "✓".padEnd(2),
-                      "2str-M".padEnd(6),
-                      "✓".padEnd(2),
-                      "2str-A".padEnd(6),
-                      "✓".padEnd(2),
                     ].join(" ");
 
                     lines.push(header);
-                    lines.push("─".repeat(120));
+                    lines.push("─".repeat(90));
 
                     // Pre-compute wave snapshot at each roll (oldest → newest)
+                    // Thread hysteresis lock through each step to match live behaviour
                     const chronoRolls = [...kiyoLogs].reverse().map(l => l.actual).filter(Boolean);
-                    const w2Snapshots = chronoRolls.map((_, i) => {
-                      if (i < 2) return null;
-                      return analyze2strWave(chronoRolls.slice(0, i + 1));
-                    });
+                    const w2Snapshots = [];
+                    let _lockedPairing = null;
+                    for (let i = 0; i < chronoRolls.length; i++) {
+                      if (i < 2) { w2Snapshots.push(null); continue; }
+                      const snap = analyze2strWave(chronoRolls.slice(0, i + 1), _lockedPairing);
+                      if (snap && snap.pairingConfidence >= 0.55 && !snap.isAmbiguous) {
+                        _lockedPairing = snap.pairing.name;
+                      }
+                      w2Snapshots.push(snap);
+                    }
 
 
                     let betHitTotal = 0, betHitHits = 0;
@@ -382,54 +383,25 @@ export default function ModernDebugPanel({
                         }
                       }
 
-                      // Wave-C2 (Z-digit)
-                      const waveC2 = log.waveC2 ? `[${log.waveC2.join(",")}]` : "-";
-                      const c2Hit = log.waveC2 && actualD2 !== "-" ? (log.waveC2.includes(actualD2) ? "✓" : "✗") : "-";
-
-                      // Prefix 2str
-                      const p2m = log.pred2 || "-";
-                      const h2m = p2m !== "-" && actual.startsWith(p2m) ? "✓" : (p2m !== "-" ? "✗" : "-");
-                      const p2a = log.alt2 || "-";
-                      const h2a = p2a !== "-" && actual.startsWith(p2a) ? "✓" : (p2a !== "-" ? "✗" : "-");
-
                       const row = [
                         String(idx + 1).padEnd(3),
                         (log.time || "—").padEnd(12),
                         actual.padEnd(8),
                         getYGroup(actual).padEnd(8),
-                        waveVerdict.padEnd(24),
+                        (snap?.sessionMode || "—").padEnd(13),
+                        waveVerdict.padEnd(26),
                         betRollsStr.padEnd(10),
                         betHit.padEnd(7),
-                        waveC2.padEnd(10),
-                        c2Hit.padEnd(2),
-                        p2m.padEnd(6),
-                        h2m.padEnd(2),
-                        p2a.padEnd(6),
-                        h2a.padEnd(2),
                       ].join(" ");
 
                       lines.push(row);
 
-                      // 5-minute window separator
                       if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
-                        lines.push("─".repeat(120) + " ◄ 5-min window");
+                        lines.push("─".repeat(90) + " ◄ 5-min window");
                       }
                     });
 
-                    // ── Compute aggregate stats ───────────────────────────────────────────
                     const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
-                    let c2Total = 0, c2Hits = 0;
-                    let p2mTotal = 0, p2mHits = 0, p2aHits = 0;
-                    kiyoLogs.forEach(log => {
-                      const actual = String(log.actual || "");
-                      const d2 = actual[1];
-                      if (log.waveC2 && Array.isArray(log.waveC2) && log.waveC2.length > 0) { c2Total++; if (log.waveC2.includes(d2)) c2Hits++; }
-                      if (log.pred2) {
-                        p2mTotal++;
-                        if (actual.startsWith(log.pred2)) p2mHits++;
-                        else if (log.alt2 && actual.startsWith(log.alt2)) p2aHits++;
-                      }
-                    });
 
                     // ── Accuracy summary ──────────────────────────────────────────────────
 
@@ -439,7 +411,6 @@ export default function ModernDebugPanel({
                     lines.push("");
                     lines.push("WAVE BET PERFORMANCE:");
                     lines.push(`  🎯 Wave Bet (2-str):   ${betHitHits} / ${betHitTotal} (${pct(betHitHits, betHitTotal)}%)  ← follow this`);
-                    lines.push(`  Column 2 (Outer/Inner): ${c2Hits} / ${c2Total} (${pct(c2Hits, c2Total)}%)  ← 3-str Z-digit, N/A for 2-str`);
                     lines.push("");
 
                     // ── Verdict type breakdown ────────────────────────────────────────────
@@ -462,6 +433,27 @@ export default function ModernDebugPanel({
                       }
                     });
                     lines.push("");
+
+                    // ── Confidence-tier accuracy ──────────────────────────────────────────
+                    lines.push("CONFIDENCE TIER ACCURACY:");
+                    lines.push("  (How often wave bet wins when confidence is high vs low)");
+                    const tier = { high: { h:0, t:0 }, mid: { h:0, t:0 }, low: { h:0, t:0 } };
+                    chronoRolls.forEach((actual, i) => {
+                      const snap = w2Snapshots[i];
+                      if (!snap || !snap.betRolls) return;
+                      const confPct = snap.action === 'DOMINANT'
+                        ? snap.dominantPct
+                        : Math.round((snap.confidence || 0.5) * 100);
+                      const hit = snap.betRolls.some(b => actual.startsWith(b));
+                      if (confPct >= 70)      { tier.high.t++; if (hit) tier.high.h++; }
+                      else if (confPct >= 60) { tier.mid.t++;  if (hit) tier.mid.h++;  }
+                      else                    { tier.low.t++;  if (hit) tier.low.h++;  }
+                    });
+                    if (tier.high.t > 0) lines.push(`  ≥ 70% conf : ${tier.high.h}/${tier.high.t} (${pct(tier.high.h, tier.high.t)}%) ← strong signal`);
+                    if (tier.mid.t  > 0) lines.push(`  60–69% conf: ${tier.mid.h}/${tier.mid.t}  (${pct(tier.mid.h, tier.mid.t)}%)`);
+                    if (tier.low.t  > 0) lines.push(`  < 60% conf : ${tier.low.h}/${tier.low.t}  (${pct(tier.low.h, tier.low.t)}%) ← weak, skip bet`);
+                    lines.push(`  Recommendation: only bet when conf ≥ ${tier.high.t > 0 && pct(tier.high.h, tier.high.t) >= 70 ? 70 : 65}%`);
+
 
                     // ── Baseline: always bet dominant side ───────────────────────────────
                     lines.push("BASELINE COMPARISON:");
@@ -520,11 +512,6 @@ export default function ModernDebugPanel({
                     lines.push(`  Second half (${chronoRolls.length - half} rolls): ${lateHits}/${lateTotal} (${pct(lateHits, lateTotal)}%) — pairing stable`);
                     lines.push("");
 
-                    lines.push("PREFIX PERFORMANCE:");
-                    lines.push(`  2-Str Main: ${p2mHits} / ${p2mTotal} (${pct(p2mHits, p2mTotal)}%)`);
-                    lines.push(`  2-Str Alt:  ${p2aHits} / ${p2mTotal} (${pct(p2aHits, p2mTotal)}%)`);
-                    lines.push(`  2-Str Top2: ${(p2mHits + p2aHits)} / ${p2mTotal} (${pct(p2mHits + p2aHits, p2mTotal)}%)`);
-                    lines.push("");
 
 
                     // Translated Rolls Section (4xx format)
@@ -557,6 +544,7 @@ export default function ModernDebugPanel({
                     lines.push("");
                     if (w2) {
                       lines.push(`Pairing Detected : ${w2.pairingName}${w2.pairingConfidence >= 0.6 ? ' ★' : ' (low confidence)'}`);
+                      lines.push(`Session Mode     : ${w2.sessionMode || '—'}`);
                       lines.push(`Confidence Score : ${Math.round(w2.pairingConfidence * 100)}%`);
                       lines.push(`Dominant Side    : ${w2.dominantLabel} [${(w2.dominantPrefixes||[]).join(' / ')}] — ${w2.dominantPct}% of rolls${w2.isDominant ? ' 🏆 DOMINANT' : ''}`);
                       if (!w2.isDominant) {

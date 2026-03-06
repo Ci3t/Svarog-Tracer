@@ -394,9 +394,9 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       {/* ── EXPAND BUTTON ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setExpanded(e => !e)}
-        className="w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200"
+        className="w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
       >
-        <span>{expanded ? '▲ Hide details' : '▼ Show details (30s explore)'}</span>
+        <span>{expanded ? '▲ Hide details' : '▼ Show details (Advanced Mode)'}</span>
       </button>
 
       {/* ── 30s EXPLORE SECTION ────────────────────────────────────────────── */}
