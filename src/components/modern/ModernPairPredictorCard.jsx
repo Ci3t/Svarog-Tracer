@@ -391,203 +391,22 @@ export default function ModernPairPredictorCard({ entries = [] }) {
         </div>
       </div>
 
-      {/* ── EXPAND BUTTON ──────────────────────────────────────────────────── */}
+      {/* ── EXPAND BUTTON COMMENTED OUT ────────────────────────────────────
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
       >
         <span>{expanded ? '▲ Hide details' : '▼ Show details (Advanced Mode)'}</span>
       </button>
+      ────────────────────────────────────────────────────────────────── */}
 
-      {/* ── 30s EXPLORE SECTION ────────────────────────────────────────────── */}
+      {/* ── 30s EXPLORE SECTION COMMENTED OUT ──────────────────────────────
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
-
-          {/* Method string (technical) */}
-          <div className="flex items-center justify-between pt-3">
-            <span className="text-[9px] text-slate-600 uppercase tracking-wider">Method</span>
-            <span className="text-[10px] text-slate-500 font-mono">{method}</span>
-          </div>
-
-          {/* Trend Indicators */}
-          <div>
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Trends</div>
-            <div className="flex justify-between gap-1">
-              {VALUES.map(v => {
-                const t = trends?.[v] || { direction: 'stable', current: 0 };
-                const arrow = t.direction === 'rising' ? '↑' : t.direction === 'falling' ? '↓' : '→';
-                const color = t.direction === 'rising' ? 'text-emerald-400'
-                            : t.direction === 'falling' ? 'text-red-400'
-                            : 'text-slate-400';
-                const isMain = v === mainCommon;
-                return (
-                  <div key={v} className={`flex-1 text-center py-1.5 rounded-md bg-slate-800/50
-                    ${isMain ? 'border border-violet-500/40' : ''}`}>
-                    <div className="text-xs font-bold text-slate-300">{v}</div>
-                    <div className={`text-base font-bold ${color}`}>{arrow}</div>
-                    <div className="text-[10px] text-slate-500">{t.current}%</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Pair matrix row for last roll */}
-          {pairMatrix && lastRoll && (
-            <div>
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
-                After {lastRoll} → ?
-              </div>
-              <div className="flex gap-1">
-                {VALUES.map(v => {
-                  const matrixData = pairMatrix[lastRoll]?.[v] || { pct: 0, samples: 0, reliable: false };
-                  const pct = typeof matrixData === 'object' ? matrixData.pct : matrixData;
-                  const samples = typeof matrixData === 'object' ? matrixData.samples : 0;
-                  const reliable = typeof matrixData === 'object' ? matrixData.reliable : false;
-                  const rollsAgo = data.lastSeen?.[v] ?? -1;
-                  const isOverdue = data.overdueValues?.includes(v);
-                  const allPcts = VALUES.map(other => {
-                    const d = pairMatrix[lastRoll]?.[other];
-                    return typeof d === 'object' ? d.pct : (d || 0);
-                  });
-                  const isHighest = pct === Math.max(...allPcts) && pct > 0;
-                  const displayValue = pct > 0 ? `${pct}%`
-                    : rollsAgo >= 0 ? `↻${rollsAgo}` : 'N/A';
-                  const momentum = data.momentumScores?.[v] ?? 0;
-                  const isNoise = noise?.includes(v);
-                  return (
-                    <div key={v} className={`flex-1 text-center py-2 rounded-md
-                      ${isHighest ? 'bg-purple-500/30 border border-purple-500/50'
-                        : isOverdue ? 'bg-orange-500/20 border border-orange-500/40'
-                        : 'bg-slate-800/50'}
-                      ${!reliable && pct > 0 ? 'opacity-60' : ''}
-                      ${isNoise ? 'opacity-50' : ''}
-                    `}>
-                      <div className={`text-xs font-bold ${isNoise ? 'text-red-400/70' : 'text-slate-300'}`}>{v}</div>
-                      <div className={`text-sm font-bold ${
-                        isHighest ? 'text-purple-300'
-                        : isOverdue ? 'text-orange-400'
-                        : pct === 0 ? 'text-slate-500' : 'text-slate-400'
-                      }`}>{displayValue}</div>
-                      <div className={`text-[10px] font-semibold ${
-                        momentum >= 1.0 ? 'text-amber-400'
-                        : momentum >= 0.5 ? 'text-yellow-500'
-                        : momentum >= 0.2 ? 'text-cyan-400' : 'text-slate-500'
-                      }`}>({momentum})</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Wave Signals */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
-              <div className={`text-lg font-bold ${waveSignals?.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
-                {waveSignals?.lastCommonRunLength || 0}
-              </div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
-              <div className={`text-lg font-bold ${waveSignals?.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
-                {waveSignals?.noiseAppearanceCount || 0}
-              </div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Flip %</div>
-              <div className="text-lg font-bold text-slate-300">
-                {waveSignals?.waveFlipProbability || 0}%
-              </div>
-            </div>
-          </div>
-
-          {/* Pattern Analysis — roll sequence + noise gap table */}
-          {rolls.length >= 6 && (() => {
-            const markers = rolls.map(r => {
-              if (r === commons?.[0]) return { type: 'A', value: r };
-              if (r === commons?.[1]) return { type: 'B', value: r };
-              return { type: 'N', value: r };
-            });
-            const gaps = [];
-            let commonsCount = 0;
-            let lastNoiseValue = null;
-            for (let i = 0; i < markers.length; i++) {
-              if (markers[i].type === 'N') {
-                if (lastNoiseValue !== null) gaps.push({ noiseValue: lastNoiseValue, commonsAfter: commonsCount, nextNoise: markers[i].value });
-                lastNoiseValue = markers[i].value;
-                commonsCount = 0;
-              } else { commonsCount++; }
-            }
-            if (lastNoiseValue !== null) gaps.push({ noiseValue: lastNoiseValue, commonsAfter: commonsCount, nextNoise: '?' });
-            const avgGap = gaps.length > 1
-              ? Math.round(gaps.slice(0, -1).reduce((s, g) => s + g.commonsAfter, 0) / (gaps.length - 1))
-              : '—';
-            return (
-              <div>
-                {/* Roll sequence */}
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">
-                  Sequence (last {Math.min(20, rolls.length)})
-                </div>
-                <div className="flex flex-wrap gap-0.5 text-[10px] mb-3">
-                  {markers.slice(-20).map((m, i) => (
-                    <span key={i} className={`px-1 py-0.5 rounded font-bold
-                      ${m.type === 'A' ? 'bg-emerald-600/50 text-emerald-300'
-                        : m.type === 'B' ? 'bg-blue-600/50 text-blue-300'
-                        : 'bg-red-600/50 text-red-300'}`}>
-                      {m.value}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Noise gap table */}
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Noise Gap Analysis</div>
-                <div className="bg-slate-800/50 rounded-lg overflow-hidden">
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="bg-slate-700/50 text-slate-400">
-                        <th className="px-2 py-1 text-left">#</th>
-                        <th className="px-2 py-1 text-left">Noise</th>
-                        <th className="px-2 py-1 text-left">Commons After</th>
-                        <th className="px-2 py-1 text-left">→ Next</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gaps.slice(-5).map((gap, idx) => (
-                        <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-800/30' : ''}>
-                          <td className="px-2 py-1 text-slate-500">{gaps.length - 5 + idx + 1}</td>
-                          <td className="px-2 py-1">
-                            <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">{gap.noiseValue}</span>
-                          </td>
-                          <td className="px-2 py-1">
-                            <span className={`font-bold ${
-                              gap.commonsAfter >= 4 ? 'text-amber-400'
-                              : gap.commonsAfter >= 2 ? 'text-emerald-400'
-                              : 'text-slate-400'
-                            }`}>{gap.commonsAfter}</span>
-                          </td>
-                          <td className="px-2 py-1">
-                            {gap.nextNoise === '?' ? (
-                              <span className="text-yellow-400">⏳ waiting</span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">{gap.nextNoise}</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-between mt-2 text-[10px]">
-                  <div><span className="text-slate-500">Avg commons/noise: </span><span className="text-amber-400 font-bold">{avgGap}</span></div>
-                  <div><span className="text-slate-500">Since last noise: </span><span className="text-emerald-400 font-bold">{commonsCount}</span></div>
-                </div>
-              </div>
-            );
-          })()}
+          ... (advanced details code) ...
         </div>
       )}
+      ────────────────────────────────────────────────────────────────── */}
     </div>
   );
 }

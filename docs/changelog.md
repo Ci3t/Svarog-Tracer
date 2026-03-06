@@ -30,6 +30,15 @@ Changes are listed newest first. Each entry is a TLDR for update announcements.
 
 ---
 
+## [2026-03-06] v4.0.1 Site Patch
+- Version bumped to `4.0.1 FCS` across all platforms
+- Refined Kiyo UI with better text sizes and GSAP animations
+- Added "Suspect TABLE" warning for misleading 100% streaks
+- Fixed Wave tiebreaker logic to align with TABLE's selection
+- Removed Advanced Mode from Lab to simplify experience
+
+---
+
 ## [2026-02-25] v4.0.0 FCS Release
 
 ### 🎯 Predictor
