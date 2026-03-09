@@ -27,6 +27,13 @@ export default function HomePage() {
       icon: "🌊"
     },
     {
+      title: "Chronicles",
+      label: "Caverns",
+      desc: "Community drop records and technical execution archives.",
+      path: "/caverns",
+      icon: "🕳️"
+    },
+    {
       title: "Database",
       label: "Warp Analyzer",
       desc: "Global pull data processing for HSR, Genshin, and WuWa.",
@@ -41,7 +48,7 @@ export default function HomePage() {
       icon: "🧪"
     },
     {
-      title: "Archive",
+      title: "Manual",
       label: "Guides",
       desc: "Detailed documentation and technical guides for RNG analysis.",
       path: "/guides",
@@ -159,7 +166,7 @@ export default function HomePage() {
       {/* BACKGROUND IMAGE - Vibrant but under the dark theme */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <img 
-          src={`${baseUrl}clara.jpg`} 
+          src={`${baseUrl}clara-2.png`} 
           alt="Backdrop" 
           className="w-full h-full object-cover opacity-[0.35] brightness-125 saturate-[1.2]"
         />
@@ -193,7 +200,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap justify-center gap-6">
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
-               Ver.4.0.1 FCS
+               Ver.4.0.2 FCS
              </div>
              <div className="px-8 py-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[10px] text-slate-400 uppercase tracking-widest font-black font-mono backdrop-blur-sm">
                SYS-Status: Validated

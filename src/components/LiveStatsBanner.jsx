@@ -65,6 +65,7 @@ export default function LiveStatsBanner() {
         borderBottom: '1px solid rgba(0, 255, 136, 0.2)',
         overflow: 'hidden',
         position: 'relative',
+        zIndex: 999,
         height: '40px',
         display: 'flex',
         alignItems: 'center',

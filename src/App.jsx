@@ -28,6 +28,7 @@ import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // 🔥 NEW Warp Analyz
 import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
 import HomePage from "./pages/HomePage"; // 🔥 NEW Landing Page
 import BannerTracker from "./pages/BannerTracker"; // 🔥 NEW Banner Tracker
+import CavernTimesPage from "./pages/CavernTimesPage"; // 🔥 NEW Caverns Page
 
 
 
@@ -1021,6 +1022,7 @@ export default function App() {
           />
           <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
           <Route path="/banner-tracker" element={<BannerTracker />} />
+          <Route path="/caverns" element={<CavernTimesPage />} />
           <Route path="/guides" element={<ModernGuidesPage />} />
         </Route>
       </Routes>

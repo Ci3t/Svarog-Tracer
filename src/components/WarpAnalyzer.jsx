@@ -1090,7 +1090,7 @@ export default function WarpAnalyzer() {
                                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                         Operational Status
                                     </h4>
-                                    <p className="text-xs text-slate-500 font-mono">Ver 4.0.1 • Site Patch: Stability Enhanced</p>
+                                    <p className="text-xs text-slate-500 font-mono">Ver 4.0.2 • Site Patch: Stability Enhanced</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <div className="text-right hidden md:block">

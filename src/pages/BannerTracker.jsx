@@ -454,7 +454,7 @@ const BannerTracker = () => {
 
                 {/* MODAL */}
                 {modalData && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-xl p-4" onClick={closeModal}>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xl p-4" onClick={closeModal}>
                         <div className="bg-slate-900/90 border border-white/5 rounded-[2.5rem] p-8 max-w-lg w-full relative overflow-hidden group shadow-2xl" onClick={e => e.stopPropagation()}>
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 shadow-[0_0_20px_#a855f7]" />
                             <div className="flex gap-8">

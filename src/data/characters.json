@@ -1,0 +1,541 @@
+[
+  {
+    "id": "march-7th",
+    "numId": 1001,
+    "name": "March 7th",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1001.png"
+  },
+  {
+    "id": "dan-heng",
+    "numId": 1002,
+    "name": "Dan Heng",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1002.png"
+  },
+  {
+    "id": "himeko",
+    "numId": 1003,
+    "name": "Himeko",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1003.png"
+  },
+  {
+    "id": "welt",
+    "numId": 1004,
+    "name": "Welt",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1004.png"
+  },
+  {
+    "id": "kafka",
+    "numId": 1005,
+    "name": "Kafka",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1005.png"
+  },
+  {
+    "id": "silver-wolf",
+    "numId": 1006,
+    "name": "Silver Wolf",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1006.png"
+  },
+  {
+    "id": "arlan",
+    "numId": 1008,
+    "name": "Arlan",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1008.png"
+  },
+  {
+    "id": "asta",
+    "numId": 1009,
+    "name": "Asta",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1009.png"
+  },
+  {
+    "id": "herta",
+    "numId": 1013,
+    "name": "Herta",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1013.png"
+  },
+  {
+    "id": "bronya",
+    "numId": 1101,
+    "name": "Bronya",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1101.png"
+  },
+  {
+    "id": "seele",
+    "numId": 1102,
+    "name": "Seele",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1102.png"
+  },
+  {
+    "id": "serval",
+    "numId": 1103,
+    "name": "Serval",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1103.png"
+  },
+  {
+    "id": "gepard",
+    "numId": 1104,
+    "name": "Gepard",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1104.png"
+  },
+  {
+    "id": "natasha",
+    "numId": 1105,
+    "name": "Natasha",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1105.png"
+  },
+  {
+    "id": "pela",
+    "numId": 1106,
+    "name": "Pela",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1106.png"
+  },
+  {
+    "id": "clara",
+    "numId": 1107,
+    "name": "Clara",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1107.png"
+  },
+  {
+    "id": "sampo",
+    "numId": 1108,
+    "name": "Sampo",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1108.png"
+  },
+  {
+    "id": "hook",
+    "numId": 1109,
+    "name": "Hook",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1109.png"
+  },
+  {
+    "id": "lynx",
+    "numId": 1110,
+    "name": "Lynx",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1110.png"
+  },
+  {
+    "id": "luka",
+    "numId": 1111,
+    "name": "Luka",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1111.png"
+  },
+  {
+    "id": "topaz-numby",
+    "numId": 1112,
+    "name": "Topaz & Numby",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1112.png"
+  },
+  {
+    "id": "qingque",
+    "numId": 1201,
+    "name": "Qingque",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1201.png"
+  },
+  {
+    "id": "tingyun",
+    "numId": 1202,
+    "name": "Tingyun",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1202.png"
+  },
+  {
+    "id": "luocha",
+    "numId": 1203,
+    "name": "Luocha",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1203.png"
+  },
+  {
+    "id": "jing-yuan",
+    "numId": 1204,
+    "name": "Jing Yuan",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1204.png"
+  },
+  {
+    "id": "blade",
+    "numId": 1205,
+    "name": "Blade",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1205.png"
+  },
+  {
+    "id": "sushang",
+    "numId": 1206,
+    "name": "Sushang",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1206.png"
+  },
+  {
+    "id": "yukong",
+    "numId": 1207,
+    "name": "Yukong",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1207.png"
+  },
+  {
+    "id": "fu-xuan",
+    "numId": 1208,
+    "name": "Fu Xuan",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1208.png"
+  },
+  {
+    "id": "yanqing",
+    "numId": 1209,
+    "name": "Yanqing",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1209.png"
+  },
+  {
+    "id": "guinaifen",
+    "numId": 1210,
+    "name": "Guinaifen",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1210.png"
+  },
+  {
+    "id": "bailu",
+    "numId": 1211,
+    "name": "Bailu",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1211.png"
+  },
+  {
+    "id": "jingliu",
+    "numId": 1212,
+    "name": "Jingliu",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1212.png"
+  },
+  {
+    "id": "dan-heng-imbibitor-lunae",
+    "numId": 1213,
+    "name": "Dan Heng • Imbibitor Lunae",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1213.png"
+  },
+  {
+    "id": "xueyi",
+    "numId": 1214,
+    "name": "Xueyi",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1214.png"
+  },
+  {
+    "id": "hanya",
+    "numId": 1215,
+    "name": "Hanya",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1215.png"
+  },
+  {
+    "id": "huohuo",
+    "numId": 1217,
+    "name": "Huohuo",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1217.png"
+  },
+  {
+    "id": "jiaoqiu",
+    "numId": 1218,
+    "name": "Jiaoqiu",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1218.png"
+  },
+  {
+    "id": "feixiao",
+    "numId": 1220,
+    "name": "Feixiao",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1220.png"
+  },
+  {
+    "id": "yunli",
+    "numId": 1221,
+    "name": "Yunli",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1221.png"
+  },
+  {
+    "id": "lingsha",
+    "numId": 1222,
+    "name": "Lingsha",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1222.png"
+  },
+  {
+    "id": "moze",
+    "numId": 1223,
+    "name": "Moze",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1223.png"
+  },
+  {
+    "id": "fugue",
+    "numId": 1225,
+    "name": "Fugue",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1225.png"
+  },
+  {
+    "id": "gallagher",
+    "numId": 1301,
+    "name": "Gallagher",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1301.png"
+  },
+  {
+    "id": "argenti",
+    "numId": 1302,
+    "name": "Argenti",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1302.png"
+  },
+  {
+    "id": "ruan-mei",
+    "numId": 1303,
+    "name": "Ruan Mei",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1303.png"
+  },
+  {
+    "id": "aventurine",
+    "numId": 1304,
+    "name": "Aventurine",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1304.png"
+  },
+  {
+    "id": "dr-ratio",
+    "numId": 1305,
+    "name": "Dr. Ratio",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1305.png"
+  },
+  {
+    "id": "sparkle",
+    "numId": 1306,
+    "name": "Sparkle",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1306.png"
+  },
+  {
+    "id": "black-swan",
+    "numId": 1307,
+    "name": "Black Swan",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1307.png"
+  },
+  {
+    "id": "acheron",
+    "numId": 1308,
+    "name": "Acheron",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1308.png"
+  },
+  {
+    "id": "robin",
+    "numId": 1309,
+    "name": "Robin",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1309.png"
+  },
+  {
+    "id": "firefly",
+    "numId": 1310,
+    "name": "Firefly",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png"
+  },
+  {
+    "id": "misha",
+    "numId": 1312,
+    "name": "Misha",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1312.png"
+  },
+  {
+    "id": "sunday",
+    "numId": 1313,
+    "name": "Sunday",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1313.png"
+  },
+  {
+    "id": "jade",
+    "numId": 1314,
+    "name": "Jade",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1314.png"
+  },
+  {
+    "id": "boothill",
+    "numId": 1315,
+    "name": "Boothill",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1315.png"
+  },
+  {
+    "id": "rappa",
+    "numId": 1317,
+    "name": "Rappa",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1317.png"
+  },
+  {
+    "id": "the-dahlia",
+    "numId": 1321,
+    "name": "The Dahlia",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png"
+  },
+  {
+    "id": "the-herta",
+    "numId": 1401,
+    "name": "The Herta",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1401.png"
+  },
+  {
+    "id": "aglaea",
+    "numId": 1402,
+    "name": "Aglaea",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1402.png"
+  },
+  {
+    "id": "tribbie",
+    "numId": 1403,
+    "name": "Tribbie",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1403.png"
+  },
+  {
+    "id": "mydei",
+    "numId": 1404,
+    "name": "Mydei",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1404.png"
+  },
+  {
+    "id": "anaxa",
+    "numId": 1405,
+    "name": "Anaxa",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1405.png"
+  },
+  {
+    "id": "cipher",
+    "numId": 1406,
+    "name": "Cipher",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1406.png"
+  },
+  {
+    "id": "castorice",
+    "numId": 1407,
+    "name": "Castorice",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1407.png"
+  },
+  {
+    "id": "phainon",
+    "numId": 1408,
+    "name": "Phainon",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1408.png"
+  },
+  {
+    "id": "hyacine",
+    "numId": 1409,
+    "name": "Hyacine",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1409.png"
+  },
+  {
+    "id": "hysilens",
+    "numId": 1410,
+    "name": "Hysilens",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1410.png"
+  },
+  {
+    "id": "cerydra",
+    "numId": 1412,
+    "name": "Cerydra",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1412.png"
+  },
+  {
+    "id": "evernight",
+    "numId": 1413,
+    "name": "Evernight",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1413.png"
+  },
+  {
+    "id": "dan-heng-permansor-terrae",
+    "numId": 1414,
+    "name": "Dan Heng • Permansor Terrae",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1414.png"
+  },
+  {
+    "id": "cyrene",
+    "numId": 1415,
+    "name": "Cyrene",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1415.png"
+  },
+  {
+    "id": "sparxie",
+    "numId": 1501,
+    "name": "Sparxie",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1501.png"
+  },
+  {
+    "id": "yao-guang",
+    "numId": 1502,
+    "name": "Yao Guang",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1502.png"
+  },
+  {
+    "id": "ashveil",
+    "numId": 1504,
+    "name": "Ashveil",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1504.png"
+  },
+  {
+    "id": "magimech-daybreak-warriors",
+    "numId": 6035,
+    "name": "MagiMech: Daybreak Warriors",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/6035.png"
+  }
+]

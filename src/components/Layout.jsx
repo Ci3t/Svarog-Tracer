@@ -6,7 +6,7 @@ import LiveStatsBanner from './LiveStatsBanner';
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
 
-export default function Layout({ 
+export default function Layout({
   region,
   setRegion,
   patch,
@@ -41,8 +41,8 @@ export default function Layout({
   // GSAP: Initial animation on mount
   useEffect(() => {
     if (!navRef.current) return;
-    
-    gsap.fromTo(navRef.current, 
+
+    gsap.fromTo(navRef.current,
       { y: -20, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 0.2 }
     );
@@ -52,12 +52,12 @@ export default function Layout({
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Live Stats Banner */}
       <LiveStatsBanner />
-      
+
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            
+
             {/* Top Row: Logo + Controls (Mobile) / Left Side (Desktop) */}
             <div className="flex flex-wrap items-center justify-between gap-3 w-full lg:w-auto">
               <NavLink to="/" className="flex items-center gap-3 cursor-pointer">
@@ -126,15 +126,14 @@ export default function Layout({
                   className="absolute top-1 left-0 h-[calc(100%-8px)] bg-purple-600 rounded-lg shadow-lg shadow-purple-500/30 pointer-events-none"
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
-                
+
                 <NavLink
                   to="/live"
                   data-active={location.pathname === '/live'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -144,10 +143,9 @@ export default function Layout({
                   to="/long-string"
                   data-active={location.pathname === '/long-string'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -157,10 +155,9 @@ export default function Layout({
                   to="/kiyo"
                   data-active={location.pathname === '/kiyo'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -170,10 +167,9 @@ export default function Layout({
                   to="/warp-analyzer"
                   data-active={location.pathname === '/warp-analyzer'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -183,23 +179,33 @@ export default function Layout({
                   to="/banner-tracker"
                   data-active={location.pathname === '/banner-tracker'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
                   📅 Banners
                 </NavLink>
                 <NavLink
+                  to="/caverns"
+                  data-active={location.pathname === '/caverns'}
+                  className={({ isActive }) =>
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                    }`
+                  }
+                >
+                  🛖 Caverns
+                </NavLink>
+                <NavLink
                   to="/guides"
                   data-active={location.pathname === '/guides'}
                   className={({ isActive }) =>
-                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-slate-400 hover:text-slate-200'
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? 'text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                     }`
                   }
                 >
@@ -227,13 +233,13 @@ export default function Layout({
       {/* GLOBAL FOOTER */}
       <footer className="mt-auto border-t border-slate-800/50 bg-slate-900/30 backdrop-blur-md py-8 px-4">
         <div className="max-w-[1920px] mx-auto flex flex-col items-center gap-6">
-          
+
           {/* Brand & Version */}
           <div className="text-center">
             <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
               Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
               <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                Ver 4.0.1
+                Ver 4.0.2
               </span>
             </h4>
             <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2025 Ciet</p>
@@ -241,25 +247,25 @@ export default function Layout({
 
           {/* Social Links */}
           <div className="flex flex-wrap justify-center gap-6 text-[11px] font-medium text-slate-400">
-            <a 
-              href="https://twitch.tv/iciet" 
-              target="_blank" 
+            <a
+              href="https://twitch.tv/iciet"
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-purple-400 transition-colors group"
             >
               <span className="text-purple-500/50 group-hover:text-purple-400">Twitch:</span> twitch.tv/iciet
             </a>
-            <a 
-              href="https://discord.gg/AtGzKP7qnZ" 
-              target="_blank" 
+            <a
+              href="https://discord.gg/AtGzKP7qnZ"
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-indigo-400 transition-colors group"
             >
               <span className="text-indigo-500/50 group-hover:text-indigo-400">Discord:</span> My Personal Discord
             </a>
-            <a 
-              href="https://discord.gg/YqAeBjpbE4" 
-              target="_blank" 
+            <a
+              href="https://discord.gg/YqAeBjpbE4"
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-blue-400 transition-colors group"
             >
@@ -276,9 +282,9 @@ export default function Layout({
 
           {/* Special Attribution (StarRailStation for Warp Data) */}
           <div className="pt-4 border-t border-slate-800/30 w-full text-center">
-             <p className="text-[10px] text-slate-600 italic uppercase tracking-widest">
-                Pattern Analysis Engine Powered by Svarog • May your pulls be lucky and your pities be short. ✦
-             </p>
+            <p className="text-[10px] text-slate-600 italic uppercase tracking-widest">
+              Pattern Analysis Engine Powered by Svarog • May your pulls be lucky and your pities be short. ✦
+            </p>
           </div>
         </div>
       </footer>
