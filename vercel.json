@@ -3,14 +3,19 @@
   "framework": "vite",
   "installCommand": "npm install",
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
+    { "source": "/api/hsr/banners", "destination": "/api/hsr?slug=banners" },
+    { "source": "/api/hsr/stats", "destination": "/api/hsr?slug=stats" },
+    { "source": "/api/hsr/cavern-clears", "destination": "/api/hsr?slug=cavern-clears" },
+    { "source": "/api/hsr/cron-wipe", "destination": "/api/hsr?slug=cron-wipe" },
+    { "source": "/api/wuwa/banners", "destination": "/api/wuwa?slug=banners" },
+    { "source": "/api/wuwa/stats", "destination": "/api/wuwa?slug=stats" },
+    { "source": "/api/genshin/banners", "destination": "/api/genshin?slug=banners" },
+    { "source": "/api/genshin/stats", "destination": "/api/genshin?slug=stats" },
+    { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
   "crons": [
     {
-      "path": "/api/hsr/cron-wipe",
+      "path": "/api/hsr?slug=cron-wipe",
       "schedule": "0 4 * * 1"
     }
   ]

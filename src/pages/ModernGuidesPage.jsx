@@ -378,9 +378,19 @@ export default function ModernGuidesPage() {
       const pass = prompt('Enter Admin Access Code:');
       if (pass) {
         const trimmedPass = pass.trim();
-        setAdminPass(trimmedPass);
-        localStorage.setItem('hsr_admin_pass', trimmedPass);
-        notify('Admin Access Granted', 'success');
+        // Secure server-side verification
+        fetch(`${API_URL}?verify=${encodeURIComponent(trimmedPass)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.valid) {
+              setAdminPass(trimmedPass);
+              localStorage.setItem('hsr_admin_pass', trimmedPass);
+              notify('Admin Access Granted', 'success');
+            } else {
+              notify('Invalid Access Code', 'error');
+            }
+          })
+          .catch(() => notify('Security Check Failed', 'error'));
       }
       setTitleClicks(0);
     }
@@ -491,13 +501,17 @@ export default function ModernGuidesPage() {
   // Fetch guides from API
   async function fetchGuides() {
     try {
+      console.log(`[Guides Admin] Fetching data from ${API_URL}...`);
       const response = await fetch(API_URL);
       if (response.ok) {
         const data = await response.json();
+        console.log(`[Guides Admin] Received ${data.creators?.length || 0} creators`);
         setCreators(data.creators || []);
+      } else {
+        console.error(`[Guides Admin] Fetch failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Failed to fetch guides:', error);
+      console.error('[Guides Admin] Failed to fetch guides:', error);
     }
   }
 

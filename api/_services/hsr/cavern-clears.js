@@ -71,7 +71,7 @@ const normalizeChars = (arr) => {
 const normalizeTime = (t) => t ? String(t).trim().replace(/^0/, '') : '';
 export const normalizeKey = (val) => (val || '').toString().trim().replace(/['"]/g, '');
 
-export default async function handler(req, res) {
+export async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');

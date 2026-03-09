@@ -3,7 +3,7 @@
  * Discovers live HSR banners from starrailstation.com
  */
 
-export default async function handler(req, res) {
+export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');

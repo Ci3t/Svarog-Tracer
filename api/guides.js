@@ -91,7 +91,17 @@ export default async function handler(req, res) {
   // GET: Return guides data
   if (req.method === 'GET') {
     try {
+      const { verify } = req.query || {};
+      
+      // Secure Verification for admin access
+      if (verify) {
+         const isCorrect = verify.trim() === normalizedPass;
+         console.log(`[Guides API] Token verification: ${isCorrect ? 'SUCCESS' : 'FAILURE'}`);
+         return res.status(200).json({ valid: isCorrect });
+      }
+
       const data = await getGuidesData();
+      console.log(`[Guides API] Returning data for ${data.creators?.length || 0} creators`);
       res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
       return res.status(200).json(data);
     } catch (error) {

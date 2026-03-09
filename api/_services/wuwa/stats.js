@@ -3,9 +3,9 @@
  * Fetches and parses WuWa Tracker statistics for a given banner ID
  */
 
-import { parseWuWaHTML_Adaptive } from '../utils/wuwaAdaptiveParser.js';
+import { parseWuWaHTML_Adaptive } from '../../utils/wuwaAdaptiveParser.js';
 
-export default async function handler(req, res) {
+export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
