@@ -503,12 +503,40 @@ export default function ModernGuidesPage() {
     try {
       console.log(`[Guides Admin] Fetching data from ${API_URL}...`);
       const response = await fetch(API_URL);
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`[Guides Admin] Received ${data.creators?.length || 0} creators`);
-        setCreators(data.creators || []);
+      const data = await response.json();
+      
+      console.log(`[Guides Admin] API Response:`, data);
+      
+      if (data && data.creators && data.creators.length > 0) {
+        setCreators(data.creators);
       } else {
-        console.error(`[Guides Admin] Fetch failed with status: ${response.status}`);
+        console.warn('[Guides Admin] API returned empty creators, using local fallback');
+        // Final fallback: Use a simplified version of the initial data if API fails to provide one
+        setCreators([
+          {
+            id: "bbp",
+            name: "BigBoiPinoy",
+            shortName: "BBP",
+            channelUrl: "https://www.youtube.com/@BigBoiPnoy",
+            description: "OG Relic Manipulation Guide Creator",
+            color: "amber",
+            videos: [
+              { id: "QrqPENtcFus", title: "Relic Manipulation Changed?", description: "Latest update on how relic manipulation works", featured: true },
+              { id: "G0j3imbKw7M", title: "How to Manipulate Relics", description: "Original comprehensive guide", featured: false }
+            ]
+          },
+          {
+            id: "ciet",
+            name: "Ciet",
+            shortName: "Ciet",
+            channelUrl: "https://www.youtube.com/@iiciet",
+            description: "Svarog Tracer Creator & Developer",
+            color: "purple",
+            videos: [
+              { id: "nUUx7ur-yUY", title: "Ultimate Guide: How to Use Svarog Tracer", description: "Complete walkthrough of the site", featured: true }
+            ]
+          }
+        ]);
       }
     } catch (error) {
       console.error('[Guides Admin] Failed to fetch guides:', error);

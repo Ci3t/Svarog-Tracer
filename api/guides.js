@@ -63,17 +63,21 @@ async function getGuidesData() {
       }
     }
     
-    console.log('[Guides API] No Blob found, initializing with default data');
-    // Initialize Blob with default data
-    await put(BLOB_PATH, JSON.stringify(INITIAL_DATA, null, 2), {
-      access: 'public',
-      contentType: 'application/json',
-      addRandomSuffix: false
-    });
+    console.log('[Guides API] Initializing with default data');
+    try {
+      await put(BLOB_PATH, JSON.stringify(INITIAL_DATA, null, 2), {
+        access: 'public',
+        contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true
+      });
+    } catch (e) {
+      console.warn('[Guides API] Could not save to Blob (likely dev mode):', e.message);
+    }
     
     return INITIAL_DATA;
   } catch (error) {
-    console.error('[Guides API] Blob error:', error);
+    console.error('[Guides API] Critical Blob error:', error);
     return INITIAL_DATA;
   }
 }
@@ -112,13 +116,20 @@ export default async function handler(req, res) {
          return res.status(200).json({ valid: isCorrect });
       }
 
-      const data = await getGuidesData();
+      let data = await getGuidesData();
+      
+      // Validation: Ensure data.creators is not empty
+      if (!data || !data.creators || data.creators.length === 0) {
+        console.warn('[Guides API] Fetched data was empty, using INITIAL_DATA fallback');
+        data = INITIAL_DATA;
+      }
+
       console.log(`[Guides API] Returning data for ${data.creators?.length || 0} creators`);
       res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
       return res.status(200).json(data);
     } catch (error) {
       console.error('[Guides API] GET error:', error);
-      return res.status(500).json({ error: 'Failed to fetch guides' });
+      return res.status(200).json(INITIAL_DATA); // Force success with default data
     }
   }
   
