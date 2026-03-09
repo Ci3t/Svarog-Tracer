@@ -537,5 +537,19 @@
     "name": "MagiMech: Daybreak Warriors",
     "rarity": 4,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/6035.png"
+  },
+  {
+    "id": "saber",
+    "numId": 1014,
+    "name": "Saber",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png"
+  },
+  {
+    "id": "archer",
+    "numId": 1015,
+    "name": "Archer",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png"
   }
 ]
