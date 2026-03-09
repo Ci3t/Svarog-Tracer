@@ -10,7 +10,7 @@ import WarpGuide from '../components/guides/WarpGuide';
 // API Configuration
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? '/api/guides'
-  : 'https://hsr-pattern-record.vercel.app/api/guides';
+  : 'https://svarog-tracer.vercel.app/api/guides';
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
