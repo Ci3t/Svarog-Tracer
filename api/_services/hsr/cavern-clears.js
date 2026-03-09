@@ -72,12 +72,10 @@ const normalizeTime = (t) => t ? String(t).trim().replace(/^0/, '') : '';
 export const normalizeKey = (val) => (val || '').toString().trim().replace(/['"]/g, '');
 
 export async function handler(req, res) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
-  
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  // Method Not Allowed check
+  if (!['GET', 'POST', 'DELETE', 'OPTIONS'].includes(req.method)) {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
   
   // GET: Return all cavern clear times
   if (req.method === 'GET') {
