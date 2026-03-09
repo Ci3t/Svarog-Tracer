@@ -8,7 +8,7 @@ import KiyoGuide from '../components/guides/KiyoGuide';
 import WarpGuide from '../components/guides/WarpGuide';
 
 // API Configuration
-const API_URL = 'https://svarog-tracer.vercel.app/api/guides';
+const API_URL = '/api/guides';
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -21,7 +21,7 @@ const COLOR_CLASSES = {
 };
 
 // Video Card with GSAP hover animations
-function VideoCard({ video, color, creatorName, className = "", delay = 0 }) {
+function VideoCard({ video, color, creatorName, className = "", delay = 0, isAdmin, onEdit, onDelete, onMove }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const cardRef = useRef(null);
   const playButtonRef = useRef(null);
@@ -77,6 +77,28 @@ function VideoCard({ video, color, creatorName, className = "", delay = 0 }) {
       <div className="p-4">
         <h3 className="text-sm font-bold text-white mb-2 line-clamp-2">{video.title}</h3>
         <p className="text-xs text-slate-400 line-clamp-2 mb-3">{video.description}</p>
+        
+        {isAdmin && (
+          <div className="flex items-center gap-2 mb-4 p-2 bg-black/40 rounded-lg border border-white/5">
+            <button onClick={() => onEdit(video)} className="p-1.5 hover:bg-white/10 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer" title="Edit Video">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            </button>
+            <div className="h-3 w-px bg-white/10"></div>
+            <button onClick={() => onMove(video, 'up')} className="p-1.5 hover:bg-white/10 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer" title="Move Up">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+            </button>
+            <button onClick={() => onMove(video, 'down')} className="p-1.5 hover:bg-white/10 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer" title="Move Down">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            <div className="ml-auto flex items-center gap-2">
+               <div className="h-3 w-px bg-white/10"></div>
+               <button onClick={() => onDelete(video.id)} className="p-1.5 hover:bg-red-500/20 rounded-md text-slate-500 hover:text-red-400 transition-colors cursor-pointer" title="Delete Video">
+                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+               </button>
+            </div>
+          </div>
+        )}
+        
         <div className="flex items-center justify-between">
           <span className={`text-[10px] font-medium ${colors.text} uppercase tracking-wider`}>{creatorName}</span>
           <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-white transition-colors flex items-center gap-1 cursor-pointer">
@@ -90,7 +112,7 @@ function VideoCard({ video, color, creatorName, className = "", delay = 0 }) {
 }
 
 // Creator Section
-function CreatorSection({ creator, index }) {
+function CreatorSection({ creator, index, isAdmin, onAdd, onEdit, onDelete, onMove }) {
   const sectionRef = useRef(null);
   const headerRef = useRef(null);
   const colors = COLOR_CLASSES[creator.color];
@@ -119,16 +141,145 @@ function CreatorSection({ creator, index }) {
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
           Visit Channel
         </a>
+        
+        {isAdmin && (
+           <button onClick={() => onAdd(creator.id)} className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold transition-all cursor-pointer border border-purple-400/20 shadow-lg shadow-purple-500/20">
+             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+             Add Video
+           </button>
+        )}
       </div>
 
       <div className={creator.videos.length > 2 ? "overflow-x-auto pb-4 -mx-4 px-4" : ""}>
         <div className={creator.videos.length > 2 ? "flex gap-4 min-w-max" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
           {creator.videos.map((video, i) => (
-            <VideoCard key={video.id} video={video} color={creator.color} creatorName={creator.shortName} className={creator.videos.length > 2 ? "w-80 flex-shrink-0" : ""} delay={i * 0.15} />
+            <VideoCard 
+              key={`${video.id}-${i}`} 
+              video={video} 
+              color={creator.color} 
+              creatorName={creator.shortName} 
+              className={creator.videos.length > 2 ? "w-80 flex-shrink-0" : ""} 
+              delay={i * 0.15} 
+              isAdmin={isAdmin}
+              onEdit={(v) => onEdit(creator.id, v)}
+              onDelete={(vid) => onDelete(creator.id, vid)}
+              onMove={(v, dir) => onMove(creator.id, v, dir)}
+            />
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+// Video Management Modal (Add/Edit)
+function VideoManagementModal({ isOpen, mode, video, onSave, onClose }) {
+  const [formData, setFormData] = useState({ id: '', title: '', description: '', featured: false });
+  const modalRef = useRef(null);
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    if (video) {
+      setFormData({ 
+        id: video.id || '', 
+        title: video.title || '', 
+        description: video.description || '', 
+        featured: video.featured || false 
+      });
+    } else {
+      setFormData({ id: '', title: '', description: '', featured: false });
+    }
+  }, [video, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+      gsap.fromTo(modalRef.current, { scale: 0.9, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: 'back.out(1.5)' });
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+      <div ref={overlayRef} onClick={onClose} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
+      
+      <div ref={modalRef} className="relative w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-purple-500/30 rounded-3xl shadow-2xl overflow-hidden shadow-purple-500/10">
+        {/* Animated Background Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-purple-600/20 blur-[80px] rounded-full"></div>
+        
+        <div className="p-8 relative">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">
+              {mode === 'add' ? 'Add New Guide' : 'Edit Video Guide'}
+            </h2>
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors cursor-pointer">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">YouTube Video ID</label>
+              <input 
+                type="text" 
+                placeholder="e.g. QrqPENtcFus"
+                value={formData.id}
+                onChange={e => setFormData({...formData, id: e.target.value})}
+                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">Title</label>
+              <input 
+                type="text" 
+                placeholder="Guide Title"
+                value={formData.title}
+                onChange={e => setFormData({...formData, title: e.target.value})}
+                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">Description</label>
+              <textarea 
+                placeholder="Short description..."
+                rows="3"
+                value={formData.description}
+                onChange={e => setFormData({...formData, description: e.target.value})}
+                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600 resize-none"
+              ></textarea>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+              <span className="text-xs font-bold text-slate-300">Featured Video</span>
+              <button 
+                onClick={() => setFormData({...formData, featured: !formData.featured})}
+                className={`w-12 h-6 rounded-full transition-all relative ${formData.featured ? 'bg-purple-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.featured ? 'left-7' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            <div className="pt-4 flex gap-3">
+              <button 
+                onClick={onClose}
+                className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/5 text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => onSave(formData)}
+                className="flex-1 py-4 rounded-2xl bg-purple-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-purple-500 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+              >
+                Save Guide
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -196,23 +347,161 @@ export default function ModernGuidesPage() {
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [creators, setCreators] = useState([]);
+  
+  // Admin & Notification State
+  const [adminPass, setAdminPass] = useState(() => localStorage.getItem('hsr_admin_pass') || '');
+  const [titleClicks, setTitleClicks] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+
+  // Management Modal State
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('add');
+  const [editingVideo, setEditingVideo] = useState(null);
+  const [targetCreatorId, setTargetCreatorId] = useState(null);
+
   const headerRef = useRef(null);
   const badgeRef = useRef(null);
   const titleRef = useRef(null);
   
-  // Fetch guides from API
-  useEffect(() => {
-    async function fetchGuides() {
-      try {
-        const response = await fetch(API_URL);
-        if (response.ok) {
-          const data = await response.json();
-          setCreators(data.creators || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch guides:', error);
+  const notify = (message, type = 'info') => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
+  };
+
+  const handleTitleClick = () => {
+    const newCount = titleClicks + 1;
+    setTitleClicks(newCount);
+    if (newCount === 5) {
+      const pass = prompt('Enter Admin Access Code:');
+      if (pass) {
+        const trimmedPass = pass.trim();
+        setAdminPass(trimmedPass);
+        localStorage.setItem('hsr_admin_pass', trimmedPass);
+        notify('Admin Access Granted', 'success');
       }
+      setTitleClicks(0);
     }
+  };
+
+  // Video Management Handlers
+  const handleAddVideo = (creatorId) => {
+    setTargetCreatorId(creatorId);
+    setModalMode('add');
+    setEditingVideo(null);
+    setIsManageModalOpen(true);
+  };
+
+  const handleEditVideo = (creatorId, video) => {
+    setTargetCreatorId(creatorId);
+    setModalMode('edit');
+    setEditingVideo(video);
+    setIsManageModalOpen(true);
+  };
+
+  const handleSaveVideo = async (formData) => {
+    try {
+      const isEdit = modalMode === 'edit';
+      const method = isEdit ? 'PATCH' : 'POST';
+      const body = isEdit 
+        ? { creatorId: targetCreatorId, videoId: editingVideo.id, updates: formData }
+        : { creatorId: targetCreatorId, video: formData };
+
+      console.log(`[Guides Admin] ${method} ${API_URL}`, body);
+      const res = await fetch(API_URL, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'x-api-key': adminPass },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('[Guides Admin] API Error:', res.status, errorData);
+        throw new Error('API Error');
+      }
+      
+      notify(isEdit ? 'Guide updated' : 'Guide added', 'success');
+      setIsManageModalOpen(false);
+      fetchGuides();
+    } catch (err) {
+      notify('Operation failed', 'error');
+    }
+  };
+
+  const handleDeleteVideo = async (creatorId, videoId) => {
+    if (!window.confirm('Erase this guide from history?')) return;
+    try {
+      console.log(`[Guides Admin] DELETE ${API_URL}`, { creatorId, videoId });
+      const res = await fetch(API_URL, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': adminPass },
+        body: JSON.stringify({ creatorId, videoId })
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('[Guides Admin] DELETE Error:', res.status, errorData);
+        throw new Error('API Error');
+      }
+      notify('Video expunged', 'success');
+      // Optimistic delete
+      setCreators(prev => prev.map(c => c.id === creatorId ? { ...c, videos: c.videos.filter(v => v.id !== videoId) } : c));
+    } catch (err) {
+      notify('Failed to delete', 'error');
+    }
+  };
+
+  const handleMoveVideo = async (creatorId, video, direction) => {
+      const creator = creators.find(c => c.id === creatorId);
+      if (!creator) return;
+      
+      const idx = creator.videos.findIndex(v => v.id === video.id);
+      if (idx === -1) return;
+      
+      const newVideos = [...creator.videos];
+      if (direction === 'up' && idx > 0) {
+          [newVideos[idx], newVideos[idx-1]] = [newVideos[idx-1], newVideos[idx]];
+      } else if (direction === 'down' && idx < newVideos.length - 1) {
+          [newVideos[idx], newVideos[idx+1]] = [newVideos[idx+1], newVideos[idx]];
+      } else {
+          return; // Already at boundary
+      }
+
+      try {
+          console.log(`[Guides Admin] PUT ${API_URL} (Reorder)`, { creatorId, videos: newVideos });
+          const res = await fetch(API_URL, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': adminPass },
+              body: JSON.stringify({ creatorId, videos: newVideos })
+          });
+          if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              console.error('[Guides Admin] PUT Error:', res.status, errorData);
+              throw new Error('API Error');
+          }
+          notify('Order updated', 'success');
+          // Optimistic update
+          setCreators(prev => prev.map(c => c.id === creatorId ? { ...c, videos: newVideos } : c));
+      } catch (err) {
+          notify('Failed to reorder', 'error');
+      }
+  };
+
+  // Fetch guides from API
+  async function fetchGuides() {
+    try {
+      const response = await fetch(API_URL);
+      if (response.ok) {
+        const data = await response.json();
+        setCreators(data.creators || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch guides:', error);
+    }
+  }
+
+  useEffect(() => {
     fetchGuides();
   }, []);
 
@@ -253,12 +542,27 @@ export default function ModernGuidesPage() {
       <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div ref={headerRef} className="text-center mb-12">
-          <div ref={badgeRef} className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600/30 to-violet-600/30 border border-purple-500/40 mb-6 shadow-2xl backdrop-blur-sm">
-            <svg className="w-6 h-6 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div 
+            ref={badgeRef} 
+            onClick={handleTitleClick}
+            className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600/30 to-violet-600/30 border border-purple-500/40 mb-6 shadow-2xl backdrop-blur-sm cursor-pointer select-none group"
+          >
+            <svg className="w-6 h-6 text-purple-300 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
             <span className="text-sm font-bold text-purple-300 uppercase tracking-wider">Guides</span>
           </div>
+
+          {adminPass && (
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div 
+                onClick={() => { if(window.confirm('Logout?')) { setAdminPass(''); localStorage.removeItem('hsr_admin_pass'); notify('Logged out', 'info'); } }}
+                className="px-4 py-1.5 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse cursor-pointer hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
+              >
+                Admin Gateway Open
+              </div>
+            </div>
+          )}
           <h1 ref={titleRef} className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-violet-400 to-purple-500 mb-4">
             <span>L</span><span>e</span><span>a</span><span>r</span><span>n</span><span> </span>
             <span>S</span><span>v</span><span>a</span><span>r</span><span>o</span><span>g</span><span> </span>
@@ -298,15 +602,51 @@ export default function ModernGuidesPage() {
             </p>
           </div>
           {creators.map((creator, i) => (
-            <CreatorSection key={creator.id} creator={creator} index={i} />
+            <CreatorSection 
+              key={creator.id} 
+              creator={creator} 
+              index={i} 
+              isAdmin={!!adminPass}
+              onAdd={handleAddVideo}
+              onEdit={handleEditVideo}
+              onDelete={handleDeleteVideo}
+              onMove={handleMoveVideo}
+            />
           ))}
         </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="fixed bottom-8 right-8 z-[200] flex flex-col gap-3">
+        {notifications.map(n => (
+          <div key={n.id} className={`px-6 py-4 rounded-2xl border backdrop-blur-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-right duration-500 ${
+            n.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 
+            n.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 
+            'bg-slate-800/80 border-slate-700 text-slate-200'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              n.type === 'success' ? 'bg-emerald-500/20' : n.type === 'error' ? 'bg-red-500/20' : 'bg-slate-700'
+            }`}>
+              {n.type === 'success' ? '✓' : n.type === 'error' ? '!' : 'i'}
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest">{n.message}</p>
+          </div>
+        ))}
       </div>
 
       {/* Guide Modal */}
       {selectedGuide && (
         <GuideModal isOpen={isModalOpen} onClose={closeModal} guideComponent={selectedGuide.component} guideTitle={selectedGuide.title} guideIcon={selectedGuide.icon} />
       )}
+
+      {/* Admin Management Modal */}
+      <VideoManagementModal 
+        isOpen={isManageModalOpen}
+        mode={modalMode}
+        video={editingVideo}
+        onSave={handleSaveVideo}
+        onClose={() => setIsManageModalOpen(false)}
+      />
     </div>
   );
 }

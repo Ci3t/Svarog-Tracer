@@ -56,7 +56,7 @@ async function getGuidesData() {
     await put(BLOB_PATH, JSON.stringify(INITIAL_DATA, null, 2), {
       access: 'public',
       contentType: 'application/json',
-      addIfNotExists: true
+      addRandomSuffix: false
     });
     
     return INITIAL_DATA;
@@ -69,18 +69,30 @@ async function getGuidesData() {
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  const rawPass = process.env.HSR_ADMIN_PASS || process.env.ADMIN_API_KEY || "";
+  const normalizedPass = String(rawPass).replace(/['"]/g, "").trim();
+  const apiKey = (req.headers['x-api-key'] || "").trim();
+
+  // Logging for debugging
+  if (req.method !== 'GET') {
+    console.log(`[Guides API] ${req.method} request received`);
+    console.log(`[Guides API] Header Key: "${apiKey}"`);
+    console.log(`[Guides API] Target Key: "${normalizedPass}"`);
+    console.log(`[Guides API] Body:`, JSON.stringify(req.body));
   }
   
   // GET: Return guides data
   if (req.method === 'GET') {
     try {
       const data = await getGuidesData();
-      res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+      res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
       return res.status(200).json(data);
     } catch (error) {
       console.error('[Guides API] GET error:', error);
@@ -90,9 +102,8 @@ export default async function handler(req, res) {
   
   // POST: Add a new video
   if (req.method === 'POST') {
-    // Verify API key
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+    if (!apiKey || apiKey !== normalizedPass) {
+      console.error('[Guides API] POST Unauthorized');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -122,15 +133,12 @@ export default async function handler(req, res) {
       
       creator.videos.push(newVideo);
       
-      // Upload to Vercel Blob (delete old, create new)
-      const { blobs } = await list({ prefix: BLOB_PATH });
-      if (blobs.length > 0) {
-        await del(blobs[0].url);
-      }
-      
+      // Upload to Vercel Blob (overwrite)
       const blob = await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true
       });
       
       console.log('[Guides API] Video added successfully:', newVideo.title);
@@ -148,8 +156,8 @@ export default async function handler(req, res) {
   
   // DELETE: Remove a video
   if (req.method === 'DELETE') {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+    if (!apiKey || apiKey !== normalizedPass) {
+      console.error('[Guides API] DELETE Unauthorized');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -174,15 +182,12 @@ export default async function handler(req, res) {
       
       const deletedVideo = creator.videos.splice(videoIndex, 1)[0];
       
-      // Update Blob (delete old, create new)
-      const { blobs: deleteBlobs } = await list({ prefix: BLOB_PATH });
-      if (deleteBlobs.length > 0) {
-        await del(deleteBlobs[0].url);
-      }
-      
+      // Update Blob (overwrite)
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true
       });
       
       console.log('[Guides API] Video deleted:', deletedVideo.title);
@@ -199,8 +204,8 @@ export default async function handler(req, res) {
   
   // PATCH: Update a video
   if (req.method === 'PATCH') {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+    if (!apiKey || apiKey !== normalizedPass) {
+      console.error('[Guides API] PATCH Unauthorized');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -229,15 +234,12 @@ export default async function handler(req, res) {
       if (updates.featured !== undefined) video.featured = updates.featured;
       if (updates.id !== undefined) video.id = updates.id; // Allow fixing the ID
       
-      // Update Blob (delete old, create new)
-      const { blobs: patchBlobs } = await list({ prefix: BLOB_PATH });
-      if (patchBlobs.length > 0) {
-        await del(patchBlobs[0].url);
-      }
-      
+      // Update Blob (overwrite)
       await put(BLOB_PATH, JSON.stringify(data, null, 2), {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true
       });
       
       console.log('[Guides API] Video updated:', video.title);
@@ -250,6 +252,50 @@ export default async function handler(req, res) {
     } catch (error) {
       console.error('[Guides API] PATCH error:', error);
       return res.status(500).json({ error: 'Failed to update video', message: error.message });
+    }
+  }
+  
+  // PUT: Reorder videos for a creator
+  if (req.method === 'PUT') {
+    if (!apiKey || apiKey !== normalizedPass) {
+      console.error('[Guides API] PUT Unauthorized');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+      const { creatorId, videos } = req.body;
+      
+      if (!creatorId || !videos || !Array.isArray(videos)) {
+        return res.status(400).json({ error: 'Missing required fields: creatorId, videos (array)' });
+      }
+      
+      const data = await getGuidesData();
+      const creator = data.creators.find(c => c.id === creatorId);
+      
+      if (!creator) {
+        return res.status(404).json({ error: `Creator '${creatorId}' not found` });
+      }
+      
+      // Update the videos array (reorder)
+      creator.videos = videos;
+      
+      // Update Blob (overwrite)
+      await put(BLOB_PATH, JSON.stringify(data, null, 2), {
+        access: 'public',
+        contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true
+      });
+      
+      console.log('[Guides API] Videos reordered for:', creator.name);
+      
+      return res.status(200).json({
+        success: true,
+        message: `Videos reordered for ${creator.name}`
+      });
+    } catch (error) {
+      console.error('[Guides API] PUT error:', error);
+      return res.status(500).json({ error: 'Failed to reorder videos', message: error.message });
     }
   }
   
