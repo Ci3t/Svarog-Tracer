@@ -4,6 +4,10 @@ import { handler as cavernHandler } from '../_services/hsr/cavern-clears.js';
 import { handler as cronHandler } from '../_services/hsr/cron-wipe.js';
 
 export default async function hsrRouter(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Cache-Control,Authorization,x-api-key');
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
