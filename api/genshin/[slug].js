@@ -1,7 +1,7 @@
-import { handler as bannersHandler } from './_services/wuwa/banners.js';
-import { handler as statsHandler } from './_services/wuwa/stats.js';
+import { handler as bannersHandler } from '../_services/genshin/banners.js';
+import { handler as statsHandler } from '../_services/genshin/stats.js';
 
-export default async function wuwaRouter(req, res) {
+export default async function genshinRouter(req, res) {
   // CORS Headers - Wildcard Isolation
   res.setHeader('Access-Control-Allow-Origin', '*');
   
@@ -17,5 +17,5 @@ export default async function wuwaRouter(req, res) {
   if (slug === 'banners') return bannersHandler(req, res);
   if (slug === 'stats') return statsHandler(req, res);
   
-  return res.status(404).json({ error: 'WuWa API endpoint not found' });
+  return res.status(404).json({ error: 'Genshin API endpoint not found' });
 }

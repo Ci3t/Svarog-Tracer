@@ -1,7 +1,7 @@
-import { handler as bannersHandler } from './_services/hsr/banners.js';
-import { handler as statsHandler } from './_services/hsr/stats.js';
-import { handler as cavernHandler } from './_services/hsr/cavern-clears.js';
-import { handler as cronHandler } from './_services/hsr/cron-wipe.js';
+import { handler as bannersHandler } from '../_services/hsr/banners.js';
+import { handler as statsHandler } from '../_services/hsr/stats.js';
+import { handler as cavernHandler } from '../_services/hsr/cavern-clears.js';
+import { handler as cronHandler } from '../_services/hsr/cron-wipe.js';
 
 export default async function hsrRouter(req, res) {
   // CORS Headers - Wildcard Isolation
