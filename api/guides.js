@@ -85,9 +85,16 @@ async function getGuidesData() {
 export default async function handler(req, res) {
   // Enable CORS - Restrict to official frontend
   const origin = req.headers.origin;
-  if (origin === 'https://ci3t.github.io' || origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
+  const isTrusted = origin === 'https://ci3t.github.io' || 
+                   origin?.startsWith('https://ci3t.github.io') ||
+                   origin?.includes('localhost') || 
+                   origin?.includes('127.0.0.1');
+
+  if (isTrusted) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
   
