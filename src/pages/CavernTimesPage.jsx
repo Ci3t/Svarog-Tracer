@@ -31,6 +31,11 @@ const VisualIcon = ({ src, name, className = "" }) => {
   );
 };
 
+// API Configuration
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '/api/hsr/cavern-clears'
+  : 'https://svarog-tracer.vercel.app/api/hsr/cavern-clears';
+
 export default function CavernTimesPage() {
   const baseUrl = import.meta.env.BASE_URL;
   const [clears, setClears] = useState([]);
@@ -118,7 +123,7 @@ export default function CavernTimesPage() {
   const fetchClears = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/hsr/cavern-clears?t=${Date.now()}`, {
+      const res = await fetch(`${API_URL}?t=${Date.now()}`, {
         cache: 'no-store', // Force bypass cache 
         headers: { 'Cache-Control': 'no-cache' }
       });
@@ -230,7 +235,7 @@ export default function CavernTimesPage() {
         ? [`Purple:${formPurpleCount}`, `Blue:${formBlueCount}`]
         : formSubstats;
 
-      const res = await fetch('/api/hsr/cavern-clears', {
+      const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -359,7 +364,7 @@ export default function CavernTimesPage() {
       const searchParams = new URLSearchParams(cleanParams);
       searchParams.set('t', Date.now().toString()); // Cache buster
 
-      const res = await fetch(`/api/hsr/cavern-clears?${searchParams.toString()}`, {
+      const res = await fetch(`${API_URL}?${searchParams.toString()}`, {
         method: 'DELETE',
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
@@ -1283,7 +1288,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
     setLocalLikes(prev => isCurrentlyLiked ? prev.filter(id => id !== userId) : [...prev, userId]);
 
     try {
-      const res = await fetch('/api/hsr/cavern-clears', {
+      const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
