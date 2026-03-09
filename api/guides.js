@@ -83,12 +83,6 @@ async function getGuidesData() {
 }
 
 export default async function handler(req, res) {
-  // CORS Headers - Wildcard Isolation
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, x-api-key, Authorization');
-
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
