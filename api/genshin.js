@@ -11,10 +11,14 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const url = req.url || '';
-  
-  if (url.includes('/banners')) return bannersHandler(req, res);
-  if (url.includes('/stats')) return statsHandler(req, res);
+  // Robust Routing Logic (Internal)
+  const slug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
+  const pathPart = slug || req.url?.split('/').pop()?.split('?')[0] || '';
 
-  return res.status(404).json({ error: 'Genshin Endpoint Not Found', url });
+  console.log(`[Genshin Hub] Routing pathPart: "${pathPart}" from URL: "${req.url}"`);
+  
+  if (pathPart === 'banners') return bannersHandler(req, res);
+  if (pathPart === 'stats') return statsHandler(req, res);
+
+  return res.status(404).json({ error: 'Genshin Endpoint Not Found', pathPart, url: req.url });
 }

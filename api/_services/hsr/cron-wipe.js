@@ -1,6 +1,6 @@
 import { getCavernData, saveCavernData, normalizeKey } from './cavern-clears.js';
 
-export default async function handler(req, res) {
+export async function handler(req, res) {
   // 1. Verify Authentication
   // Vercel Cron sends a CRON_SECRET, but we'll also allow our ADMIN_API_KEY
   const authHeader = req.headers['authorization'];
