@@ -168,6 +168,9 @@ function isRateLimited(key, limitMs) {
 // =========================================================================
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, x-api-key, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
@@ -180,7 +183,12 @@ export default async function handler(req, res) {
   const { sessionId, type = 'fetch' } = req.body || {};
 
   if (!sessionId || typeof sessionId !== 'string') {
-    return res.status(400).json({ error: 'Invalid sessionId' });
+    // If passive fetch, generate temporary to bypass validation
+    if (type === 'fetch') {
+      req.body.sessionId = 'anonymous-fetch';
+    } else {
+      return res.status(400).json({ error: 'Invalid sessionId' });
+    }
   }
 
   try {

@@ -2,16 +2,6 @@
   "version": 2,
   "framework": "vite",
   "installCommand": "npm install",
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Cache-Control, x-api-key, Authorization" }
-      ]
-    }
-  ],
   "rewrites": [
     { "source": "/api/hsr/banners", "destination": "/api/hsr?slug=banners" },
     { "source": "/api/hsr/stats", "destination": "/api/hsr?slug=stats" },
