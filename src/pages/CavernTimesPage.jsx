@@ -148,12 +148,16 @@ export default function CavernTimesPage() {
     
     // Auto-verify saved password on mount
     if (adminPass) {
-      console.log('[Cavern Admin] Verifying saved access code...');
-      fetch(`/api/guides?verify=${encodeURIComponent(adminPass)}`)
+      console.log('[Cavern Admin] Verifying saved access code (POST)...');
+      fetch('https://svarog-tracer.vercel.app/api/guides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verify: adminPass })
+      })
         .then(res => res.json())
         .then(data => {
           if (!data.valid) {
-            console.warn('[Cavern Admin] Saved access code is no longer valid. Clearing session.');
+            console.warn('[Cavern Admin] Saved access code no longer valid. Clearing session.');
             setAdminPass('');
             localStorage.removeItem('hsr_admin_pass');
             notify('Admin Session Expired', 'error');
@@ -430,8 +434,12 @@ export default function CavernTimesPage() {
       const pass = prompt('Enter Admin Access Code:');
       if (pass) {
         const trimmedPass = pass.trim();
-        // Secure server-side verification (using guides API as common endpoint)
-        fetch(`/api/guides?verify=${encodeURIComponent(trimmedPass)}`)
+        // Secure server-side verification via POST
+        fetch('https://svarog-tracer.vercel.app/api/guides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verify: trimmedPass })
+        })
           .then(res => res.json())
           .then(data => {
             if (data.valid) {
@@ -815,7 +823,7 @@ export default function CavernTimesPage() {
                             <input
                               type="text"
                               required
-                              placeholder="Discord ID"
+                              placeholder="Discord Username"
                               value={formDiscord}
                               onChange={e => setFormDiscord(e.target.value)}
                               className="w-full bg-white/[0.03] backdrop-blur-sm shadow-[inset_0_0_15px_rgba(255,255,255,0.02)] border border-white/10 rounded-[1.5rem] p-5 pl-12 text-white font-black outline-none focus:border-amber-500/50 focus:bg-white/[0.08] transition-all placeholder:text-slate-500 cursor-text hover:bg-white/[0.08] hover:border-white/20"

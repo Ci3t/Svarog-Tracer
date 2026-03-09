@@ -203,7 +203,7 @@ function VideoManagementModal({ isOpen, mode, video, onSave, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
       <div ref={overlayRef} onClick={onClose} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
       
       <div ref={modalRef} className="relative w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-purple-500/30 rounded-3xl shadow-2xl overflow-hidden shadow-purple-500/10">
@@ -550,12 +550,16 @@ export default function ModernGuidesPage() {
     
     // Auto-verify saved password on mount
     if (adminPass) {
-      console.log('[Guides Admin] Verifying saved access code...');
-      fetch(`${API_URL}?verify=${encodeURIComponent(adminPass)}`)
+      console.log('[Guides Admin] Verifying saved access code (POST)...');
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verify: adminPass })
+      })
         .then(res => res.json())
         .then(data => {
           if (!data.valid) {
-            console.warn('[Guides Admin] Saved access code is no longer valid. Clearing session.');
+            console.warn('[Guides Admin] Saved access code no longer valid. Clearing session.');
             setAdminPass('');
             localStorage.removeItem('hsr_admin_pass');
             notify('Admin Session Expired', 'error');

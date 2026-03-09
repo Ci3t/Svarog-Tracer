@@ -83,9 +83,12 @@ async function getGuidesData() {
 }
 
 export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  // Enable CORS - Restrict to official frontend
+  const origin = req.headers.origin;
+  if (origin === 'https://ci3t.github.io' || origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
   
   if (req.method === 'OPTIONS') {
@@ -107,15 +110,7 @@ export default async function handler(req, res) {
   // GET: Return guides data
   if (req.method === 'GET') {
     try {
-      const { verify } = req.query || {};
-      
-      // Secure Verification for admin access
-      if (verify) {
-         const isCorrect = verify.trim() === normalizedPass;
-         console.log(`[Guides API] Token verification: ${isCorrect ? 'SUCCESS' : 'FAILURE'}`);
-         return res.status(200).json({ valid: isCorrect });
-      }
-
+      // GET requests only return data
       let data = await getGuidesData();
       
       // Validation: Ensure data.creators is not empty
@@ -133,8 +128,17 @@ export default async function handler(req, res) {
     }
   }
   
-  // POST: Add a new video
+  // POST: Add a new video OR Verify Admin
   if (req.method === 'POST') {
+    // 1. Verify Admin (Secure JSON body)
+    if (req.body?.verify !== undefined) {
+      const providedPass = (req.body.verify || "").trim();
+      const isValid = providedPass === normalizedPass;
+      console.log(`[Guides API] POST Verification: ${isValid ? 'SUCCESS' : 'FAILURE'}`);
+      return res.status(200).json({ valid: isValid });
+    }
+
+    // 2. Add Video (Requires apiKey)
     if (!apiKey || apiKey !== normalizedPass) {
       console.error('[Guides API] POST Unauthorized');
       return res.status(401).json({ error: 'Unauthorized' });

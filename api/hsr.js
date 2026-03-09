@@ -4,6 +4,18 @@ import { handler as cavernHandler } from './_services/hsr/cavern-clears.js';
 import { handler as cronHandler } from './_services/hsr/cron-wipe.js';
 
 export default async function hsrRouter(req, res) {
+  // Enable CORS - Restrict to official frontend
+  const origin = req.headers.origin;
+  if (origin === 'https://ci3t.github.io' || origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const { slug } = req.query;
   
   if (slug === 'banners') return bannersHandler(req, res);
