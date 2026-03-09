@@ -42,12 +42,24 @@ async function getGuidesData() {
     const { blobs } = await list({ prefix: BLOB_PATH });
     
     if (blobs.length > 0) {
-      // Fetch the blob content
-      const response = await fetch(blobs[0].url);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[Guides API] Loaded data from Blob');
-        return data;
+      // Fetch the blob content with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      try {
+        const response = await fetch(blobs[0].url, { 
+          signal: controller.signal,
+          cache: 'no-store' 
+        });
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Guides API] Loaded data from Blob');
+          return data;
+        }
+      } catch (e) {
+        clearTimeout(timeoutId);
+        console.warn('[Guides API] Blob fetch failed, returning initial data:', e.message);
       }
     }
     

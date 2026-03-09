@@ -140,6 +140,24 @@ export default function CavernTimesPage() {
 
   useEffect(() => {
     fetchClears();
+    
+    // Auto-verify saved password on mount
+    if (adminPass) {
+      console.log('[Cavern Admin] Verifying saved access code...');
+      fetch(`/api/guides?verify=${encodeURIComponent(adminPass)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.valid) {
+            console.warn('[Cavern Admin] Saved access code is no longer valid. Clearing session.');
+            setAdminPass('');
+            localStorage.removeItem('hsr_admin_pass');
+            notify('Admin Session Expired', 'error');
+          } else {
+            console.log('[Cavern Admin] Admin session verified.');
+          }
+        })
+        .catch(() => console.error('[Cavern Admin] Security check failed during mount.'));
+    }
   }, []);
 
   // Animations when changing categories or filter
@@ -406,9 +424,20 @@ export default function CavernTimesPage() {
     if (newCount === 5) {
       const pass = prompt('Enter Admin Access Code:');
       if (pass) {
-        setAdminPass(pass);
-        localStorage.setItem('hsr_admin_pass', pass);
-        notify('Admin Access Granted', 'success');
+        const trimmedPass = pass.trim();
+        // Secure server-side verification (using guides API as common endpoint)
+        fetch(`/api/guides?verify=${encodeURIComponent(trimmedPass)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.valid) {
+              setAdminPass(trimmedPass);
+              localStorage.setItem('hsr_admin_pass', trimmedPass);
+              notify('Admin Access Granted', 'success');
+            } else {
+              notify('Invalid Access Code', 'error');
+            }
+          })
+          .catch(() => notify('Security Check Failed', 'error'));
       }
       setTitleClicks(0);
     }
