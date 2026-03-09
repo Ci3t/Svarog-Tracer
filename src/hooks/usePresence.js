@@ -79,7 +79,7 @@ export function usePresence() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: (type === 'active' || type === 'prediction') ? sessionIdRef.current : null,
+          sessionId: sessionIdRef.current,
           type
         })
       });
