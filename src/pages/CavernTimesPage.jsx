@@ -73,6 +73,7 @@ export default function CavernTimesPage() {
   const [formNote, setFormNote] = useState('');
   const [formSubstats, setFormSubstats] = useState([]);
   const [formMainStat, setFormMainStat] = useState('');
+  const [charSearch, setCharSearch] = useState('');
   const [formPurpleCount, setFormPurpleCount] = useState(0);
   const [formBlueCount, setFormBlueCount] = useState(0);
 
@@ -1016,8 +1017,24 @@ export default function CavernTimesPage() {
 
                       {/* FULL WIDTH ROSTER */}
                       <div className="bg-black/20 rounded-[2rem] p-5 border border-white/5 shadow-inner w-full">
+                        {/* Search Input */}
+                        <div className="relative mb-3">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder="Search character..."
+                            value={charSearch}
+                            onChange={e => setCharSearch(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 transition-all"
+                          />
+                          {charSearch && (
+                            <button onClick={() => setCharSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                         <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-3 sm:gap-4 max-h-[250px] overflow-y-auto custom-scrollbar p-2 pr-4">
-                          {charactersData.map(c => {
+                          {charactersData.filter(c => c.name.toLowerCase().includes(charSearch.toLowerCase())).map(c => {
                             const isAdded = formChars.includes(c.id);
                             const rarityBg = c.rarity === 5 ? 'bg-gradient-to-b from-orange-400/40 to-orange-600/80' : 'bg-gradient-to-b from-purple-400/40 to-purple-600/80';
                             const rarityBorder = c.rarity === 5 ? 'border-orange-500/50' : 'border-purple-500/50';

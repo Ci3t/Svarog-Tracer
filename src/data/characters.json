@@ -551,5 +551,33 @@
     "name": "Archer",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png"
+  },
+  {
+    "id": "trailblazer-fire",
+    "numId": 8001,
+    "name": "Trailblazer (Fire)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8001.png"
+  },
+  {
+    "id": "trailblazer-ice",
+    "numId": 8002,
+    "name": "Trailblazer (Ice)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8002.png"
+  },
+  {
+    "id": "trailblazer-imaginary",
+    "numId": 8003,
+    "name": "Trailblazer (Imaginary)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8003.png"
+  },
+  {
+    "id": "trailblazer-remembrance",
+    "numId": 8004,
+    "name": "Trailblazer (Remembrance)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8004.png"
   }
-]
+]
