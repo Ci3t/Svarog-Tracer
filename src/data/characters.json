@@ -553,31 +553,60 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png"
   },
   {
-    "id": "trailblazer-fire",
+    "id": "trailblazer-destruction-m",
     "numId": 8001,
-    "name": "Trailblazer (Fire)",
+    "name": "Trailblazer • Destruction (M)",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8001.png"
   },
   {
-    "id": "trailblazer-ice",
+    "id": "trailblazer-destruction-f",
     "numId": 8002,
-    "name": "Trailblazer (Ice)",
+    "name": "Trailblazer • Destruction (F)",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8002.png"
   },
   {
-    "id": "trailblazer-imaginary",
+    "id": "trailblazer-preservation-m",
     "numId": 8003,
-    "name": "Trailblazer (Imaginary)",
+    "name": "Trailblazer • Preservation (M)",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8003.png"
   },
   {
-    "id": "trailblazer-remembrance",
+    "id": "trailblazer-preservation-f",
     "numId": 8004,
-    "name": "Trailblazer (Remembrance)",
+    "name": "Trailblazer • Preservation (F)",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8004.png"
+  },
+  {
+    "id": "trailblazer-harmony-m",
+    "numId": 8005,
+    "name": "Trailblazer • Harmony (M)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8005.png"
+  },
+  {
+    "id": "trailblazer-harmony-f",
+    "numId": 8006,
+    "name": "Trailblazer • Harmony (F)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8006.png"
+  },
+  {
+    "id": "trailblazer-remembrance-m",
+    "numId": 8007,
+    "name": "Trailblazer • Remembrance (M)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8007.png"
+  },
+  {
+    "id": "trailblazer-remembrance-f",
+    "numId": 8008,
+    "name": "Trailblazer • Remembrance (F)",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8008.png"
   }
-]
+]
+
