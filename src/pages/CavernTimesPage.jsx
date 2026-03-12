@@ -997,6 +997,7 @@ export default function CavernTimesPage() {
                             return (
                               <div
                                 key={i}
+                                title={char?.name || ''}
                                 onClick={() => formChars[i] && toggleChar(formChars[i])}
                                 className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative overflow-hidden group flex items-center justify-center cursor-pointer ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
                               >
@@ -1041,6 +1042,7 @@ export default function CavernTimesPage() {
                             return (
                               <div
                                 key={c.id}
+                                title={c.name}
                                 onClick={(e) => {
                                   if (!isAdded) {
                                     const el = e.currentTarget;
