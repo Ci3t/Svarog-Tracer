@@ -79,6 +79,37 @@ export default function CavernTimesPage() {
 
   const [submitStatus, setSubmitStatus] = useState({ type: '', msg: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [modalRarityFilter, setModalRarityFilter] = useState(null);
+  const [resetTimer, setResetTimer] = useState('');
+
+  const getTimeUntilReset = () => {
+    const now = new Date();
+    const nextReset = new Date();
+    nextReset.setUTCHours(4, 0, 0, 0);
+    const day = nextReset.getUTCDay(); 
+    // If it's Monday but before 4 AM UTC, target today. Otherwise target next Monday.
+    let diff = (1 - day + 7) % 7;
+    if (diff === 0 && now.getUTCHours() >= 4) diff = 7;
+    nextReset.setUTCDate(nextReset.getUTCDate() + diff);
+
+    const dist = nextReset.getTime() - now.getTime();
+    if (dist <= 0) return "00:00:00";
+
+    const d = Math.floor(dist / (1000 * 60 * 60 * 24));
+    const h = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((dist % (1000 * 60)) / 1000);
+
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `in ${m}m ${s}s`;
+  };
+
+  useEffect(() => {
+    setResetTimer(getTimeUntilReset());
+    const interval = setInterval(() => setResetTimer(getTimeUntilReset()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const SUBSTATS_LIST = [
     'Flat HP', 'Flat ATK', 'Flat DEF',
@@ -119,6 +150,7 @@ export default function CavernTimesPage() {
     setFormTime('');
     setFormNote('');
     setSubmitStatus({ type: '', msg: '' });
+    setModalRarityFilter(null);
   };
 
   const fetchClears = async () => {
@@ -621,24 +653,32 @@ export default function CavernTimesPage() {
               </button>
             </div>
 
-            {/* Quick Search */}
-            <div className="flex-1 max-w-md w-full relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
-              <input
-                type="text"
-                placeholder="Search domains..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-black/40 border border-white/5 focus:border-purple-500/50 rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold text-white outline-none transition-all placeholder:text-slate-600"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            <div className="flex-1 max-w-md w-full flex flex-col gap-2">
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
+                <input
+                  type="text"
+                  placeholder="Search domains..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-black/40 border border-white/5 focus:border-purple-500/50 rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold text-white outline-none transition-all placeholder:text-slate-600"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2 pl-2">
+                <Clock className="w-3 h-3 text-slate-500" />
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500/80">
+                  Archives Reset Weekly (Mon 06:00). Next wipe in: <span className="text-white ml-1 font-mono">{resetTimer}</span>
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-4 w-full md:w-auto">
@@ -802,15 +842,55 @@ export default function CavernTimesPage() {
                             <ChevronDown className={`w-6 h-6 text-slate-500 transition-transform ${showItemSelector ? 'rotate-180' : ''}`} />
                           </div>
                           {showItemSelector && (
-                            <div className="absolute top-[calc(100%+16px)] left-0 right-0 z-50 bg-[#050b1a]/90 backdrop-blur-3xl border border-blue-500/20 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.8)] max-h-[400px] overflow-y-auto custom-scrollbar flex flex-col">
-                              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-5 gap-4 p-6 pb-8 w-full">
-                                {currentItemData.map(item => (
+                            <div className="absolute top-[calc(100%+16px)] left-0 right-0 z-50 bg-[#050b1a]/95 backdrop-blur-3xl border border-blue-500/30 rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] max-h-[450px] overflow-y-auto custom-scrollbar flex flex-col">
+                              {category === 'traces' && (
+                                <div className="flex items-center justify-center gap-3 p-4 border-b border-white/5 bg-white/5 sticky top-0 z-[70] backdrop-blur-md">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mr-2">Filter Grade</span>
+                                  {[1, 2, 3, 4].map(star => {
+                                    const colors = {
+                                      1: 'border-slate-500/30 text-slate-400 hover:bg-slate-500/10',
+                                      2: 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10',
+                                      3: 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10',
+                                      4: 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10'
+                                    };
+                                    const activeColors = {
+                                      1: 'bg-slate-500 text-white border-slate-400',
+                                      2: 'bg-emerald-500 text-white border-emerald-400',
+                                      3: 'bg-cyan-500 text-white border-cyan-400',
+                                      4: 'bg-purple-500 text-white border-purple-400'
+                                    };
+                                    return (
+                                      <button
+                                        key={star}
+                                        type="button"
+                                        onClick={() => setModalRarityFilter(modalRarityFilter === star ? null : star)}
+                                        className={`px-3 py-1 rounded-full border text-[10px] font-black transition-all cursor-pointer ${modalRarityFilter === star ? activeColors[star] : colors[star]}`}
+                                      >
+                                        {star}★
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-5 gap-4 p-6 pt-12 pb-8 w-full">
+                                {currentItemData.filter(item => !modalRarityFilter || item.rarity === modalRarityFilter).map(item => (
                                   <div
                                     key={item.id}
                                     onClick={() => { setFormItemId(item.id); setShowItemSelector(false); }}
-                                    className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative overflow-hidden group bg-blue-900/10 hover:-translate-y-1.5 hover:shadow-xl hover:border-blue-400/50 hover:bg-blue-400/10 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'}`}
+                                    className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
+                                      category === 'traces' ? (
+                                        item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
+                                        item.rarity === 3 ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' :
+                                        item.rarity === 2 ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' :
+                                        'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20'
+                                      ) : 'bg-blue-900/10 hover:bg-blue-400/10'
+                                    }`}
                                   >
-                                    {formItemId === item.id && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay"></div>}
+                                    <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
+                                      {item.name}
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
+                                    </div>
+                                    {formItemId === item.id && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay rounded-2xl"></div>}
                                     <VisualIcon src={item.image} name={item.name} className="w-full aspect-square relative z-10 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
                                   </div>
                                 ))}
@@ -997,16 +1077,21 @@ export default function CavernTimesPage() {
                             return (
                               <div
                                 key={i}
-                                title={char?.name || ''}
                                 onClick={() => formChars[i] && toggleChar(formChars[i])}
-                                className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative overflow-hidden group flex items-center justify-center cursor-pointer ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
+                                className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
                               >
+                                {char && (
+                                  <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
+                                    {char.name}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                                  </div>
+                                )}
                                 {formChars[i] ? (
-                                  <>
+                                  <div className="relative w-full h-full overflow-hidden rounded-[1.8rem]">
                                     <div className={`absolute inset-0 ${rarityBg}`}></div>
                                     <VisualIcon src={char.image} name={char.name} className="w-full h-full object-cover relative z-10 scale-105 group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute inset-x-0 bottom-0 bg-red-600/90 py-3 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center backdrop-blur-sm z-20"><X className="w-6 h-6 text-white" /></div>
-                                  </>
+                                  </div>
                                 ) : (
                                   <PlusCircle className="w-10 h-10 md:w-16 md:h-16 text-white/5 group-hover:text-white/30 transition-colors" />
                                 )}
@@ -1034,7 +1119,7 @@ export default function CavernTimesPage() {
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-3 sm:gap-4 max-h-[250px] overflow-y-auto custom-scrollbar p-2 pr-4">
+                        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-3 sm:gap-4 max-h-[300px] overflow-y-auto custom-scrollbar p-2 pt-12 pr-4">
                           {charactersData.filter(c => c.name.toLowerCase().includes(charSearch.toLowerCase())).map(c => {
                             const isAdded = formChars.includes(c.id);
                             const rarityBg = c.rarity === 5 ? 'bg-gradient-to-b from-orange-400/40 to-orange-600/80' : 'bg-gradient-to-b from-purple-400/40 to-purple-600/80';
@@ -1042,7 +1127,6 @@ export default function CavernTimesPage() {
                             return (
                               <div
                                 key={c.id}
-                                title={c.name}
                                 onClick={(e) => {
                                   if (!isAdded) {
                                     const el = e.currentTarget;
@@ -1053,10 +1137,16 @@ export default function CavernTimesPage() {
                                   }
                                   toggleChar(c.id, e);
                                 }}
-                                className={`relative aspect-square rounded-[1.25rem] sm:rounded-[1.5rem] overflow-hidden cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${isAdded ? 'scale-90 opacity-30 pointer-events-none grayscale' : 'hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:border-white hover:z-10 bg-slate-900 active:scale-95'}`}
+                                className={`relative aspect-square rounded-[1.25rem] sm:rounded-[1.5rem] cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${isAdded ? 'scale-90 opacity-30 pointer-events-none grayscale' : 'hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:border-white hover:z-10 bg-slate-900 active:scale-95 group'}`}
                               >
-                                <div className={`absolute inset-0 ${rarityBg} opacity-80 mix-blend-overlay`}></div>
-                                <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover relative z-10 scale-[1.20]" />
+                                <div className="absolute left-1/2 -top-11 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
+                                  {c.name}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
+                                </div>
+                                <div className="relative w-full h-full overflow-hidden rounded-[1.1rem]">
+                                  <div className={`absolute inset-0 ${rarityBg} opacity-80 mix-blend-overlay`}></div>
+                                  <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover relative z-10 scale-[1.20]" />
+                                </div>
                               </div>
                             );
                           })}
@@ -1089,10 +1179,22 @@ export default function CavernTimesPage() {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative overflow-hidden"
+                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative"
                 >
-                  {itemClears.length > 0 && <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>}
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center">
+                  <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-indigo-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(79,70,229,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-indigo-400/30">
+                    {item.name}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-indigo-600"></div>
+                  </div>
+                  {itemClears.length > 0 && (
+                    <>
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-20">
+                        <Clock className="w-2.5 h-2.5" />
+                        <span className="font-mono">{resetTimer}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
                     <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
                   </div>
                   <h3 className="text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 group-hover:text-indigo-300 transition-colors">
@@ -1221,6 +1323,7 @@ export default function CavernTimesPage() {
           100% { transform: translateX(0%); }
         }
         .animate-progress-long { animation: progress-long 25s linear forwards; }
+        .group:hover > .tooltip-fast { opacity: 1; transform: translate(-50%, 0) scale(1); }
       `}} />
 
         {/* Notifications */}
@@ -1381,12 +1484,17 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
               return (
                 <div
                   key={ci}
-                  className={`w-11 h-11 sm:w-16 sm:h-16 rounded-full border-[2px] sm:border-[3px] ${rarityBorder} shadow-2xl overflow-hidden relative transition-transform hover:scale-110 hover:z-50 bg-slate-900 group/char shrink-0`}
+                  className={`w-11 h-11 sm:w-16 sm:h-16 rounded-full border-[2px] sm:border-[3px] ${rarityBorder} shadow-2xl relative transition-transform hover:scale-110 hover:z-50 bg-slate-900 group/char shrink-0`}
                   style={{ zIndex: ci }}
-                  title={char.name}
                 >
-                  <div className={`absolute inset-0 ${rarityBg}`}></div>
-                  <VisualIcon src={char.image} name={cid} className="w-full h-full object-cover relative z-10" />
+                  <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-2.5 py-1 bg-blue-600 font-bold text-[9px] text-white rounded-lg opacity-0 group-hover/char:opacity-100 transition-all duration-200 pointer-events-none z-[70] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover/char:scale-100 origin-bottom border border-blue-400/30">
+                    {char.name}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-blue-600"></div>
+                  </div>
+                  <div className="relative w-full h-full overflow-hidden rounded-full">
+                    <div className={`absolute inset-0 ${rarityBg}`}></div>
+                    <VisualIcon src={char.image} name={cid} className="w-full h-full object-cover relative z-10" />
+                  </div>
                 </div>
               );
             })}
