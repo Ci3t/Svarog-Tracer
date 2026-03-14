@@ -636,7 +636,10 @@ export default function CavernTimesPage() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card">
+        <div 
+          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-10 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card"
+          style={{ '--card-radius': '2.5rem' }}
+        >
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
               <button

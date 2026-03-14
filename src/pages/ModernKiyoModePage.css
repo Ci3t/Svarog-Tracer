@@ -68,6 +68,10 @@
     opacity: 0.8 !important;
 }
 
+.glacial-card.pt-10 {
+    padding-top: 2.5rem !important;
+}
+
 .glacial-card table tr:hover td {
     opacity: 1 !important;
     color: #fff !important;
