@@ -1,4 +1,6 @@
-import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
 
 // Static Data
@@ -767,6 +769,7 @@ export default function CavernTimesPage() {
             </div>
           </div>
         </div>
+      </div>
 
         {isFormOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 bg-slate-950/40 backdrop-blur-md transition-all modal-overlay">
