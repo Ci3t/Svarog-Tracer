@@ -43,6 +43,9 @@ export default function WarpAnalyzer() {
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
+    const isGlacial = typeof document !== 'undefined' && (document.body.classList.contains('arctic-theme') || document.body.classList.contains('winter-theme'));
+    if (isGlacial) return '#7dd3fc'; // Premium Ice Blue for all games in glacial theme
+
     if (selectedGame === 'hsr') return '#9333ea'; // purple-600
     if (selectedGame === 'genshin') return '#f59e0b'; // amber-500
     if (selectedGame === 'zzz') return '#22c55e'; // green-500
@@ -441,10 +444,13 @@ export default function WarpAnalyzer() {
       currentPosition = peak.roll;
     }
     
+    const isGlacial = typeof document !== 'undefined' && (document.body.classList.contains('arctic-theme') || document.body.classList.contains('winter-theme'));
+    
     return {
       string: digits.join(" "),
       pity: pityNumbers,
-      path: path
+      path: path,
+      isGlacial
     };
   }, [activeAnalysis, selectedGame, bannerType]);
 
@@ -653,7 +659,7 @@ export default function WarpAnalyzer() {
                                      <div 
                                          onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                                          className={`
-                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300
+                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 glacial-card
                                               ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
                                               bg-slate-900/50 backdrop-blur-sm
                                           `}

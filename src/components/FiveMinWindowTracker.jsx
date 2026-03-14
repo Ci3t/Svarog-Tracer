@@ -36,7 +36,7 @@ function useWindowDerived(windowInfo, analyzeWavePatterns) {
     : quality === "WARM-UP" ? "text-cyan-400"
     : "text-rose-400";
 
-  const barColor = isNearTransition ? "bg-rose-400" : quality === "GOLDEN" ? "bg-emerald-400" : "bg-cyan-400";
+  const barColor = isNearTransition ? "bg-rose-400" : quality === "GOLDEN" ? "bg-emerald-400" : "bg-emerald-400"; // Default to green for modern
 
   return { secondsRemaining, progressPct, rollsInWindow, warmupRemaining, isNearTransition, isWarmup, quality, qualityColor, barColor, c2Pct, c3Pct };
 }
@@ -55,7 +55,7 @@ export function FiveMinProgressBar({ windowInfo, analyzeWavePatterns }) {
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
+            className={`h-full rounded-full transition-all duration-1000 window-progress-bar ${barColor}`}
             style={{ width: `${progressPct}%` }}
           />
         </div>

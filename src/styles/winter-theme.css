@@ -103,6 +103,11 @@
   border-radius: 0.75rem !important; /* 12px */
 }
 
+/* Progress Bar Override */
+.winter-theme .window-progress-bar {
+  background: linear-gradient(90deg, #7dd3fc, #0ea5e9) !important;
+}
+
 .winter-theme .border-cyan-500\/20,
 .winter-theme .border-slate-700\/50,
 .winter-theme .border-white\/10 {

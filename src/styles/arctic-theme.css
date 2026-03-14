@@ -57,7 +57,7 @@
   backdrop-filter: blur(3px) saturate(110%) !important;
   -webkit-backdrop-filter: blur(3px) saturate(110%) !important;
   border: 1px solid rgba(125, 211, 252, 0.3) !important;
-  box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.28) !important;
+  box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05) !important;
   border-radius: 12px !important;
   position: relative;
   overflow: visible;
@@ -90,6 +90,17 @@
 }
 
 /* 🧊 GLASSY BLUE HEADER SYSTEM 🧊 */
+/* Sticky Header & Tracker Progress Override */
+.arctic-theme .window-progress-bar {
+  background: linear-gradient(90deg, #7dd3fc, #0ea5e9) !important;
+  box-shadow: 0 0 10px rgba(125, 211, 252, 0.4) !important;
+}
+
+/* Sticky Header Progress Override */
+.arctic-theme .bg-emerald-500 {
+  background: linear-gradient(90deg, #7dd3fc, #0ea5e9) !important;
+}
+
 .arctic-theme .glacial-header-glass {
   background: rgba(15, 23, 42, 0.62) !important;
   backdrop-filter: blur(4px) saturate(115%) !important;

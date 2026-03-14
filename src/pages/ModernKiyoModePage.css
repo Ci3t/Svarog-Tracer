@@ -59,19 +59,21 @@
     border-radius: 4px;
 }
 
-.modern-kiyo-container ::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(125, 211, 252, 0.5);
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+/* Kiyo Table Legibility */
+.glacial-card table tr td {
+    opacity: 0.8 !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.3);
+.glacial-card table tr:hover td {
+    opacity: 1 !important;
+    color: #fff !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(14, 165, 233, 0.2);
-    border-radius: 3px;
+.glacial-card table thead th {
+    opacity: 0.9 !important;
+    color: #cbd5e1 !important;
 }

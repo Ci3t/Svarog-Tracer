@@ -153,7 +153,7 @@ export default function ModernStickyHeader({
         {/* Bottom: Full-width Progress Bar */}
         <div className="mt-3 h-1.5 sm:h-2 glacial-progress-track rounded-full overflow-hidden relative">
           <div
-            className={`h-full glacial-progress-bar transition-all duration-1000 ease-linear relative`}
+            className={`h-full bg-emerald-500 transition-all duration-1000 ease-linear relative`}
             style={{ width: `${progressPercent}%` }}
           >
             {/* Ice Spark Head */}

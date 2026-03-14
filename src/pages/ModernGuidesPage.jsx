@@ -55,7 +55,7 @@ function VideoCard({ video, color, creatorName, className = "", delay = 0, isAdm
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border ${colors.border} overflow-hidden ${className}`}
+      className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border ${colors.border} overflow-hidden glacial-card ${className}`}
     >
       <div className="relative aspect-video bg-slate-900">
         {isPlaying ? (
@@ -323,7 +323,7 @@ function GuideCard({ guide, onClick, index }) {
         onClick={onClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`relative w-full bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-2xl border ${colors.border} shadow-xl overflow-hidden p-6 text-left cursor-pointer backdrop-blur-sm group`}
+        className={`relative w-full bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-2xl border ${colors.border} shadow-xl overflow-hidden p-6 text-left cursor-pointer backdrop-blur-sm group glacial-card`}
       >
         <div className="flex items-start justify-between mb-4">
           <div ref={iconRef} className={`w-14 h-14 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center text-3xl shadow-2xl ${colors.glow} border border-white/10`}>
@@ -604,7 +604,7 @@ export default function ModernGuidesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-transparent">
       <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div ref={headerRef} className="text-center mb-12">

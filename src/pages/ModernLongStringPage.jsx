@@ -202,13 +202,13 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen bg-transparent text-slate-100">
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
         {/* Top Section: Input + Prediction */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-3 sm:mb-4 lg:mb-6">
           {/* Input Area (60% / 3 columns) */}
           <div className="lg:col-span-3">
-            <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 sm:p-6 border border-purple-500/30 shadow-2xl">
+            <div className="glacial-card p-4 sm:p-6 overflow-visible">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
@@ -284,18 +284,16 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                 </div>
               )}
             </div>
-              <div className="mt-4">
-
-            {/* Timer Card */}
-            <ModernTimerCard
-              secondsLeft={secondsLeft}
-              onStart={handleStartTimer}
-              onPause={handlePauseTimer}
-              onRestart={handleRestartTimer}
-              timerRunning={timerRunning}
-              timerPaused={timerPaused}
+              <div className="glacial-card p-4">
+              <ModernTimerCard
+                secondsLeft={secondsLeft}
+                onStart={handleStartTimer}
+                onPause={handlePauseTimer}
+                onRestart={handleRestartTimer}
+                timerRunning={timerRunning}
+                timerPaused={timerPaused}
               />
-          </div>
+            </div>
               </div>
 
           {/* Right Column — BBP Predictor with mode toggle */}
@@ -319,15 +317,17 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
             ────────────────────────────────────────────────────────── */}
 
             {decoded.rolls.length < 6 ? (
-              <div className="bg-gradient-to-br from-violet-900/30 to-slate-900/90 rounded-2xl py-8 px-6 border border-violet-500/30 shadow-2xl flex items-center justify-center">
+              <div className="glacial-card py-8 px-6 flex items-center justify-center">
                 <p className="text-slate-500 text-sm">Need at least 6 rolls for prediction</p>
               </div>
             ) : (
               <>
                 {/* ── BBP CARD (Permanently shown) ───────────────────── */}
-                <ModernPairPredictorCard
-                  entries={decoded.rolls.map(r => ({ translated: r }))}
-                />
+                <div className="glacial-card overflow-visible">
+                  <ModernPairPredictorCard
+                    entries={decoded.rolls.map(r => ({ translated: r }))}
+                  />
+                </div>
 
                 {/* ── ADVANCED MODE COMMENTED OUT ───────────────────────
                 {predictorMode === 'advanced' && prediction && (
@@ -341,7 +341,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
             {/* History Section */}
             {stringHistory.length > 0 && (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-2xl p-4 border border-slate-700/50 shadow-xl mt-4">
+              <div className="glacial-card p-4 mt-4">
                 <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
                   History
                 </h3>
@@ -387,7 +387,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
         {/* Bottom Section: Quick Stats (Compact) */}
         {(decoded.cleaned.length > 0 || frequency.length > 0) && (
-          <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-xl p-4 border border-slate-700/50 shadow-xl">
+          <div className="glacial-card p-4">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Quick Stats
             </h3>
@@ -442,7 +442,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
         )}
 
         {/* Debug Panel */}
-        <div className="mt-6">
+        <div className="glacial-card p-4 mt-6">
           <ModernDebugPanel
             debugLogs={debugLogs}
             onClearLogs={onClearLogs}
