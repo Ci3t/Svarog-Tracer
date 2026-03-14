@@ -642,7 +642,7 @@ export default function CavernTimesPage() {
 
         {/* Toolbar */}
         <div 
-          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-12 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card overflow-hidden"
+          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-10 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card overflow-hidden"
           style={{ '--card-radius': '2.5rem' }}
         >
           <div className="relative z-20 flex flex-col gap-6">
@@ -1173,8 +1173,8 @@ export default function CavernTimesPage() {
           </div>
         )}
 
-        {/* Domain Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4">
+        {/* Domain Grid - Added mt-20 to match original spacing and clear sticky toolbar */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 mt-20">
           {loading ? (
             <div className="col-span-full flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
           ) : filteredGridData.length === 0 ? (
@@ -1189,7 +1189,8 @@ export default function CavernTimesPage() {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative"
+                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative glacial-card"
+                  style={{ '--card-radius': '1.5rem' }}
                 >
                   <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-indigo-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(79,70,229,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-indigo-400/30">
                     {item.name}
@@ -1198,7 +1199,7 @@ export default function CavernTimesPage() {
                   {itemClears.length > 0 && (
                     <>
                       <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
-                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-20">
+                      <div className="absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-30">
                         <Clock className="w-2.5 h-2.5" />
                         <span className="font-mono">{resetTimer}</span>
                       </div>
