@@ -37,9 +37,9 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
   ? '/api/hsr/cavern-clears'
   : 'https://svarog-tracer.vercel.app/api/hsr/cavern-clears';
 
-export default function CavernTimesPage() {
+export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const baseUrl = import.meta.env.BASE_URL;
-  const isGlacial = typeof document !== 'undefined' && (document.body.classList.contains('arctic-theme') || document.body.classList.contains('winter-theme'));
+  const isGlacial = sessionTheme === 'arctic' || sessionTheme === 'winter';
 
   const [clears, setClears] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -735,7 +735,7 @@ export default function CavernTimesPage() {
             {category === 'traces' && <div className="h-10 w-px bg-white/5 hidden lg:block mx-2"></div>}
 
             {/* Domain Filter */}
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-x-hidden overflow-y-visible">
               <div className="flex items-center gap-2 text-slate-500 shrink-0">
                 <Filter className="w-4 h-4" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Domain Filter</span>
@@ -743,15 +743,22 @@ export default function CavernTimesPage() {
 
               <div
                 ref={scrollRef}
-                className="flex-1 flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
+                className="flex-1 flex gap-2 overflow-x-auto overflow-y-visible pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
               >
                 {currentItemData.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => toggleFilter(item.id)}
-                    className={`flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
-                    title={item.name}
+                    className={`cavern-filter-chip group/filter relative flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
                   >
+                    <div className={`cavern-filter-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover/filter:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap scale-75 group-hover/filter:scale-100 origin-bottom ${
+                      category === 'traces'
+                        ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                        : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                    }`}>
+                      {item.name}
+                      <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
+                    </div>
                     <VisualIcon src={item.image} name={item.name} className="w-full h-full" />
                   </div>
                 ))}
@@ -773,7 +780,10 @@ export default function CavernTimesPage() {
 
         {isFormOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 bg-slate-950/40 backdrop-blur-md transition-all modal-overlay">
-            <div ref={formRef} className="bg-slate-900/40 w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(255,255,255,0.05),inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-[60px] flex flex-col overflow-hidden relative perspective-1000">
+            <div
+              ref={formRef}
+              className={`cavern-entry-modal bg-slate-900/40 w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(255,255,255,0.05),inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-[60px] flex flex-col overflow-hidden relative perspective-1000 ${isGlacial ? 'glacial-subtle-snow cavern-winter-shell' : ''}`}
+            >
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/5 bg-white/5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500/40 to-amber-500/0"></div>
@@ -1088,7 +1098,7 @@ export default function CavernTimesPage() {
                               <div
                                 key={i}
                                 onClick={() => formChars[i] && toggleChar(formChars[i])}
-                                className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
+                                className={`slot-anim-${i} cavern-squad-slot aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${isGlacial ? 'cavern-winter-slot-frame' : ''} ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
                               >
                                 {char && (
                                   <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
@@ -1097,7 +1107,7 @@ export default function CavernTimesPage() {
                                   </div>
                                 )}
                                 {formChars[i] ? (
-                                  <div className="relative w-full h-full overflow-hidden rounded-[1.8rem]">
+                                  <div className={`relative w-full h-full overflow-hidden rounded-[1.8rem] ${isGlacial ? 'glacial-subtle-snow cavern-winter-slot-inner' : ''}`}>
                                     <div className={`absolute inset-0 ${rarityBg}`}></div>
                                     <VisualIcon src={char.image} name={char.name} className="w-full h-full object-cover relative z-10 scale-105 group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute inset-x-0 bottom-0 bg-red-600/90 py-3 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center backdrop-blur-sm z-20"><X className="w-6 h-6 text-white" /></div>
@@ -1173,8 +1183,8 @@ export default function CavernTimesPage() {
           </div>
         )}
 
-        {/* Domain Grid - Added mt-20 to match original spacing and clear sticky toolbar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 mt-20">
+        {/* Domain Grid - keep original spacing untouched; only add extra offset for glacial themes */}
+        <div className={`cavern-domain-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 ${isGlacial ? 'mt-20' : ''}`}>
           {loading ? (
             <div className="col-span-full flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
           ) : filteredGridData.length === 0 ? (
@@ -1189,12 +1199,16 @@ export default function CavernTimesPage() {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative glacial-card"
+                  className="domain-card cavern-domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative glacial-card"
                   style={{ '--card-radius': '1.5rem' }}
                 >
-                  <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-indigo-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(79,70,229,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-indigo-400/30">
+                  <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
+                    category === 'traces'
+                      ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                      : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                  }`}>
                     {item.name}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-indigo-600"></div>
+                    <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
                   </div>
                   {itemClears.length > 0 && (
                     <>
@@ -1208,7 +1222,7 @@ export default function CavernTimesPage() {
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
                     <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
                   </div>
-                  <h3 className="text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 group-hover:text-indigo-300 transition-colors">
+                  <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
                     {item.name}
                   </h3>
                   <div className="mt-auto pt-2">
@@ -1230,31 +1244,31 @@ export default function CavernTimesPage() {
 
         {/* Archive Modal */}
         {selectedDomain && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-2xl transition-all">
-            <div className="bg-[#0b0d14] w-full max-w-6xl max-h-[90vh] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative">
-              <div className="flex items-center justify-between p-6 sm:p-10 bg-slate-950/50 border-b border-white/5 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 bg-slate-950/90 backdrop-blur-2xl transition-all overflow-y-auto">
+            <div className={`archive-modal-shell bg-[#0b0d14] w-full max-w-6xl max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-9rem)] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative ${isGlacial ? 'glacial-subtle-snow archive-modal-glacial' : ''}`}>
+              <div className={`archive-modal-header flex items-center justify-between p-6 sm:p-10 bg-slate-950/50 border-b border-white/5 backdrop-blur-md ${isGlacial ? 'archive-modal-header-glacial' : ''}`}>
                 <div className="flex items-center gap-5 sm:gap-8">
-                  <div className="w-16 h-16 sm:w-24 sm:h-24 bg-black/60 rounded-[1.5rem] border border-white/10 flex items-center justify-center p-3 shadow-2xl relative">
+                  <div className={`w-16 h-16 sm:w-24 sm:h-24 bg-black/60 rounded-[1.5rem] border border-white/10 flex items-center justify-center p-3 shadow-2xl relative ${isGlacial ? 'archive-modal-icon-glacial' : ''}`}>
                     <VisualIcon src={selectedDomain.image} name={selectedDomain.name} className="w-full h-full object-contain drop-shadow-2xl scale-110" />
                     <div className="absolute inset-0 bg-blue-500/5 rounded-[1.5rem] blur-xl animate-pulse"></div>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <Navigation className="w-4 h-4 text-indigo-400" />
-                      <span className="text-[10px] uppercase font-black text-indigo-400 tracking-[0.4em]">{category === 'relics' ? 'Archive Core' : 'Material Matrix'}</span>
+                      <Navigation className={`w-4 h-4 ${isGlacial ? 'text-cyan-300' : 'text-indigo-400'}`} />
+                      <span className={`text-[10px] uppercase font-black tracking-[0.4em] ${isGlacial ? 'text-cyan-300' : 'text-indigo-400'}`}>{category === 'relics' ? 'Archive Core' : 'Material Matrix'}</span>
                     </div>
                     <h2 className="text-2xl sm:text-5xl font-black text-white uppercase tracking-tighter leading-none italic">{selectedDomain.name}</h2>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedDomain(null)}
-                  className="w-14 h-14 rounded-full bg-white/5 hover:bg-white text-slate-400 hover:text-black flex items-center justify-center transition-all border border-white/10 cursor-pointer shadow-xl group"
+                  className={`w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'bg-cyan-500/10 hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'bg-white/5 hover:bg-white border-white/10 hover:text-black'}`}
                 >
                   <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30">
+              <div className={`flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
                   const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
@@ -1266,7 +1280,7 @@ export default function CavernTimesPage() {
                         <h3 className="text-3xl font-black text-slate-700 uppercase tracking-widest italic outline-text">Archive Blank</h3>
                         <button
                           onClick={() => { setSelectedDomain(null); setFormItemId(selectedDomain.id); setIsFormOpen(true); }}
-                          className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all hover:bg-indigo-500 hover:scale-105 active:scale-95 shadow-xl cursor-pointer"
+                          className={`px-10 py-4 text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all hover:scale-105 active:scale-95 shadow-xl cursor-pointer ${isGlacial ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
                         >
                           + Log First Record
                         </button>
@@ -1280,10 +1294,10 @@ export default function CavernTimesPage() {
                         <div key={time} className="flex flex-col gap-6">
                           <div className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-4">
-                              <div className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-black text-3xl font-mono tracking-tighter shadow-[0_0_25px_rgba(79,70,229,0.3)]">
+                              <div className={`text-white px-6 py-2 rounded-2xl font-black text-3xl font-mono tracking-tighter ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_25px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 shadow-[0_0_25px_rgba(79,70,229,0.3)]'}`}>
                                 {time}
                               </div>
-                              <div className="h-px w-20 bg-gradient-to-r from-indigo-500/50 to-transparent"></div>
+                              <div className={`h-px w-20 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
                                 {grouped[time].length} Variants
                               </span>
@@ -1296,6 +1310,7 @@ export default function CavernTimesPage() {
                                 key={cIdx}
                                 card={card}
                                 cardIndex={cIdx}
+                                isGlacial={isGlacial}
                                 getCharData={getCharData}
                                 handleDelete={handleDelete}
                                 adminPass={adminPass}
@@ -1335,6 +1350,106 @@ export default function CavernTimesPage() {
         }
         .animate-progress-long { animation: progress-long 25s linear forwards; }
         .group:hover > .tooltip-fast { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        .cavern-domain-grid { position: relative; }
+        .cavern-domain-card { position: relative; }
+        .cavern-domain-card:hover { z-index: 120; }
+        .cavern-domain-tooltip { z-index: 130; }
+        .cavern-filter-chip:hover { z-index: 70; }
+        .cavern-filter-tooltip { z-index: 80; }
+        .arctic-theme .cavern-domain-card,
+        .winter-theme .cavern-domain-card {
+          overflow: visible !important;
+        }
+        .cavern-entry-modal.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .cavern-winter-shell,
+        .winter-theme .cavern-winter-shell {
+          background: linear-gradient(160deg, rgba(8, 20, 40, 0.72) 0%, rgba(8, 40, 70, 0.45) 45%, rgba(5, 15, 32, 0.78) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.28) !important;
+          box-shadow: 0 18px 60px rgba(2, 8, 23, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -24px 48px rgba(6, 182, 212, 0.08) !important;
+        }
+        .arctic-theme .cavern-winter-slot-frame,
+        .winter-theme .cavern-winter-slot-frame {
+          background: linear-gradient(180deg, rgba(15, 23, 42, 0.45) 0%, rgba(8, 47, 73, 0.22) 100%);
+          backdrop-filter: blur(2px);
+        }
+        .arctic-theme .cavern-winter-slot-inner,
+        .winter-theme .cavern-winter-slot-inner {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -16px 32px rgba(8, 47, 73, 0.28);
+        }
+        .cavern-winter-slot-inner.glacial-subtle-snow::after {
+          height: 16px;
+          border-top-left-radius: 1.8rem;
+          border-top-right-radius: 1.8rem;
+        }
+        .archive-modal-shell.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .archive-modal-glacial,
+        .winter-theme .archive-modal-glacial {
+          background: linear-gradient(160deg, rgba(3, 16, 36, 0.88) 0%, rgba(6, 36, 62, 0.74) 50%, rgba(4, 17, 32, 0.9) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.3) !important;
+          box-shadow: 0 0 90px rgba(2, 8, 23, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -24px 48px rgba(56, 189, 248, 0.08) !important;
+        }
+        .arctic-theme .archive-modal-header-glacial,
+        .winter-theme .archive-modal-header-glacial {
+          background: linear-gradient(180deg, rgba(8, 27, 48, 0.78) 0%, rgba(8, 27, 48, 0.52) 100%) !important;
+          border-bottom-color: rgba(125, 211, 252, 0.2) !important;
+        }
+        .arctic-theme .archive-modal-icon-glacial,
+        .winter-theme .archive-modal-icon-glacial {
+          background: linear-gradient(180deg, rgba(8, 23, 42, 0.88) 0%, rgba(6, 38, 64, 0.74) 100%);
+          border-color: rgba(125, 211, 252, 0.28) !important;
+        }
+        .arctic-theme .archive-modal-body-glacial,
+        .winter-theme .archive-modal-body-glacial {
+          background: radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.08), transparent 42%), rgba(2, 8, 23, 0.44) !important;
+        }
+        .archive-team-card.glacial-subtle-snow::after,
+        .archive-team-stats.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .archive-team-card-glacial,
+        .winter-theme .archive-team-card-glacial {
+          background: linear-gradient(150deg, rgba(7, 22, 43, 0.84) 0%, rgba(10, 45, 72, 0.58) 56%, rgba(8, 21, 40, 0.84) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.24) !important;
+          box-shadow: 0 16px 44px rgba(2, 8, 23, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+        }
+        .arctic-theme .archive-team-card-glacial:hover,
+        .winter-theme .archive-team-card-glacial:hover {
+          border-color: rgba(125, 211, 252, 0.5) !important;
+          box-shadow: 0 0 26px rgba(56, 189, 248, 0.22), 0 20px 48px rgba(2, 8, 23, 0.64) !important;
+        }
+        .arctic-theme .archive-team-stats-glacial,
+        .winter-theme .archive-team-stats-glacial {
+          background: linear-gradient(180deg, rgba(2, 16, 33, 0.74) 0%, rgba(5, 33, 56, 0.56) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.2) !important;
+        }
+        .arctic-theme .archive-team-note,
+        .winter-theme .archive-team-note {
+          border-color: rgba(125, 211, 252, 0.2) !important;
+          background: rgba(7, 33, 56, 0.42) !important;
+          color: rgba(186, 230, 253, 0.9) !important;
+        }
+        .arctic-theme .archive-team-source-pill,
+        .winter-theme .archive-team-source-pill {
+          border-color: rgba(45, 212, 191, 0.28) !important;
+          background: rgba(3, 24, 30, 0.72) !important;
+        }
+        .arctic-theme .archive-team-reports-pill,
+        .winter-theme .archive-team-reports-pill {
+          border-color: rgba(125, 211, 252, 0.24) !important;
+          background: rgba(6, 20, 36, 0.72) !important;
+          color: #67e8f9 !important;
+        }
+        .arctic-theme .archive-team-like-btn,
+        .winter-theme .archive-team-like-btn {
+          border-color: rgba(125, 211, 252, 0.24) !important;
+        }
       `}} />
 
         {/* Notifications */}
@@ -1361,7 +1476,7 @@ export default function CavernTimesPage() {
 }
 
 // --- SUB-COMPONENT FOR TEAM CAROUSEL ---
-const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPass, userKeys, VisualIcon, notify }) => {
+const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, handleDelete, adminPass, userKeys, VisualIcon, notify }) => {
   const [idx, setIdx] = useState(0);
   const team = card.variants[idx];
   const totalTeams = card.variants.length;
@@ -1477,7 +1592,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
   const isHearted = localLikes.includes(userId);
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-white/5 hover:border-indigo-500/40 transition-all duration-500 group relative overflow-hidden shadow-2xl cursor-default w-full">
+    <div className={`archive-team-card flex flex-col gap-5 sm:gap-6 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-white/5 hover:border-indigo-500/40 transition-all duration-500 group relative overflow-hidden shadow-2xl cursor-default w-full ${isGlacial ? 'glacial-subtle-snow archive-team-card-glacial' : ''}`}>
       {/* Background Decorative - Pushed in to avoid clipping */}
       <div className="absolute top-2 right-2 p-4 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
         <Gem className="w-20 h-20 sm:w-24 sm:h-24 text-white" />
@@ -1558,12 +1673,12 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
       {/* Result Meta (Static for all teams in this card) */}
       <div className="flex flex-col gap-3 relative z-10 w-full">
         {team.reports?.find(r => r.note)?.note && (
-          <div className="w-full bg-black/40 border border-indigo-500/10 rounded-xl p-4 flex gap-3 text-indigo-200/80 shadow-inner">
+          <div className="archive-team-note w-full bg-black/40 border border-indigo-500/10 rounded-xl p-4 flex gap-3 text-indigo-200/80 shadow-inner">
             <Info className="w-4 h-4 shrink-0 mt-0.5 opacity-40 text-indigo-400" />
             <p className="text-xs font-black leading-tight break-words tracking-tight">{team.reports.find(r => r.note).note}</p>
           </div>
         )}
-        <div className="bg-black/40 rounded-[2rem] p-5 sm:p-6 border border-white/5 shadow-inner min-h-[160px] flex flex-col justify-center gap-5 relative overflow-hidden group/stats" ref={rewardsRef}>
+        <div className={`archive-team-stats bg-black/40 rounded-[2rem] p-5 sm:p-6 border border-white/5 shadow-inner min-h-[160px] flex flex-col justify-center gap-5 relative overflow-hidden group/stats ${isGlacial ? 'glacial-subtle-snow archive-team-stats-glacial' : ''}`} ref={rewardsRef}>
           {isMaterial ? (
             <div className="flex flex-col gap-5 relative z-10">
               <div className="flex items-center justify-between px-1">
@@ -1625,7 +1740,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Source Node</span>
-            <div className="flex items-center gap-2 px-3 py-2 bg-black/50 rounded-xl border border-emerald-500/10 shadow-inner w-fit transition-all max-w-full" key={`src-${team.reporters?.[0]}`}>
+            <div className="archive-team-source-pill flex items-center gap-2 px-3 py-2 bg-black/50 rounded-xl border border-emerald-500/10 shadow-inner w-fit transition-all max-w-full" key={`src-${team.reporters?.[0]}`}>
               <Users className="w-3.5 h-3.5 text-emerald-500/60 shrink-0" />
               <span className="text-[11px] font-black text-white italic tracking-[0.02em] truncate min-w-0 pb-[1px] pr-1">@{team.reporters?.[0] || 'Anon'}</span>
             </div>
@@ -1634,7 +1749,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <div className="flex flex-col items-end">
               <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Reports</span>
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-black/40 border border-white/5 text-emerald-400 rounded-xl font-black text-xs shadow-inner" title={`${team.verifiedCount || 1} Identical Submissions`}>
+              <div className="archive-team-reports-pill flex items-center gap-1.5 px-3 py-2 bg-black/40 border border-white/5 text-emerald-400 rounded-xl font-black text-xs shadow-inner" title={`${team.verifiedCount || 1} Identical Submissions`}>
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 {team.verifiedCount || 1}
               </div>
@@ -1644,7 +1759,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
               <button
                 onClick={handleLike}
                 disabled={isLiking}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 font-black text-xs shadow-lg group/like ${isHearted
+                className={`archive-team-like-btn flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 font-black text-xs shadow-lg group/like ${isHearted
                   ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.4)] ring-1 ring-indigo-400/50'
                   : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 border border-white/5'
                   } ${isLiking ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:scale-105 active:scale-90 cursor-pointer'}`}
@@ -1658,7 +1773,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className={`absolute bottom-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity ${isGlacial ? 'bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent' : 'bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent'}`}></div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
 import svarog from '/svarog.png';
@@ -16,14 +16,17 @@ export default function Layout({
   entries,
   prevSessions,
   onExportCSV,
+  sessionTheme = "modern",
 }) {
   const location = useLocation();
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
+  const isModernTheme = sessionTheme === "modern";
+  const activeTabTextClass = isModernTheme ? "text-purple-200" : "text-white";
+  const inactiveTabTextClass = isModernTheme ? "text-slate-400 hover:text-purple-200" : "text-slate-400 hover:text-slate-200";
 
-  // GSAP: Animate active indicator when route changes
-  useEffect(() => {
+  const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;
 
     const activeTab = navRef.current.querySelector('[data-active="true"]');
@@ -32,11 +35,28 @@ export default function Layout({
       gsap.to(indicatorRef.current, {
         x: offsetLeft,
         width: offsetWidth,
-        duration: 0.4,
+        duration,
         ease: 'power3.out',
       });
     }
-  }, [location.pathname]);
+  }, []);
+
+  // Recalculate indicator on route/theme change
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => updateActiveIndicator(0.3));
+    const delayed = setTimeout(() => updateActiveIndicator(0.2), 140);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(delayed);
+    };
+  }, [location.pathname, sessionTheme, updateActiveIndicator]);
+
+  // Keep indicator synced on viewport changes
+  useEffect(() => {
+    const onResize = () => updateActiveIndicator(0.2);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateActiveIndicator]);
 
   // GSAP: Initial animation on mount
   useEffect(() => {
@@ -123,7 +143,7 @@ export default function Layout({
                 {/* Animated indicator background */}
                 <div
                   ref={indicatorRef}
-                  className="absolute top-1 left-0 h-[calc(100%-8px)] bg-white/20 rounded-lg shadow-lg shadow-white/10 pointer-events-none"
+                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${isModernTheme ? 'bg-gradient-to-r from-violet-500/45 to-purple-500/45 shadow-lg shadow-purple-500/25' : 'bg-white/20 shadow-lg shadow-white/10'}`}
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
 
@@ -132,8 +152,8 @@ export default function Layout({
                   data-active={location.pathname === '/live'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -144,8 +164,8 @@ export default function Layout({
                   data-active={location.pathname === '/long-string'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -156,8 +176,8 @@ export default function Layout({
                   data-active={location.pathname === '/kiyo'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -168,8 +188,8 @@ export default function Layout({
                   data-active={location.pathname === '/warp-analyzer'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -180,8 +200,8 @@ export default function Layout({
                   data-active={location.pathname === '/banner-tracker'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -192,8 +212,8 @@ export default function Layout({
                   data-active={location.pathname === '/caverns'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -204,8 +224,8 @@ export default function Layout({
                   data-active={location.pathname === '/guides'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >

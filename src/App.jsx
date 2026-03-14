@@ -928,7 +928,7 @@ export default function App() {
             <div className="aurora-layer aurora-blob-1" />
             <div className="aurora-layer aurora-blob-2" />
             <div className="aurora-layer aurora-blob-3" />
-            <ArcticSnow particleCount={25} speedScale={0.50} />
+            <ArcticSnow particleCount={24} speedScale={0.50} />
           </>
         )}
         <ThemeSwitcher currentTheme={sessionTheme} onThemeChange={setSessionTheme} />
@@ -946,6 +946,7 @@ export default function App() {
               entries={entries}
               prevSessions={prevSessions}
               onExportCSV={handleExportCSV}
+              sessionTheme={sessionTheme}
             />
           }>
             <Route
@@ -1038,7 +1039,7 @@ export default function App() {
             />
             <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
             <Route path="/banner-tracker" element={<BannerTracker />} />
-            <Route path="/caverns" element={<CavernTimesPage />} />
+            <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
             <Route path="/guides" element={<ModernGuidesPage />} />
           </Route>
         </Routes>
