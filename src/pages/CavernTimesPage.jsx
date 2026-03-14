@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { RefreshCw, Clock, Users, PlusCircle, AlertCircle, CheckCircle2, Info, ChevronDown, X, Trophy, Sparkles, Binary, Gem, Navigation, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Search } from 'lucide-react';
+import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation } from 'lucide-react';
+import ArcticSnow from '../components/snow/ArcticSnow';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -38,6 +37,8 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
 
 export default function CavernTimesPage() {
   const baseUrl = import.meta.env.BASE_URL;
+  const isGlacial = typeof document !== 'undefined' && (document.body.classList.contains('arctic-theme') || document.body.classList.contains('winter-theme'));
+
   const [clears, setClears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('relics');
@@ -585,10 +586,12 @@ export default function CavernTimesPage() {
         <img
           src={`${baseUrl}clara-2.png`}
           alt="Backdrop"
-          className="w-full h-full object-cover opacity-[0.25] brightness-110 saturate-[0.8]"
+          className={`w-full h-full object-cover ${isGlacial ? 'opacity-[0.15] grayscale-[0.8] brightness-[0.6]' : 'opacity-[0.25] brightness-110 saturate-[0.8]'}`}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#020617]/90 via-[#020617]/40 to-[#020617]/90" />
+        <div className={`absolute inset-0 bg-gradient-to-b ${isGlacial ? 'from-[#03080f]/95 via-[#03080f]/40 to-[#03080f]/95' : 'from-[#020617]/90 via-[#020617]/40 to-[#020617]/90'}`} />
       </div>
+
+      {isGlacial && <ArcticSnow particleCount={40} speedScale={0.5} />}
 
       <div className="relative z-10"> {/* Content Wrapper */}
 
@@ -602,7 +605,7 @@ export default function CavernTimesPage() {
               onClick={handleTitleClick}
               className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none italic uppercase cursor-pointer select-none"
             >
-              The Drop <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-400 to-emerald-400 pr-3">Archives</span>
+              The Drop <span className={`text-transparent bg-clip-text ${isGlacial ? 'bg-gradient-to-br from-cyan-400 to-blue-500' : 'bg-gradient-to-br from-indigo-400 to-emerald-400'} pr-3`}>Archives</span>
             </h1>
             {adminPass && (
               <div className="flex items-center gap-3">
@@ -637,10 +640,11 @@ export default function CavernTimesPage() {
 
         {/* Toolbar */}
         <div 
-          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-10 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card"
+          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-12 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card overflow-hidden"
           style={{ '--card-radius': '2.5rem' }}
         >
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="relative z-20 flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
               <button
                 onClick={() => { setCategory('relics'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
