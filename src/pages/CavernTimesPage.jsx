@@ -62,10 +62,13 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const formRef = useRef(null);
   const traceFormRef = useRef(null);
   const scrollRef = useRef(null);
+  const submitModeRef = useRef('close');
 
   // Modal State
   const [selectedDomain, setSelectedDomain] = useState(null);
   const [archiveViewMode, setArchiveViewMode] = useState('grouped');
+  const [archiveFocusedTime, setArchiveFocusedTime] = useState(null);
+  const [timeNodePreviewIndex, setTimeNodePreviewIndex] = useState({});
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -118,6 +121,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   useEffect(() => {
     if (selectedDomain) {
       setArchiveViewMode('grouped');
+      setArchiveFocusedTime(null);
+      setTimeNodePreviewIndex({});
     }
   }, [selectedDomain?.id]);
 
@@ -259,6 +264,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitStatus({ type: '', msg: '' });
+    const keepOpenForNext = submitModeRef.current === 'continue';
+    submitModeRef.current = 'close';
 
     if (!formItemId || !formTime || !formDiscord) {
       return setSubmitStatus({ type: 'error', msg: 'Please complete all steps.' });
@@ -353,16 +360,23 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       });
 
       setTimeout(() => {
-        setIsFormOpen(false);
+        if (!keepOpenForNext) {
+          setIsFormOpen(false);
+        }
         // fetchClears(); -> We remove this here to prevent the Vercel Blob race condition
         setFormTime('');
         setFormChars([]);
-        setFormItemId('');
         setFormNote('');
         setFormSubstats([]);
         setFormMainStat('');
         setFormPurpleCount(0);
         setFormBlueCount(0);
+        setShowItemSelector(false);
+        if (!keepOpenForNext) {
+          setFormItemId('');
+        } else {
+          setSubmitStatus({ type: 'success', msg: 'Record logged. Ready for next entry.' });
+        }
       }, 1500);
 
     } catch (err) {
@@ -505,6 +519,15 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 4000);
+  };
+
+  const shiftTimeNodePreview = (time, total, dir) => {
+    if (!time || total <= 1) return;
+    setTimeNodePreviewIndex(prev => {
+      const current = prev[time] ?? 0;
+      const next = (current + dir + total) % total;
+      return { ...prev, [time]: next };
+    });
   };
 
   // Group clear records by time AND substats for a specific domain
@@ -1087,13 +1110,32 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 <RefreshCw className="w-4 h-4 animate-spin" /> Processing...
                               </div>
                             )}
-                            <button
-                              type="submit"
-                              disabled={submitting || formChars.length !== 4}
-                              className={`px-10 py-4 font-black rounded-2xl shadow-xl transition-all text-sm uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${submitting ? 'bg-slate-800 text-slate-500' : 'bg-[#fcd34d] text-black hover:bg-white'}`}
-                            >
-                              Push to Chronicles
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="submit"
+                                onClick={() => { submitModeRef.current = 'continue'; }}
+                                disabled={submitting || formChars.length !== 4}
+                                className={`px-6 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                  submitting
+                                    ? 'bg-slate-800 text-slate-500'
+                                    : 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                }`}
+                              >
+                                Add + Next
+                              </button>
+                              <button
+                                type="submit"
+                                onClick={() => { submitModeRef.current = 'close'; }}
+                                disabled={submitting || formChars.length !== 4}
+                                className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                  submitting
+                                    ? 'bg-slate-800 text-slate-500'
+                                    : 'bg-[#fcd34d] text-black hover:bg-white'
+                                }`}
+                              >
+                                Push & Close
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -1270,7 +1312,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div className={`inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'bg-slate-900/55 border-cyan-300/25' : 'bg-black/35 border-white/10'}`}>
                     <button
-                      onClick={() => setArchiveViewMode('grouped')}
+                      onClick={() => {
+                        setArchiveViewMode('grouped');
+                        setArchiveFocusedTime(null);
+                      }}
                       className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                         archiveViewMode === 'grouped'
                           ? (isGlacial
@@ -1284,7 +1329,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       By Time
                     </button>
                     <button
-                      onClick={() => setArchiveViewMode('flat')}
+                      onClick={() => {
+                        setArchiveViewMode('flat');
+                        setArchiveFocusedTime(null);
+                      }}
                       className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                         archiveViewMode === 'flat'
                           ? (isGlacial
@@ -1311,14 +1359,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
                   const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-                  const flatCards = times.flatMap((time, timeIdx) =>
-                    grouped[time].map((card, cIdx) => ({
-                      time,
-                      timeIdx,
-                      cIdx,
-                      card
-                    }))
-                  );
+                  const totalVariantCards = times.reduce((sum, time) => sum + grouped[time].length, 0);
 
                   if (times.length === 0) {
                     return (
@@ -1336,32 +1377,37 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   }
 
                   if (archiveViewMode === 'flat') {
-                    return (
-                      <div className="flex flex-col gap-6">
-                        <div className="flex items-center justify-between px-2">
-                          <div className="flex items-center gap-3">
-                            <div className={`h-px w-16 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
-                              {flatCards.length} Variant Cards
+                    const focusedCards = archiveFocusedTime ? (grouped[archiveFocusedTime] || []) : [];
+
+                    if (archiveFocusedTime) {
+                      return (
+                        <div className="flex flex-col gap-6">
+                          <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => setArchiveFocusedTime(null)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                                  isGlacial
+                                    ? 'bg-cyan-500/15 border-cyan-300/30 text-cyan-100 hover:bg-cyan-400/25'
+                                    : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                                }`}
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                                Back
+                              </button>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
+                                {archiveFocusedTime}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.24em]">
+                              {focusedCards.length} Variants
                             </span>
                           </div>
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                            {times.length} Time Nodes
-                          </span>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
-                          {flatCards.map(({ time, timeIdx, cIdx, card }) => (
-                            <div key={`${time}-${card.statsKey}-${cIdx}`} className="flex flex-col gap-3">
-                              <div className="flex items-center gap-2 px-1">
-                                <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
-                                  {time}
-                                </span>
-                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.24em]">
-                                  Slot {timeIdx + 1}.{cIdx + 1}
-                                </span>
-                              </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+                            {focusedCards.map((card, cIdx) => (
                               <TeamCarouselCard
+                                key={`${archiveFocusedTime}-${card.statsKey}-${cIdx}`}
                                 card={card}
                                 cardIndex={cIdx}
                                 isGlacial={isGlacial}
@@ -1372,8 +1418,199 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 VisualIcon={VisualIcon}
                                 notify={notify}
                               />
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-px w-16 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                              {totalVariantCards} Variant Cards
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                            {times.length} Time Nodes
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 px-2">
+                          {times.map((time) => {
+                            const timeCards = grouped[time];
+                            const totalReports = timeCards.reduce(
+                              (sum, card) => sum + card.variants.reduce((vSum, v) => vSum + (v.verifiedCount || 1), 0),
+                              0
+                            );
+                            const currentPreviewIdx = Math.max(0, Math.min(timeCards.length - 1, timeNodePreviewIndex[time] ?? 0));
+                            const previewCard = timeCards[currentPreviewIdx] || timeCards[0];
+                            const previewTeam = previewCard?.variants?.[0] || null;
+                            const previewCharIds = (previewTeam?.characters || previewTeam?.chars || []).filter(Boolean).slice(0, 4);
+                            const previewMainStat = (previewTeam?.mainStat || previewCard?.mainStat || '').trim();
+                            const previewSubstats = (previewCard?.substats || previewTeam?.substats || previewTeam?.reports?.[0]?.substats || [])
+                              .filter(Boolean)
+                              .slice(0, 4);
+                            const previewNote = previewTeam?.reports?.find(r => r?.note)?.note || previewTeam?.note || '';
+                            const previewLikes = Array.isArray(previewTeam?.likes) ? previewTeam.likes.length : 0;
+                            const previewReporter = previewTeam?.reporters?.[0] || previewTeam?.reports?.[0]?.reporter || 'Anon';
+
+                            return (
+                              <div
+                                key={`time-node-${time}`}
+                                onClick={() => setArchiveFocusedTime(time)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setArchiveFocusedTime(time);
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                className={`group rounded-[1.5rem] border p-4 text-left transition-all cursor-pointer ${
+                                  isGlacial
+                                    ? 'bg-cyan-950/25 border-cyan-300/20 hover:border-cyan-300/45 hover:bg-cyan-900/30'
+                                    : 'bg-white/[0.02] border-white/10 hover:border-indigo-500/45 hover:bg-white/[0.045]'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
+                                    {time}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    {timeCards.length > 1 && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            shiftTimeNodePreview(time, timeCards.length, -1);
+                                          }}
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
+                                            isGlacial
+                                              ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
+                                              : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                                          }`}
+                                        >
+                                          <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            shiftTimeNodePreview(time, timeCards.length, 1);
+                                          }}
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
+                                            isGlacial
+                                              ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
+                                              : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                                          }`}
+                                        >
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                    <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-0.5 ${isGlacial ? 'text-cyan-200' : 'text-slate-300'}`} />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 mb-3">
+                                  {previewCharIds.length > 0 ? (
+                                    previewCharIds.map((charId, idx) => {
+                                      const ch = getCharData(charId);
+                                      return (
+                                        <div
+                                          key={`${time}-${charId}-${idx}`}
+                                          className={`w-8 h-8 rounded-full border-2 overflow-hidden ${
+                                            ch.rarity === 5 ? 'border-orange-400' : 'border-purple-400'
+                                          }`}
+                                        >
+                                          <VisualIcon src={ch.image} name={ch.name} className="w-full h-full object-cover" />
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.18em]">No Preview</span>
+                                  )}
+                                </div>
+
+                                {previewCharIds.length > 0 && (
+                                  <div className="mb-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                        First Team Reported
+                                      </div>
+                                      {timeCards.length > 1 && (
+                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                          Variant {currentPreviewIdx + 1}/{timeCards.length}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {previewMainStat && (
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.08em] ${
+                                        isGlacial
+                                          ? 'bg-cyan-950/35 border-cyan-300/25 text-cyan-100'
+                                          : 'bg-black/30 border-white/10 text-indigo-200'
+                                      }`}>
+                                        {previewMainStat.split(': ').pop()}
+                                      </span>
+                                    )}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {previewSubstats.length > 0 ? (
+                                        previewSubstats.map((s) => (
+                                          <span
+                                            key={`${time}-${s}`}
+                                            className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-[0.08em] ${
+                                              isGlacial
+                                                ? 'bg-cyan-950/45 border border-cyan-300/20 text-cyan-100'
+                                                : 'bg-black/25 border border-white/10 text-amber-300'
+                                            }`}
+                                          >
+                                            {String(s).replace(/_/g, ' ')}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">No Substats</span>
+                                      )}
+                                    </div>
+                                    {previewNote && (
+                                      <div className={`rounded-lg border px-2.5 py-2 text-[10px] font-semibold leading-snug line-clamp-2 ${
+                                        isGlacial
+                                          ? 'bg-cyan-950/30 border-cyan-300/20 text-cyan-100/90'
+                                          : 'bg-black/25 border-white/10 text-slate-200'
+                                      }`}>
+                                        {previewNote}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Reporter</div>
+                                    <div className="text-sm font-black text-white truncate">@{previewReporter}</div>
+                                  </div>
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Likes</div>
+                                    <div className="text-sm font-black text-white">{previewLikes}</div>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Variants</div>
+                                    <div className="text-sm font-black text-white">{timeCards.length}</div>
+                                  </div>
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Reports</div>
+                                    <div className="text-sm font-black text-white">{totalReports}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
