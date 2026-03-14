@@ -65,6 +65,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   // Modal State
   const [selectedDomain, setSelectedDomain] = useState(null);
+  const [archiveViewMode, setArchiveViewMode] = useState('grouped');
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -113,6 +114,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const interval = setInterval(() => setResetTimer(getTimeUntilReset()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (selectedDomain) {
+      setArchiveViewMode('grouped');
+    }
+  }, [selectedDomain?.id]);
 
   const SUBSTATS_LIST = [
     'Flat HP', 'Flat ATK', 'Flat DEF',
@@ -1260,18 +1267,58 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                     <h2 className="text-2xl sm:text-5xl font-black text-white uppercase tracking-tighter leading-none italic">{selectedDomain.name}</h2>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedDomain(null)}
-                  className={`w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'bg-cyan-500/10 hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'bg-white/5 hover:bg-white border-white/10 hover:text-black'}`}
-                >
-                  <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
-                </button>
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className={`inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'bg-slate-900/55 border-cyan-300/25' : 'bg-black/35 border-white/10'}`}>
+                    <button
+                      onClick={() => setArchiveViewMode('grouped')}
+                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        archiveViewMode === 'grouped'
+                          ? (isGlacial
+                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                          : (isGlacial
+                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                            : 'text-slate-300 hover:text-white hover:bg-white/10')
+                      }`}
+                    >
+                      By Time
+                    </button>
+                    <button
+                      onClick={() => setArchiveViewMode('flat')}
+                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        archiveViewMode === 'flat'
+                          ? (isGlacial
+                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                          : (isGlacial
+                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                            : 'text-slate-300 hover:text-white hover:bg-white/10')
+                      }`}
+                    >
+                      All Grid
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDomain(null)}
+                    className={`w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'bg-cyan-500/10 hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'bg-white/5 hover:bg-white border-white/10 hover:text-black'}`}
+                  >
+                    <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
+                  </button>
+                </div>
               </div>
 
               <div className={`flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
                   const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+                  const flatCards = times.flatMap((time, timeIdx) =>
+                    grouped[time].map((card, cIdx) => ({
+                      time,
+                      timeIdx,
+                      cIdx,
+                      card
+                    }))
+                  );
 
                   if (times.length === 0) {
                     return (
@@ -1284,6 +1331,50 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         >
                           + Log First Record
                         </button>
+                      </div>
+                    );
+                  }
+
+                  if (archiveViewMode === 'flat') {
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-px w-16 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                              {flatCards.length} Variant Cards
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                            {times.length} Time Nodes
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+                          {flatCards.map(({ time, timeIdx, cIdx, card }) => (
+                            <div key={`${time}-${card.statsKey}-${cIdx}`} className="flex flex-col gap-3">
+                              <div className="flex items-center gap-2 px-1">
+                                <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
+                                  {time}
+                                </span>
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.24em]">
+                                  Slot {timeIdx + 1}.{cIdx + 1}
+                                </span>
+                              </div>
+                              <TeamCarouselCard
+                                card={card}
+                                cardIndex={cIdx}
+                                isGlacial={isGlacial}
+                                getCharData={getCharData}
+                                handleDelete={handleDelete}
+                                adminPass={adminPass}
+                                userKeys={userKeys}
+                                VisualIcon={VisualIcon}
+                                notify={notify}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   }
