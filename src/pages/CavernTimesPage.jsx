@@ -1,4 +1,4 @@
-import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation } from 'lucide-react';
+import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
 
 // Static Data
