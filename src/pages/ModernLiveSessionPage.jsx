@@ -97,31 +97,39 @@ export default function ModernLiveSessionPage({
             */}
 
             {/* 🧪 Experimental Pair Predictor - NOW THE MAIN PREDICTOR */}
-            <ModernPairPredictorCard entries={entries} />
+            <div className="glacial-card">
+              <ModernPairPredictorCard entries={entries} />
+            </div>
 
             {/* Caesar Shift */}
-            <ModernCaesarCard
-              caesarInput={caesarInput}
-              setCaesarInput={setCaesarInput}
-            />
+            <div className="glacial-card">
+              <ModernCaesarCard
+                caesarInput={caesarInput}
+                setCaesarInput={setCaesarInput}
+              />
+            </div>
 
             {/* Default Order / Modes Info */}
-            <ModernDefaultOrderCard />
+            <div className="glacial-card">
+              <ModernDefaultOrderCard />
+            </div>
           </div>
 
           {/* CENTER COLUMN - Session Table, BBP/MARK Mode, Notes */}
           <div className="lg:col-span-6 space-y-4">
             {/* Session Table */}
-            <ModernSessionTable
-              sessionTab={sessionTab}
-              setSessionTab={setSessionTab}
-              entries={entries}
-              prevSessions={prevSessions}
-              onDeleteEntry={handleDeleteEntry}
-              onDeleteSession={handleDeleteSession}
-              onImportRolls={handleImportRolls}
-              isAutoImporting={isAutoImporting}
-            />
+            <div className="glacial-card">
+              <ModernSessionTable
+                sessionTab={sessionTab}
+                setSessionTab={setSessionTab}
+                entries={entries}
+                prevSessions={prevSessions}
+                onDeleteEntry={handleDeleteEntry}
+                onDeleteSession={handleDeleteSession}
+                onImportRolls={handleImportRolls}
+                isAutoImporting={isAutoImporting}
+              />
+            </div>
 
             {/* Live Tracking Tables - COMMENTED OUT, replaced with PatternAnalysisTable */}
             {/* sessionTab === 'current' && entries.length >= 6 && (() => {
@@ -146,71 +154,61 @@ export default function ModernLiveSessionPage({
 
             {/* 3-str tracking */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
-              <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50 shadow-xl">
-                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-                  🦁 BBP Mode Live Tracking (3-str)
-                </h3>
-                <LiveTrackingTable3str 
-                  rolls={entries
-                    .filter(e => (e.translated || '').length >= 3)
-                    .map((entry, index) => ({
-                      value: (entry.translated || '').slice(0, 3),
-                      timestamp: entry.time ? new Date(entry.time).getTime() : Date.now() - (entries.length - index) * 1000,
-                    })).reverse()}
-                />
+              <div className="glacial-card">
+                {/* Predicted Mode (3-str) */}
+                <LiveTrackingTable3str entries={entries} />
               </div>
             )}
 
             {/* Notes Card */}
-            <ModernNotesCard
-              notes={notes}
-              setNotes={setNotes}
-              region={region}
-              patch={patch}
-              entries={entries}
-            />
-
+            <div className="glacial-card">
+              <ModernNotesCard
+                notes={notes}
+                setNotes={setNotes}
+              />
+            </div>
             {/* Debug Panel */}
-            <ModernDebugPanel
-              debugLogs={debugLogs}
-              entries={entries} // 🔥 NEW
-              onClearLogs={handleClearDebugLogs}
-              onImportLogs={handleImportDebugLogs}
-              isDebugMode={isDebugMode}
-              livePrediction={livePrediction}
-              livePrediction3={livePrediction3}
-            />
+            <div className="glacial-card">
+              <ModernDebugPanel
+                debugLogs={debugLogs}
+                onClear={handleClearDebugLogs}
+                onImport={handleImportDebugLogs}
+                isDebugMode={isDebugMode}
+              />
+            </div>
           </div>
 
           {/* RIGHT COLUMN - Accuracy, Frequency (compact), Stats */}
           <div className="lg:col-span-3 space-y-4">
-            {/* Accuracy Gauge - Now compact */}
-            <div className="overflow-visible">
+            {/* Accuracy Gauge - Now wrapped for Glacial look */}
+            <div className="glacial-card">
               <ModernAccuracyCard debugLogs={debugLogs} />
             </div>
 
             {/* Frequency Bars - More compact */}
-            <ModernFrequencyCard 
-              freq2={freq2}
-              freq3={freq3}
-              freq4={freq4}
-              freq5={freq5}
-              freqTab={freqTab}
-              setFreqTab={setFreqTab}
-            />
+            <div className="glacial-card">
+              <ModernFrequencyCard 
+                freq2={freq2} 
+                freq3={freq3} 
+                freq4={freq4} 
+                freq5={freq5} 
+                activeTab={freqTab} 
+                onTabChange={setFreqTab} 
+              />
+            </div>
 
             {/* Stats + Line Helper */}
-            <ModernStatsPanel
-              entries={entries}
-              prediction2={livePrediction}
-              prediction3={livePrediction3}
-              prediction4={livePrediction4}
-              currentRegion={region}
-              currentPatch={patch}
-            />
+            <div className="glacial-card">
+              <ModernStatsPanel
+                entries={entries}
+                handleAddRoll={handleAddRoll}
+              />
+            </div>
 
             {/* Relic Position Card */}
-            <ModernRelicPositionCard />
+            <div className="glacial-card">
+              <ModernRelicPositionCard />
+            </div>
           </div>
 
         </div>

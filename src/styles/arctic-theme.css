@@ -1,0 +1,224 @@
+/* ❄️ ARCTIC ICE GLACIER AESTHETIC ❄️ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;600;800&display=swap');
+
+:root {
+  --aurora-cyan: #67e8f9;
+  --ice-blue: #7dd3fc;
+}
+
+.arctic-theme {
+  font-family: 'Inter', sans-serif;
+  color: #e2e8f0; 
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* 💃 CLARA FULL BACKGROUND */
+.arctic-theme::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url('/clara.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.08; /* Very subtle as requested */
+  pointer-events: none;
+  z-index: 1;
+  filter: grayscale(0.5) contrast(1.1);
+}
+
+.arctic-theme .font-mono,
+.arctic-theme table,
+.arctic-theme input,
+.arctic-theme .data-label {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* 🌌 AURORA BOREALIS ANIMATED BACKGROUND */
+.arctic-theme .aurora-layer {
+  display: none !important; /* Disabled for performance (silence fans) */
+}
+
+.arctic-theme .aurora-blob-1 { background: radial-gradient(circle at 30% 50%, rgba(20, 184, 166, 0.4), transparent 50%); animation: aurora-drift 22s infinite alternate linear; }
+.arctic-theme .aurora-blob-2 { background: radial-gradient(circle at 70% 30%, rgba(56, 189, 248, 0.35), transparent 50%); animation: aurora-drift 18s infinite alternate-reverse linear; }
+.arctic-theme .aurora-blob-3 { background: radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.25), transparent 50%); animation: aurora-drift 26s infinite alternate ease-in-out; }
+
+@keyframes aurora-drift {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.2; }
+  50% { opacity: 0.5; filter: blur(100px); }
+  100% { transform: translate(10%, 15%) scale(1.1); opacity: 0.2; }
+}
+
+/* 🧊 OPTIMIZED GLACIAL CARD 🧊 */
+.arctic-theme .glacial-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(14, 165, 233, 0.25) 100%) !important;
+  backdrop-filter: blur(3px) saturate(110%) !important;
+  -webkit-backdrop-filter: blur(3px) saturate(110%) !important;
+  border: 1px solid rgba(125, 211, 252, 0.3) !important;
+  box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.28) !important;
+  border-radius: 12px !important;
+  position: relative;
+  overflow: visible;
+  transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+  will-change: auto;
+}
+
+.arctic-theme .glacial-card:hover {
+  border-color: rgba(125, 211, 252, 0.6) !important;
+  box-shadow: 0 0 20px rgba(103, 232, 249, 0.14) !important;
+}
+
+/* ❄️ Premium Static Snow Caps (Organic Multi-Layer Depth) */
+.arctic-theme .glacial-card::after,
+.arctic-theme .glacial-subtle-snow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 22px; /* Increased height for drift depth */
+  pointer-events: none;
+  opacity: 0.95;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 30' preserveAspectRatio='none'%3E%3C!-- Shadow Layer --%3E%3Cpath d='M0 30c80-2 150-10 250-10s180 8 300 8 200-12 300-12 150 5 150 5V0H0z' fill='rgba(14, 165, 233, 0.15)'/%3E%3C!-- Main Accumulation --%3E%3Cpath d='M0 25c70 0 140-8 230-8s160 10 280 10 220-15 340-15 150 5 150 5V0H0z' fill='rgba(255, 255, 255, 0.85)'/%3E%3C!-- Highlights/Fresh Snow --%3E%3Cpath d='M0 20c60 0 130-10 210-10s150 12 260 12 200-18 320-18 160 8 210 8V0H0z' fill='white'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  z-index: 10;
+}
+
+/* 🧊 GLASSY BLUE HEADER SYSTEM 🧊 */
+.arctic-theme .glacial-header-glass {
+  background: rgba(15, 23, 42, 0.62) !important;
+  backdrop-filter: blur(4px) saturate(115%) !important;
+  -webkit-backdrop-filter: blur(4px) saturate(115%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.24) !important;
+  will-change: auto;
+}
+
+/* 🌊 GLACIER PROGRESS BAR & TRACK */
+.arctic-theme .glacial-progress-track {
+  background: rgba(125, 211, 252, 0.1) !important;
+  border: 1px solid rgba(125, 211, 252, 0.2) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.arctic-theme .glacial-progress-bar {
+  background: linear-gradient(90deg, #0ea5e9 0%, #7dd3fc 50%, #ffffff 100%) !important;
+  background-size: 200% 100% !important;
+  animation: none !important;
+  box-shadow: 0 0 6px rgba(125, 211, 252, 0.25) !important;
+  border-radius: 9999px !important;
+}
+
+@keyframes glacial-flow {
+  0% { background-position: 200% 0; }
+  100% { background-position: 0% 0; }
+}
+
+/* ❄️ SNOWY HEADER BUTTONS & NAV ❄️ */
+.arctic-theme nav a,
+.arctic-theme header button:not([class*="bg-red"]):not([class*="bg-emerald"]) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #cbd5e1 !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  backdrop-filter: blur(2px) !important;
+  text-shadow: none !important;
+}
+
+.arctic-theme .glacial-card button,
+.arctic-theme .glacial-header-glass button {
+  cursor: pointer !important;
+}
+
+/* Glacier/Snowy Hover */
+.arctic-theme nav a:hover,
+.arctic-theme nav a[data-active="true"],
+.arctic-theme header button:not([class*="bg-red"]):not([class*="bg-emerald"]):hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(125, 211, 252, 0.2) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  color: #fff !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.22) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Export Button Specific Snowy Look */
+.arctic-theme .bg-gradient-to-r.from-violet-600.to-purple-600 {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(14, 165, 233, 0.4) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Active Nav Indicator (Snowy White/Cyan) */
+.arctic-theme #indicator-background,
+.arctic-theme [ref="indicatorRef"],
+.arctic-theme .bg-white\/20.rounded-lg.shadow-lg.shadow-white\/10 {
+  background: linear-gradient(90deg, #fff 0%, #7dd3fc 100%) !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.24) !important;
+}
+
+/* Header Controls (Region/Patch) */
+.arctic-theme header .bg-slate-800\/80,
+.arctic-theme header select {
+  background: rgba(15, 23, 42, 0.4) !important;
+  border: 1px solid rgba(125, 211, 252, 0.3) !important;
+  color: #fff !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+/* Ice Spark Animation */
+@keyframes spark-pulse {
+  0%, 100% { transform: translateY(-50%) scale(1); opacity: 0.8; filter: blur(2px); }
+  50% { transform: translateY(-50%) scale(1.4); opacity: 1; filter: blur(1px); }
+}
+.arctic-theme .animate-pulse {
+  animation: none !important;
+}
+
+/* Adjust purple/violet typography to frosty cyan to match the vibe */
+.arctic-theme .text-purple-400,
+.arctic-theme .text-purple-300,
+.arctic-theme .text-violet-400,
+.arctic-theme .text-violet-300 {
+  color: var(--ice-blue) !important;
+}
+
+.arctic-theme .from-violet-400.to-purple-400,
+.arctic-theme .from-violet-600.to-purple-600,
+.arctic-theme .bg-clip-text {
+  color: var(--aurora-cyan) !important;
+  -webkit-text-fill-color: var(--aurora-cyan) !important;
+}
+
+.arctic-theme .bg-purple-500\/10 { background-color: rgba(56, 189, 248, 0.1) !important; }
+.arctic-theme .bg-purple-500\/20 { background-color: rgba(56, 189, 248, 0.2) !important; }
+.arctic-theme .border-purple-500\/30 { border-color: rgba(56, 189, 248, 0.3) !important; }
+
+/* Form inputs styling */
+.arctic-theme input,
+.arctic-theme textarea {
+  background: rgba(15, 23, 42, 0.7) !important;
+  border: 1px solid rgba(125, 211, 252, 0.2) !important;
+  color: #fff !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.arctic-theme input:focus,
+.arctic-theme textarea:focus {
+  border-color: var(--aurora-cyan) !important;
+  box-shadow: 0 0 15px rgba(103, 232, 249, 0.2) !important;
+}
+
+/* Scrollbar Refinement */
+.arctic-theme *::-webkit-scrollbar { width: 6px; }
+.arctic-theme *::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
+.arctic-theme *::-webkit-scrollbar-thumb {
+  background: rgba(103, 232, 249, 0.3);
+  border-radius: 10px;
+}
+.arctic-theme *::-webkit-scrollbar-thumb:hover { background: rgba(103, 232, 249, 0.5); }

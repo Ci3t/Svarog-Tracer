@@ -54,7 +54,7 @@ export default function Layout({
       <LiveStatsBanner />
 
       {/* Sticky Header */}
-      <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50">
+      <header className="sticky top-0 z-50 glacial-header-glass">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
@@ -123,7 +123,7 @@ export default function Layout({
                 {/* Animated indicator background */}
                 <div
                   ref={indicatorRef}
-                  className="absolute top-1 left-0 h-[calc(100%-8px)] bg-purple-600 rounded-lg shadow-lg shadow-purple-500/30 pointer-events-none"
+                  className="absolute top-1 left-0 h-[calc(100%-8px)] bg-white/20 rounded-lg shadow-lg shadow-white/10 pointer-events-none"
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
 

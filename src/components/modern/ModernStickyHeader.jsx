@@ -58,7 +58,7 @@ export default function ModernStickyHeader({
 
   return (
     <div 
-      className="sticky top-[110px] sm:top-[120px] lg:top-[64px] z-40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-b border-slate-700/50 shadow-2xl backdrop-blur-md transition-all duration-300"
+      className="sticky top-[110px] sm:top-[120px] lg:top-[64px] z-40 transition-all duration-300 glacial-header-glass"
       style={{ opacity: isScrolled ? 0.95 : 1 }}
     >
       <div className="max-w-[1920px] mx-auto px-4 py-3">
@@ -151,11 +151,14 @@ export default function ModernStickyHeader({
         </div>
 
         {/* Bottom: Full-width Progress Bar */}
-        <div className="mt-3 h-1 sm:h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="mt-3 h-1.5 sm:h-2 glacial-progress-track rounded-full overflow-hidden relative">
           <div
-            className={`h-full bg-gradient-to-r ${getColor()} transition-all duration-1000 ease-linear`}
+            className={`h-full glacial-progress-bar transition-all duration-1000 ease-linear relative`}
             style={{ width: `${progressPercent}%` }}
-          />
+          >
+            {/* Ice Spark Head */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full blur-[2px] shadow-[0_0_15px_#fff,0_0_25px_#7dd3fc] animate-pulse" />
+          </div>
         </div>
       </div>
     </div>

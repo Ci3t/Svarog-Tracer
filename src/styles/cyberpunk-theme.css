@@ -1,0 +1,218 @@
+/* Cyberpunk / Glitch Design System 🌐⚡ */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  /* Colors */
+  --cyber-background: #0a0a0f;
+  --cyber-foreground: #e0e0e0;
+  --cyber-card: #12121a;
+  --cyber-muted: #1c1c2e;
+  --cyber-muted-foreground: #6b7280;
+  --cyber-accent: #00ff88;
+  --cyber-accent-secondary: #ff00ff;
+  --cyber-accent-tertiary: #00d4ff;
+  --cyber-border: #2a2a3a;
+  --cyber-input: #12121a;
+  --cyber-ring: #00ff88;
+  --cyber-destructive: #ff3366;
+
+  /* Neon Glows */
+  --cyber-neon: 0 0 5px var(--cyber-accent), 0 0 10px rgba(0, 255, 136, 0.25);
+  --cyber-neon-sm: 0 0 3px var(--cyber-accent), 0 0 6px rgba(0, 255, 136, 0.15);
+  --cyber-neon-lg: 0 0 10px var(--cyber-accent), 0 0 20px rgba(0, 255, 136, 0.4), 0 0 40px rgba(0, 255, 136, 0.2);
+  --cyber-neon-secondary: 0 0 5px var(--cyber-accent-secondary), 0 0 20px rgba(255, 0, 255, 0.4);
+  --cyber-neon-tertiary: 0 0 5px var(--cyber-accent-tertiary), 0 0 20px rgba(0, 212, 255, 0.4);
+
+  /* Fonts */
+  --font-cyber-head: 'Orbitron', sans-serif;
+  --font-cyber-body: 'JetBrains Mono', monospace;
+  --font-cyber-label: 'Share Tech Mono', monospace;
+}
+
+.cyberpunk-theme {
+  font-family: var(--font-cyber-body);
+  background-color: var(--cyber-background);
+  color: var(--cyber-foreground);
+  min-height: 100vh;
+  position: relative;
+}
+
+/* 📺 SCANLINE OVERLAY */
+.cyberpunk-theme::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.3) 2px,
+    rgba(0, 0, 0, 0.3) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ⚡ EFFECTS UTILITIES */
+
+/* Chromatic Aberration Text Glitch */
+.cyberpunk-theme .cyber-glitch {
+  position: relative;
+  display: inline-block;
+}
+
+.cyberpunk-theme .cyber-glitch::before,
+.cyberpunk-theme .cyber-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.8;
+}
+
+.cyberpunk-theme .cyber-glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 var(--cyber-accent-secondary);
+  clip-path: inset(10% 0 80% 0);
+  animation: glitch-anim 2.5s infinite linear alternate-reverse;
+  z-index: -1;
+}
+
+.cyberpunk-theme .cyber-glitch::after {
+  left: -2px;
+  text-shadow: -2px 0 var(--cyber-accent-tertiary);
+  clip-path: inset(80% 0 10% 0);
+  animation: glitch-anim 3s infinite linear alternate-reverse;
+  z-index: -2;
+}
+
+/* 🔲 CHAMFERED CORNERS (Sharp Cuts) */
+.cyberpunk-theme .cyber-chamfer {
+  clip-path: polygon(
+    0 16px, 16px 0, 
+    calc(100% - 16px) 0, 100% 16px, 
+    100% calc(100% - 16px), calc(100% - 16px) 100%, 
+    16px 100%, 0 calc(100% - 16px)
+  ) !important;
+  border-radius: 0 !important;
+}
+
+.cyberpunk-theme .cyber-chamfer-sm {
+  clip-path: polygon(
+    0 8px, 8px 0, 
+    calc(100% - 8px) 0, 100% 8px, 
+    100% calc(100% - 8px), calc(100% - 8px) 100%, 
+    8px 100%, 0 calc(100% - 8px)
+  ) !important;
+  border-radius: 0 !important;
+}
+
+/* 💻 COMPONENT STYLING */
+
+/* Base Typography */
+.cyberpunk-theme h1, 
+.cyberpunk-theme h2, 
+.cyberpunk-theme h3 {
+  font-family: var(--font-cyber-head);
+  text-transform: uppercase;
+}
+
+/* Buttons */
+.cyberpunk-theme button {
+  font-family: var(--font-cyber-label);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent !important;
+  border: 1px solid var(--cyber-accent) !important;
+  color: var(--cyber-accent) !important;
+  clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%) !important;
+  border-radius: 0 !important;
+  transition: all 0.2s steps(4) !important;
+  position: relative;
+}
+
+.cyberpunk-theme button:hover {
+  background: var(--cyber-accent) !important;
+  color: var(--cyber-background) !important;
+  box-shadow: var(--cyber-neon) !important;
+}
+
+/* Base Cards */
+.cyberpunk-theme .tech-card,
+.cyberpunk-theme [class*="bg-slate"] {
+  background-color: var(--cyber-card) !important;
+  border: 1px solid var(--cyber-border) !important;
+  border-radius: 0 !important;
+  clip-path: polygon(
+    0 16px, 16px 0, 
+    100% 0, 100% calc(100% - 16px), 
+    calc(100% - 16px) 100%, 0 100%
+  ) !important;
+  transition: all 0.2s steps(4) !important;
+  box-shadow: none !important;
+}
+
+.cyberpunk-theme .tech-card:hover {
+  border-color: var(--cyber-accent) !important;
+  box-shadow: inset 0 0 15px rgba(0, 255, 136, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+/* Inputs */
+.cyberpunk-theme input,
+.cyberpunk-theme textarea {
+  background-color: var(--cyber-input) !important;
+  border: 1px solid var(--cyber-border) !important;
+  border-radius: 0 !important;
+  clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%) !important;
+  color: var(--cyber-accent) !important;
+  font-family: var(--font-cyber-body);
+}
+
+.cyberpunk-theme input:focus {
+  border-color: var(--cyber-accent) !important;
+  box-shadow: var(--cyber-neon) !important;
+  outline: none;
+}
+
+/* Sticky Header */
+.cyberpunk-theme header.sticky {
+  background: rgba(10, 10, 15, 0.95) !important;
+  border-bottom: 2px solid var(--cyber-accent) !important;
+  box-shadow: var(--cyber-neon) !important;
+  backdrop-filter: blur(10px);
+}
+
+.cyberpunk-theme header.sticky > div {
+  background: transparent !important;
+}
+
+/* Accent Texts */
+.cyberpunk-theme .text-purple-400,
+.cyberpunk-theme .text-blue-400,
+.cyberpunk-theme .text-cyan-400 {
+  color: var(--cyber-accent-tertiary) !important;
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.5) !important;
+}
+
+/* 🎥 ANIMATIONS */
+
+@keyframes glitch-anim {
+  0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 1px); }
+  5% { clip-path: inset(40% 0 10% 0); transform: translate(2px, -1px); }
+  10% { clip-path: inset(80% 0 5% 0); transform: translate(-1px, 2px); }
+  15% { clip-path: inset(10% 0 40% 0); transform: translate(1px, -2px); }
+  20% { clip-path: inset(30% 0 20% 0); transform: translate(0px, 0px); }
+  100% { clip-path: inset(30% 0 20% 0); transform: translate(0px, 0px); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cyberpunk-theme .blink-cursor {
+  animation: blink 1s step-end infinite;
+}
