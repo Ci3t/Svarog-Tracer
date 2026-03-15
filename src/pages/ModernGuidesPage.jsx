@@ -6,11 +6,10 @@ import LiveModeGuide from '../components/guides/LiveModeGuide';
 import LongStringGuide from '../components/guides/LongStringGuide';
 import KiyoGuide from '../components/guides/KiyoGuide';
 import WarpGuide from '../components/guides/WarpGuide';
+import guidesData from '../data/guides.json';
 
 // API Configuration
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '/api/guides'
-  : 'https://svarog-tracer.vercel.app/api/guides';
+const API_URL = '/api/guides';
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -348,12 +347,12 @@ function GuideCard({ guide, onClick, index }) {
 export default function ModernGuidesPage() {
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [creators, setCreators] = useState([]);
+  const [creators, setCreators] = useState(() => guidesData.creators || []);
   
   // Admin & Notification State
-  const [adminPass, setAdminPass] = useState(() => localStorage.getItem('hsr_admin_pass') || '');
   const [titleClicks, setTitleClicks] = useState(0);
   const [notifications, setNotifications] = useState([]);
+  const adminPass = '';
 
   // Management Modal State
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
@@ -377,23 +376,7 @@ export default function ModernGuidesPage() {
     const newCount = titleClicks + 1;
     setTitleClicks(newCount);
     if (newCount === 5) {
-      const pass = prompt('Enter Admin Access Code:');
-      if (pass) {
-        const trimmedPass = pass.trim();
-        // Secure server-side verification
-        fetch(`${API_URL}?verify=${encodeURIComponent(trimmedPass)}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.valid) {
-              setAdminPass(trimmedPass);
-              localStorage.setItem('hsr_admin_pass', trimmedPass);
-              notify('Admin Access Granted', 'success');
-            } else {
-              notify('Invalid Access Code', 'error');
-            }
-          })
-          .catch(() => notify('Security Check Failed', 'error'));
-      }
+      notify('Guides are static now. Edit src/data/guides.json and redeploy to add or reorder videos.', 'info');
       setTitleClicks(0);
     }
   };
@@ -503,43 +486,7 @@ export default function ModernGuidesPage() {
   // Fetch guides from API
   async function fetchGuides() {
     try {
-      console.log(`[Guides Admin] Fetching data from ${API_URL}...`);
-      const response = await fetch(API_URL);
-      const data = await response.json();
-      
-      console.log(`[Guides Admin] API Response:`, data);
-      
-      if (data && data.creators && data.creators.length > 0) {
-        setCreators(data.creators);
-      } else {
-        console.warn('[Guides Admin] API returned empty creators, using local fallback');
-        // Final fallback: Use a simplified version of the initial data if API fails to provide one
-        setCreators([
-          {
-            id: "bbp",
-            name: "BigBoiPinoy",
-            shortName: "BBP",
-            channelUrl: "https://www.youtube.com/@BigBoiPnoy",
-            description: "OG Relic Manipulation Guide Creator",
-            color: "amber",
-            videos: [
-              { id: "QrqPENtcFus", title: "Relic Manipulation Changed?", description: "Latest update on how relic manipulation works", featured: true },
-              { id: "G0j3imbKw7M", title: "How to Manipulate Relics", description: "Original comprehensive guide", featured: false }
-            ]
-          },
-          {
-            id: "ciet",
-            name: "Ciet",
-            shortName: "Ciet",
-            channelUrl: "https://www.youtube.com/@iiciet",
-            description: "Svarog Tracer Creator & Developer",
-            color: "purple",
-            videos: [
-              { id: "nUUx7ur-yUY", title: "Ultimate Guide: How to Use Svarog Tracer", description: "Complete walkthrough of the site", featured: true }
-            ]
-          }
-        ]);
-      }
+      setCreators(guidesData.creators || []);
     } catch (error) {
       console.error('[Guides Admin] Failed to fetch guides:', error);
     }
@@ -547,28 +494,7 @@ export default function ModernGuidesPage() {
 
   useEffect(() => {
     fetchGuides();
-    
-    // Auto-verify saved password on mount
-    if (adminPass) {
-      console.log('[Guides Admin] Verifying saved access code (POST)...');
-      fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verify: adminPass })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (!data.valid) {
-            console.warn('[Guides Admin] Saved access code no longer valid. Clearing session.');
-            setAdminPass('');
-            localStorage.removeItem('hsr_admin_pass');
-            notify('Admin Session Expired', 'error');
-          } else {
-            console.log('[Guides Admin] Admin session verified.');
-          }
-        })
-        .catch(() => console.error('[Guides Admin] Security check failed during mount.'));
-    }
+    localStorage.removeItem('hsr_admin_pass');
   }, []);
 
   const WRITTEN_GUIDES = [
@@ -619,16 +545,6 @@ export default function ModernGuidesPage() {
             <span className="text-sm font-bold text-purple-300 uppercase tracking-wider">Guides</span>
           </div>
 
-          {adminPass && (
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div 
-                onClick={() => { if(window.confirm('Logout?')) { setAdminPass(''); localStorage.removeItem('hsr_admin_pass'); notify('Logged out', 'info'); } }}
-                className="px-4 py-1.5 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse cursor-pointer hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
-              >
-                Admin Gateway Open
-              </div>
-            </div>
-          )}
           <h1 ref={titleRef} className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-violet-400 to-purple-500 mb-4">
             <span>L</span><span>e</span><span>a</span><span>r</span><span>n</span><span> </span>
             <span>S</span><span>v</span><span>a</span><span>r</span><span>o</span><span>g</span><span> </span>
@@ -636,6 +552,9 @@ export default function ModernGuidesPage() {
           </h1>
           <p className="text-slate-400 max-w-2xl mx-auto">
             Master relic manipulation with video tutorials and comprehensive written guides
+          </p>
+          <p className="text-slate-500 text-xs max-w-2xl mx-auto mt-3">
+            Video guides are served from a static repo file for zero Blob usage. Update <code>src/data/guides.json</code> and redeploy when you add a new link.
           </p>
         </div>
 
@@ -672,7 +591,7 @@ export default function ModernGuidesPage() {
               key={creator.id} 
               creator={creator} 
               index={i} 
-              isAdmin={!!adminPass}
+              isAdmin={false}
               onAdd={handleAddVideo}
               onEdit={handleEditVideo}
               onDelete={handleDeleteVideo}

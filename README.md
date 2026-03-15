@@ -65,6 +65,12 @@ npm run dev
 npm run build
 ```
 
+## Data Backends
+
+- `Guides` now come from the static repo file at `src/data/guides.json`. Update that file and redeploy when you add or reorder guide links.
+- `Cavern Clears` can run on Supabase by setting `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `SUPABASE_CAVERN_TABLE`.
+- The Supabase table schema is in `docs/supabase-caverns.sql`.
+
 ---
 
 ## 📖 How to Read the Predictor

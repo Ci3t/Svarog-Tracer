@@ -33,9 +33,8 @@ const VisualIcon = ({ src, name, className = "" }) => {
 };
 
 // API Configuration
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '/api/hsr/cavern-clears'
-  : 'https://svarog-tracer.vercel.app/api/hsr/cavern-clears';
+const API_URL = '/api/hsr/cavern-clears';
+const GUIDES_API_URL = '/api/guides';
 
 const CAVERN_PRESET_FLAGS_KEY = 'hsr_cavern_preset_flags_v1';
 const CAVERN_PRESET_DATA_KEY = 'hsr_cavern_preset_data_v1';
@@ -301,10 +300,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const fetchClears = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}?t=${Date.now()}`, {
-        cache: 'no-store', // Force bypass cache 
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const res = await fetch(API_URL);
       if (!res.ok) throw new Error('Failed to fetch data');
       const data = await res.json();
 
@@ -327,7 +323,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     // Auto-verify saved password on mount
     if (adminPass) {
       console.log('[Cavern Admin] Verifying saved access code (POST)...');
-      fetch('https://svarog-tracer.vercel.app/api/guides', {
+      fetch(GUIDES_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verify: adminPass })
@@ -588,12 +584,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         Object.entries(params).filter(([_, v]) => v != null)
       );
       const searchParams = new URLSearchParams(cleanParams);
-      searchParams.set('t', Date.now().toString()); // Cache buster
 
       const res = await fetch(`${API_URL}?${searchParams.toString()}`, {
-        method: 'DELETE',
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        method: 'DELETE'
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Delete failed');
@@ -657,7 +650,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       if (pass) {
         const trimmedPass = pass.trim();
         // Secure server-side verification via POST
-        fetch('https://svarog-tracer.vercel.app/api/guides', {
+        fetch(GUIDES_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ verify: trimmedPass })
