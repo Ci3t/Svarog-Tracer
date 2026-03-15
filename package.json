@@ -10,6 +10,7 @@
     "build:beta": "cross-env VITE_BASE_PATH=/Svarog-Tracer-Beta/ vite build",
     "cache:bump": "node scripts/bump-cache-version.js",
     "migrate:redis": "node scripts/migrate-stats-to-redis.js",
+    "migrate:caverns": "node scripts/migrate-caverns-to-supabase.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "update-banners": "python scripts/update_banners.py"
