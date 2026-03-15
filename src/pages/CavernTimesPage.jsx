@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import { RefreshCw, Clock, Users, PlusCircle, AlertCircle, CheckCircle2, Info, ChevronDown, X, Trophy, Sparkles, Binary, Gem, Navigation, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Search } from 'lucide-react';
+import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
+import ArcticSnow from '../components/snow/ArcticSnow';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -32,12 +33,33 @@ const VisualIcon = ({ src, name, className = "" }) => {
 };
 
 // API Configuration
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '/api/hsr/cavern-clears'
-  : 'https://svarog-tracer.vercel.app/api/hsr/cavern-clears';
+const API_URL = '/api/hsr/cavern-clears';
+const GUIDES_API_URL = '/api/guides';
 
-export default function CavernTimesPage() {
+const CAVERN_PRESET_FLAGS_KEY = 'hsr_cavern_preset_flags_v1';
+const CAVERN_PRESET_DATA_KEY = 'hsr_cavern_preset_data_v1';
+const CAVERN_TEAM_PRESETS_KEY = 'hsr_cavern_team_presets_v1';
+const CAVERN_RECENT_ITEMS_KEY = 'hsr_cavern_recent_items_v1';
+const CAVERN_RECENT_TEAMS_KEY = 'hsr_cavern_recent_teams_v1';
+const TEAM_PRESETS_PAGE_SIZE = 6;
+const RECENT_ITEMS_LIMIT = 8;
+const RECENT_TEAMS_LIMIT = 8;
+
+const readStorageJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const baseUrl = import.meta.env.BASE_URL;
+  const isGlacial = sessionTheme === 'arctic' || sessionTheme === 'winter';
+
   const [clears, setClears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('relics');
@@ -59,9 +81,13 @@ export default function CavernTimesPage() {
   const formRef = useRef(null);
   const traceFormRef = useRef(null);
   const scrollRef = useRef(null);
+  const submitModeRef = useRef('close');
 
   // Modal State
   const [selectedDomain, setSelectedDomain] = useState(null);
+  const [archiveViewMode, setArchiveViewMode] = useState('grouped');
+  const [archiveFocusedTime, setArchiveFocusedTime] = useState(null);
+  const [timeNodePreviewIndex, setTimeNodePreviewIndex] = useState({});
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -79,6 +105,35 @@ export default function CavernTimesPage() {
 
   const [submitStatus, setSubmitStatus] = useState({ type: '', msg: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchAddedCount, setBatchAddedCount] = useState(0);
+  const [presetFlags, setPresetFlags] = useState(() =>
+    readStorageJson(CAVERN_PRESET_FLAGS_KEY, {
+      keepItem: true,
+      keepTeam: true,
+      keepDiscord: true,
+      keepMainStat: false
+    })
+  );
+  const [entryPreset, setEntryPreset] = useState(() =>
+    readStorageJson(CAVERN_PRESET_DATA_KEY, {
+      discord: '',
+      team: [],
+      relics: { itemId: '', mainStat: '' },
+      traces: { itemId: '' }
+    })
+  );
+  const [teamPresets, setTeamPresets] = useState(() =>
+    readStorageJson(CAVERN_TEAM_PRESETS_KEY, [])
+  );
+  const [teamPresetName, setTeamPresetName] = useState('');
+  const [teamPresetPage, setTeamPresetPage] = useState(0);
+  const [recentItemsByCategory, setRecentItemsByCategory] = useState(() =>
+    readStorageJson(CAVERN_RECENT_ITEMS_KEY, { relics: [], traces: [] })
+  );
+  const [recentTeams, setRecentTeams] = useState(() =>
+    readStorageJson(CAVERN_RECENT_TEAMS_KEY, [])
+  );
   const [modalRarityFilter, setModalRarityFilter] = useState(null);
   const [resetTimer, setResetTimer] = useState('');
 
@@ -111,6 +166,74 @@ export default function CavernTimesPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (selectedDomain) {
+      setArchiveViewMode('grouped');
+      setArchiveFocusedTime(null);
+      setTimeNodePreviewIndex({});
+    }
+  }, [selectedDomain?.id]);
+
+  useEffect(() => {
+    if (!isFormOpen) {
+      setIsBatchMode(false);
+      setBatchAddedCount(0);
+    }
+  }, [isFormOpen]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_PRESET_FLAGS_KEY, JSON.stringify(presetFlags));
+  }, [presetFlags]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_PRESET_DATA_KEY, JSON.stringify(entryPreset));
+  }, [entryPreset]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_TEAM_PRESETS_KEY, JSON.stringify(teamPresets));
+  }, [teamPresets]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_RECENT_ITEMS_KEY, JSON.stringify(recentItemsByCategory));
+  }, [recentItemsByCategory]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_RECENT_TEAMS_KEY, JSON.stringify(recentTeams));
+  }, [recentTeams]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE) - 1);
+    setTeamPresetPage(prev => Math.min(prev, maxPage));
+  }, [teamPresets.length]);
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    if (presetFlags.keepItem) {
+      const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
+      setFormChars(entryPreset.team.slice(0, 4));
+    }
+    if (presetFlags.keepDiscord && entryPreset.discord) {
+      setFormDiscord(entryPreset.discord);
+    }
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+  }, [isFormOpen]);
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    if (presetFlags.keepItem) {
+      const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+  }, [category]);
+
   const SUBSTATS_LIST = [
     'Flat HP', 'Flat ATK', 'Flat DEF',
     'HP%', 'ATK%', 'DEF%',
@@ -140,11 +263,32 @@ export default function CavernTimesPage() {
   const handleSwitchCategory = (newCat) => {
     if (newCat === category) return;
     setCategory(newCat);
-    // Reset form states to prevent data corruption between record types
-    setFormItemId('');
-    setFormChars([]);
+
+    // Keep sticky fields when enabled, otherwise reset.
+    if (!presetFlags.keepItem) {
+      setFormItemId('');
+    } else {
+      const presetItemId = newCat === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (!presetFlags.keepTeam) {
+      setFormChars([]);
+    }
+    if (!presetFlags.keepDiscord) {
+      setFormDiscord('');
+    }
+
+    // Main stat only applies to relics; preserve only when requested.
+    if (newCat !== 'relics') {
+      setFormMainStat('');
+    } else if (!presetFlags.keepMainStat) {
+      setFormMainStat('');
+    } else if (entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+
+    // Always reset per-entry fields.
     setFormSubstats([]);
-    setFormMainStat('');
     setFormPurpleCount(0);
     setFormBlueCount(0);
     setFormTime('');
@@ -156,10 +300,7 @@ export default function CavernTimesPage() {
   const fetchClears = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}?t=${Date.now()}`, {
-        cache: 'no-store', // Force bypass cache 
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const res = await fetch(API_URL);
       if (!res.ok) throw new Error('Failed to fetch data');
       const data = await res.json();
 
@@ -182,7 +323,7 @@ export default function CavernTimesPage() {
     // Auto-verify saved password on mount
     if (adminPass) {
       console.log('[Cavern Admin] Verifying saved access code (POST)...');
-      fetch('https://svarog-tracer.vercel.app/api/guides', {
+      fetch(GUIDES_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verify: adminPass })
@@ -249,6 +390,8 @@ export default function CavernTimesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitStatus({ type: '', msg: '' });
+    const keepOpenForNext = isBatchMode || submitModeRef.current === 'continue';
+    submitModeRef.current = 'close';
 
     if (!formItemId || !formTime || !formDiscord) {
       return setSubmitStatus({ type: 'error', msg: 'Please complete all steps.' });
@@ -271,6 +414,11 @@ export default function CavernTimesPage() {
       const payloadSubstats = category === 'traces'
         ? [`Purple:${formPurpleCount}`, `Blue:${formBlueCount}`]
         : formSubstats;
+      const submittedCategory = category;
+      const submittedItemId = formItemId;
+      const submittedChars = [...formChars];
+      const submittedDiscord = formDiscord.trim();
+      const submittedMainStat = formMainStat || '';
 
       const res = await fetch(API_URL, {
         method: 'POST',
@@ -297,6 +445,25 @@ export default function CavernTimesPage() {
       }
 
       setSubmitStatus({ type: 'success', msg: data.message });
+      setEntryPreset(prev => ({
+        ...prev,
+        discord: submittedDiscord || prev.discord,
+        team: submittedChars.length ? submittedChars : prev.team,
+        relics: {
+          ...prev.relics,
+          itemId: submittedCategory === 'relics' ? (submittedItemId || prev.relics.itemId) : prev.relics.itemId,
+          mainStat: submittedCategory === 'relics' ? (submittedMainStat || prev.relics.mainStat) : prev.relics.mainStat
+        },
+        traces: {
+          ...prev.traces,
+          itemId: submittedCategory === 'traces' ? (submittedItemId || prev.traces.itemId) : prev.traces.itemId
+        }
+      }));
+      addRecentItem(submittedCategory, submittedItemId);
+      addRecentTeam(submittedChars, submittedItemId, submittedCategory);
+      if (keepOpenForNext) {
+        setBatchAddedCount(prev => prev + 1);
+      }
 
       // OPTIMISTIC UI UPDATE
       const newReport = {
@@ -343,16 +510,31 @@ export default function CavernTimesPage() {
       });
 
       setTimeout(() => {
-        setIsFormOpen(false);
+        if (!keepOpenForNext) {
+          setIsFormOpen(false);
+        }
         // fetchClears(); -> We remove this here to prevent the Vercel Blob race condition
         setFormTime('');
-        setFormChars([]);
-        setFormItemId('');
         setFormNote('');
         setFormSubstats([]);
-        setFormMainStat('');
         setFormPurpleCount(0);
         setFormBlueCount(0);
+        setShowItemSelector(false);
+        if (!presetFlags.keepTeam) {
+          setFormChars([]);
+        }
+        if (!presetFlags.keepDiscord) {
+          setFormDiscord('');
+        }
+        if (!presetFlags.keepItem) {
+          setFormItemId('');
+        }
+        if (submittedCategory === 'relics' && !presetFlags.keepMainStat) {
+          setFormMainStat('');
+        }
+        if (keepOpenForNext) {
+          setSubmitStatus({ type: 'success', msg: 'Record logged. Ready for next entry.' });
+        }
       }, 1500);
 
     } catch (err) {
@@ -366,6 +548,9 @@ export default function CavernTimesPage() {
   const getItem = (id) => [...relicsData, ...materialsData].find(r => r.id === id) || { name: 'Unknown', image: '' };
   const getCharData = (id) => charactersData.find(c => c.id === id) || { name: '', image: '', rarity: 4 };
   const getCharImg = (id) => getCharData(id).image;
+  const teamPresetPageCount = Math.max(1, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE));
+  const teamPresetSliceStart = teamPresetPage * TEAM_PRESETS_PAGE_SIZE;
+  const visibleTeamPresets = teamPresets.slice(teamPresetSliceStart, teamPresetSliceStart + TEAM_PRESETS_PAGE_SIZE);
 
   const toggleFilter = (id) => {
     setActiveFilters(prev =>
@@ -399,12 +584,9 @@ export default function CavernTimesPage() {
         Object.entries(params).filter(([_, v]) => v != null)
       );
       const searchParams = new URLSearchParams(cleanParams);
-      searchParams.set('t', Date.now().toString()); // Cache buster
 
       const res = await fetch(`${API_URL}?${searchParams.toString()}`, {
-        method: 'DELETE',
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        method: 'DELETE'
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Delete failed');
@@ -468,7 +650,7 @@ export default function CavernTimesPage() {
       if (pass) {
         const trimmedPass = pass.trim();
         // Secure server-side verification via POST
-        fetch('https://svarog-tracer.vercel.app/api/guides', {
+        fetch(GUIDES_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ verify: trimmedPass })
@@ -495,6 +677,167 @@ export default function CavernTimesPage() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 4000);
+  };
+
+  const shiftTimeNodePreview = (time, total, dir) => {
+    if (!time || total <= 1) return;
+    setTimeNodePreviewIndex(prev => {
+      const current = prev[time] ?? 0;
+      const next = (current + dir + total) % total;
+      return { ...prev, [time]: next };
+    });
+  };
+
+  const togglePresetFlag = (key) => {
+    setPresetFlags(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const saveCurrentAsPreset = () => {
+    setEntryPreset(prev => ({
+      ...prev,
+      discord: formDiscord.trim() || prev.discord,
+      team: formChars.length ? [...formChars] : prev.team,
+      relics: {
+        ...prev.relics,
+        itemId: category === 'relics' ? (formItemId || prev.relics.itemId) : prev.relics.itemId,
+        mainStat: category === 'relics' ? (formMainStat || prev.relics.mainStat) : prev.relics.mainStat
+      },
+      traces: {
+        ...prev.traces,
+        itemId: category === 'traces' ? (formItemId || prev.traces.itemId) : prev.traces.itemId
+      }
+    }));
+    notify('Preset saved locally.', 'success');
+  };
+
+  const applySavedPreset = () => {
+    const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+    if (presetFlags.keepItem && presetItemId) setFormItemId(presetItemId);
+    if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
+      setFormChars(entryPreset.team.slice(0, 4));
+    }
+    if (presetFlags.keepDiscord && entryPreset.discord) setFormDiscord(entryPreset.discord);
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+    notify('Preset applied.', 'info');
+  };
+
+  const saveTeamPreset = () => {
+    if (formChars.length !== 4) {
+      notify('Build a full team of 4 before saving preset.', 'error');
+      return;
+    }
+
+    const name = teamPresetName.trim() || `Team ${teamPresets.length + 1}`;
+    const payload = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      chars: [...formChars],
+      updatedAt: Date.now()
+    };
+
+    setTeamPresets(prev => {
+      const existingIdx = prev.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx] = { ...next[existingIdx], chars: payload.chars, updatedAt: payload.updatedAt };
+        return next.sort((a, b) => b.updatedAt - a.updatedAt);
+      }
+      return [payload, ...prev].sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+
+    setTeamPresetPage(0);
+    setTeamPresetName('');
+    notify(`Team preset "${name}" saved.`, 'success');
+  };
+
+  const applyTeamPreset = (preset) => {
+    if (!preset?.chars?.length) return;
+    setFormChars(preset.chars.slice(0, 4));
+    setPresetFlags(prev => ({ ...prev, keepTeam: true }));
+    setTeamPresets(prev => prev.map(p => p.id === preset.id ? { ...p, updatedAt: Date.now() } : p).sort((a, b) => b.updatedAt - a.updatedAt));
+    addRecentTeam(preset.chars.slice(0, 4), formItemId, category);
+    notify(`Applied team preset "${preset.name}".`, 'info');
+  };
+
+  const deleteTeamPreset = (presetId) => {
+    setTeamPresets(prev => prev.filter(p => p.id !== presetId));
+    notify('Team preset removed.', 'info');
+  };
+
+  const moveTeamPresetPage = (direction) => {
+    setTeamPresetPage(prev => {
+      const maxPage = Math.max(0, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE) - 1);
+      return Math.max(0, Math.min(maxPage, prev + direction));
+    });
+  };
+
+  const addRecentItem = (cat, itemId) => {
+    if (!itemId) return;
+    setRecentItemsByCategory(prev => {
+      const list = Array.isArray(prev?.[cat]) ? prev[cat] : [];
+      const next = [itemId, ...list.filter(id => id !== itemId)].slice(0, RECENT_ITEMS_LIMIT);
+      return { ...prev, [cat]: next };
+    });
+  };
+
+  const addRecentTeam = (chars, itemId, cat) => {
+    if (!Array.isArray(chars) || chars.length !== 4) return;
+    const signature = [...chars].join('|');
+    const payload = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      chars: [...chars],
+      itemId: itemId || '',
+      category: cat || 'relics',
+      signature,
+      updatedAt: Date.now()
+    };
+    setRecentTeams(prev => {
+      const filtered = prev.filter(t => `${t.category || 'relics'}::${t.itemId || ''}::${t.signature}` !== `${payload.category}::${payload.itemId}::${payload.signature}`);
+      return [payload, ...filtered].slice(0, RECENT_TEAMS_LIMIT);
+    });
+  };
+
+  const applyRecentTeam = (recent) => {
+    if (!recent?.chars?.length) return;
+    setFormChars(recent.chars.slice(0, 4));
+    setPresetFlags(prev => ({ ...prev, keepTeam: true }));
+    setRecentTeams(prev =>
+      [{ ...recent, updatedAt: Date.now() }, ...prev.filter(t => t.id !== recent.id)].slice(0, RECENT_TEAMS_LIMIT)
+    );
+    notify('Recent team loaded.', 'info');
+  };
+
+  const resetCurrentTeam = () => {
+    setFormChars([]);
+    notify('Current team cleared.', 'info');
+  };
+
+  const resetAllPresetData = () => {
+    if (!window.confirm('Reset all preset memory, team presets, and recent shortcuts?')) return;
+
+    const defaultFlags = {
+      keepItem: true,
+      keepTeam: true,
+      keepDiscord: true,
+      keepMainStat: false
+    };
+    const defaultPreset = {
+      discord: '',
+      team: [],
+      relics: { itemId: '', mainStat: '' },
+      traces: { itemId: '' }
+    };
+
+    setPresetFlags(defaultFlags);
+    setEntryPreset(defaultPreset);
+    setTeamPresets([]);
+    setRecentItemsByCategory({ relics: [], traces: [] });
+    setRecentTeams([]);
+    setTeamPresetPage(0);
+    setTeamPresetName('');
+    notify('All preset data reset.', 'success');
   };
 
   // Group clear records by time AND substats for a specific domain
@@ -578,17 +921,19 @@ export default function CavernTimesPage() {
   }, [selectedDomain, isFormOpen]); // Re-attach when visibility changes
 
   return (
-    <div className="relative flex flex-col gap-8 p-6 max-w-[95rem] mx-auto min-h-screen pb-20 font-['Outfit',sans-serif] selection:bg-purple-500/30 text-slate-100">
+    <div className="relative flex flex-col gap-8 p-6 max-w-[95rem] mx-auto min-h-screen pb-20 font-['Outfit',sans-serif] selection:bg-purple-500/30 text-slate-100 bg-transparent">
 
       {/* BACKGROUND IMAGE - Cinematic Backdrop (Faded per request) */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <img
           src={`${baseUrl}clara-2.png`}
           alt="Backdrop"
-          className="w-full h-full object-cover opacity-[0.25] brightness-110 saturate-[0.8]"
+          className={`w-full h-full object-cover ${isGlacial ? 'opacity-[0.15] grayscale-[0.8] brightness-[0.6]' : 'opacity-[0.25] brightness-110 saturate-[0.8]'}`}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#020617]/90 via-[#020617]/40 to-[#020617]/90" />
+        <div className={`absolute inset-0 bg-gradient-to-b ${isGlacial ? 'from-[#03080f]/95 via-[#03080f]/40 to-[#03080f]/95' : 'from-[#020617]/90 via-[#020617]/40 to-[#020617]/90'}`} />
       </div>
+
+      {isGlacial && <ArcticSnow particleCount={40} speedScale={0.5} />}
 
       <div className="relative z-10"> {/* Content Wrapper */}
 
@@ -602,7 +947,7 @@ export default function CavernTimesPage() {
               onClick={handleTitleClick}
               className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none italic uppercase cursor-pointer select-none"
             >
-              The Drop <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-400 to-emerald-400 pr-3">Archives</span>
+              The Drop <span className={`text-transparent bg-clip-text ${isGlacial ? 'bg-gradient-to-br from-cyan-400 to-blue-500' : 'bg-gradient-to-br from-indigo-400 to-emerald-400'} pr-3`}>Archives</span>
             </h1>
             {adminPass && (
               <div className="flex items-center gap-3">
@@ -636,8 +981,12 @@ export default function CavernTimesPage() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+        <div 
+          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-10 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card overflow-hidden"
+          style={{ '--card-radius': '2.5rem' }}
+        >
+          <div className="relative z-20 flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
               <button
                 onClick={() => { setCategory('relics'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
@@ -726,7 +1075,7 @@ export default function CavernTimesPage() {
             {category === 'traces' && <div className="h-10 w-px bg-white/5 hidden lg:block mx-2"></div>}
 
             {/* Domain Filter */}
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-x-hidden overflow-y-visible">
               <div className="flex items-center gap-2 text-slate-500 shrink-0">
                 <Filter className="w-4 h-4" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Domain Filter</span>
@@ -734,15 +1083,22 @@ export default function CavernTimesPage() {
 
               <div
                 ref={scrollRef}
-                className="flex-1 flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
+                className="flex-1 flex gap-2 overflow-x-auto overflow-y-visible pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
               >
                 {currentItemData.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => toggleFilter(item.id)}
-                    className={`flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
-                    title={item.name}
+                    className={`cavern-filter-chip group/filter relative flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
                   >
+                    <div className={`cavern-filter-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover/filter:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap scale-75 group-hover/filter:scale-100 origin-bottom ${
+                      category === 'traces'
+                        ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                        : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                    }`}>
+                      {item.name}
+                      <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
+                    </div>
                     <VisualIcon src={item.image} name={item.name} className="w-full h-full" />
                   </div>
                 ))}
@@ -760,10 +1116,14 @@ export default function CavernTimesPage() {
             </div>
           </div>
         </div>
+      </div>
 
         {isFormOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 bg-slate-950/40 backdrop-blur-md transition-all modal-overlay">
-            <div ref={formRef} className="bg-slate-900/40 w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(255,255,255,0.05),inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-[60px] flex flex-col overflow-hidden relative perspective-1000">
+            <div
+              ref={formRef}
+              className={`cavern-entry-modal bg-slate-900/40 w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(255,255,255,0.05),inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-[60px] flex flex-col overflow-hidden relative perspective-1000 ${isGlacial ? 'glacial-subtle-snow cavern-winter-shell' : ''}`}
+            >
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/5 bg-white/5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500/40 to-amber-500/0"></div>
@@ -800,6 +1160,32 @@ export default function CavernTimesPage() {
                           Traces
                         </button>
                       </div>
+
+                      <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBatchMode(prev => {
+                            if (prev) setBatchAddedCount(0);
+                            if (!prev) {
+                              setTimeout(() => {
+                                applySavedPreset();
+                              }, 0);
+                            }
+                            return !prev;
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer border ${
+                          isBatchMode
+                            ? 'bg-emerald-500 text-black border-emerald-300 shadow-lg shadow-emerald-500/25'
+                            : 'bg-black/35 text-slate-400 border-white/10 hover:text-white hover:bg-white/5'
+                        }`}
+                        title="Batch mode keeps the modal open after each save"
+                      >
+                        <Users className="w-3 h-3" />
+                        Batch Mode {isBatchMode ? 'On' : 'Off'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -820,6 +1206,78 @@ export default function CavernTimesPage() {
                   )}
 
                   <form onSubmit={handleSubmit} className={`flex flex-col gap-12 ${submitting ? 'pointer-events-none opacity-50' : ''}`}>
+                    <div className="modal-section rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 sm:p-5 flex flex-col gap-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.22em]">Sticky Preset Memory</h3>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.16em] mt-1">Reuse cavern/team/discord between entries</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveCurrentAsPreset}
+                            className="px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all cursor-pointer"
+                          >
+                            Save Current
+                          </button>
+                          <button
+                            type="button"
+                            onClick={applySavedPreset}
+                            className="px-3 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-black uppercase tracking-wider hover:bg-cyan-500/20 transition-all cursor-pointer"
+                          >
+                            Apply Preset
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepItem')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepItem
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Cavern
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepTeam')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepTeam
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Team
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepDiscord')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepDiscord
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Discord
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepMainStat')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepMainStat
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Main Stat
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                       <div className="flex flex-col gap-6 modal-section relative z-[60]">
                         <div className="flex items-center gap-3">
@@ -876,7 +1334,11 @@ export default function CavernTimesPage() {
                                 {currentItemData.filter(item => !modalRarityFilter || item.rarity === modalRarityFilter).map(item => (
                                   <div
                                     key={item.id}
-                                    onClick={() => { setFormItemId(item.id); setShowItemSelector(false); }}
+                                    onClick={() => {
+                                      setFormItemId(item.id);
+                                      addRecentItem(category, item.id);
+                                      setShowItemSelector(false);
+                                    }}
                                     className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
                                       category === 'traces' ? (
                                         item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
@@ -898,6 +1360,38 @@ export default function CavernTimesPage() {
                             </div>
                           )}
                         </div>
+
+                        {Array.isArray(recentItemsByCategory[category]) && recentItemsByCategory[category].length > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Recent Caverns</span>
+                            <div className="flex flex-wrap gap-2">
+                              {recentItemsByCategory[category].slice(0, 6).map((id) => {
+                                const it = getItem(id);
+                                return (
+                                  <button
+                                    key={`recent-item-${category}-${id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormItemId(id);
+                                      addRecentItem(category, id);
+                                    }}
+                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                                      formItemId === id
+                                        ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+                                        : 'border-white/10 bg-black/25 text-slate-300 hover:border-white/20'
+                                    }`}
+                                  >
+                                    <div className="w-6 h-6 rounded-lg overflow-hidden">
+                                      <VisualIcon src={it.image} name={it.name} className="w-full h-full object-contain" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.1em] max-w-[120px] truncate">{it.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4 mt-2">
                           <div className="flex flex-col gap-2 relative text-slate-500">
                             <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 font-black">@</div>
@@ -1055,17 +1549,201 @@ export default function CavernTimesPage() {
                                 {submitStatus.msg}
                               </div>
                             )}
+                            {isBatchMode && (
+                              <div className="px-4 py-3 rounded-xl font-black text-xs border-2 bg-emerald-500/10 border-emerald-500/20 text-emerald-300 uppercase tracking-wider">
+                                Session Added: {batchAddedCount}
+                              </div>
+                            )}
                             {submitting && (
                               <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-widest animate-pulse">
                                 <RefreshCw className="w-4 h-4 animate-spin" /> Processing...
                               </div>
                             )}
+                            <div className="flex items-center gap-3">
+                              {isBatchMode ? (
+                                <>
+                                  <button
+                                    type="submit"
+                                    onClick={() => { submitModeRef.current = 'continue'; }}
+                                    disabled={submitting || formChars.length !== 4}
+                                    className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                      submitting
+                                        ? 'bg-slate-800 text-slate-500'
+                                        : 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                    }`}
+                                  >
+                                    Save Record
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsFormOpen(false)}
+                                    disabled={submitting}
+                                    className="px-6 py-4 font-black rounded-2xl border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1"
+                                  >
+                                    Done
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="submit"
+                                  onClick={() => { submitModeRef.current = 'close'; }}
+                                  disabled={submitting || formChars.length !== 4}
+                                  className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                    submitting
+                                      ? 'bg-slate-800 text-slate-500'
+                                      : 'bg-[#fcd34d] text-black hover:bg-white'
+                                  }`}
+                                >
+                                  Push & Close
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-3">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Team Presets</h4>
+                              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600 mt-1">Save multiple squads and load instantly</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                              {teamPresetPageCount > 1 && (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveTeamPresetPage(-1)}
+                                    disabled={teamPresetPage <= 0}
+                                    className="w-8 h-8 rounded-lg border border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:text-white hover:bg-cyan-500/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(34,211,238,0.15)]"
+                                  >
+                                    <ChevronLeft className="w-4 h-4" />
+                                  </button>
+                                  <span className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 bg-cyan-500/10 border border-cyan-400/25 rounded-lg px-2 py-1 min-w-[64px] text-center shadow-[0_0_10px_rgba(34,211,238,0.18)]">
+                                    {teamPresetPage + 1}/{teamPresetPageCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveTeamPresetPage(1)}
+                                    disabled={teamPresetPage >= teamPresetPageCount - 1}
+                                    className="w-8 h-8 rounded-lg border border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:text-white hover:bg-cyan-500/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(34,211,238,0.15)]"
+                                  >
+                                    <ChevronRight className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={teamPresetName}
+                                  onChange={(e) => setTeamPresetName(e.target.value)}
+                                  placeholder="Preset name"
+                                  maxLength={24}
+                                  className="w-36 sm:w-44 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white font-black outline-none focus:border-cyan-400/50"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveTeamPreset}
+                                  className="px-3 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-black uppercase tracking-wider hover:bg-cyan-500/20 transition-all cursor-pointer"
+                                >
+                                  Save Team
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={resetCurrentTeam}
+                                  className="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-[10px] font-black uppercase tracking-wider hover:bg-red-500/20 transition-all cursor-pointer"
+                                >
+                                  Reset Team
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {teamPresets.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {visibleTeamPresets.map((preset) => (
+                                <div
+                                  key={preset.id}
+                                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2 py-2"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => applyTeamPreset(preset)}
+                                    className="flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <span className="text-[10px] font-black text-slate-200 uppercase tracking-[0.12em] max-w-[110px] truncate">
+                                      {preset.name}
+                                    </span>
+                                    <div className="flex -space-x-1.5">
+                                      {preset.chars.slice(0, 4).map((cid, idx) => {
+                                        const c = getCharData(cid);
+                                        return (
+                                          <div
+                                            key={`${preset.id}-${cid}-${idx}`}
+                                            className={`w-6 h-6 rounded-full border overflow-hidden ${c.rarity === 5 ? 'border-orange-400' : 'border-purple-400'}`}
+                                          >
+                                            <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteTeamPreset(preset.id)}
+                                    className="w-7 h-7 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 flex items-center justify-center cursor-pointer transition-all"
+                                    title="Delete preset"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                              No team presets yet. Build a 4-character team and save it.
+                            </div>
+                          )}
+
+                          {recentTeams.length > 0 && (
+                            <div className="flex flex-col gap-2 pt-1">
+                              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Recent Teams</span>
+                              <div className="flex flex-wrap gap-2">
+                                {recentTeams.slice(0, 6).map((recent) => (
+                                  <button
+                                    key={`recent-team-${recent.id}`}
+                                    type="button"
+                                    onClick={() => applyRecentTeam(recent)}
+                                    className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2.5 py-1.5 hover:border-white/20 transition-all cursor-pointer"
+                                  >
+                                    <div className="flex -space-x-1.5">
+                                      {recent.chars.slice(0, 4).map((cid, idx) => {
+                                        const c = getCharData(cid);
+                                        return (
+                                          <div
+                                            key={`${recent.id}-${cid}-${idx}`}
+                                            className={`w-6 h-6 rounded-full border overflow-hidden ${c.rarity === 5 ? 'border-orange-400' : 'border-purple-400'}`}
+                                          >
+                                            <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
+                                      {recent.category === 'traces' ? 'Trace' : 'Relic'}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
                             <button
-                              type="submit"
-                              disabled={submitting || formChars.length !== 4}
-                              className={`px-10 py-4 font-black rounded-2xl shadow-xl transition-all text-sm uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${submitting ? 'bg-slate-800 text-slate-500' : 'bg-[#fcd34d] text-black hover:bg-white'}`}
+                              type="button"
+                              onClick={resetAllPresetData}
+                              className="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-[10px] font-black uppercase tracking-wider hover:bg-red-500/20 transition-all cursor-pointer"
                             >
-                              Push to Chronicles
+                              Reset All Presets
                             </button>
                           </div>
                         </div>
@@ -1078,7 +1756,7 @@ export default function CavernTimesPage() {
                               <div
                                 key={i}
                                 onClick={() => formChars[i] && toggleChar(formChars[i])}
-                                className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
+                                className={`slot-anim-${i} cavern-squad-slot aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${isGlacial ? 'cavern-winter-slot-frame' : ''} ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
                               >
                                 {char && (
                                   <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
@@ -1087,7 +1765,7 @@ export default function CavernTimesPage() {
                                   </div>
                                 )}
                                 {formChars[i] ? (
-                                  <div className="relative w-full h-full overflow-hidden rounded-[1.8rem]">
+                                  <div className={`relative w-full h-full overflow-hidden rounded-[1.8rem] ${isGlacial ? 'glacial-subtle-snow cavern-winter-slot-inner' : ''}`}>
                                     <div className={`absolute inset-0 ${rarityBg}`}></div>
                                     <VisualIcon src={char.image} name={char.name} className="w-full h-full object-cover relative z-10 scale-105 group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute inset-x-0 bottom-0 bg-red-600/90 py-3 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center backdrop-blur-sm z-20"><X className="w-6 h-6 text-white" /></div>
@@ -1163,8 +1841,8 @@ export default function CavernTimesPage() {
           </div>
         )}
 
-        {/* Domain Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4">
+        {/* Domain Grid - keep original spacing untouched; only add extra offset for glacial themes */}
+        <div className={`cavern-domain-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 ${isGlacial ? 'mt-20' : ''}`}>
           {loading ? (
             <div className="col-span-full flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
           ) : filteredGridData.length === 0 ? (
@@ -1179,16 +1857,21 @@ export default function CavernTimesPage() {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative"
+                  className="domain-card cavern-domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative glacial-card"
+                  style={{ '--card-radius': '1.5rem' }}
                 >
-                  <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-indigo-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(79,70,229,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-indigo-400/30">
+                  <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
+                    category === 'traces'
+                      ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                      : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                  }`}>
                     {item.name}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-indigo-600"></div>
+                    <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
                   </div>
                   {itemClears.length > 0 && (
                     <>
                       <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
-                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-20">
+                      <div className="absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-30">
                         <Clock className="w-2.5 h-2.5" />
                         <span className="font-mono">{resetTimer}</span>
                       </div>
@@ -1197,7 +1880,7 @@ export default function CavernTimesPage() {
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
                     <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
                   </div>
-                  <h3 className="text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 group-hover:text-indigo-300 transition-colors">
+                  <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
                     {item.name}
                   </h3>
                   <div className="mt-auto pt-2">
@@ -1219,34 +1902,73 @@ export default function CavernTimesPage() {
 
         {/* Archive Modal */}
         {selectedDomain && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-2xl transition-all">
-            <div className="bg-[#0b0d14] w-full max-w-6xl max-h-[90vh] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative">
-              <div className="flex items-center justify-between p-6 sm:p-10 bg-slate-950/50 border-b border-white/5 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 bg-slate-950/90 backdrop-blur-2xl transition-all overflow-y-auto">
+            <div className={`archive-modal-shell bg-[#0b0d14] w-full max-w-6xl max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-9rem)] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative ${isGlacial ? 'glacial-subtle-snow archive-modal-glacial' : ''}`}>
+              <div className={`archive-modal-header flex items-center justify-between p-6 sm:p-10 bg-slate-950/50 border-b border-white/5 backdrop-blur-md ${isGlacial ? 'archive-modal-header-glacial' : ''}`}>
                 <div className="flex items-center gap-5 sm:gap-8">
-                  <div className="w-16 h-16 sm:w-24 sm:h-24 bg-black/60 rounded-[1.5rem] border border-white/10 flex items-center justify-center p-3 shadow-2xl relative">
+                  <div className={`w-16 h-16 sm:w-24 sm:h-24 bg-black/60 rounded-[1.5rem] border border-white/10 flex items-center justify-center p-3 shadow-2xl relative ${isGlacial ? 'archive-modal-icon-glacial' : ''}`}>
                     <VisualIcon src={selectedDomain.image} name={selectedDomain.name} className="w-full h-full object-contain drop-shadow-2xl scale-110" />
                     <div className="absolute inset-0 bg-blue-500/5 rounded-[1.5rem] blur-xl animate-pulse"></div>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <Navigation className="w-4 h-4 text-indigo-400" />
-                      <span className="text-[10px] uppercase font-black text-indigo-400 tracking-[0.4em]">{category === 'relics' ? 'Archive Core' : 'Material Matrix'}</span>
+                      <Navigation className={`w-4 h-4 ${isGlacial ? 'text-cyan-300' : 'text-indigo-400'}`} />
+                      <span className={`text-[10px] uppercase font-black tracking-[0.4em] ${isGlacial ? 'text-cyan-300' : 'text-indigo-400'}`}>{category === 'relics' ? 'Archive Core' : 'Material Matrix'}</span>
                     </div>
                     <h2 className="text-2xl sm:text-5xl font-black text-white uppercase tracking-tighter leading-none italic">{selectedDomain.name}</h2>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedDomain(null)}
-                  className="w-14 h-14 rounded-full bg-white/5 hover:bg-white text-slate-400 hover:text-black flex items-center justify-center transition-all border border-white/10 cursor-pointer shadow-xl group"
-                >
-                  <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
-                </button>
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className={`inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'bg-slate-900/55 border-cyan-300/25' : 'bg-black/35 border-white/10'}`}>
+                    <button
+                      onClick={() => {
+                        setArchiveViewMode('grouped');
+                        setArchiveFocusedTime(null);
+                      }}
+                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        archiveViewMode === 'grouped'
+                          ? (isGlacial
+                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                          : (isGlacial
+                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                            : 'text-slate-300 hover:text-white hover:bg-white/10')
+                      }`}
+                    >
+                      By Time
+                    </button>
+                    <button
+                      onClick={() => {
+                        setArchiveViewMode('flat');
+                        setArchiveFocusedTime(null);
+                      }}
+                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        archiveViewMode === 'flat'
+                          ? (isGlacial
+                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                          : (isGlacial
+                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                            : 'text-slate-300 hover:text-white hover:bg-white/10')
+                      }`}
+                    >
+                      All Grid
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDomain(null)}
+                    className={`w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'bg-cyan-500/10 hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'bg-white/5 hover:bg-white border-white/10 hover:text-black'}`}
+                  >
+                    <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
+                  </button>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30">
+              <div className={`flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
                   const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+                  const totalVariantCards = times.reduce((sum, time) => sum + grouped[time].length, 0);
 
                   if (times.length === 0) {
                     return (
@@ -1255,10 +1977,250 @@ export default function CavernTimesPage() {
                         <h3 className="text-3xl font-black text-slate-700 uppercase tracking-widest italic outline-text">Archive Blank</h3>
                         <button
                           onClick={() => { setSelectedDomain(null); setFormItemId(selectedDomain.id); setIsFormOpen(true); }}
-                          className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all hover:bg-indigo-500 hover:scale-105 active:scale-95 shadow-xl cursor-pointer"
+                          className={`px-10 py-4 text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all hover:scale-105 active:scale-95 shadow-xl cursor-pointer ${isGlacial ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
                         >
                           + Log First Record
                         </button>
+                      </div>
+                    );
+                  }
+
+                  if (archiveViewMode === 'flat') {
+                    const focusedCards = archiveFocusedTime ? (grouped[archiveFocusedTime] || []) : [];
+
+                    if (archiveFocusedTime) {
+                      return (
+                        <div className="flex flex-col gap-6">
+                          <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => setArchiveFocusedTime(null)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                                  isGlacial
+                                    ? 'bg-cyan-500/15 border-cyan-300/30 text-cyan-100 hover:bg-cyan-400/25'
+                                    : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                                }`}
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                                Back
+                              </button>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
+                                {archiveFocusedTime}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.24em]">
+                              {focusedCards.length} Variants
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+                            {focusedCards.map((card, cIdx) => (
+                              <TeamCarouselCard
+                                key={`${archiveFocusedTime}-${card.statsKey}-${cIdx}`}
+                                card={card}
+                                cardIndex={cIdx}
+                                isGlacial={isGlacial}
+                                getCharData={getCharData}
+                                handleDelete={handleDelete}
+                                adminPass={adminPass}
+                                userKeys={userKeys}
+                                VisualIcon={VisualIcon}
+                                notify={notify}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-px w-16 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                              {totalVariantCards} Variant Cards
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                            {times.length} Time Nodes
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 px-2">
+                          {times.map((time) => {
+                            const timeCards = grouped[time];
+                            const totalReports = timeCards.reduce(
+                              (sum, card) => sum + card.variants.reduce((vSum, v) => vSum + (v.verifiedCount || 1), 0),
+                              0
+                            );
+                            const currentPreviewIdx = Math.max(0, Math.min(timeCards.length - 1, timeNodePreviewIndex[time] ?? 0));
+                            const previewCard = timeCards[currentPreviewIdx] || timeCards[0];
+                            const previewTeam = previewCard?.variants?.[0] || null;
+                            const previewCharIds = (previewTeam?.characters || previewTeam?.chars || []).filter(Boolean).slice(0, 4);
+                            const previewMainStat = (previewTeam?.mainStat || previewCard?.mainStat || '').trim();
+                            const previewSubstats = (previewCard?.substats || previewTeam?.substats || previewTeam?.reports?.[0]?.substats || [])
+                              .filter(Boolean)
+                              .slice(0, 4);
+                            const previewNote = previewTeam?.reports?.find(r => r?.note)?.note || previewTeam?.note || '';
+                            const previewLikes = Array.isArray(previewTeam?.likes) ? previewTeam.likes.length : 0;
+                            const previewReporter = previewTeam?.reporters?.[0] || previewTeam?.reports?.[0]?.reporter || 'Anon';
+
+                            return (
+                              <div
+                                key={`time-node-${time}`}
+                                onClick={() => setArchiveFocusedTime(time)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setArchiveFocusedTime(time);
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                className={`group rounded-[1.5rem] border p-4 text-left transition-all cursor-pointer ${
+                                  isGlacial
+                                    ? 'bg-cyan-950/25 border-cyan-300/20 hover:border-cyan-300/45 hover:bg-cyan-900/30'
+                                    : 'bg-white/[0.02] border-white/10 hover:border-indigo-500/45 hover:bg-white/[0.045]'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
+                                    {time}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    {timeCards.length > 1 && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            shiftTimeNodePreview(time, timeCards.length, -1);
+                                          }}
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
+                                            isGlacial
+                                              ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
+                                              : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                                          }`}
+                                        >
+                                          <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            shiftTimeNodePreview(time, timeCards.length, 1);
+                                          }}
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
+                                            isGlacial
+                                              ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
+                                              : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                                          }`}
+                                        >
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                    <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-0.5 ${isGlacial ? 'text-cyan-200' : 'text-slate-300'}`} />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 mb-3">
+                                  {previewCharIds.length > 0 ? (
+                                    previewCharIds.map((charId, idx) => {
+                                      const ch = getCharData(charId);
+                                      return (
+                                        <div
+                                          key={`${time}-${charId}-${idx}`}
+                                          className={`w-8 h-8 rounded-full border-2 overflow-hidden ${
+                                            ch.rarity === 5 ? 'border-orange-400' : 'border-purple-400'
+                                          }`}
+                                        >
+                                          <VisualIcon src={ch.image} name={ch.name} className="w-full h-full object-cover" />
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.18em]">No Preview</span>
+                                  )}
+                                </div>
+
+                                {previewCharIds.length > 0 && (
+                                  <div className="mb-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                        First Team Reported
+                                      </div>
+                                      {timeCards.length > 1 && (
+                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                          Variant {currentPreviewIdx + 1}/{timeCards.length}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {previewMainStat && (
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.08em] ${
+                                        isGlacial
+                                          ? 'bg-cyan-950/35 border-cyan-300/25 text-cyan-100'
+                                          : 'bg-black/30 border-white/10 text-indigo-200'
+                                      }`}>
+                                        {previewMainStat.split(': ').pop()}
+                                      </span>
+                                    )}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {previewSubstats.length > 0 ? (
+                                        previewSubstats.map((s) => (
+                                          <span
+                                            key={`${time}-${s}`}
+                                            className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-[0.08em] ${
+                                              isGlacial
+                                                ? 'bg-cyan-950/45 border border-cyan-300/20 text-cyan-100'
+                                                : 'bg-black/25 border border-white/10 text-amber-300'
+                                            }`}
+                                          >
+                                            {String(s).replace(/_/g, ' ')}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">No Substats</span>
+                                      )}
+                                    </div>
+                                    {previewNote && (
+                                      <div className={`rounded-lg border px-2.5 py-2 text-[10px] font-semibold leading-snug line-clamp-2 ${
+                                        isGlacial
+                                          ? 'bg-cyan-950/30 border-cyan-300/20 text-cyan-100/90'
+                                          : 'bg-black/25 border-white/10 text-slate-200'
+                                      }`}>
+                                        {previewNote}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Reporter</div>
+                                    <div className="text-sm font-black text-white truncate">@{previewReporter}</div>
+                                  </div>
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Likes</div>
+                                    <div className="text-sm font-black text-white">{previewLikes}</div>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Variants</div>
+                                    <div className="text-sm font-black text-white">{timeCards.length}</div>
+                                  </div>
+                                  <div className={`rounded-xl border px-3 py-2 ${isGlacial ? 'bg-cyan-950/35 border-cyan-300/25' : 'bg-black/25 border-white/10'}`}>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Reports</div>
+                                    <div className="text-sm font-black text-white">{totalReports}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   }
@@ -1269,10 +2231,10 @@ export default function CavernTimesPage() {
                         <div key={time} className="flex flex-col gap-6">
                           <div className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-4">
-                              <div className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-black text-3xl font-mono tracking-tighter shadow-[0_0_25px_rgba(79,70,229,0.3)]">
+                              <div className={`text-white px-6 py-2 rounded-2xl font-black text-3xl font-mono tracking-tighter ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_25px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 shadow-[0_0_25px_rgba(79,70,229,0.3)]'}`}>
                                 {time}
                               </div>
-                              <div className="h-px w-20 bg-gradient-to-r from-indigo-500/50 to-transparent"></div>
+                              <div className={`h-px w-20 ${isGlacial ? 'bg-gradient-to-r from-cyan-300/60 to-transparent' : 'bg-gradient-to-r from-indigo-500/50 to-transparent'}`}></div>
                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
                                 {grouped[time].length} Variants
                               </span>
@@ -1285,6 +2247,7 @@ export default function CavernTimesPage() {
                                 key={cIdx}
                                 card={card}
                                 cardIndex={cIdx}
+                                isGlacial={isGlacial}
                                 getCharData={getCharData}
                                 handleDelete={handleDelete}
                                 adminPass={adminPass}
@@ -1324,6 +2287,106 @@ export default function CavernTimesPage() {
         }
         .animate-progress-long { animation: progress-long 25s linear forwards; }
         .group:hover > .tooltip-fast { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        .cavern-domain-grid { position: relative; }
+        .cavern-domain-card { position: relative; }
+        .cavern-domain-card:hover { z-index: 120; }
+        .cavern-domain-tooltip { z-index: 130; }
+        .cavern-filter-chip:hover { z-index: 70; }
+        .cavern-filter-tooltip { z-index: 80; }
+        .arctic-theme .cavern-domain-card,
+        .winter-theme .cavern-domain-card {
+          overflow: visible !important;
+        }
+        .cavern-entry-modal.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .cavern-winter-shell,
+        .winter-theme .cavern-winter-shell {
+          background: linear-gradient(160deg, rgba(8, 20, 40, 0.72) 0%, rgba(8, 40, 70, 0.45) 45%, rgba(5, 15, 32, 0.78) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.28) !important;
+          box-shadow: 0 18px 60px rgba(2, 8, 23, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -24px 48px rgba(6, 182, 212, 0.08) !important;
+        }
+        .arctic-theme .cavern-winter-slot-frame,
+        .winter-theme .cavern-winter-slot-frame {
+          background: linear-gradient(180deg, rgba(15, 23, 42, 0.45) 0%, rgba(8, 47, 73, 0.22) 100%);
+          backdrop-filter: blur(2px);
+        }
+        .arctic-theme .cavern-winter-slot-inner,
+        .winter-theme .cavern-winter-slot-inner {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -16px 32px rgba(8, 47, 73, 0.28);
+        }
+        .cavern-winter-slot-inner.glacial-subtle-snow::after {
+          height: 16px;
+          border-top-left-radius: 1.8rem;
+          border-top-right-radius: 1.8rem;
+        }
+        .archive-modal-shell.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .archive-modal-glacial,
+        .winter-theme .archive-modal-glacial {
+          background: linear-gradient(160deg, rgba(3, 16, 36, 0.88) 0%, rgba(6, 36, 62, 0.74) 50%, rgba(4, 17, 32, 0.9) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.3) !important;
+          box-shadow: 0 0 90px rgba(2, 8, 23, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -24px 48px rgba(56, 189, 248, 0.08) !important;
+        }
+        .arctic-theme .archive-modal-header-glacial,
+        .winter-theme .archive-modal-header-glacial {
+          background: linear-gradient(180deg, rgba(8, 27, 48, 0.78) 0%, rgba(8, 27, 48, 0.52) 100%) !important;
+          border-bottom-color: rgba(125, 211, 252, 0.2) !important;
+        }
+        .arctic-theme .archive-modal-icon-glacial,
+        .winter-theme .archive-modal-icon-glacial {
+          background: linear-gradient(180deg, rgba(8, 23, 42, 0.88) 0%, rgba(6, 38, 64, 0.74) 100%);
+          border-color: rgba(125, 211, 252, 0.28) !important;
+        }
+        .arctic-theme .archive-modal-body-glacial,
+        .winter-theme .archive-modal-body-glacial {
+          background: radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.08), transparent 42%), rgba(2, 8, 23, 0.44) !important;
+        }
+        .archive-team-card.glacial-subtle-snow::after,
+        .archive-team-stats.glacial-subtle-snow::after {
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+        .arctic-theme .archive-team-card-glacial,
+        .winter-theme .archive-team-card-glacial {
+          background: linear-gradient(150deg, rgba(7, 22, 43, 0.84) 0%, rgba(10, 45, 72, 0.58) 56%, rgba(8, 21, 40, 0.84) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.24) !important;
+          box-shadow: 0 16px 44px rgba(2, 8, 23, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+        }
+        .arctic-theme .archive-team-card-glacial:hover,
+        .winter-theme .archive-team-card-glacial:hover {
+          border-color: rgba(125, 211, 252, 0.5) !important;
+          box-shadow: 0 0 26px rgba(56, 189, 248, 0.22), 0 20px 48px rgba(2, 8, 23, 0.64) !important;
+        }
+        .arctic-theme .archive-team-stats-glacial,
+        .winter-theme .archive-team-stats-glacial {
+          background: linear-gradient(180deg, rgba(2, 16, 33, 0.74) 0%, rgba(5, 33, 56, 0.56) 100%) !important;
+          border-color: rgba(125, 211, 252, 0.2) !important;
+        }
+        .arctic-theme .archive-team-note,
+        .winter-theme .archive-team-note {
+          border-color: rgba(125, 211, 252, 0.2) !important;
+          background: rgba(7, 33, 56, 0.42) !important;
+          color: rgba(186, 230, 253, 0.9) !important;
+        }
+        .arctic-theme .archive-team-source-pill,
+        .winter-theme .archive-team-source-pill {
+          border-color: rgba(45, 212, 191, 0.28) !important;
+          background: rgba(3, 24, 30, 0.72) !important;
+        }
+        .arctic-theme .archive-team-reports-pill,
+        .winter-theme .archive-team-reports-pill {
+          border-color: rgba(125, 211, 252, 0.24) !important;
+          background: rgba(6, 20, 36, 0.72) !important;
+          color: #67e8f9 !important;
+        }
+        .arctic-theme .archive-team-like-btn,
+        .winter-theme .archive-team-like-btn {
+          border-color: rgba(125, 211, 252, 0.24) !important;
+        }
       `}} />
 
         {/* Notifications */}
@@ -1350,7 +2413,7 @@ export default function CavernTimesPage() {
 }
 
 // --- SUB-COMPONENT FOR TEAM CAROUSEL ---
-const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPass, userKeys, VisualIcon, notify }) => {
+const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, handleDelete, adminPass, userKeys, VisualIcon, notify }) => {
   const [idx, setIdx] = useState(0);
   const team = card.variants[idx];
   const totalTeams = card.variants.length;
@@ -1466,7 +2529,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
   const isHearted = localLikes.includes(userId);
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-white/5 hover:border-indigo-500/40 transition-all duration-500 group relative overflow-hidden shadow-2xl cursor-default w-full">
+    <div className={`archive-team-card flex flex-col gap-5 sm:gap-6 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-white/5 hover:border-indigo-500/40 transition-all duration-500 group relative overflow-hidden shadow-2xl cursor-default w-full ${isGlacial ? 'glacial-subtle-snow archive-team-card-glacial' : ''}`}>
       {/* Background Decorative - Pushed in to avoid clipping */}
       <div className="absolute top-2 right-2 p-4 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
         <Gem className="w-20 h-20 sm:w-24 sm:h-24 text-white" />
@@ -1547,12 +2610,12 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
       {/* Result Meta (Static for all teams in this card) */}
       <div className="flex flex-col gap-3 relative z-10 w-full">
         {team.reports?.find(r => r.note)?.note && (
-          <div className="w-full bg-black/40 border border-indigo-500/10 rounded-xl p-4 flex gap-3 text-indigo-200/80 shadow-inner">
+          <div className="archive-team-note w-full bg-black/40 border border-indigo-500/10 rounded-xl p-4 flex gap-3 text-indigo-200/80 shadow-inner">
             <Info className="w-4 h-4 shrink-0 mt-0.5 opacity-40 text-indigo-400" />
             <p className="text-xs font-black leading-tight break-words tracking-tight">{team.reports.find(r => r.note).note}</p>
           </div>
         )}
-        <div className="bg-black/40 rounded-[2rem] p-5 sm:p-6 border border-white/5 shadow-inner min-h-[160px] flex flex-col justify-center gap-5 relative overflow-hidden group/stats" ref={rewardsRef}>
+        <div className={`archive-team-stats bg-black/40 rounded-[2rem] p-5 sm:p-6 border border-white/5 shadow-inner min-h-[160px] flex flex-col justify-center gap-5 relative overflow-hidden group/stats ${isGlacial ? 'glacial-subtle-snow archive-team-stats-glacial' : ''}`} ref={rewardsRef}>
           {isMaterial ? (
             <div className="flex flex-col gap-5 relative z-10">
               <div className="flex items-center justify-between px-1">
@@ -1614,7 +2677,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Source Node</span>
-            <div className="flex items-center gap-2 px-3 py-2 bg-black/50 rounded-xl border border-emerald-500/10 shadow-inner w-fit transition-all max-w-full" key={`src-${team.reporters?.[0]}`}>
+            <div className="archive-team-source-pill flex items-center gap-2 px-3 py-2 bg-black/50 rounded-xl border border-emerald-500/10 shadow-inner w-fit transition-all max-w-full" key={`src-${team.reporters?.[0]}`}>
               <Users className="w-3.5 h-3.5 text-emerald-500/60 shrink-0" />
               <span className="text-[11px] font-black text-white italic tracking-[0.02em] truncate min-w-0 pb-[1px] pr-1">@{team.reporters?.[0] || 'Anon'}</span>
             </div>
@@ -1623,7 +2686,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <div className="flex flex-col items-end">
               <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Reports</span>
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-black/40 border border-white/5 text-emerald-400 rounded-xl font-black text-xs shadow-inner" title={`${team.verifiedCount || 1} Identical Submissions`}>
+              <div className="archive-team-reports-pill flex items-center gap-1.5 px-3 py-2 bg-black/40 border border-white/5 text-emerald-400 rounded-xl font-black text-xs shadow-inner" title={`${team.verifiedCount || 1} Identical Submissions`}>
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 {team.verifiedCount || 1}
               </div>
@@ -1633,7 +2696,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
               <button
                 onClick={handleLike}
                 disabled={isLiking}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 font-black text-xs shadow-lg group/like ${isHearted
+                className={`archive-team-like-btn flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 font-black text-xs shadow-lg group/like ${isHearted
                   ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.4)] ring-1 ring-indigo-400/50'
                   : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 border border-white/5'
                   } ${isLiking ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:scale-105 active:scale-90 cursor-pointer'}`}
@@ -1647,7 +2710,7 @@ const TeamCarouselCard = ({ card, cardIndex, getCharData, handleDelete, adminPas
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className={`absolute bottom-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity ${isGlacial ? 'bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent' : 'bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent'}`}></div>
     </div>
   );
 };

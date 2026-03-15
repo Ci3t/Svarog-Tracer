@@ -1,42 +1,260 @@
-import { put, list, del } from '@vercel/blob';
-import crypto from 'node:crypto'; // Built-in Node.js crypto
+import { del as blobDel, list as blobList, put as blobPut } from '@vercel/blob';
+import crypto from 'node:crypto';
 
 const BLOB_PREFIX = 'hsr-cavern-clears-';
 const INITIAL_DATA = [];
+const CACHE_TTL_MS = 15_000;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_CAVERN_TABLE = process.env.SUPABASE_CAVERN_TABLE || 'cavern_clears';
 
-// Global In-Memory Cache for Lambda instances to bypass Vercel Blob eventual consistency
 let lambdaDataCache = null;
 let lambdaCacheTime = 0;
 
-// Helper to get fresh data from Blob
-export async function getCavernData() {
-  // If the lambda just wrote data within the last minute, use it instantly
-  if (lambdaDataCache && (Date.now() - lambdaCacheTime < 60000)) {
-    return { data: lambdaDataCache, allBlobs: [] };
+const hasSupabaseConfig = () => Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+const setCache = (data) => {
+  lambdaDataCache = Array.isArray(data) ? data : INITIAL_DATA;
+  lambdaCacheTime = Date.now();
+};
+
+const invalidateCache = () => {
+  lambdaDataCache = null;
+  lambdaCacheTime = 0;
+};
+
+const getCachedData = () => {
+  if (!lambdaDataCache) return null;
+  if (Date.now() - lambdaCacheTime > CACHE_TTL_MS) return null;
+  return lambdaDataCache;
+};
+
+const normalizeChars = (arr) => {
+  if (!arr) return '';
+  const toArr = Array.isArray(arr) ? arr : String(arr).split(',');
+  return toArr.map((val) => String(val).trim().toLowerCase()).sort().join(',');
+};
+
+const normalizeTime = (t) => (t ? String(t).trim().replace(/^0/, '') : '');
+export const normalizeKey = (val) => (val || '').toString().trim().replace(/['"]/g, '');
+const normalizeRelicId = (val) => normalizeKey(val).toLowerCase();
+
+const buildVariantKeys = ({ relicId, clearTime, characters, substats }) => ({
+  relicKey: normalizeRelicId(relicId),
+  clearTimeKey: normalizeTime(clearTime),
+  charactersKey: normalizeChars(characters),
+  substatsKey: substats && substats.length > 0 ? normalizeChars(substats) : 'none',
+});
+
+const toEntry = (row) => ({
+  id: row.id,
+  relicId: row.relic_id,
+  clearTime: row.clear_time,
+  characters: ensureArray(row.characters),
+  substats: ensureArray(row.substats),
+  mainStat: row.main_stat || undefined,
+  reporters: ensureArray(row.reporters),
+  reports: ensureArray(row.reports),
+  verifiedCount: Number(row.verified_count || ensureArray(row.reports).length || 0),
+  likes: ensureArray(row.likes),
+  firstReported: row.first_reported,
+  lastReported: row.last_reported,
+});
+
+const toRow = (entry) => {
+  const reports = ensureArray(entry.reports);
+  const substats = entry.substats || (reports[0] && reports[0].substats) || [];
+  const reporters = entry.reporters || [...new Set(reports.map((report) => report.reporter).filter(Boolean))];
+  const keys = buildVariantKeys({
+    relicId: entry.relicId,
+    clearTime: entry.clearTime,
+    characters: entry.characters,
+    substats,
+  });
+
+  return {
+    relic_id: entry.relicId,
+    relic_key: keys.relicKey,
+    clear_time: entry.clearTime,
+    clear_time_key: keys.clearTimeKey,
+    characters: ensureArray(entry.characters),
+    characters_key: keys.charactersKey,
+    substats,
+    substats_key: keys.substatsKey,
+    main_stat: entry.mainStat || (reports[0] && reports[0].mainStat) || null,
+    reporters,
+    reports,
+    verified_count: Number(entry.verifiedCount || reports.length || 0),
+    likes: ensureArray(entry.likes),
+    first_reported: entry.firstReported || (reports[0] && reports[0].timestamp) || new Date().toISOString(),
+    last_reported: entry.lastReported || new Date().toISOString(),
+  };
+};
+
+async function supabaseRequest(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {
+  const baseUrl = SUPABASE_URL.replace(/\/$/, '');
+  const headers = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    Prefer: prefer,
+  };
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
   }
 
+  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Supabase error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  const raw = await response.text();
+  return raw ? JSON.parse(raw) : null;
+}
+
+function buildTablePath(filters = {}, includeSelect = true) {
+  const params = new URLSearchParams();
+
+  if (includeSelect) {
+    params.set('select', '*');
+  }
+
+  Object.entries(filters).forEach(([key, value]) => {
+    params.set(key, value);
+  });
+
+  return `${SUPABASE_CAVERN_TABLE}?${params.toString()}`;
+}
+
+async function getAllSupabaseEntries() {
+  const rows = await supabaseRequest(buildTablePath());
+  const data = ensureArray(rows).map(toEntry);
+  setCache(data);
+  return { data, allBlobs: [] };
+}
+
+async function findSupabaseVariantEntry(keys) {
+  const rows = await supabaseRequest(
+    buildTablePath({
+      relic_key: `eq.${keys.relicKey}`,
+      clear_time_key: `eq.${keys.clearTimeKey}`,
+      characters_key: `eq.${keys.charactersKey}`,
+      substats_key: `eq.${keys.substatsKey}`,
+      limit: '1',
+    })
+  );
+
+  const row = ensureArray(rows)[0];
+  return row ? toEntry(row) : null;
+}
+
+async function findSupabaseBaseEntries({ relicId, clearTime, characters }) {
+  const keys = buildVariantKeys({ relicId, clearTime, characters, substats: [] });
+  const rows = await supabaseRequest(
+    buildTablePath({
+      relic_key: `eq.${keys.relicKey}`,
+      clear_time_key: `eq.${keys.clearTimeKey}`,
+      characters_key: `eq.${keys.charactersKey}`,
+    })
+  );
+
+  return ensureArray(rows).map(toEntry);
+}
+
+async function insertSupabaseEntry(entry) {
+  const rows = await supabaseRequest(SUPABASE_CAVERN_TABLE, {
+    method: 'POST',
+    body: toRow(entry),
+  });
+
+  invalidateCache();
+  const created = Array.isArray(rows) ? rows[0] : rows;
+  return created ? toEntry(created) : null;
+}
+
+async function updateSupabaseEntry(entry) {
+  const rows = await supabaseRequest(
+    buildTablePath({ id: `eq.${entry.id}` }),
+    {
+      method: 'PATCH',
+      body: toRow(entry),
+    }
+  );
+
+  invalidateCache();
+  const updated = Array.isArray(rows) ? rows[0] : rows;
+  return updated ? toEntry(updated) : null;
+}
+
+async function deleteSupabaseEntryById(id) {
+  await supabaseRequest(
+    buildTablePath({ id: `eq.${id}` }, false),
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+  invalidateCache();
+}
+
+async function deleteAllSupabaseEntries() {
+  await supabaseRequest(
+    buildTablePath({ id: 'not.is.null' }, false),
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+  invalidateCache();
+}
+
+async function replaceAllSupabaseEntries(newData) {
+  await deleteAllSupabaseEntries();
+
+  if (!Array.isArray(newData) || newData.length === 0) {
+    setCache([]);
+    return;
+  }
+
+  const rows = newData.map(toRow);
+  await supabaseRequest(SUPABASE_CAVERN_TABLE, {
+    method: 'POST',
+    body: rows,
+    prefer: 'return=minimal',
+  });
+
+  setCache(newData);
+}
+
+async function getBlobCavernData() {
   try {
-    const { blobs } = await list({ prefix: BLOB_PREFIX });
+    const { blobs } = await blobList({ prefix: BLOB_PREFIX });
     let legacyBlobs = [];
-    
-    // Check for the legacy exact-name blob if no new blobs exist
+
     if (blobs.length === 0) {
-      const legacyObj = await list({ prefix: 'hsr-cavern-clears.json' });
+      const legacyObj = await blobList({ prefix: 'hsr-cavern-clears.json' });
       legacyBlobs = legacyObj.blobs;
     }
-    
+
     const allBlobs = [...blobs, ...legacyBlobs];
 
     if (allBlobs.length > 0) {
-      // Sort blobs by uploadedAt descending to get the latest
       allBlobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
       const latestUrl = allBlobs[0].url;
       const response = await fetch(`${latestUrl}?t=${Date.now()}`, { cache: 'no-store' });
+
       if (response.ok) {
-        return { data: await response.json(), allBlobs };
+        const data = await response.json();
+        setCache(data);
+        return { data, allBlobs };
       }
     }
-    
+
     return { data: INITIAL_DATA, allBlobs: [] };
   } catch (error) {
     console.error('[Cavern API] Blob error:', error);
@@ -44,99 +262,149 @@ export async function getCavernData() {
   }
 }
 
-// Helper to write completely new blobs to bypass Cache
-export async function saveCavernData(newData, allBlobs) {
-  lambdaDataCache = newData;
-  lambdaCacheTime = Date.now();
+async function saveBlobCavernData(newData, allBlobs) {
+  setCache(newData);
 
   const newName = `hsr-cavern-clears-${Date.now()}.json`;
-  await put(newName, JSON.stringify(newData, null, 2), {
+  await blobPut(newName, JSON.stringify(newData, null, 2), {
     access: 'public',
     contentType: 'application/json',
     addRandomSuffix: true,
   });
 
-  const oldUrls = allBlobs.map(b => b.url);
+  const oldUrls = ensureArray(allBlobs).map((blob) => blob.url);
   if (oldUrls.length > 0) {
-    await del(oldUrls);
+    await blobDel(oldUrls);
   }
 }
 
-const normalizeChars = (arr) => { 
-  if (!arr) return ''; 
-  const toArr = Array.isArray(arr) ? arr : String(arr).split(','); 
-  return toArr.map(val => String(val).trim().toLowerCase()).sort().join(','); 
-};
+export async function getCavernData() {
+  const cached = getCachedData();
+  if (cached) {
+    return { data: cached, allBlobs: [] };
+  }
 
-const normalizeTime = (t) => t ? String(t).trim().replace(/^0/, '') : '';
-export const normalizeKey = (val) => (val || '').toString().trim().replace(/['"]/g, '');
+  if (hasSupabaseConfig()) {
+    try {
+      return await getAllSupabaseEntries();
+    } catch (error) {
+      console.error('[Cavern API] Supabase read error:', error);
+      return { data: INITIAL_DATA, allBlobs: [] };
+    }
+  }
+
+  return getBlobCavernData();
+}
+
+export async function saveCavernData(newData, allBlobs) {
+  if (hasSupabaseConfig()) {
+    return replaceAllSupabaseEntries(newData);
+  }
+
+  return saveBlobCavernData(newData, allBlobs);
+}
+
+function isUnauthorizedAdminAttempt({ key, apiKey }) {
+  const targetAdmin = normalizeKey(process.env.HSR_ADMIN_PASS || process.env.HSR_ADMIN_PAS);
+  const targetSuper = normalizeKey(process.env.ADMIN_API_KEY);
+  const receivedKey = normalizeKey(key);
+  const receivedApiKey = normalizeKey(apiKey);
+
+  const isAdmin =
+    targetAdmin !== '' && (receivedKey === targetAdmin || receivedApiKey === targetAdmin);
+  const isSuperAdmin = targetSuper !== '' && receivedApiKey === targetSuper;
+
+  return { isAdmin, isSuperAdmin };
+}
 
 export async function handler(req, res) {
-  // Method Not Allowed check
   if (!['GET', 'POST', 'DELETE', 'OPTIONS'].includes(req.method)) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
-  
-  // GET: Return all cavern clear times
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method === 'GET') {
     try {
       const { data } = await getCavernData();
-      res.setHeader('Cache-Control', 's-maxage=1, stale-while-revalidate'); // Lower cache for deletions
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=15, stale-while-revalidate=60');
       return res.status(200).json(data);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch cavern data' });
     }
   }
-  
-  // POST: Add a new cavern clear report OR Toggle Like
+
   if (req.method === 'POST') {
     try {
-      const { action, userId, relicId, clearTime, characters, discordUser, note, substats, mainStat } = req.body;
-      
-      const { data, allBlobs } = await getCavernData();
+      const { action, userId, relicId, clearTime, characters, discordUser, note, substats, mainStat } =
+        req.body;
 
-      // --- HANDLE LIKE ACTION ---
       if (action === 'like') {
-        const { likeAction } = req.body;
-        
         if (!userId || !relicId || !clearTime || !characters) {
           return res.status(400).json({ error: 'Missing identity for like action.' });
         }
 
-        const charsSorted = normalizeChars(characters);
-        const subsSorted = (substats && substats.length > 0) ? normalizeChars(substats) : 'none';
-        const targetTime = normalizeTime(clearTime);
-        const targetId = String(relicId).trim();
+        const keys = buildVariantKeys({ relicId, clearTime, characters, substats });
 
-        const entry = data.find(e => {
-          const eSubstats = e.substats || (e.reports && e.reports[0] && e.reports[0].substats) || [];
-          const eSubsSorted = eSubstats.length > 0 ? normalizeChars(eSubstats) : 'none';
-          
-          return String(e.relicId).trim() === targetId && 
-                 normalizeTime(e.clearTime) === targetTime &&
-                 normalizeChars(e.characters) === charsSorted &&
-                 eSubsSorted === subsSorted;
+        if (hasSupabaseConfig()) {
+          const entry = await findSupabaseVariantEntry(keys);
+
+          if (!entry) {
+            return res.status(404).json({ error: 'Record not found to like.' });
+          }
+
+          const likes = ensureArray(entry.likes);
+          const likeAction = req.body.likeAction;
+          const userIdx = likes.indexOf(userId);
+
+          if (likeAction === 'remove') {
+            if (userIdx !== -1) likes.splice(userIdx, 1);
+          } else if (userIdx === -1) {
+            likes.push(userId);
+          }
+
+          entry.likes = likes;
+          await updateSupabaseEntry(entry);
+
+          return res.status(200).json({ success: true, likes });
+        }
+
+        const { data, allBlobs } = await getCavernData();
+        const entry = data.find((row) => {
+          const rowSubstats = row.substats || (row.reports && row.reports[0] && row.reports[0].substats) || [];
+          const rowKeys = buildVariantKeys({
+            relicId: row.relicId,
+            clearTime: row.clearTime,
+            characters: row.characters,
+            substats: rowSubstats,
+          });
+
+          return (
+            rowKeys.relicKey === keys.relicKey &&
+            rowKeys.clearTimeKey === keys.clearTimeKey &&
+            rowKeys.charactersKey === keys.charactersKey &&
+            rowKeys.substatsKey === keys.substatsKey
+          );
         });
 
-        if (!entry) return res.status(404).json({ error: 'Record not found to like.' });
+        if (!entry) {
+          return res.status(404).json({ error: 'Record not found to like.' });
+        }
 
         if (!entry.likes) entry.likes = [];
         const userIdx = entry.likes.indexOf(userId);
-        
-        if (likeAction === 'remove') {
+        if (req.body.likeAction === 'remove') {
           if (userIdx !== -1) entry.likes.splice(userIdx, 1);
-        } else {
-          // add or default
-          if (userIdx === -1) entry.likes.push(userId);
+        } else if (userIdx === -1) {
+          entry.likes.push(userId);
         }
 
         await saveCavernData(data, allBlobs);
-
         return res.status(200).json({ success: true, likes: entry.likes });
       }
 
-      // --- CONTINUE WITH NORMAL REPORT ---
-      // Validation
       if (!relicId || !clearTime || !characters || characters.length !== 4) {
         return res.status(400).json({ error: 'Incomplete payload.' });
       }
@@ -157,41 +425,91 @@ export async function handler(req, res) {
       }
 
       const reportId = crypto.randomUUID();
-      const secretKey = crypto.randomUUID(); 
-      
-      const charactersSorted = normalizeChars(characters);
-      const substatsSorted = normalizeChars(substats);
-      const targetTime = normalizeTime(clearTime);
-      const targetId = String(relicId).trim();
-
-      const existingEntry = data.find(entry => {
-        const eSubstats = entry.substats || (entry.reports && entry.reports[0] && entry.reports[0].substats) || [];
-        return String(entry.relicId).trim() === targetId && 
-               normalizeTime(entry.clearTime) === targetTime &&
-               normalizeChars(entry.characters) === charactersSorted &&
-               normalizeChars(eSubstats) === substatsSorted;
-      });
-      
+      const secretKey = crypto.randomUUID();
       const reportObj = {
         id: reportId,
         key: secretKey,
         reporter: discordUser.trim(),
         timestamp: new Date().toISOString(),
         note: note ? note.trim() : undefined,
-        substats: substats,
-        mainStat: mainStat || undefined
+        substats,
+        mainStat: mainStat || undefined,
       };
 
+      const keys = buildVariantKeys({ relicId, clearTime, characters, substats });
+
+      if (hasSupabaseConfig()) {
+        const existingEntry = await findSupabaseVariantEntry(keys);
+
+        if (existingEntry) {
+          existingEntry.verifiedCount = (existingEntry.verifiedCount || 1) + 1;
+          existingEntry.lastReported = new Date().toISOString();
+          existingEntry.reports = ensureArray(existingEntry.reports);
+          existingEntry.reports.push(reportObj);
+          existingEntry.reporters = ensureArray(existingEntry.reporters);
+
+          if (!existingEntry.reporters.includes(discordUser.trim())) {
+            existingEntry.reporters.push(discordUser.trim());
+          }
+
+          if (!existingEntry.mainStat && mainStat) {
+            existingEntry.mainStat = mainStat;
+          }
+
+          await updateSupabaseEntry(existingEntry);
+        } else {
+          await insertSupabaseEntry({
+            relicId,
+            clearTime,
+            characters,
+            substats,
+            mainStat: mainStat || undefined,
+            reporters: [discordUser.trim()],
+            reports: [reportObj],
+            verifiedCount: 1,
+            likes: [],
+            firstReported: new Date().toISOString(),
+            lastReported: new Date().toISOString(),
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          reportId,
+          secretKey,
+          message: 'Report archived successfully.',
+        });
+      }
+
+      const { data, allBlobs } = await getCavernData();
+      const existingEntry = data.find((entry) => {
+        const rowSubstats = entry.substats || (entry.reports && entry.reports[0] && entry.reports[0].substats) || [];
+        const rowKeys = buildVariantKeys({
+          relicId: entry.relicId,
+          clearTime: entry.clearTime,
+          characters: entry.characters,
+          substats: rowSubstats,
+        });
+
+        return (
+          rowKeys.relicKey === keys.relicKey &&
+          rowKeys.clearTimeKey === keys.clearTimeKey &&
+          rowKeys.charactersKey === keys.charactersKey &&
+          rowKeys.substatsKey === keys.substatsKey
+        );
+      });
 
       if (existingEntry) {
         existingEntry.verifiedCount = (existingEntry.verifiedCount || 1) + 1;
         existingEntry.lastReported = new Date().toISOString();
         if (!existingEntry.reports) existingEntry.reports = [];
         existingEntry.reports.push(reportObj);
-        
         if (!existingEntry.reporters) existingEntry.reporters = [];
         if (!existingEntry.reporters.includes(discordUser.trim())) {
           existingEntry.reporters.push(discordUser.trim());
+        }
+        if (!existingEntry.mainStat && mainStat) {
+          existingEntry.mainStat = mainStat;
         }
       } else {
         data.push({
@@ -199,173 +517,215 @@ export async function handler(req, res) {
           clearTime,
           characters,
           substats,
+          mainStat: mainStat || undefined,
           reporters: [discordUser.trim()],
           reports: [reportObj],
           verifiedCount: 1,
-          likes: [], // NEW: Initialize likes
+          likes: [],
           firstReported: new Date().toISOString(),
-          lastReported: new Date().toISOString()
+          lastReported: new Date().toISOString(),
         });
       }
+
       await saveCavernData(data, allBlobs);
-      
+
       return res.status(200).json({
         success: true,
         reportId,
         secretKey,
-        message: 'Report archived successfully.'
+        message: 'Report archived successfully.',
       });
     } catch (error) {
       console.error('[Cavern API] POST error:', error);
       return res.status(500).json({ error: 'Failed to record session.' });
     }
   }
-  
-  // DELETE: Handle Individual deletion, Legacy deletion, and Admin Wipe
+
   if (req.method === 'DELETE') {
     const { reportId, relicId, clearTime, characters, key } = req.query;
     const apiKey = req.headers['x-api-key'];
+    const { isAdmin, isSuperAdmin } = isUnauthorizedAdminAttempt({ key, apiKey });
 
-    const { data, allBlobs } = await getCavernData();
+    try {
+      if (!reportId && !relicId) {
+        if (!isAdmin && !isSuperAdmin) {
+          return res.status(401).json({ error: 'Unauthorized: Admin access required for full purge.' });
+        }
 
-    // Verification Logic:
-    const targetAdmin = normalizeKey(process.env.HSR_ADMIN_PASS || process.env.HSR_ADMIN_PAS);
-    const targetSuper = normalizeKey(process.env.ADMIN_API_KEY);
-    
-    const receivedKey = normalizeKey(key);
-    const receivedApiKey = normalizeKey(apiKey);
+        if (hasSupabaseConfig()) {
+          await deleteAllSupabaseEntries();
+        } else {
+          const { allBlobs } = await getCavernData();
+          await saveCavernData([], allBlobs);
+        }
 
-    const isAdmin = (targetAdmin !== '') && (receivedKey === targetAdmin || receivedApiKey === targetAdmin);
-    const isSuperAdmin = (targetSuper !== '') && (receivedApiKey === targetSuper);
-
-    // Diagnostic variables for DELETE scoping
-    let targetRelicId = null;
-    let targetTime = null;
-    let charsSorted = null;
-    let substatsSorted = null;
-    let mismatches = [];
-
-    // 1. FULL WIPE (Admin or SuperAdmin)
-    if (!reportId && !relicId) {
-      if (!isAdmin && !isSuperAdmin) {
-        return res.status(401).json({ error: 'Unauthorized: Admin access required for full purge.' });
+        return res.status(200).json({ success: true, message: 'Archive completely purged.' });
       }
-      
-      // Update Blob safely by rotating filename
-      await saveCavernData([], allBlobs);
-      
-      return res.status(200).json({ success: true, message: 'Archive completely purged.' });
-    }
 
-    let found = false;
+      if (hasSupabaseConfig()) {
+        if (reportId) {
+          const { data } = await getAllSupabaseEntries();
+          const entry = data.find((row) => ensureArray(row.reports).some((report) => report.id === reportId));
 
-    // 2. SINGLE REPORT DELETION (by reportId)
-    if (reportId) {
-      for (let i = 0; i < data.length; i++) {
-        const entry = data[i];
-        if (!entry.reports) continue;
+          if (!entry) {
+            return res.status(404).json({ error: 'Record not found.' });
+          }
 
-        const reportIndex = entry.reports.findIndex(r => r.id === reportId);
-        if (reportIndex !== -1) {
+          const report = entry.reports.find((row) => row.id === reportId);
+          if (report.key !== key && !isAdmin && !isSuperAdmin) {
+            return res.status(401).json({ error: 'Invalid key for this report.' });
+          }
+
+          entry.reports = entry.reports.filter((row) => row.id !== reportId);
+          entry.verifiedCount = entry.reports.length;
+          entry.reporters = [...new Set(entry.reports.map((row) => row.reporter).filter(Boolean))];
+          entry.lastReported = new Date().toISOString();
+
+          if (entry.reports.length === 0) {
+            await deleteSupabaseEntryById(entry.id);
+          } else {
+            await updateSupabaseEntry(entry);
+          }
+
+          return res.status(200).json({ success: true, message: 'Archive record expunged.' });
+        }
+
+        if (relicId && clearTime && characters) {
+          if (!isAdmin) {
+            return res.status(401).json({ error: 'Admin access required to expunge a full variant.' });
+          }
+
+          const requestedSubstats =
+            req.query.substats && req.query.substats !== 'undefined'
+              ? String(req.query.substats).split(',')
+              : [];
+          let entry = await findSupabaseVariantEntry(
+            buildVariantKeys({
+              relicId,
+              clearTime,
+              characters: String(characters).split(','),
+              substats: requestedSubstats,
+            })
+          );
+
+          if (!entry) {
+            const baseMatches = await findSupabaseBaseEntries({
+              relicId,
+              clearTime,
+              characters: String(characters).split(','),
+            });
+
+            if (baseMatches.length === 1) {
+              entry = baseMatches[0];
+            }
+          }
+
+          if (!entry) {
+            return res.status(404).json({ error: 'Record not found.' });
+          }
+
+          await deleteSupabaseEntryById(entry.id);
+          return res.status(200).json({ success: true, message: 'Archive record expunged.' });
+        }
+
+        return res.status(404).json({ error: 'Record not found.' });
+      }
+
+      const { data, allBlobs } = await getCavernData();
+      let found = false;
+
+      if (reportId) {
+        for (let i = 0; i < data.length; i += 1) {
+          const entry = data[i];
+          if (!entry.reports) continue;
+
+          const reportIndex = entry.reports.findIndex((report) => report.id === reportId);
+          if (reportIndex === -1) continue;
+
           const report = entry.reports[reportIndex];
-          
           if (report.key !== key && !isAdmin && !isSuperAdmin) {
             return res.status(401).json({ error: 'Invalid key for this report.' });
           }
 
           entry.reports.splice(reportIndex, 1);
           entry.verifiedCount = entry.reports.length;
-          entry.reporters = [...new Set(entry.reports.map(r => r.reporter))];
+          entry.reporters = [...new Set(entry.reports.map((reportRow) => reportRow.reporter))];
 
           if (entry.reports.length === 0) {
             data.splice(i, 1);
           }
-          
+
           found = true;
           break;
         }
-      }
-    } 
-    // 3. ENTIRE VARIANT DELETION (Legacy Support, Admin Only)
-    else if (relicId && clearTime && characters) {
-      if (!isAdmin) {
-        return res.status(401).json({ error: 'Admin access required to expunge a full variant.' });
-      }
+      } else if (relicId && clearTime && characters) {
+        if (!isAdmin) {
+          return res.status(401).json({ error: 'Admin access required to expunge a full variant.' });
+        }
 
-      targetRelicId = String(relicId || '').trim().toLowerCase();
-      targetTime = normalizeTime(clearTime);
-      charsSorted = normalizeChars(characters);
+        const targetTime = normalizeTime(clearTime);
+        const charsSorted = normalizeChars(characters);
+        const substatsSorted =
+          req.query.substats && req.query.substats !== 'undefined'
+            ? normalizeChars(req.query.substats)
+            : 'none';
 
-      substatsSorted = req.query.substats && req.query.substats !== 'undefined' 
-        ? normalizeChars(req.query.substats)
-        : 'none';
-      
-      let entryIndex = data.findIndex((e, idx) => {
-        const rowRelicId = String(e.relicId || '').trim().toLowerCase();
-        const rowTime = normalizeTime(e.clearTime);
-        const rowCharsSorted = normalizeChars(e.characters);
+        let entryIndex = data.findIndex((entry) => {
+          const rowSubstats =
+            entry.substats || (entry.reports && entry.reports[0] && entry.reports[0].substats) || [];
+          const rowKeys = buildVariantKeys({
+            relicId: entry.relicId,
+            clearTime: entry.clearTime,
+            characters: entry.characters,
+            substats: rowSubstats,
+          });
 
-        const relicMatch = rowRelicId === targetRelicId;
-        const timeMatch = rowTime === targetTime;
-        const charsMatch = rowCharsSorted === charsSorted;
-        
-        const matchBase = relicMatch && timeMatch && charsMatch;
-        
-        if (!matchBase) {
-          if (relicMatch || timeMatch) {
-             mismatches.push({ index: idx, relicMatch, timeMatch, charsMatch, rowRelicId, rowTime, rowCharsSorted });
+          return (
+            rowKeys.relicKey === normalizeRelicId(relicId) &&
+            rowKeys.clearTimeKey === targetTime &&
+            rowKeys.charactersKey === charsSorted &&
+            (substatsSorted === 'none' || rowKeys.substatsKey === substatsSorted)
+          );
+        });
+
+        if (entryIndex === -1 && isAdmin) {
+          const baseMatches = data.filter((entry) => {
+            const rowKeys = buildVariantKeys({
+              relicId: entry.relicId,
+              clearTime: entry.clearTime,
+              characters: entry.characters,
+              substats: entry.substats || [],
+            });
+
+            return (
+              rowKeys.relicKey === normalizeRelicId(relicId) &&
+              rowKeys.clearTimeKey === targetTime &&
+              rowKeys.charactersKey === charsSorted
+            );
+          });
+
+          if (baseMatches.length === 1) {
+            entryIndex = data.indexOf(baseMatches[0]);
           }
-          return false;
         }
-        
-        const eSubstats = e.substats || (e.reports && e.reports[0] && e.reports[0].substats) || [];
-        const eSubsSorted = eSubstats.length > 0 ? normalizeChars(eSubstats) : 'none';
-        
-        const subsMatch = (substatsSorted === 'none' || eSubsSorted === substatsSorted);
-        
-        if (!subsMatch) {
-           mismatches.push({ index: idx, matchBase: true, subsMatch, eSubsSorted, substatsSorted });
-           return false;
-        }
-        
-        return true;
-      });
 
-      // SECONDARY MATCH (Admin Only Failsafe): If no exact match, try matching base only if exactly 1 exists
-      if (entryIndex === -1 && isAdmin) {
-        const fuzzyMatches = data.filter(e => 
-          String(e.relicId || '').trim().toLowerCase() === targetRelicId && 
-          normalizeTime(e.clearTime) === targetTime && 
-          normalizeChars(e.characters) === charsSorted
-        );
-        if (fuzzyMatches.length === 1) {
-          entryIndex = data.indexOf(fuzzyMatches[0]);
+        if (entryIndex !== -1) {
+          data.splice(entryIndex, 1);
+          found = true;
         }
       }
 
-      if (entryIndex !== -1) {
-        data.splice(entryIndex, 1);
-        found = true;
+      if (!found) {
+        return res.status(404).json({ error: 'Record not found.' });
       }
+
+      await saveCavernData(data, allBlobs);
+      return res.status(200).json({ success: true, message: 'Archive record expunged.' });
+    } catch (error) {
+      console.error('[Cavern API] DELETE error:', error);
+      return res.status(500).json({ error: 'Failed to delete record.' });
     }
-
-    if (!found) {
-      return res.status(404).json({ 
-        error: 'Record not found.',
-        debug: {
-          provided: { relicId, clearTime, characters, substats: req.query.substats, key: key ? 'PRESENT' : 'MISSING' },
-          targets: { targetRelicId, targetTime, charsSorted, substatsSorted },
-          mismatches: mismatches.slice(0, 5),
-          isAdmin
-        }
-      });
-    }
-
-    // Update Blob safely by rotating filename
-    await saveCavernData(data, allBlobs);
-
-    return res.status(200).json({ success: true, message: 'Archive record expunged.' });
   }
-  
+
   return res.status(405).json({ error: 'Method Not Allowed' });
 }

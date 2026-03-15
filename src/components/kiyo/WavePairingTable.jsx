@@ -261,7 +261,7 @@ export default function WavePairingTable({ pairingViz, combinedRolls }) {
   , [activePairingKey]);
 
   return (
-    <div className="bg-slate-950/80 rounded-lg p-4 border border-slate-700/50 space-y-3">
+    <div className="wave-pairing-table bg-slate-950/80 rounded-lg p-4 border border-slate-700/50 space-y-3">
 
       {/* ── How to use ───────────────────────────────────────────── */}
       <div className="text-[12px] bg-slate-900/60 rounded p-2.5 border border-slate-700/40 space-y-1">

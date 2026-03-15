@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -46,17 +46,33 @@ function ModeCard({ emoji, name, bg, border, color, desc }) {
 
 export default function GuideModal({ show, onClose }) {
   const [tab, setTab] = useState("basics");
+  const isGlacial =
+    typeof document !== "undefined" &&
+    Boolean(document.querySelector(".arctic-theme, .winter-theme"));
+
+  useEffect(() => {
+    if (!show) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [show, onClose]);
 
   if (!show) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md px-4"
-      onClick={onClose}
+      className="fixed inset-0 z-[160] flex items-center justify-center bg-black/85 backdrop-blur-md px-2 sm:px-4"
+      onMouseDown={onClose}
     >
       <div
-        className="bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900 rounded-2xl border border-indigo-500/50 shadow-2xl max-w-2xl w-full max-h-[93vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        className={`bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900 rounded-2xl border border-indigo-500/50 shadow-2xl flex flex-col ${
+          isGlacial
+            ? "w-[96vw] max-w-[1700px] h-[92vh] max-h-[92vh]"
+            : "max-w-2xl w-full max-h-[93vh]"
+        }`}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="sticky top-0 bg-gradient-to-r from-indigo-800/95 to-violet-800/95 backdrop-blur-xl border-b border-indigo-400/40 px-6 py-4 flex items-center justify-between rounded-t-2xl shrink-0">

@@ -2,8 +2,15 @@
 
 .modern-kiyo-page {
     min-height: 100vh;
-    background: linear-gradient(to bottom right, #020617, #0f172a, #020617);
+    width: 100%;
+    max-width: none;
     color: #f1f5f9;
+}
+
+.modern-kiyo-page .modern-kiyo-shell {
+    width: 100%;
+    max-width: none;
+    overflow: visible;
 }
 
 .modern-kiyo-container {
@@ -56,23 +63,108 @@
 }
 
 .modern-kiyo-container ::-webkit-scrollbar-thumb {
-    background: rgba(139, 92, 246, 0.5);
+    background: rgba(14, 165, 233, 0.3);
     border-radius: 4px;
 }
 
-.modern-kiyo-container ::-webkit-scrollbar-thumb:hover {
-    background: rgba(139, 92, 246, 0.7);
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(125, 211, 252, 0.5);
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+/* Kiyo Table Legibility */
+.modern-kiyo-page .glacial-card table tr td {
+    opacity: 0.8 !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.3);
+.modern-kiyo-page .glacial-card.pt-10 {
+    padding-top: 2.5rem !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(139, 92, 246, 0.3);
-    border-radius: 3px;
+.modern-kiyo-page .glacial-card table tr:hover td {
+    opacity: 1 !important;
+    color: #fff !important;
+}
+
+.modern-kiyo-page .glacial-card table thead th {
+    opacity: 0.9 !important;
+    color: #cbd5e1 !important;
+}
+
+/* Glacial Kiyo cleanup: keep layout like modern, remove heavy nested-card borders */
+.arctic-theme .modern-kiyo-page .modern-kiyo-shell,
+.winter-theme .modern-kiyo-page .modern-kiyo-shell {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.arctic-theme .modern-kiyo-page .glacial-card,
+.winter-theme .modern-kiyo-page .glacial-card {
+    border: none !important;
+    box-shadow: 0 8px 24px rgba(2, 8, 23, 0.45) !important;
+    background: linear-gradient(150deg, rgba(6, 18, 38, 0.82) 0%, rgba(10, 35, 58, 0.56) 52%, rgba(7, 21, 40, 0.84) 100%) !important;
+}
+
+/* Keep snow cap only on functional Kiyo cards, not every wrapper */
+.arctic-theme .modern-kiyo-page .glacial-card::after,
+.winter-theme .modern-kiyo-page .glacial-card::after {
+    display: none !important;
+}
+
+.arctic-theme .modern-kiyo-page .kiyo-snow-card::after,
+.winter-theme .modern-kiyo-page .kiyo-snow-card::after {
+    display: block !important;
+}
+
+/* Wave/table block: cleaner like original while retaining glacial palette */
+.arctic-theme .modern-kiyo-page .wave-pairing-table,
+.winter-theme .modern-kiyo-page .wave-pairing-table {
+    border: none !important;
+    background: rgba(2, 10, 28, 0.86) !important;
+}
+
+.arctic-theme .modern-kiyo-page .wave-pairing-table .border,
+.winter-theme .modern-kiyo-page .wave-pairing-table .border {
+    border-color: rgba(148, 163, 184, 0.12) !important;
+}
+
+/* Remove heavy inline bordered blocks in glacial Kiyo */
+.arctic-theme .modern-kiyo-page .wave-pairing-table div[style*="border"],
+.winter-theme .modern-kiyo-page .wave-pairing-table div[style*="border"] {
+    border: none !important;
+}
+
+/* Table clarity boost */
+.modern-kiyo-page .wave-pairing-table table tr td {
+    opacity: 1 !important;
+    color: #e6f2ff !important;
+}
+
+.modern-kiyo-page .wave-pairing-table table thead th {
+    opacity: 1 !important;
+    color: #eef6ff !important;
+}
+
+.arctic-theme .modern-kiyo-page .wave-pairing-table table,
+.winter-theme .modern-kiyo-page .wave-pairing-table table {
+    background: rgba(2, 12, 30, 0.92);
+}
+
+.arctic-theme .modern-kiyo-page .wave-pairing-table table th,
+.arctic-theme .modern-kiyo-page .wave-pairing-table table td,
+.winter-theme .modern-kiyo-page .wave-pairing-table table th,
+.winter-theme .modern-kiyo-page .wave-pairing-table table td {
+    border-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+.arctic-theme .modern-kiyo-page .wave-pairing-table .text-slate-400,
+.winter-theme .modern-kiyo-page .wave-pairing-table .text-slate-400 {
+    color: #c4d5e6 !important;
+}
+
+.arctic-theme .modern-kiyo-page .wave-pairing-table .text-slate-500,
+.winter-theme .modern-kiyo-page .wave-pairing-table .text-slate-500 {
+    color: #9fb8cf !important;
 }

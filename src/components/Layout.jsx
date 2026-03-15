@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
+import { Palette } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
 
@@ -16,14 +17,20 @@ export default function Layout({
   entries,
   prevSessions,
   onExportCSV,
+  sessionTheme = "modern",
+  onThemeChange = () => {},
 }) {
   const location = useLocation();
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
+  const themeMenuRef = useRef(null);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const isModernTheme = sessionTheme === "modern";
+  const activeTabTextClass = isModernTheme ? "text-purple-200" : "text-white";
+  const inactiveTabTextClass = isModernTheme ? "text-slate-400 hover:text-purple-200" : "text-slate-400 hover:text-slate-200";
 
-  // GSAP: Animate active indicator when route changes
-  useEffect(() => {
+  const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;
 
     const activeTab = navRef.current.querySelector('[data-active="true"]');
@@ -32,11 +39,38 @@ export default function Layout({
       gsap.to(indicatorRef.current, {
         x: offsetLeft,
         width: offsetWidth,
-        duration: 0.4,
+        duration,
         ease: 'power3.out',
       });
     }
-  }, [location.pathname]);
+  }, []);
+
+  // Recalculate indicator on route/theme change
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => updateActiveIndicator(0.3));
+    const delayed = setTimeout(() => updateActiveIndicator(0.2), 140);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(delayed);
+    };
+  }, [location.pathname, sessionTheme, updateActiveIndicator]);
+
+  // Keep indicator synced on viewport changes
+  useEffect(() => {
+    const onResize = () => updateActiveIndicator(0.2);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateActiveIndicator]);
+
+  useEffect(() => {
+    const onPointerDown = (event) => {
+      if (!themeMenuRef.current?.contains(event.target)) {
+        setThemeMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   // GSAP: Initial animation on mount
   useEffect(() => {
@@ -54,7 +88,7 @@ export default function Layout({
       <LiveStatsBanner />
 
       {/* Sticky Header */}
-      <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50">
+      <header className="sticky top-0 z-50 glacial-header-glass">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
@@ -123,7 +157,7 @@ export default function Layout({
                 {/* Animated indicator background */}
                 <div
                   ref={indicatorRef}
-                  className="absolute top-1 left-0 h-[calc(100%-8px)] bg-purple-600 rounded-lg shadow-lg shadow-purple-500/30 pointer-events-none"
+                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${isModernTheme ? 'bg-gradient-to-r from-violet-500/45 to-purple-500/45 shadow-lg shadow-purple-500/25' : 'bg-white/20 shadow-lg shadow-white/10'}`}
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
 
@@ -132,8 +166,8 @@ export default function Layout({
                   data-active={location.pathname === '/live'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -144,8 +178,8 @@ export default function Layout({
                   data-active={location.pathname === '/long-string'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -156,8 +190,8 @@ export default function Layout({
                   data-active={location.pathname === '/kiyo'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -168,8 +202,8 @@ export default function Layout({
                   data-active={location.pathname === '/warp-analyzer'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -180,8 +214,8 @@ export default function Layout({
                   data-active={location.pathname === '/banner-tracker'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -192,8 +226,8 @@ export default function Layout({
                   data-active={location.pathname === '/caverns'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
@@ -204,14 +238,64 @@ export default function Layout({
                   data-active={location.pathname === '/guides'}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
                     }`
                   }
                 >
                   📚 Guides
                 </NavLink>
               </nav>
+
+              {/* Theme Switch (Paint Dropdown) */}
+              <div ref={themeMenuRef} className="relative w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setThemeMenuOpen(prev => !prev)}
+                  className="w-full sm:w-11 h-10 sm:h-11 rounded-xl sm:rounded-full border border-cyan-400/30 bg-slate-900/70 text-cyan-200 hover:text-white hover:border-cyan-300/50 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(34,211,238,0.2)] cursor-pointer"
+                  title="Theme menu"
+                  aria-label="Open theme menu"
+                >
+                  <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+                {themeMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-slate-700/60 bg-slate-900/95 backdrop-blur-xl p-2 z-[70] shadow-2xl">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 px-1 pb-1">
+                      Theme
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onThemeChange('modern');
+                          setThemeMenuOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
+                          sessionTheme === 'modern'
+                            ? 'bg-violet-500/25 text-violet-100 border-violet-400/40'
+                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                        }`}
+                      >
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onThemeChange('arctic');
+                          setThemeMenuOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
+                          sessionTheme === 'arctic'
+                            ? 'bg-cyan-500/20 text-cyan-100 border-cyan-400/40'
+                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                        }`}
+                      >
+                        Glacial
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Export Button */}
               <button

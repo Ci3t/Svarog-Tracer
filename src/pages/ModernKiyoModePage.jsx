@@ -23,9 +23,9 @@ export default function ModernKiyoModePage({
   isDebugMode = false,
 }) {
   return (
-    <div className="modern-kiyo-page">
-      {/* The KiyoModeCard will be reorganized via CSS */}
-      <div className="modern-kiyo-container">
+    <div className="modern-kiyo-page w-full p-2 sm:p-3 lg:p-4 mt-2 sm:mt-4 lg:mt-6">
+      {/* MAIN ENGINE: Kiyo Mode (Full Width) */}
+      <div className="modern-kiyo-shell overflow-visible mb-6">
         <KiyoModeCard
           key={`kiyo-${entries.length}`}
           entries={entries}
@@ -36,12 +36,12 @@ export default function ModernKiyoModePage({
         />
       </div>
 
-      {/* Debug Panel */}
-      <div className="mt-6 px-4">
+      {/* BOTTOM SECTION: Debug (Full Width) */}
+      <div className="modern-kiyo-shell">
         <ModernDebugPanel
           debugLogs={debugLogs}
-          onClearLogs={onClearLogs}
-          onImportLogs={onImportLogs}
+          onClear={onClearLogs}
+          onImport={onImportLogs}
           isDebugMode={isDebugMode}
         />
       </div>

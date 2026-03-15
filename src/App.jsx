@@ -11,16 +11,15 @@ import { Routes, Route } from "react-router-dom";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 OLD Kiyo
 import { predictWithPairs } from "./utils/pairTransitionPredictor"; // 🔥 NEW SUGGEST
-import { 
-  WAVE_SCHEMES, 
-  analyzeColumnWave, 
-  getExpectedLabel 
+import {
+  WAVE_SCHEMES,
+  analyzeColumnWave,
+  getExpectedLabel
 } from "./utils/kiyoLogic";
 
 // Layout Component
 import Layout from "./components/Layout";
 
-// Page Components
 import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
 import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
 import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
@@ -29,6 +28,9 @@ import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
 import HomePage from "./pages/HomePage"; // 🔥 NEW Landing Page
 import BannerTracker from "./pages/BannerTracker"; // 🔥 NEW Banner Tracker
 import CavernTimesPage from "./pages/CavernTimesPage"; // 🔥 NEW Caverns Page
+import ArcticSnow from "./components/snow/ArcticSnow";
+import "./styles/arctic-theme.css"; // ❄️ NEW Arctic Theme
+import "./styles/winter-theme.css"; // ❄️ Modern Winter Theme
 
 
 
@@ -64,6 +66,7 @@ export default function App() {
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("4.0");
+  const [sessionTheme, setSessionTheme] = useState("modern"); // ❄️ Theme State
 
   const entriesRef = useRef([]); // 👈 ADD: Ref for calculations to avoid stale closures
   useEffect(() => {
@@ -141,9 +144,9 @@ export default function App() {
           for (let i = 0; i < logs.length; i++) {
             if (logs[i].source === "kiyo" && logs[i].kind === "3") {
               if (
-              !logs[i].col2Expected &&
-              !logs[i].col3Expected
-            ) {
+                !logs[i].col2Expected &&
+                !logs[i].col3Expected
+              ) {
                 logs[i] = {
                   ...logs[i],
                   waveData: { ...data.waveData },
@@ -186,16 +189,16 @@ export default function App() {
     // 🔥 FIX: Log each NEW roll individually, not just the last one
     const prevRolls = kiyoCtxRef.current || [];
     const rollsToLog = newRolls.slice(prevRolls.length); // Only new rolls
-    
+
     if (rollsToLog.length === 0) return;
 
     rollsToLog.forEach((actual3, idx) => {
       // Build context for this prediction
       const contextRolls = newRolls.slice(0, prevRolls.length + idx);
-      
+
       // Need at least 3 rolls for context
       if (contextRolls.length < 3) return;
-      
+
       // const actual3 = String(roll).slice(0, 3); // actual3 is already the roll value
       // Allow 2-digit (2-str) rolls — actual may be 2 or 3 chars
       if (String(actual3).length < 2) return;
@@ -260,7 +263,7 @@ export default function App() {
       if (rolls2.length >= 6) { // SUGGEST needs at least 6 rolls
         const p2 = predictWithPairs(rolls2); // 🔥 Use SUGGEST logic instead of OLD Kiyo BBP
         const actual2 = String(actual3).slice(0, 2);
-        
+
         if (
           p2.prediction &&
           p2.prediction !== "—" &&
@@ -324,6 +327,7 @@ export default function App() {
       setNotes(parsed.notes || "");
       setCaesarInput(parsed.caesarInput || "");
       setDebugLogs(parsed.debugLogs || []);
+      setSessionTheme(parsed.sessionTheme || "modern"); // ❄️ Load Theme
     } catch (err) {
       console.warn("storage load error", err);
     }
@@ -340,6 +344,7 @@ export default function App() {
       notes,
       caesarInput,
       debugLogs,
+      sessionTheme, // ❄️ Save Theme
       savedAt: Date.now(),
     };
     try {
@@ -383,18 +388,18 @@ export default function App() {
       const rollValues = entries
         .map(e => (e.translated || e.s2 || '').slice(0, 2))
         .filter(Boolean);
-      
+
       let beastAnalysis = null;
       if (rollValues.length >= 6) {
         try {
           const analysis = predictNext2BBPMode(rollValues);
-          
+
           // Build frequency distribution
           const freq = {};
           rollValues.forEach(v => {
             freq[v] = (freq[v] || 0) + 1;
           });
-          
+
           const total = rollValues.length;
           const distribution = Object.entries(freq).map(([value, count]) => ({
             value,
@@ -402,14 +407,14 @@ export default function App() {
             pct: (count / total) * 100,
             status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
           }));
-          
+
           distribution.sort((a, b) => {
             // Commons first, then by count
             if (a.status === 'common' && b.status !== 'common') return -1;
             if (a.status !== 'common' && b.status === 'common') return 1;
             return b.count - a.count;
           });
-          
+
           beastAnalysis = {
             commons: analysis.commons || [],
             noise: analysis.noise || [],
@@ -421,23 +426,23 @@ export default function App() {
           console.warn('BBP Mode analysis failed for session archive:', err);
         }
       }
-      
+
       // 🔥 NEW: Calculate BBP Mode 3-str frequency distribution
       const rollValues3str = entries
         .map(e => (e.translated || '').slice(0, 3))
         .filter(v => v && v.length === 3);
-      
+
       let beastAnalysis3str = null;
       if (rollValues3str.length >= 6) {
         try {
           const analysis = predictNext3BBPMode(rollValues3str);
-          
+
           // Build frequency distribution
           const freq = {};
           rollValues3str.forEach(v => {
             freq[v] = (freq[v] || 0) + 1;
           });
-          
+
           const total = rollValues3str.length;
           const distribution = Object.entries(freq).map(([value, count]) => ({
             value,
@@ -445,14 +450,14 @@ export default function App() {
             pct: (count / total) * 100,
             status: analysis.commons && analysis.commons.includes(value) ? 'common' : 'noise'
           }));
-          
+
           distribution.sort((a, b) => {
             // Commons first, then by count
             if (a.status === 'common' && b.status !== 'common') return -1;
             if (a.status !== 'common' && b.status === 'common') return 1;
             return b.count - a.count;
           });
-          
+
           beastAnalysis3str = {
             commons: analysis.commons || [],
             noise: analysis.noise || [],
@@ -464,7 +469,7 @@ export default function App() {
           console.warn('BBP Mode 3-str analysis failed for session archive:', err);
         }
       }
-      
+
       setPrevSessions((prev) => [
         {
           id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
@@ -503,13 +508,13 @@ export default function App() {
     if (!value) return;
 
     const clean = sanitizeRollInput(value);
-    
+
     // 🔥 NEW: Enforce minimum 2 digits
     if (clean.length < 2) {
       console.warn('Roll must be at least 2 digits');
       return;
     }
-    
+
     if (!clean) return;
 
     const { s2, s3, s4, s5 } = splitString(clean);
@@ -568,7 +573,7 @@ export default function App() {
 
     // 🔥 FIXED: Use the prediction that was SHOWING (p2Before), not a new one
     if (p2Before && p2Before.prediction && p2Before.prediction !== "—" &&
-        !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
+      !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
       newLogsToAdd.push({
         ts: nowTs + 0.1, // Slight offset
         kind: "2",
@@ -593,18 +598,18 @@ export default function App() {
       });
     }
 
-    setEntries((prev) => [...prev, { 
+    setEntries((prev) => [...prev, {
       id: `${nowTs}-${Math.random()}`,
       raw: value,
-      s2, 
-      s3, 
-      s4, 
-      s5, 
-      translated, 
+      s2,
+      s3,
+      s4,
+      s5,
+      translated,
       time: nowIso  // Fixed: was 'ts', should be 'time'
     }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
-    
+
     // 🔥 Track prediction in live stats
     if (window.__trackPrediction) {
       window.__trackPrediction();
@@ -770,7 +775,7 @@ export default function App() {
         // Calculate MARK Mode for this roll (using previous rolls as context)
         const contextRolls = allEntries.slice(Math.max(0, idx - 11), idx + 1).map(row => row.string.slice(0, 2));
         let markState = "N/A", csi = "", ntl = "", pc = "", wave = "", commons = "", pattern = "";
-        
+
         if (contextRolls.length >= 6) {
           try {
             const analysis = predictNext2BBPMode(contextRolls);
@@ -815,18 +820,18 @@ export default function App() {
   const importQueueRef = useRef([]);
   const isImportingRef = useRef(false);
   const [isAutoImporting, setIsAutoImporting] = useState(false);
-  
+
   function handleImportRolls(rolls) {
     if (!Array.isArray(rolls) || rolls.length === 0) return;
     importQueueRef.current = rolls;
-    
+
     if (!isImportingRef.current) {
       isImportingRef.current = true;
       setIsAutoImporting(true);
       processNextImport(0);
     }
   }
-  
+
   function processNextImport(idx) {
     const rolls = importQueueRef.current;
     if (idx >= rolls.length) {
@@ -836,15 +841,15 @@ export default function App() {
       setRollInput("");
       return;
     }
-    
+
     const roll = rolls[idx];
-    
+
     // 1. Show in input bar
     setRollInput(roll);
-    
+
     // 2. Add to session (using manualValue we added earlier)
     handleAddRoll(roll);
-    
+
     // 3. Schedule next with enough delay for UI to update
     setTimeout(() => {
       processNextImport(idx + 1);
@@ -878,18 +883,18 @@ export default function App() {
   // Calculate session accuracy for header (Main + Alt hits)
   const sessionAccuracy = debugLogs.length > 0
     ? Math.round(
-        (debugLogs.filter((log) => {
-          const pred = String(log.prediction);
-          const alt = log.alt ? String(log.alt) : null;
-          const actual = String(log.actual);
-          // Count as hit if main prediction matches OR alt prediction matches
-          const mainHit = pred === actual || pred === actual.slice(0, pred.length);
-          const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
-          return mainHit || altHit;
-        }).length /
-          debugLogs.length) *
-          100
-      )
+      (debugLogs.filter((log) => {
+        const pred = String(log.prediction);
+        const alt = log.alt ? String(log.alt) : null;
+        const actual = String(log.actual);
+        // Count as hit if main prediction matches OR alt prediction matches
+        const mainHit = pred === actual || pred === actual.slice(0, pred.length);
+        const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
+        return mainHit || altHit;
+      }).length /
+        debugLogs.length) *
+      100
+    )
     : 0;
 
   return (
@@ -916,116 +921,129 @@ export default function App() {
         </div>
       }
     >
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        {/* Wrap all other routes with Layout for navigation */}
-        <Route element={
-          <Layout 
-            region={region}
-            setRegion={setRegion}
-            patch={patch}
-            setPatch={setPatch}
-            isCustomPatch={isCustomPatch}
-            setIsCustomPatch={setIsCustomPatch}
-            entries={entries}
-            prevSessions={prevSessions}
-            onExportCSV={handleExportCSV}
-          />
-        }>
-          <Route
-            path="/live"
-            element={
-              <ModernLiveSessionPage
-                // State
-                entries={entries}
-                prevSessions={prevSessions}
-                rollInput={rollInput}
-                setRollInput={setRollInput}
-                region={region}
-                setRegion={setRegion}
-                patch={patch}
-                setPatch={setPatch}
-                isCustomPatch={isCustomPatch}
-                setIsCustomPatch={setIsCustomPatch}
-                debugLogs={debugLogs}
-                secondsLeft={secondsLeft}
-                freqTab={freqTab}
-                setFreqTab={setFreqTab}
-                sessionTab={sessionTab}
-                setSessionTab={setSessionTab}
-                suggestTab={suggestTab}
-                setSuggestTab={setSuggestTab}
-                caesarInput={caesarInput}
-                setCaesarInput={setCaesarInput}
-                notes={notes}
-                setNotes={setNotes}
-                // Computed
-                freq2={freq2}
-                freq3={freq3}
-                freq4={freq4}
-                freq5={freq5}
-                livePrediction={livePrediction}
-                livePrediction3={livePrediction3}
-                livePrediction4={livePrediction4}
-                // Handlers
-                handleAddRoll={handleAddRoll}
-                handleStartSession={handleStartSession}
-                handleStopSession={handleStopSession}
-                handleRestartSession={handleRestartSession}
-                handleDeleteEntry={handleDeleteEntry}
-                handleDeleteSession={handleDeleteSession}
-                handleClearDebugLogs={handleClearDebugLogs}
-                handleImportDebugLogs={handleImportDebugLogs}
-                handleImportRolls={handleImportRolls}
-                isAutoImporting={isAutoImporting}
-                // Refs
-                pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
-                // Other
-                isDebugMode={isDebugMode}
-                kiyoDebugData={kiyoDebugData}
-              />
-            }
-          />
-          <Route
-            path="/long-string"
-            element={
-              <ModernLongStringPage
-                debugLogs={debugLogs}
-                onClearLogs={handleClearDebugLogs}
-                onImportLogs={handleImportDebugLogs}
-                isDebugMode={isDebugMode}
-              />
-            }
-          />
-          <Route
-            path="/kiyo"
-            element={
-              <ModernKiyoModePage
-                region={region}
-                setRegion={setRegion}
-                patch={patch}
-                setPatch={setPatch}
-                isCustomPatch={isCustomPatch}
-                setIsCustomPatch={setIsCustomPatch}
-                entries={entries}
-                prevSessions={prevSessions}
-                debugLogs={debugLogs}
-                kiyoDebugData={kiyoDebugData}
-                handleKiyoToDebug={handleKiyoToDebug}
-                handleKiyoDebugData={handleKiyoDebugData}
-                pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
-                onClearLogs={handleClearDebugLogs}
-                onImportLogs={handleImportDebugLogs}
-                isDebugMode={isDebugMode}
-              />
-            }
-          />
-          <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
-          <Route path="/banner-tracker" element={<BannerTracker />} />
-          <Route path="/caverns" element={<CavernTimesPage />} />
-          <Route path="/guides" element={<ModernGuidesPage />} />
-        </Route>
-      </Routes>
+      <div className={sessionTheme === "arctic" ? "arctic-theme transition-colors duration-1000" : sessionTheme === "winter" ? "winter-theme transition-colors duration-1000" : "modern-theme transition-colors duration-1000"}>
+        {sessionTheme === 'arctic' && (
+          <>
+            <div className="aurora-layer aurora-blob-1" />
+            <div className="aurora-layer aurora-blob-2" />
+            <div className="aurora-layer aurora-blob-3" />
+            <ArcticSnow particleCount={24} speedScale={0.50} />
+          </>
+        )}
+                <Routes>
+          <Route path="/" element={<HomePage />} />
+          {/* Wrap all other routes with Layout for navigation */}
+          <Route element={
+            <Layout
+              region={region}
+              setRegion={setRegion}
+              patch={patch}
+              setPatch={setPatch}
+              isCustomPatch={isCustomPatch}
+              setIsCustomPatch={setIsCustomPatch}
+              entries={entries}
+              prevSessions={prevSessions}
+              onExportCSV={handleExportCSV}
+              sessionTheme={sessionTheme}
+              onThemeChange={setSessionTheme}
+            />
+          }>
+            <Route
+              path="/live"
+              element={
+                <ModernLiveSessionPage
+                  // State
+                  entries={entries}
+                  prevSessions={prevSessions}
+                  rollInput={rollInput}
+                  setRollInput={setRollInput}
+                  region={region}
+                  setRegion={setRegion}
+                  patch={patch}
+                  setPatch={setPatch}
+                  isCustomPatch={isCustomPatch}
+                  setIsCustomPatch={setIsCustomPatch}
+                  debugLogs={debugLogs}
+                  secondsLeft={secondsLeft}
+                  freqTab={freqTab}
+                  setFreqTab={setFreqTab}
+                  sessionTab={sessionTab}
+                  setSessionTab={setSessionTab}
+                  suggestTab={suggestTab}
+                  setSuggestTab={setSuggestTab}
+                  caesarInput={caesarInput}
+                  setCaesarInput={setCaesarInput}
+                  notes={notes}
+                  setNotes={setNotes}
+                  // Computed
+                  freq2={freq2}
+                  freq3={freq3}
+                  freq4={freq4}
+                  freq5={freq5}
+                  livePrediction={livePrediction}
+                  livePrediction3={livePrediction3}
+                  livePrediction4={livePrediction4}
+                  // Handlers
+                  handleAddRoll={handleAddRoll}
+                  handleStartSession={handleStartSession}
+                  handleStopSession={handleStopSession}
+                  handleRestartSession={handleRestartSession}
+                  handleDeleteEntry={handleDeleteEntry}
+                  handleDeleteSession={handleDeleteSession}
+                  handleClearDebugLogs={handleClearDebugLogs}
+                  handleImportDebugLogs={handleImportDebugLogs}
+                  handleImportRolls={handleImportRolls}
+                  isAutoImporting={isAutoImporting}
+                  // Refs
+                  pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+                  // Other
+                  isDebugMode={isDebugMode}
+                  kiyoDebugData={kiyoDebugData}
+                />
+              }
+            />
+            <Route
+              path="/long-string"
+              element={
+                <ModernLongStringPage
+                  debugLogs={debugLogs}
+                  onClearLogs={handleClearDebugLogs}
+                  onImportLogs={handleImportDebugLogs}
+                  isDebugMode={isDebugMode}
+                />
+              }
+            />
+            <Route
+              path="/kiyo"
+              element={
+                <ModernKiyoModePage
+                  region={region}
+                  setRegion={setRegion}
+                  patch={patch}
+                  setPatch={setPatch}
+                  isCustomPatch={isCustomPatch}
+                  setIsCustomPatch={setIsCustomPatch}
+                  entries={entries}
+                  prevSessions={prevSessions}
+                  debugLogs={debugLogs}
+                  kiyoDebugData={kiyoDebugData}
+                  handleKiyoToDebug={handleKiyoToDebug}
+                  handleKiyoDebugData={handleKiyoDebugData}
+                  pendingKiyoSnapshotsRef={pendingKiyoSnapshotsRef}
+                  onClearLogs={handleClearDebugLogs}
+                  onImportLogs={handleImportDebugLogs}
+                  isDebugMode={isDebugMode}
+                />
+              }
+            />
+            <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
+            <Route path="/banner-tracker" element={<BannerTracker />} />
+            <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
+            <Route path="/guides" element={<ModernGuidesPage />} />
+          </Route>
+        </Routes>
+      </div>
     </Suspense>
   );
 }
+

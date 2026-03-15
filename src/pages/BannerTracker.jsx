@@ -351,7 +351,7 @@ const BannerTracker = () => {
                     }
                 `}</style>
 
-                <div className="flex-1 rounded-[3rem] bg-slate-900/40 border border-slate-800/80 backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="flex-1 rounded-[3rem] bg-slate-900/40 border border-slate-800/80 backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col glacial-card">
                     
                     <div className="px-10 py-3 bg-slate-950/40 border-b border-white/[0.03]">
                         <div ref={topScrollRef} className="overflow-x-auto h-2 custom-scrollbar">
