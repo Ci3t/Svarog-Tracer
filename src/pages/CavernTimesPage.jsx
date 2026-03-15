@@ -37,6 +37,26 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
   ? '/api/hsr/cavern-clears'
   : 'https://svarog-tracer.vercel.app/api/hsr/cavern-clears';
 
+const CAVERN_PRESET_FLAGS_KEY = 'hsr_cavern_preset_flags_v1';
+const CAVERN_PRESET_DATA_KEY = 'hsr_cavern_preset_data_v1';
+const CAVERN_TEAM_PRESETS_KEY = 'hsr_cavern_team_presets_v1';
+const CAVERN_RECENT_ITEMS_KEY = 'hsr_cavern_recent_items_v1';
+const CAVERN_RECENT_TEAMS_KEY = 'hsr_cavern_recent_teams_v1';
+const TEAM_PRESETS_PAGE_SIZE = 6;
+const RECENT_ITEMS_LIMIT = 8;
+const RECENT_TEAMS_LIMIT = 8;
+
+const readStorageJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const baseUrl = import.meta.env.BASE_URL;
   const isGlacial = sessionTheme === 'arctic' || sessionTheme === 'winter';
@@ -86,6 +106,35 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   const [submitStatus, setSubmitStatus] = useState({ type: '', msg: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchAddedCount, setBatchAddedCount] = useState(0);
+  const [presetFlags, setPresetFlags] = useState(() =>
+    readStorageJson(CAVERN_PRESET_FLAGS_KEY, {
+      keepItem: true,
+      keepTeam: true,
+      keepDiscord: true,
+      keepMainStat: false
+    })
+  );
+  const [entryPreset, setEntryPreset] = useState(() =>
+    readStorageJson(CAVERN_PRESET_DATA_KEY, {
+      discord: '',
+      team: [],
+      relics: { itemId: '', mainStat: '' },
+      traces: { itemId: '' }
+    })
+  );
+  const [teamPresets, setTeamPresets] = useState(() =>
+    readStorageJson(CAVERN_TEAM_PRESETS_KEY, [])
+  );
+  const [teamPresetName, setTeamPresetName] = useState('');
+  const [teamPresetPage, setTeamPresetPage] = useState(0);
+  const [recentItemsByCategory, setRecentItemsByCategory] = useState(() =>
+    readStorageJson(CAVERN_RECENT_ITEMS_KEY, { relics: [], traces: [] })
+  );
+  const [recentTeams, setRecentTeams] = useState(() =>
+    readStorageJson(CAVERN_RECENT_TEAMS_KEY, [])
+  );
   const [modalRarityFilter, setModalRarityFilter] = useState(null);
   const [resetTimer, setResetTimer] = useState('');
 
@@ -126,6 +175,66 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     }
   }, [selectedDomain?.id]);
 
+  useEffect(() => {
+    if (!isFormOpen) {
+      setIsBatchMode(false);
+      setBatchAddedCount(0);
+    }
+  }, [isFormOpen]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_PRESET_FLAGS_KEY, JSON.stringify(presetFlags));
+  }, [presetFlags]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_PRESET_DATA_KEY, JSON.stringify(entryPreset));
+  }, [entryPreset]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_TEAM_PRESETS_KEY, JSON.stringify(teamPresets));
+  }, [teamPresets]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_RECENT_ITEMS_KEY, JSON.stringify(recentItemsByCategory));
+  }, [recentItemsByCategory]);
+
+  useEffect(() => {
+    localStorage.setItem(CAVERN_RECENT_TEAMS_KEY, JSON.stringify(recentTeams));
+  }, [recentTeams]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE) - 1);
+    setTeamPresetPage(prev => Math.min(prev, maxPage));
+  }, [teamPresets.length]);
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    if (presetFlags.keepItem) {
+      const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
+      setFormChars(entryPreset.team.slice(0, 4));
+    }
+    if (presetFlags.keepDiscord && entryPreset.discord) {
+      setFormDiscord(entryPreset.discord);
+    }
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+  }, [isFormOpen]);
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    if (presetFlags.keepItem) {
+      const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+  }, [category]);
+
   const SUBSTATS_LIST = [
     'Flat HP', 'Flat ATK', 'Flat DEF',
     'HP%', 'ATK%', 'DEF%',
@@ -155,11 +264,32 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const handleSwitchCategory = (newCat) => {
     if (newCat === category) return;
     setCategory(newCat);
-    // Reset form states to prevent data corruption between record types
-    setFormItemId('');
-    setFormChars([]);
+
+    // Keep sticky fields when enabled, otherwise reset.
+    if (!presetFlags.keepItem) {
+      setFormItemId('');
+    } else {
+      const presetItemId = newCat === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+      if (presetItemId) setFormItemId(presetItemId);
+    }
+    if (!presetFlags.keepTeam) {
+      setFormChars([]);
+    }
+    if (!presetFlags.keepDiscord) {
+      setFormDiscord('');
+    }
+
+    // Main stat only applies to relics; preserve only when requested.
+    if (newCat !== 'relics') {
+      setFormMainStat('');
+    } else if (!presetFlags.keepMainStat) {
+      setFormMainStat('');
+    } else if (entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+
+    // Always reset per-entry fields.
     setFormSubstats([]);
-    setFormMainStat('');
     setFormPurpleCount(0);
     setFormBlueCount(0);
     setFormTime('');
@@ -264,7 +394,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitStatus({ type: '', msg: '' });
-    const keepOpenForNext = submitModeRef.current === 'continue';
+    const keepOpenForNext = isBatchMode || submitModeRef.current === 'continue';
     submitModeRef.current = 'close';
 
     if (!formItemId || !formTime || !formDiscord) {
@@ -288,6 +418,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const payloadSubstats = category === 'traces'
         ? [`Purple:${formPurpleCount}`, `Blue:${formBlueCount}`]
         : formSubstats;
+      const submittedCategory = category;
+      const submittedItemId = formItemId;
+      const submittedChars = [...formChars];
+      const submittedDiscord = formDiscord.trim();
+      const submittedMainStat = formMainStat || '';
 
       const res = await fetch(API_URL, {
         method: 'POST',
@@ -314,6 +449,25 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       }
 
       setSubmitStatus({ type: 'success', msg: data.message });
+      setEntryPreset(prev => ({
+        ...prev,
+        discord: submittedDiscord || prev.discord,
+        team: submittedChars.length ? submittedChars : prev.team,
+        relics: {
+          ...prev.relics,
+          itemId: submittedCategory === 'relics' ? (submittedItemId || prev.relics.itemId) : prev.relics.itemId,
+          mainStat: submittedCategory === 'relics' ? (submittedMainStat || prev.relics.mainStat) : prev.relics.mainStat
+        },
+        traces: {
+          ...prev.traces,
+          itemId: submittedCategory === 'traces' ? (submittedItemId || prev.traces.itemId) : prev.traces.itemId
+        }
+      }));
+      addRecentItem(submittedCategory, submittedItemId);
+      addRecentTeam(submittedChars, submittedItemId, submittedCategory);
+      if (keepOpenForNext) {
+        setBatchAddedCount(prev => prev + 1);
+      }
 
       // OPTIMISTIC UI UPDATE
       const newReport = {
@@ -365,16 +519,24 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         }
         // fetchClears(); -> We remove this here to prevent the Vercel Blob race condition
         setFormTime('');
-        setFormChars([]);
         setFormNote('');
         setFormSubstats([]);
-        setFormMainStat('');
         setFormPurpleCount(0);
         setFormBlueCount(0);
         setShowItemSelector(false);
-        if (!keepOpenForNext) {
+        if (!presetFlags.keepTeam) {
+          setFormChars([]);
+        }
+        if (!presetFlags.keepDiscord) {
+          setFormDiscord('');
+        }
+        if (!presetFlags.keepItem) {
           setFormItemId('');
-        } else {
+        }
+        if (submittedCategory === 'relics' && !presetFlags.keepMainStat) {
+          setFormMainStat('');
+        }
+        if (keepOpenForNext) {
           setSubmitStatus({ type: 'success', msg: 'Record logged. Ready for next entry.' });
         }
       }, 1500);
@@ -390,6 +552,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const getItem = (id) => [...relicsData, ...materialsData].find(r => r.id === id) || { name: 'Unknown', image: '' };
   const getCharData = (id) => charactersData.find(c => c.id === id) || { name: '', image: '', rarity: 4 };
   const getCharImg = (id) => getCharData(id).image;
+  const teamPresetPageCount = Math.max(1, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE));
+  const teamPresetSliceStart = teamPresetPage * TEAM_PRESETS_PAGE_SIZE;
+  const visibleTeamPresets = teamPresets.slice(teamPresetSliceStart, teamPresetSliceStart + TEAM_PRESETS_PAGE_SIZE);
 
   const toggleFilter = (id) => {
     setActiveFilters(prev =>
@@ -528,6 +693,158 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const next = (current + dir + total) % total;
       return { ...prev, [time]: next };
     });
+  };
+
+  const togglePresetFlag = (key) => {
+    setPresetFlags(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const saveCurrentAsPreset = () => {
+    setEntryPreset(prev => ({
+      ...prev,
+      discord: formDiscord.trim() || prev.discord,
+      team: formChars.length ? [...formChars] : prev.team,
+      relics: {
+        ...prev.relics,
+        itemId: category === 'relics' ? (formItemId || prev.relics.itemId) : prev.relics.itemId,
+        mainStat: category === 'relics' ? (formMainStat || prev.relics.mainStat) : prev.relics.mainStat
+      },
+      traces: {
+        ...prev.traces,
+        itemId: category === 'traces' ? (formItemId || prev.traces.itemId) : prev.traces.itemId
+      }
+    }));
+    notify('Preset saved locally.', 'success');
+  };
+
+  const applySavedPreset = () => {
+    const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
+    if (presetFlags.keepItem && presetItemId) setFormItemId(presetItemId);
+    if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
+      setFormChars(entryPreset.team.slice(0, 4));
+    }
+    if (presetFlags.keepDiscord && entryPreset.discord) setFormDiscord(entryPreset.discord);
+    if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
+      setFormMainStat(entryPreset.relics.mainStat);
+    }
+    notify('Preset applied.', 'info');
+  };
+
+  const saveTeamPreset = () => {
+    if (formChars.length !== 4) {
+      notify('Build a full team of 4 before saving preset.', 'error');
+      return;
+    }
+
+    const name = teamPresetName.trim() || `Team ${teamPresets.length + 1}`;
+    const payload = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      chars: [...formChars],
+      updatedAt: Date.now()
+    };
+
+    setTeamPresets(prev => {
+      const existingIdx = prev.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx] = { ...next[existingIdx], chars: payload.chars, updatedAt: payload.updatedAt };
+        return next.sort((a, b) => b.updatedAt - a.updatedAt);
+      }
+      return [payload, ...prev].sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+
+    setTeamPresetPage(0);
+    setTeamPresetName('');
+    notify(`Team preset "${name}" saved.`, 'success');
+  };
+
+  const applyTeamPreset = (preset) => {
+    if (!preset?.chars?.length) return;
+    setFormChars(preset.chars.slice(0, 4));
+    setPresetFlags(prev => ({ ...prev, keepTeam: true }));
+    setTeamPresets(prev => prev.map(p => p.id === preset.id ? { ...p, updatedAt: Date.now() } : p).sort((a, b) => b.updatedAt - a.updatedAt));
+    addRecentTeam(preset.chars.slice(0, 4), formItemId, category);
+    notify(`Applied team preset "${preset.name}".`, 'info');
+  };
+
+  const deleteTeamPreset = (presetId) => {
+    setTeamPresets(prev => prev.filter(p => p.id !== presetId));
+    notify('Team preset removed.', 'info');
+  };
+
+  const moveTeamPresetPage = (direction) => {
+    setTeamPresetPage(prev => {
+      const maxPage = Math.max(0, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE) - 1);
+      return Math.max(0, Math.min(maxPage, prev + direction));
+    });
+  };
+
+  const addRecentItem = (cat, itemId) => {
+    if (!itemId) return;
+    setRecentItemsByCategory(prev => {
+      const list = Array.isArray(prev?.[cat]) ? prev[cat] : [];
+      const next = [itemId, ...list.filter(id => id !== itemId)].slice(0, RECENT_ITEMS_LIMIT);
+      return { ...prev, [cat]: next };
+    });
+  };
+
+  const addRecentTeam = (chars, itemId, cat) => {
+    if (!Array.isArray(chars) || chars.length !== 4) return;
+    const signature = [...chars].join('|');
+    const payload = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      chars: [...chars],
+      itemId: itemId || '',
+      category: cat || 'relics',
+      signature,
+      updatedAt: Date.now()
+    };
+    setRecentTeams(prev => {
+      const filtered = prev.filter(t => `${t.category || 'relics'}::${t.itemId || ''}::${t.signature}` !== `${payload.category}::${payload.itemId}::${payload.signature}`);
+      return [payload, ...filtered].slice(0, RECENT_TEAMS_LIMIT);
+    });
+  };
+
+  const applyRecentTeam = (recent) => {
+    if (!recent?.chars?.length) return;
+    setFormChars(recent.chars.slice(0, 4));
+    setPresetFlags(prev => ({ ...prev, keepTeam: true }));
+    setRecentTeams(prev =>
+      [{ ...recent, updatedAt: Date.now() }, ...prev.filter(t => t.id !== recent.id)].slice(0, RECENT_TEAMS_LIMIT)
+    );
+    notify('Recent team loaded.', 'info');
+  };
+
+  const resetCurrentTeam = () => {
+    setFormChars([]);
+    notify('Current team cleared.', 'info');
+  };
+
+  const resetAllPresetData = () => {
+    if (!window.confirm('Reset all preset memory, team presets, and recent shortcuts?')) return;
+
+    const defaultFlags = {
+      keepItem: true,
+      keepTeam: true,
+      keepDiscord: true,
+      keepMainStat: false
+    };
+    const defaultPreset = {
+      discord: '',
+      team: [],
+      relics: { itemId: '', mainStat: '' },
+      traces: { itemId: '' }
+    };
+
+    setPresetFlags(defaultFlags);
+    setEntryPreset(defaultPreset);
+    setTeamPresets([]);
+    setRecentItemsByCategory({ relics: [], traces: [] });
+    setRecentTeams([]);
+    setTeamPresetPage(0);
+    setTeamPresetName('');
+    notify('All preset data reset.', 'success');
   };
 
   // Group clear records by time AND substats for a specific domain
@@ -850,6 +1167,32 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                           Traces
                         </button>
                       </div>
+
+                      <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBatchMode(prev => {
+                            if (prev) setBatchAddedCount(0);
+                            if (!prev) {
+                              setTimeout(() => {
+                                applySavedPreset();
+                              }, 0);
+                            }
+                            return !prev;
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer border ${
+                          isBatchMode
+                            ? 'bg-emerald-500 text-black border-emerald-300 shadow-lg shadow-emerald-500/25'
+                            : 'bg-black/35 text-slate-400 border-white/10 hover:text-white hover:bg-white/5'
+                        }`}
+                        title="Batch mode keeps the modal open after each save"
+                      >
+                        <Users className="w-3 h-3" />
+                        Batch Mode {isBatchMode ? 'On' : 'Off'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -870,6 +1213,78 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   )}
 
                   <form onSubmit={handleSubmit} className={`flex flex-col gap-12 ${submitting ? 'pointer-events-none opacity-50' : ''}`}>
+                    <div className="modal-section rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 sm:p-5 flex flex-col gap-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.22em]">Sticky Preset Memory</h3>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.16em] mt-1">Reuse cavern/team/discord between entries</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveCurrentAsPreset}
+                            className="px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all cursor-pointer"
+                          >
+                            Save Current
+                          </button>
+                          <button
+                            type="button"
+                            onClick={applySavedPreset}
+                            className="px-3 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-black uppercase tracking-wider hover:bg-cyan-500/20 transition-all cursor-pointer"
+                          >
+                            Apply Preset
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepItem')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepItem
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Cavern
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepTeam')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepTeam
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Team
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepDiscord')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepDiscord
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Discord
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePresetFlag('keepMainStat')}
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            presetFlags.keepMainStat
+                              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                              : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Keep Main Stat
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                       <div className="flex flex-col gap-6 modal-section relative z-[60]">
                         <div className="flex items-center gap-3">
@@ -926,7 +1341,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 {currentItemData.filter(item => !modalRarityFilter || item.rarity === modalRarityFilter).map(item => (
                                   <div
                                     key={item.id}
-                                    onClick={() => { setFormItemId(item.id); setShowItemSelector(false); }}
+                                    onClick={() => {
+                                      setFormItemId(item.id);
+                                      addRecentItem(category, item.id);
+                                      setShowItemSelector(false);
+                                    }}
                                     className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
                                       category === 'traces' ? (
                                         item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
@@ -948,6 +1367,38 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             </div>
                           )}
                         </div>
+
+                        {Array.isArray(recentItemsByCategory[category]) && recentItemsByCategory[category].length > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Recent Caverns</span>
+                            <div className="flex flex-wrap gap-2">
+                              {recentItemsByCategory[category].slice(0, 6).map((id) => {
+                                const it = getItem(id);
+                                return (
+                                  <button
+                                    key={`recent-item-${category}-${id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormItemId(id);
+                                      addRecentItem(category, id);
+                                    }}
+                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                                      formItemId === id
+                                        ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+                                        : 'border-white/10 bg-black/25 text-slate-300 hover:border-white/20'
+                                    }`}
+                                  >
+                                    <div className="w-6 h-6 rounded-lg overflow-hidden">
+                                      <VisualIcon src={it.image} name={it.name} className="w-full h-full object-contain" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.1em] max-w-[120px] truncate">{it.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4 mt-2">
                           <div className="flex flex-col gap-2 relative text-slate-500">
                             <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 font-black">@</div>
@@ -1105,37 +1556,202 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 {submitStatus.msg}
                               </div>
                             )}
+                            {isBatchMode && (
+                              <div className="px-4 py-3 rounded-xl font-black text-xs border-2 bg-emerald-500/10 border-emerald-500/20 text-emerald-300 uppercase tracking-wider">
+                                Session Added: {batchAddedCount}
+                              </div>
+                            )}
                             {submitting && (
                               <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-widest animate-pulse">
                                 <RefreshCw className="w-4 h-4 animate-spin" /> Processing...
                               </div>
                             )}
                             <div className="flex items-center gap-3">
-                              <button
-                                type="submit"
-                                onClick={() => { submitModeRef.current = 'continue'; }}
-                                disabled={submitting || formChars.length !== 4}
-                                className={`px-6 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
-                                  submitting
-                                    ? 'bg-slate-800 text-slate-500'
-                                    : 'bg-emerald-500 text-black hover:bg-emerald-400'
-                                }`}
-                              >
-                                Add + Next
-                              </button>
-                              <button
-                                type="submit"
-                                onClick={() => { submitModeRef.current = 'close'; }}
-                                disabled={submitting || formChars.length !== 4}
-                                className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
-                                  submitting
-                                    ? 'bg-slate-800 text-slate-500'
-                                    : 'bg-[#fcd34d] text-black hover:bg-white'
-                                }`}
-                              >
-                                Push & Close
-                              </button>
+                              {isBatchMode ? (
+                                <>
+                                  <button
+                                    type="submit"
+                                    onClick={() => { submitModeRef.current = 'continue'; }}
+                                    disabled={submitting || formChars.length !== 4}
+                                    className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                      submitting
+                                        ? 'bg-slate-800 text-slate-500'
+                                        : 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                    }`}
+                                  >
+                                    Save Record
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsFormOpen(false)}
+                                    disabled={submitting}
+                                    className="px-6 py-4 font-black rounded-2xl border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1"
+                                  >
+                                    Done
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="submit"
+                                  onClick={() => { submitModeRef.current = 'close'; }}
+                                  disabled={submitting || formChars.length !== 4}
+                                  className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
+                                    submitting
+                                      ? 'bg-slate-800 text-slate-500'
+                                      : 'bg-[#fcd34d] text-black hover:bg-white'
+                                  }`}
+                                >
+                                  Push & Close
+                                </button>
+                              )}
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-3">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Team Presets</h4>
+                              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600 mt-1">Save multiple squads and load instantly</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                              {teamPresetPageCount > 1 && (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveTeamPresetPage(-1)}
+                                    disabled={teamPresetPage <= 0}
+                                    className="w-8 h-8 rounded-lg border border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:text-white hover:bg-cyan-500/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(34,211,238,0.15)]"
+                                  >
+                                    <ChevronLeft className="w-4 h-4" />
+                                  </button>
+                                  <span className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 bg-cyan-500/10 border border-cyan-400/25 rounded-lg px-2 py-1 min-w-[64px] text-center shadow-[0_0_10px_rgba(34,211,238,0.18)]">
+                                    {teamPresetPage + 1}/{teamPresetPageCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveTeamPresetPage(1)}
+                                    disabled={teamPresetPage >= teamPresetPageCount - 1}
+                                    className="w-8 h-8 rounded-lg border border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:text-white hover:bg-cyan-500/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-[0_0_8px_rgba(34,211,238,0.15)]"
+                                  >
+                                    <ChevronRight className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={teamPresetName}
+                                  onChange={(e) => setTeamPresetName(e.target.value)}
+                                  placeholder="Preset name"
+                                  maxLength={24}
+                                  className="w-36 sm:w-44 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white font-black outline-none focus:border-cyan-400/50"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveTeamPreset}
+                                  className="px-3 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-black uppercase tracking-wider hover:bg-cyan-500/20 transition-all cursor-pointer"
+                                >
+                                  Save Team
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={resetCurrentTeam}
+                                  className="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-[10px] font-black uppercase tracking-wider hover:bg-red-500/20 transition-all cursor-pointer"
+                                >
+                                  Reset Team
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {teamPresets.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {visibleTeamPresets.map((preset) => (
+                                <div
+                                  key={preset.id}
+                                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2 py-2"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => applyTeamPreset(preset)}
+                                    className="flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <span className="text-[10px] font-black text-slate-200 uppercase tracking-[0.12em] max-w-[110px] truncate">
+                                      {preset.name}
+                                    </span>
+                                    <div className="flex -space-x-1.5">
+                                      {preset.chars.slice(0, 4).map((cid, idx) => {
+                                        const c = getCharData(cid);
+                                        return (
+                                          <div
+                                            key={`${preset.id}-${cid}-${idx}`}
+                                            className={`w-6 h-6 rounded-full border overflow-hidden ${c.rarity === 5 ? 'border-orange-400' : 'border-purple-400'}`}
+                                          >
+                                            <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteTeamPreset(preset.id)}
+                                    className="w-7 h-7 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 flex items-center justify-center cursor-pointer transition-all"
+                                    title="Delete preset"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                              No team presets yet. Build a 4-character team and save it.
+                            </div>
+                          )}
+
+                          {recentTeams.length > 0 && (
+                            <div className="flex flex-col gap-2 pt-1">
+                              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Recent Teams</span>
+                              <div className="flex flex-wrap gap-2">
+                                {recentTeams.slice(0, 6).map((recent) => (
+                                  <button
+                                    key={`recent-team-${recent.id}`}
+                                    type="button"
+                                    onClick={() => applyRecentTeam(recent)}
+                                    className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2.5 py-1.5 hover:border-white/20 transition-all cursor-pointer"
+                                  >
+                                    <div className="flex -space-x-1.5">
+                                      {recent.chars.slice(0, 4).map((cid, idx) => {
+                                        const c = getCharData(cid);
+                                        return (
+                                          <div
+                                            key={`${recent.id}-${cid}-${idx}`}
+                                            className={`w-6 h-6 rounded-full border overflow-hidden ${c.rarity === 5 ? 'border-orange-400' : 'border-purple-400'}`}
+                                          >
+                                            <VisualIcon src={c.image} name={c.name} className="w-full h-full object-cover" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
+                                      {recent.category === 'traces' ? 'Trace' : 'Relic'}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={resetAllPresetData}
+                              className="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-[10px] font-black uppercase tracking-wider hover:bg-red-500/20 transition-all cursor-pointer"
+                            >
+                              Reset All Presets
+                            </button>
                           </div>
                         </div>
 
