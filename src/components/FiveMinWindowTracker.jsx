@@ -16,6 +16,7 @@ function useWindowDerived(windowInfo, analyzeWavePatterns) {
   const warmupRemaining = Math.max(0, Math.floor(windowInfo?.warmupRemaining ?? 0));
   const rollsInWindow = Math.max(0, Math.floor(windowInfo?.rollsInWindow ?? 0));
   const isNearTransition = secondsRemaining <= 20;
+  const isCriticalTimer = secondsRemaining <= 30;
   const isWarmup = warmupRemaining > 0;
 
   const c2Conf = analyzeWavePatterns?.columns?.[0]?.confidence ?? 0;
@@ -36,9 +37,23 @@ function useWindowDerived(windowInfo, analyzeWavePatterns) {
     : quality === "WARM-UP" ? "text-cyan-400"
     : "text-rose-400";
 
-  const barColor = isNearTransition ? "bg-rose-400" : quality === "GOLDEN" ? "bg-emerald-400" : "bg-emerald-400"; // Default to green for modern
+  const progressStage = (() => {
+    if (progressPct >= 85 || secondsRemaining <= 45) return "danger";
+    if (progressPct >= 60) return "warning";
+    return "safe";
+  })();
 
-  return { secondsRemaining, progressPct, rollsInWindow, warmupRemaining, isNearTransition, isWarmup, quality, qualityColor, barColor, c2Pct, c3Pct };
+  const barColor =
+    progressStage === "danger" ? "bg-rose-400"
+      : progressStage === "warning" ? "bg-amber-400"
+        : "bg-emerald-400";
+
+  const timerColor =
+    isCriticalTimer ? "text-rose-300 animate-pulse"
+      : progressStage === "warning" ? "text-amber-300"
+        : "text-slate-300";
+
+  return { secondsRemaining, progressPct, rollsInWindow, warmupRemaining, isNearTransition, isCriticalTimer, isWarmup, quality, qualityColor, barColor, timerColor, progressStage, c2Pct, c3Pct };
 }
 
 /**
@@ -47,19 +62,19 @@ function useWindowDerived(windowInfo, analyzeWavePatterns) {
  */
 export function FiveMinProgressBar({ windowInfo, analyzeWavePatterns }) {
   if (!windowInfo) return null;
-  const { secondsRemaining, progressPct, isNearTransition, quality, qualityColor, barColor } = useWindowDerived(windowInfo, analyzeWavePatterns);
+  const { secondsRemaining, progressPct, isNearTransition, quality, qualityColor, barColor, timerColor, progressStage } = useWindowDerived(windowInfo, analyzeWavePatterns);
 
   return (
     <div className="mb-2">
       {/* Bar row */}
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="window-progress-track flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-cyan-400/45 shadow-inner shadow-cyan-500/10">
           <div
-            className={`h-full rounded-full transition-all duration-1000 window-progress-bar ${barColor}`}
+            className={`h-full rounded-full transition-all duration-1000 window-progress-bar progress-${progressStage} ${barColor}`}
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        <span className={`text-xs font-mono font-bold shrink-0 ${isNearTransition ? "text-rose-300 animate-pulse" : "text-slate-300"}`}>
+        <span className={`text-xs font-mono font-bold shrink-0 ${timerColor}`}>
           {formatMMSS(secondsRemaining)}
         </span>
         <span className={`text-[10px] font-semibold shrink-0 ${qualityColor}`}>
@@ -103,7 +118,7 @@ export function WindowStatsMini({ windowInfo, analyzeWavePatterns }) {
  */
 export default function FiveMinWindowTracker({ windowInfo, analyzeWavePatterns }) {
   if (!windowInfo) return null;
-  const { secondsRemaining, progressPct, rollsInWindow, warmupRemaining, isNearTransition, isWarmup, quality, qualityColor, barColor, c2Pct, c3Pct } = useWindowDerived(windowInfo, analyzeWavePatterns);
+  const { secondsRemaining, progressPct, rollsInWindow, warmupRemaining, isNearTransition, isCriticalTimer, isWarmup, quality, qualityColor, barColor, progressStage, c2Pct, c3Pct } = useWindowDerived(windowInfo, analyzeWavePatterns);
 
   return (
     <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/95 backdrop-blur-sm p-3 shadow-lg h-full">
@@ -127,13 +142,13 @@ export default function FiveMinWindowTracker({ windowInfo, analyzeWavePatterns }
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-300">Next boundary in</div>
-          <div className={"text-lg font-black " + (isNearTransition ? "text-rose-300" : "text-cyan-200")}>
+          <div className={"text-lg font-black " + (isCriticalTimer ? "text-rose-300 animate-pulse" : "text-cyan-200")}>
             {formatMMSS(secondsRemaining)}
           </div>
         </div>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progressPct}%` }} />
+      <div className="window-progress-track mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-800 border border-cyan-400/45 shadow-inner shadow-cyan-500/10">
+        <div className={`h-full rounded-full window-progress-bar progress-${progressStage} ${barColor}`} style={{ width: `${progressPct}%` }} />
       </div>
       {isNearTransition && <div className="mt-2 text-xs text-rose-200">⚠️ Window transition soon — patterns may shift.</div>}
       {isWarmup && <div className="mt-2 text-xs text-yellow-100">Warm-up: do {warmupRemaining} more roll(s) to stabilize.</div>}

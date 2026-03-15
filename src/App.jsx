@@ -28,7 +28,6 @@ import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
 import HomePage from "./pages/HomePage"; // 🔥 NEW Landing Page
 import BannerTracker from "./pages/BannerTracker"; // 🔥 NEW Banner Tracker
 import CavernTimesPage from "./pages/CavernTimesPage"; // 🔥 NEW Caverns Page
-import ThemeSwitcher from "./components/ThemeSwitcher"; // ❄️ NEW Theme Switcher
 import ArcticSnow from "./components/snow/ArcticSnow";
 import "./styles/arctic-theme.css"; // ❄️ NEW Arctic Theme
 import "./styles/winter-theme.css"; // ❄️ Modern Winter Theme
@@ -922,7 +921,7 @@ export default function App() {
         </div>
       }
     >
-      <div className={sessionTheme === "arctic" ? "arctic-theme transition-colors duration-1000" : sessionTheme === "winter" ? "winter-theme transition-colors duration-1000" : "transition-colors duration-1000"}>
+      <div className={sessionTheme === "arctic" ? "arctic-theme transition-colors duration-1000" : sessionTheme === "winter" ? "winter-theme transition-colors duration-1000" : "modern-theme transition-colors duration-1000"}>
         {sessionTheme === 'arctic' && (
           <>
             <div className="aurora-layer aurora-blob-1" />
@@ -931,8 +930,7 @@ export default function App() {
             <ArcticSnow particleCount={24} speedScale={0.50} />
           </>
         )}
-        <ThemeSwitcher currentTheme={sessionTheme} onThemeChange={setSessionTheme} />
-        <Routes>
+                <Routes>
           <Route path="/" element={<HomePage />} />
           {/* Wrap all other routes with Layout for navigation */}
           <Route element={
@@ -947,6 +945,7 @@ export default function App() {
               prevSessions={prevSessions}
               onExportCSV={handleExportCSV}
               sessionTheme={sessionTheme}
+              onThemeChange={setSessionTheme}
             />
           }>
             <Route
@@ -1047,3 +1046,4 @@ export default function App() {
     </Suspense>
   );
 }
+

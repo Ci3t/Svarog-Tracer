@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
+import { Palette } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
 
@@ -17,11 +18,14 @@ export default function Layout({
   prevSessions,
   onExportCSV,
   sessionTheme = "modern",
+  onThemeChange = () => {},
 }) {
   const location = useLocation();
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
+  const themeMenuRef = useRef(null);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const isModernTheme = sessionTheme === "modern";
   const activeTabTextClass = isModernTheme ? "text-purple-200" : "text-white";
   const inactiveTabTextClass = isModernTheme ? "text-slate-400 hover:text-purple-200" : "text-slate-400 hover:text-slate-200";
@@ -57,6 +61,16 @@ export default function Layout({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [updateActiveIndicator]);
+
+  useEffect(() => {
+    const onPointerDown = (event) => {
+      if (!themeMenuRef.current?.contains(event.target)) {
+        setThemeMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   // GSAP: Initial animation on mount
   useEffect(() => {
@@ -232,6 +246,56 @@ export default function Layout({
                   📚 Guides
                 </NavLink>
               </nav>
+
+              {/* Theme Switch (Paint Dropdown) */}
+              <div ref={themeMenuRef} className="relative w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setThemeMenuOpen(prev => !prev)}
+                  className="w-full sm:w-11 h-10 sm:h-11 rounded-xl sm:rounded-full border border-cyan-400/30 bg-slate-900/70 text-cyan-200 hover:text-white hover:border-cyan-300/50 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(34,211,238,0.2)] cursor-pointer"
+                  title="Theme menu"
+                  aria-label="Open theme menu"
+                >
+                  <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+                {themeMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-slate-700/60 bg-slate-900/95 backdrop-blur-xl p-2 z-[70] shadow-2xl">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 px-1 pb-1">
+                      Theme
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onThemeChange('modern');
+                          setThemeMenuOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
+                          sessionTheme === 'modern'
+                            ? 'bg-violet-500/25 text-violet-100 border-violet-400/40'
+                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                        }`}
+                      >
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onThemeChange('arctic');
+                          setThemeMenuOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
+                          sessionTheme === 'arctic'
+                            ? 'bg-cyan-500/20 text-cyan-100 border-cyan-400/40'
+                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                        }`}
+                      >
+                        Glacial
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Export Button */}
               <button

@@ -97,6 +97,21 @@
   box-shadow: 0 0 10px rgba(125, 211, 252, 0.4) !important;
 }
 
+.arctic-theme .window-progress-bar.progress-safe {
+  background: linear-gradient(90deg, #22c55e, #10b981) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35) !important;
+}
+
+.arctic-theme .window-progress-bar.progress-warning {
+  background: linear-gradient(90deg, #facc15, #f59e0b) !important;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.35) !important;
+}
+
+.arctic-theme .window-progress-bar.progress-danger {
+  background: linear-gradient(90deg, #fb7185, #ef4444) !important;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.38) !important;
+}
+
 /* Sticky Header Progress Override */
 .arctic-theme .bg-emerald-500 {
   background: linear-gradient(90deg, #7dd3fc, #0ea5e9) !important;

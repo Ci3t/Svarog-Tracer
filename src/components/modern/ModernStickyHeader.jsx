@@ -43,13 +43,14 @@ export default function ModernStickyHeader({
   // Calculate progress percentage
   const totalSeconds = 300; // 5 minutes
   const progressPercent = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
-  
-  // Color based on time remaining
-  const getColor = () => {
-    if (secondsLeft > 180) return 'from-emerald-500 to-green-500'; // > 3 min
-    if (secondsLeft > 60) return 'from-amber-500 to-yellow-500';   // > 1 min
-    return 'from-red-500 to-pink-500';                              // < 1 min
-  };
+  const progressStage = progressPercent >= 90 ? 'danger' : progressPercent >= 70 ? 'warning' : 'safe';
+  const isCriticalTimer = secondsLeft <= 30;
+  const progressColorClass =
+    progressStage === 'danger'
+      ? 'bg-gradient-to-r from-red-500 to-pink-500'
+      : progressStage === 'warning'
+        ? 'bg-gradient-to-r from-amber-500 to-yellow-500'
+        : 'bg-gradient-to-r from-emerald-500 to-green-500';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -113,7 +114,11 @@ export default function ModernStickyHeader({
 
           {/* Right: Countdown Timer + Start/Stop/Restart Buttons */}
           <div className="flex items-center justify-between lg:justify-end gap-3 lg:min-w-[220px]">
-            <div className="text-2xl sm:text-3xl font-black font-mono tracking-tighter bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
+            <div className={`text-2xl sm:text-3xl font-black font-mono tracking-tighter ${
+              isCriticalTimer
+                ? 'text-red-400 animate-pulse drop-shadow-[0_0_8px_rgba(248,113,113,0.45)]'
+                : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
+            }`}>
               {timeStr}
             </div>
             <div className="flex items-center gap-2">
@@ -151,9 +156,9 @@ export default function ModernStickyHeader({
         </div>
 
         {/* Bottom: Full-width Progress Bar */}
-        <div className="mt-3 h-1.5 sm:h-2 glacial-progress-track rounded-full overflow-hidden relative">
+        <div className="mt-3 h-1.5 sm:h-2 glacial-progress-track rounded-full overflow-hidden relative border border-cyan-400/45 shadow-inner shadow-cyan-500/10">
           <div
-            className={`h-full bg-emerald-500 transition-all duration-1000 ease-linear relative`}
+            className={`h-full transition-all duration-1000 ease-linear relative window-progress-bar progress-${progressStage} ${progressColorClass}`}
             style={{ width: `${progressPercent}%` }}
           >
             {/* Ice Spark Head */}
