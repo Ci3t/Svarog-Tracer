@@ -1125,7 +1125,7 @@ export default function KiyoModeCard({
 
         <div className="flex flex-col sm:flex-row gap-3 items-stretch">
           {/* Roll Input + window stats below it */}
-          <div className="flex-1 min-w-0 glacial-card kiyo-snow-card p-3">
+          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
             <RollInput
               testInput={testInput}
               setTestInput={setTestInput}
@@ -1139,7 +1139,7 @@ export default function KiyoModeCard({
           </div>
 
           {/* Caesar Shift */}
-          <div className="flex-1 min-w-0 glacial-card kiyo-snow-card p-3">
+          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
             <CompactCaesarShift
               caesarInput={caesarInput}
               setCaesarInput={setCaesarInput}
@@ -1151,7 +1151,7 @@ export default function KiyoModeCard({
       {/* ── Added Rolls + Wave Pairing Table (side by side) ───────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.5fr)', gap: '14px', alignItems: 'start' }}>
         {/* LEFT: Added Rolls (no old WaveAnalysisDisplay child) */}
-        <div className="glacial-card kiyo-snow-card p-2">
+        <div className="theme-glass-card kiyo-snow-card p-2">
           <AddedRollsPanel
             testRolls={testRolls}
             setTestRolls={setTestRolls}
@@ -1162,7 +1162,7 @@ export default function KiyoModeCard({
         </div>
 
         {/* RIGHT: Wave Pairing Table */}
-        <div className="glacial-card kiyo-snow-card p-2">
+        <div className="theme-glass-card kiyo-snow-card p-2">
           {pairingViz && pairingViz.length > 0 && (
             <WavePairingTable
               pairingViz={pairingViz}

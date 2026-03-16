@@ -64,12 +64,12 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
   const GuideComponent = guideComponent;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="theme-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Modal Container */}
-      <div className={`relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl border border-slate-700/50 overflow-hidden ${showFullscreen ? 'w-full h-full' : 'w-full max-w-6xl h-[90vh]'} transition-all duration-300`}>
+      <div className={`theme-modal-shell relative overflow-hidden ${showFullscreen ? 'w-full h-full' : 'w-full max-w-6xl h-[90vh]'} transition-all duration-300`}>
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="theme-modal-header sticky top-0 z-10 flex items-center justify-between p-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{guideIcon}</span>
             <h2 className="text-xl font-bold text-white">{guideTitle}</h2>
@@ -78,7 +78,7 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
             {/* Fullscreen toggle */}
             <button
               onClick={() => setShowFullscreen(!showFullscreen)}
-              className="p-3 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="theme-icon-button p-3 rounded-xl cursor-pointer"
               title={showFullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,7 +92,7 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
             {/* Close button */}
             <button
               onClick={onClose}
-              className="p-3 rounded-xl bg-slate-800/50 hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+              className="theme-icon-button p-3 rounded-xl cursor-pointer hover:text-red-300"
               title="Close (Esc)"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,9 +115,9 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
           {!GuideComponent && guideContent && (
             <div className="flex h-full">
               {/* Table of Contents (Desktop only) */}
-              <div className="hidden lg:block w-64 border-r border-slate-700/50 bg-slate-900/30 overflow-y-auto flex-shrink-0">
-                <div className="p-4 sticky top-0 bg-slate-900/50 backdrop-blur-sm border-b border-slate-700/30">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="theme-subpanel hidden w-64 overflow-y-auto border-r flex-shrink-0 lg:block">
+                <div className="theme-modal-header sticky top-0 p-4 backdrop-blur-sm">
+                  <h3 className="theme-text-muted text-xs font-bold uppercase tracking-wider">
                     Table of Contents
                   </h3>
                 </div>
@@ -126,10 +126,10 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
                     <button
                       key={index}
                       onClick={() => scrollToSection(heading.id)}
-                      className={`block w-full text-left px-3 py-1.5 rounded text-xs hover:bg-slate-800/50 transition-colors ${
-                        heading.level === 1 ? 'font-bold text-purple-400 mt-2' :
-                        heading.level === 2 ? 'text-slate-300 ml-3' :
-                        'text-slate-400 ml-6'
+                      className={`block w-full rounded px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/5 ${
+                        heading.level === 1 ? 'theme-text-accent mt-2 font-bold' :
+                        heading.level === 2 ? 'ml-3 text-slate-300' :
+                        'theme-text-muted ml-6'
                       }`}
                     >
                       {heading.text}
@@ -140,24 +140,7 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
 
               {/* Markdown Content */}
               <div className="flex-1 overflow-y-auto p-6 lg:p-8">
-                <article className="prose prose-invert prose-slate max-w-none
-                  prose-headings:text-white prose-headings:font-bold
-                  prose-h1:text-3xl prose-h1:mb-4 prose-h1:text-purple-400 prose-h1:border-b prose-h1:border-slate-700 prose-h1:pb-3
-                  prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-3 prose-h2:text-violet-300
-                  prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-slate-200
-                  prose-p:text-slate-300 prose-p:leading-relaxed
-                  prose-a:text-purple-400 prose-a:no-underline hover:prose-a:text-purple-300
-                  prose-strong:text-white prose-strong:font-bold
-                  prose-code:text-emerald-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-                  prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700/50 prose-pre:shadow-xl
-                  prose-ul:text-slate-300 prose-ol:text-slate-300
-                  prose-li:my-1
-                  prose-blockquote:border-l-purple-500 prose-blockquote:bg-slate-800/30 prose-blockquote:text-slate-300
-                  prose-table:text-sm
-                  prose-th:bg-slate-800/50 prose-th:text-purple-400 prose-th:font-bold
-                  prose-td:border-slate-700/50
-                  prose-hr:border-slate-700/50
-                ">
+                <article className="theme-guide-prose prose prose-invert max-w-none prose-headings:font-bold prose-h1:text-3xl prose-h1:mb-4 prose-h1:border-b prose-h1:pb-3 prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-3 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-2 prose-p:leading-relaxed prose-a:no-underline hover:prose-a:opacity-80 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:shadow-xl prose-li:my-1 prose-table:text-sm prose-th:font-bold">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{

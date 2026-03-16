@@ -7,7 +7,7 @@ import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCar
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import ModernTimerCard from '../components/modern/ModernTimerCard';
 
-export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onImportLogs, isDebugMode = false }) {
+export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onImportLogs, isDebugMode = false, sessionTheme }) {
   const [longString, setLongString] = useState('');
   const [region, setRegion] = useState('Global');
   const [secondsLeft, setSecondsLeft] = useState(300); // 5 minutes
@@ -203,20 +203,20 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
   return (
     <div className="min-h-screen bg-transparent text-slate-100">
-      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+      <div className="theme-page-shell max-w-[1920px] mx-auto">
         {/* Top Section: Input + Prediction */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-3 sm:mb-4 lg:mb-6">
           {/* Input Area (60% / 3 columns) */}
           <div className="lg:col-span-3">
-            <div className="glacial-card p-4 sm:p-6 overflow-visible">
+            <div className="theme-glass-card p-4 sm:p-6 overflow-visible">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                  <div className="theme-badge-accent rounded-lg p-2">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.344l-3.118-.624A5 5 0 012 10.122V4a2 2 0 012-2h12a2 2 0 012 2v11.428l2.428 2.428a2 2 0 003.414-1.414V4a2 2 0 00-2-2h-3.428" />
                     </svg>
                   </div>
-                  <h2 className="text-xs sm:text-sm font-black text-purple-400 uppercase tracking-[0.2em]">
+                  <h2 className="theme-text-accent text-xs sm:text-sm font-black uppercase tracking-[0.2em]">
                     Long String Lab
                   </h2>
                 </div>
@@ -225,7 +225,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                   <select
                     value={region}
                     onChange={(e) => setRegion(e.target.value)}
-                    className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 appearance-none min-w-[100px]"
+                    className="theme-select min-w-[100px] flex-1 appearance-none rounded-xl px-3 py-2 text-xs sm:flex-none"
                   >
                     <option>Global</option>
                     <option>CN</option>
@@ -235,11 +235,11 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                   <div className="flex items-center gap-2 flex-1 sm:flex-none">
                     <button
                       onClick={handleDownload}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold transition-all active:scale-95"
+                      className="theme-action-secondary flex-1 rounded-xl px-4 py-2 text-xs font-bold transition-all active:scale-95 sm:flex-none"
                     >
                       DOWNLOAD
                     </button>
-                    <label className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer text-center">
+                    <label className="theme-action-primary flex-1 cursor-pointer rounded-xl px-4 py-2 text-center text-xs font-bold transition-all active:scale-95 sm:flex-none">
                       IMPORT
                       <input
                         type="file"
@@ -256,19 +256,19 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                 value={longString}
                 onChange={(e) => setLongString(e.target.value)}
                 placeholder="Paste your long string here (e.g., 213421234123...)"
-                className="w-full h-32 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-mono text-sm resize-none"
+                className="theme-textarea h-32 w-full resize-none rounded-xl px-4 py-3 font-mono text-sm"
               />
 
               {/* Character Count */}
-              <div className="mt-2 text-right text-xs text-slate-500">
+              <div className="theme-text-muted mt-2 text-right text-xs">
                 {longString.length} characters
               </div>
 
               {/* Rolls (Pairs) */}
               {decoded.pairs.length > 0 && (
-                <div className="mt-4 p-3 bg-slate-800/30 rounded-lg border border-purple-500/20">
-                  <div className="text-xs text-slate-500 mb-1">Rolls:</div>
-                  <div className="text-purple-300 font-mono text-sm">
+                <div className="theme-subpanel mt-4 rounded-lg border p-3">
+                  <div className="theme-text-muted mb-1 text-xs">Rolls:</div>
+                  <div className="theme-text-accent font-mono text-sm">
                     {decoded.pairs.join(' ')}
                   </div>
                 </div>
@@ -276,15 +276,15 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
               {/* Decoded Rolls (4xxx format) */}
               {decoded.rolls.length > 0 && (
-                <div className="mt-4 p-3 bg-slate-800/30 rounded-lg border border-cyan-500/20">
-                  <div className="text-xs text-slate-500 mb-1">Decoded Rolls:</div>
-                  <div className="text-cyan-300 font-mono text-sm">
+                <div className="theme-subpanel mt-4 rounded-lg border p-3">
+                  <div className="theme-text-muted mb-1 text-xs">Decoded Rolls:</div>
+                  <div className="theme-text-accent font-mono text-sm">
                     {decoded.rolls.join(' ')}
                   </div>
                 </div>
               )}
             </div>
-              <div className="glacial-card p-4">
+              <div className="theme-glass-card p-4">
               <ModernTimerCard
                 secondsLeft={secondsLeft}
                 onStart={handleStartTimer}
@@ -317,13 +317,13 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
             ────────────────────────────────────────────────────────── */}
 
             {decoded.rolls.length < 6 ? (
-              <div className="glacial-card py-8 px-6 flex items-center justify-center">
-                <p className="text-slate-500 text-sm">Need at least 6 rolls for prediction</p>
+              <div className="theme-glass-card py-8 px-6 flex items-center justify-center">
+                <p className="theme-text-muted text-sm">Need at least 6 rolls for prediction</p>
               </div>
             ) : (
               <>
                 {/* ── BBP CARD (Permanently shown) ───────────────────── */}
-                <div className="glacial-card overflow-visible">
+                <div className="theme-glass-card overflow-visible">
                   <ModernPairPredictorCard
                     entries={decoded.rolls.map(r => ({ translated: r }))}
                   />
@@ -341,26 +341,26 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
             {/* History Section */}
             {stringHistory.length > 0 && (
-              <div className="glacial-card p-4 mt-4">
+              <div className="theme-glass-card p-4 mt-4">
                 <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
                   History
                 </h3>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {stringHistory.map((entry, index) => (
-                    <div key={index} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30 hover:border-purple-500/30 transition-colors">
+                    <div key={index} className="theme-subpanel rounded-lg p-3 transition-colors hover:border-[color:var(--theme-border-strong)]">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs text-slate-400 mb-1">
+                          <div className="theme-text-muted mb-1 text-xs">
                             {new Date(entry.timestamp).toLocaleString()} • {entry.region}
                           </div>
-                          <div className=" text-xs text-slate-500">
+                          <div className="theme-text-soft text-xs">
                             {entry.rollCount} rolls
                           </div>
                         </div>
                         <div className="flex gap-1 shrink-0">
                           <button
                             onClick={() => handleLoadFromHistory(entry)}
-                            className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-xs rounded border border-purple-500/30 transition-colors"
+                            className="theme-action-secondary theme-text-accent rounded border px-2 py-1 text-xs transition-colors"
                             title="Load"
                           >
                             Load
@@ -374,7 +374,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
                           </button>
                         </div>
                       </div>
-                      <div className="text-xs font-mono text-slate-300 truncate">
+                      <div className="truncate text-xs font-mono text-slate-300">
                         {entry.string.length > 55 ? entry.string.substring(0, 55) + '...' : entry.string}
                       </div>
                     </div>
@@ -387,7 +387,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
 
         {/* Bottom Section: Quick Stats (Compact) */}
         {(decoded.cleaned.length > 0 || frequency.length > 0) && (
-          <div className="glacial-card p-4">
+          <div className="theme-glass-card p-4">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Quick Stats
             </h3>
@@ -395,30 +395,30 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
             {/* Compact Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
               {/* Total Digits */}
-              <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+              <div className="theme-subpanel rounded-lg p-2 text-center">
                 <div className="text-xl font-bold text-white">{decoded.cleaned.length}</div>
-                <div className="text-[10px] text-slate-500">Total Digits</div>
+                <div className="theme-text-muted text-[10px]">Total Digits</div>
               </div>
 
               {/* Decoded Rolls */}
-              <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+              <div className="theme-subpanel rounded-lg p-2 text-center">
                 <div className="text-xl font-bold text-white">{decoded.rolls.length}</div>
-                <div className="text-[10px] text-slate-500">Decoded Rolls</div>
+                <div className="theme-text-muted text-[10px]">Decoded Rolls</div>
               </div>
 
               {/* Unique Values */}
               {frequency.length > 0 && (
-                <div className="bg-slate-800/30 rounded-lg p-2 text-center border border-slate-700/30">
+                <div className="theme-subpanel rounded-lg p-2 text-center">
                   <div className="text-xl font-bold text-white">{frequency.length}</div>
-                  <div className="text-[10px] text-slate-500">Unique Values</div>
+                  <div className="theme-text-muted text-[10px]">Unique Values</div>
                 </div>
               )}
 
               {/* Most Frequent */}
               {frequency.length > 0 && (
-                <div className="bg-emerald-500/10 rounded-lg p-2 text-center border border-emerald-500/20">
-                  <div className="text-xl font-bold text-emerald-400">{frequency[0].value}</div>
-                  <div className="text-[10px] text-slate-500">Most ({frequency[0].pct}%)</div>
+                <div className="theme-badge-accent rounded-lg p-2 text-center">
+                  <div className="theme-text-accent text-xl font-bold">{frequency[0].value}</div>
+                  <div className="theme-text-muted text-[10px]">Most ({frequency[0].pct}%)</div>
                 </div>
               )}
 
@@ -426,15 +426,15 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
               {frequency.length > 1 && frequency[frequency.length - 1] && (
                 <div className="bg-red-500/10 rounded-lg p-2 text-center border border-red-500/20">
                   <div className="text-xl font-bold text-red-400">{frequency[frequency.length - 1].value}</div>
-                  <div className="text-[10px] text-slate-500">Least ({frequency[frequency.length - 1].pct}%)</div>
+                  <div className="theme-text-muted text-[10px]">Least ({frequency[frequency.length - 1].pct}%)</div>
                 </div>
               )}
 
               {/* Dominant (if exists) */}
               {frequency.length > 0 && parseFloat(frequency[0].pct) > 40 && (
-                <div className="bg-purple-500/10 rounded-lg p-2 text-center border border-purple-500/20">
-                  <div className="text-xl font-bold text-purple-400">{parseFloat(frequency[0].pct).toFixed(0)}%</div>
-                  <div className="text-[10px] text-slate-500">Dominant</div>
+                <div className="theme-badge-accent rounded-lg p-2 text-center">
+                  <div className="theme-text-accent text-xl font-bold">{parseFloat(frequency[0].pct).toFixed(0)}%</div>
+                  <div className="theme-text-muted text-[10px]">Dominant</div>
                 </div>
               )}
             </div>
@@ -442,7 +442,7 @@ export default function ModernLongStringPage({ debugLogs = [], onClearLogs, onIm
         )}
 
         {/* Debug Panel */}
-        <div className="glacial-card p-4 mt-6">
+        <div className="theme-glass-card p-4 mt-6">
           <ModernDebugPanel
             debugLogs={debugLogs}
             onClearLogs={onClearLogs}

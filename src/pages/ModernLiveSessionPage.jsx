@@ -71,7 +71,7 @@ export default function ModernLiveSessionPage({
   isAutoImporting, // NEW
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-transparent">
       {/* STICKY HEADER - Timer + Progress + Roll Input */}
       <ModernStickyHeader
         secondsLeft={secondsLeft}
@@ -85,7 +85,7 @@ export default function ModernLiveSessionPage({
         entriesCount={entries.length}
       />
 
-      <div className="max-w-[1920px] mx-auto p-2 sm:p-3 lg:p-4">
+      <div className="max-w-[1920px] mx-auto p-2 sm:p-3 lg:p-4 mt-2 sm:mt-4 lg:mt-6">
         {/* 3-Column Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
           
@@ -97,12 +97,12 @@ export default function ModernLiveSessionPage({
             */}
 
             {/* 🧪 Experimental Pair Predictor - NOW THE MAIN PREDICTOR */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernPairPredictorCard entries={entries} />
             </div>
 
             {/* Caesar Shift */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernCaesarCard
                 caesarInput={caesarInput}
                 setCaesarInput={setCaesarInput}
@@ -110,7 +110,7 @@ export default function ModernLiveSessionPage({
             </div>
 
             {/* Default Order / Modes Info */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernDefaultOrderCard />
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function ModernLiveSessionPage({
           {/* CENTER COLUMN - Session Table, BBP/MARK Mode, Notes */}
           <div className="lg:col-span-6 space-y-4">
             {/* Session Table */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernSessionTable
                 sessionTab={sessionTab}
                 setSessionTab={setSessionTab}
@@ -154,21 +154,21 @@ export default function ModernLiveSessionPage({
 
             {/* 3-str tracking */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
-              <div className="glacial-card">
+              <div className="theme-glass-card">
                 {/* Predicted Mode (3-str) */}
                 <LiveTrackingTable3str entries={entries} />
               </div>
             )}
 
             {/* Notes Card */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernNotesCard
                 notes={notes}
                 setNotes={setNotes}
               />
             </div>
             {/* Debug Panel */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernDebugPanel
                 debugLogs={debugLogs}
                 onClear={handleClearDebugLogs}
@@ -181,32 +181,36 @@ export default function ModernLiveSessionPage({
           {/* RIGHT COLUMN - Accuracy, Frequency (compact), Stats */}
           <div className="lg:col-span-3 space-y-4">
             {/* Accuracy Gauge - Now wrapped for Glacial look */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernAccuracyCard debugLogs={debugLogs} />
             </div>
 
             {/* Frequency Bars - More compact */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernFrequencyCard 
                 freq2={freq2} 
                 freq3={freq3} 
                 freq4={freq4} 
                 freq5={freq5} 
-                activeTab={freqTab} 
-                onTabChange={setFreqTab} 
+                freqTab={freqTab}
+                setFreqTab={setFreqTab}
               />
             </div>
 
             {/* Stats + Line Helper */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernStatsPanel
                 entries={entries}
-                handleAddRoll={handleAddRoll}
+                prediction2={livePrediction}
+                prediction3={livePrediction3}
+                prediction4={livePrediction4}
+                currentRegion={region}
+                currentPatch={patch}
               />
             </div>
 
             {/* Relic Position Card */}
-            <div className="glacial-card">
+            <div className="theme-glass-card">
               <ModernRelicPositionCard />
             </div>
           </div>

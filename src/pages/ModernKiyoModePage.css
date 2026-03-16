@@ -72,20 +72,20 @@
 }
 
 /* Kiyo Table Legibility */
-.modern-kiyo-page .glacial-card table tr td {
+.modern-kiyo-page .theme-glass-card table tr td {
     opacity: 0.8 !important;
 }
 
-.modern-kiyo-page .glacial-card.pt-10 {
+.modern-kiyo-page .theme-glass-card.pt-10 {
     padding-top: 2.5rem !important;
 }
 
-.modern-kiyo-page .glacial-card table tr:hover td {
+.modern-kiyo-page .theme-glass-card table tr:hover td {
     opacity: 1 !important;
     color: #fff !important;
 }
 
-.modern-kiyo-page .glacial-card table thead th {
+.modern-kiyo-page .theme-glass-card table thead th {
     opacity: 0.9 !important;
     color: #cbd5e1 !important;
 }
@@ -100,16 +100,16 @@
     -webkit-backdrop-filter: none !important;
 }
 
-.arctic-theme .modern-kiyo-page .glacial-card,
-.winter-theme .modern-kiyo-page .glacial-card {
+.arctic-theme .modern-kiyo-page .theme-glass-card,
+.winter-theme .modern-kiyo-page .theme-glass-card {
     border: none !important;
     box-shadow: 0 8px 24px rgba(2, 8, 23, 0.45) !important;
     background: linear-gradient(150deg, rgba(6, 18, 38, 0.82) 0%, rgba(10, 35, 58, 0.56) 52%, rgba(7, 21, 40, 0.84) 100%) !important;
 }
 
 /* Keep snow cap only on functional Kiyo cards, not every wrapper */
-.arctic-theme .modern-kiyo-page .glacial-card::after,
-.winter-theme .modern-kiyo-page .glacial-card::after {
+.arctic-theme .modern-kiyo-page .theme-glass-card::after,
+.winter-theme .modern-kiyo-page .theme-glass-card::after {
     display: none !important;
 }
 

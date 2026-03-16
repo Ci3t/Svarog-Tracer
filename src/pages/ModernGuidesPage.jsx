@@ -54,7 +54,7 @@ function VideoCard({ video, color, creatorName, className = "", delay = 0, isAdm
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border ${colors.border} overflow-hidden glacial-card ${className}`}
+      className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border ${colors.border} overflow-hidden theme-glass-card ${className}`}
     >
       <div className="relative aspect-video bg-slate-900">
         {isPlaying ? (
@@ -151,15 +151,15 @@ function CreatorSection({ creator, index, isAdmin, onAdd, onEdit, onDelete, onMo
         )}
       </div>
 
-      <div className={creator.videos.length > 2 ? "overflow-x-auto pb-4 -mx-4 px-4" : ""}>
-        <div className={creator.videos.length > 2 ? "flex gap-4 min-w-max" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+      <div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {creator.videos.map((video, i) => (
             <VideoCard 
               key={`${video.id}-${i}`} 
               video={video} 
               color={creator.color} 
               creatorName={creator.shortName} 
-              className={creator.videos.length > 2 ? "w-80 flex-shrink-0" : ""} 
+              className="" 
               delay={i * 0.15} 
               isAdmin={isAdmin}
               onEdit={(v) => onEdit(creator.id, v)}
@@ -203,61 +203,61 @@ function VideoManagementModal({ isOpen, mode, video, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <div ref={overlayRef} onClick={onClose} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
+      <div ref={overlayRef} onClick={onClose} className="theme-modal-overlay absolute inset-0"></div>
       
-      <div ref={modalRef} className="relative w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-purple-500/30 rounded-3xl shadow-2xl overflow-hidden shadow-purple-500/10">
+      <div ref={modalRef} className="theme-modal-shell relative w-full max-w-md overflow-hidden">
         {/* Animated Background Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-purple-600/20 blur-[80px] rounded-full"></div>
+        <div className="absolute top-0 left-1/2 h-32 w-64 -translate-x-1/2 rounded-full blur-[80px] theme-badge-accent"></div>
         
-        <div className="p-8 relative">
+        <div className="relative p-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">
               {mode === 'add' ? 'Add New Guide' : 'Edit Video Guide'}
             </h2>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 transition-colors cursor-pointer">
+            <button onClick={onClose} className="theme-icon-button flex h-10 w-10 items-center justify-center rounded-full cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
 
           <div className="space-y-5">
             <div>
-              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">YouTube Video ID</label>
+              <label className="theme-text-accent block px-1 mb-2 text-[10px] font-black uppercase tracking-widest">YouTube Video ID</label>
               <input 
                 type="text" 
                 placeholder="e.g. QrqPENtcFus"
                 value={formData.id}
                 onChange={e => setFormData({...formData, id: e.target.value})}
-                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600"
+                className="theme-input w-full rounded-2xl px-5 py-3.5 text-sm outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">Title</label>
+              <label className="theme-text-accent block px-1 mb-2 text-[10px] font-black uppercase tracking-widest">Title</label>
               <input 
                 type="text" 
                 placeholder="Guide Title"
                 value={formData.title}
                 onChange={e => setFormData({...formData, title: e.target.value})}
-                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600"
+                className="theme-input w-full rounded-2xl px-5 py-3.5 text-sm outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-2 px-1">Description</label>
+              <label className="theme-text-accent block px-1 mb-2 text-[10px] font-black uppercase tracking-widest">Description</label>
               <textarea 
                 placeholder="Short description..."
                 rows="3"
                 value={formData.description}
                 onChange={e => setFormData({...formData, description: e.target.value})}
-                className="w-full bg-slate-800/50 border border-white/5 rounded-2xl px-5 py-3.5 text-white text-sm focus:outline-none focus:border-purple-500/50 focus:bg-purple-500/5 transition-all outline-none placeholder:text-slate-600 resize-none"
+                className="theme-textarea w-full resize-none rounded-2xl px-5 py-3.5 text-sm outline-none"
               ></textarea>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+            <div className="theme-subpanel flex items-center justify-between rounded-2xl p-4">
               <span className="text-xs font-bold text-slate-300">Featured Video</span>
               <button 
                 onClick={() => setFormData({...formData, featured: !formData.featured})}
-                className={`w-12 h-6 rounded-full transition-all relative ${formData.featured ? 'bg-purple-500' : 'bg-slate-700'}`}
+                className={`relative h-6 w-12 rounded-full transition-all ${formData.featured ? 'theme-action-primary' : 'theme-action-secondary'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.featured ? 'left-7' : 'left-1'}`}></div>
               </button>
@@ -266,13 +266,13 @@ function VideoManagementModal({ isOpen, mode, video, onSave, onClose }) {
             <div className="pt-4 flex gap-3">
               <button 
                 onClick={onClose}
-                className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/5 text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer"
+                className="theme-action-secondary flex-1 rounded-2xl py-4 text-xs font-bold uppercase tracking-widest transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button 
                 onClick={() => onSave(formData)}
-                className="flex-1 py-4 rounded-2xl bg-purple-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-purple-500 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+                className="theme-action-primary flex-1 rounded-2xl py-4 text-xs font-bold uppercase tracking-widest transition-all cursor-pointer"
               >
                 Save Guide
               </button>
@@ -322,7 +322,7 @@ function GuideCard({ guide, onClick, index }) {
         onClick={onClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`relative w-full bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-2xl border ${colors.border} shadow-xl overflow-hidden p-6 text-left cursor-pointer backdrop-blur-sm group glacial-card`}
+        className={`relative w-full bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-2xl border ${colors.border} shadow-xl overflow-hidden p-6 text-left cursor-pointer backdrop-blur-sm group theme-glass-card`}
       >
         <div className="flex items-start justify-between mb-4">
           <div ref={iconRef} className={`w-14 h-14 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center text-3xl shadow-2xl ${colors.glow} border border-white/10`}>

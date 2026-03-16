@@ -4,7 +4,7 @@ import React from 'react';
 export default function ModernPredictionCard({ prediction }) {
   if (!prediction || !prediction.prediction) {
     return (
-      <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-3xl p-8 border border-slate-700/50 shadow-2xl">
+      <div className="astral-next-prediction bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-3xl p-8 border border-slate-700/50 shadow-2xl">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 text-center">
           Next Prediction
         </h3>
@@ -63,7 +63,7 @@ export default function ModernPredictionCard({ prediction }) {
     : [];
 
   return (
-    <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-3xl p-8 border border-slate-700/50 shadow-2xl">
+    <div className="astral-next-prediction bg-gradient-to-br from-slate-900/90 to-slate-800/90 rounded-3xl p-8 border border-slate-700/50 shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
@@ -113,10 +113,10 @@ export default function ModernPredictionCard({ prediction }) {
 
           {/* Center Content */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-7xl font-bold text-white mb-2">
+            <div className="astral-primary-display text-7xl font-bold text-white mb-2">
               {predStr}
             </div>
-            <div className="text-2xl font-semibold text-purple-400">
+            <div className="astral-primary-accent text-2xl font-semibold text-purple-400">
               {confidencePercent}%
             </div>
           </div>

@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import gsap from 'gsap';
+import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 
-export default function LiveStatsBanner() {
+export default function LiveStatsBanner({ sessionTheme = 'modern' }) {
   const { stats } = usePresenceContext();
   const bannerRef = useRef(null);
   const textRef = useRef(null);
+  const palette = getSessionThemeConfig(sessionTheme).liveStats;
   
   // Format numbers with commas, handle all cases
   const formatNumber = (num) => {
@@ -54,15 +56,15 @@ export default function LiveStatsBanner() {
   if (stats.loading || stats.error) {
     return null; // Hide banner if API unavailable
   }
-  
+
   return (
     <div 
       ref={bannerRef}
       className="live-stats-banner"
       style={{
         width: '100%',
-        background: 'rgba(15, 23, 42, 0.9)',
-        borderBottom: '1px solid rgba(0, 255, 136, 0.2)',
+        background: palette.bannerBackground,
+        borderBottom: `1px solid ${palette.borderColor}`,
         overflow: 'hidden',
         position: 'relative',
         zIndex: 999,
@@ -89,60 +91,60 @@ export default function LiveStatsBanner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontSize: '18px' }}>👥</span>
           <span className="stat-number" style={{ 
-            color: '#38bdf8',
+            color: palette.onlineColor,
             fontWeight: '800',
             fontSize: '17px',
-            textShadow: '0 0 10px rgba(56, 189, 248, 0.4)',
+            textShadow: palette.onlineGlow,
             fontFamily: 'monospace'
           }}>
             {formatNumber(stats.online)}
           </span>
-          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '0.5px' }}>Online</span>
+          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '0.5px', color: palette.labelColor }}>Online</span>
         </div>
 
         {/* Predicting Now */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontSize: '18px' }}>🎯</span>
           <span className="stat-number" style={{ 
-            color: '#34d399',
+            color: palette.activeColor,
             fontWeight: '900',
             fontSize: '17px',
-            textShadow: '0 0 10px rgba(52, 211, 153, 0.4)',
+            textShadow: palette.activeGlow,
             fontFamily: "'JetBrains Mono', monospace"
           }}>
             {formatNumber(stats.active)}
           </span>
-          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: '#94a3b8' }}>Prediction Now</span>
+          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: palette.labelColor }}>Prediction Now</span>
         </div>
         
         {/* Today */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontSize: '18px' }}>📊</span>
           <span className="stat-number" style={{ 
-            color: '#fbbf24',
+            color: palette.todayColor,
             fontWeight: '900',
             fontSize: '17px',
-            textShadow: '0 0 10px rgba(251, 191, 36, 0.4)',
+            textShadow: palette.todayGlow,
             fontFamily: "'JetBrains Mono', monospace"
           }}>
             {formatNumber(stats.today)}
           </span>
-          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: '#94a3b8' }}>Today Predictions</span>
+          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: palette.labelColor }}>Today Predictions</span>
         </div>
         
         {/* Total */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontSize: '18px' }}>🎲</span>
           <span className="stat-number" style={{ 
-            color: '#f472b6',
+            color: palette.totalColor,
             fontWeight: '900',
             fontSize: '17px',
-            textShadow: '0 0 10px rgba(244, 114, 182, 0.4)',
+            textShadow: palette.totalGlow,
             fontFamily: "'JetBrains Mono', monospace"
           }}>
             {formatNumber(stats.total)}
           </span>
-          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: '#94a3b8' }}>Total Predictions</span>
+          <span style={{ opacity: 0.8, textTransform: 'uppercase', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', color: palette.labelColor }}>Total Predictions</span>
         </div>
       </div>
     </div>

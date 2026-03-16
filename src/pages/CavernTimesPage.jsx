@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
+import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -58,7 +59,22 @@ const readStorageJson = (key, fallback) => {
 
 export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const baseUrl = import.meta.env.BASE_URL;
-  const isGlacial = sessionTheme === 'arctic' || sessionTheme === 'winter';
+  const themeConfig = getSessionThemeConfig(sessionTheme);
+  const rootThemeClass = themeConfig.rootClassName;
+  const isGlacial = rootThemeClass === 'arctic-theme';
+  const isNeon = rootThemeClass === 'neon-theme';
+  const cavernTheme = themeConfig.caverns || {};
+  const showCavernBackdropImage =
+    cavernTheme.disableBackdropImage !== true && Boolean(cavernTheme.backdropImage);
+  const cavernOverlayClass =
+    cavernTheme.overlayClass ||
+    (rootThemeClass === 'neon-theme'
+      ? 'from-[#121417]/92 via-[#121417]/62 to-[#0f1114]/95'
+      : rootThemeClass === 'crimson-theme'
+        ? 'from-black/88 via-black/52 to-[#050505]/96'
+        : isGlacial
+          ? 'from-[#03080f]/95 via-[#03080f]/40 to-[#03080f]/95'
+          : 'from-[#020617]/90 via-[#020617]/40 to-[#020617]/90');
 
   const [clears, setClears] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -921,16 +937,37 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   }, [selectedDomain, isFormOpen]); // Re-attach when visibility changes
 
   return (
-    <div className="relative flex flex-col gap-8 p-6 max-w-[95rem] mx-auto min-h-screen pb-20 font-['Outfit',sans-serif] selection:bg-purple-500/30 text-slate-100 bg-transparent">
+    <div className="relative flex flex-col gap-6 p-6 max-w-[95rem] mx-auto min-h-screen pb-20 font-['Outfit',sans-serif] selection:bg-purple-500/30 text-slate-100 bg-transparent">
 
-      {/* BACKGROUND IMAGE - Cinematic Backdrop (Faded per request) */}
+      {/* BACKGROUND IMAGE - Theme-Driven Backdrop */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <img
-          src={`${baseUrl}clara-2.png`}
-          alt="Backdrop"
-          className={`w-full h-full object-cover ${isGlacial ? 'opacity-[0.15] grayscale-[0.8] brightness-[0.6]' : 'opacity-[0.25] brightness-110 saturate-[0.8]'}`}
-        />
-        <div className={`absolute inset-0 bg-gradient-to-b ${isGlacial ? 'from-[#03080f]/95 via-[#03080f]/40 to-[#03080f]/95' : 'from-[#020617]/90 via-[#020617]/40 to-[#020617]/90'}`} />
+        {showCavernBackdropImage && !isNeon && (
+          <img
+            src={`${baseUrl}${cavernTheme.backdropImage}`}
+            alt="Backdrop"
+            className={`w-full h-full object-cover ${cavernTheme.backdropImageClass || 'opacity-[0.22] saturate-[0.9] brightness-[0.72] blur-[1px]'}`}
+          />
+        )}
+        {showCavernBackdropImage && isNeon && (
+          <div className="cavern-neon-999-wrap absolute inset-0">
+            <img
+              src={`${baseUrl}${cavernTheme.backdropImage}`}
+              alt="999SW left"
+              className="cavern-neon-999-layer cavern-neon-999-layer-1"
+            />
+            <img
+              src={`${baseUrl}${cavernTheme.backdropImage}`}
+              alt="999SW center"
+              className="cavern-neon-999-layer cavern-neon-999-layer-2"
+            />
+            <img
+              src={`${baseUrl}${cavernTheme.backdropImage}`}
+              alt="999SW right"
+              className="cavern-neon-999-layer cavern-neon-999-layer-3"
+            />
+          </div>
+        )}
+        <div className={`absolute inset-0 bg-gradient-to-b ${cavernOverlayClass}`} />
       </div>
 
       {isGlacial && <ArcticSnow particleCount={40} speedScale={0.5} />}
@@ -940,7 +977,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet" />
 
         {/* Hero Section */}
-        <div className="relative pt-6 pb-2">
+        <div className="relative pt-2 pb-1">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[400px] bg-gradient-to-b from-purple-600/10 via-transparent to-transparent blur-[100px] pointer-events-none -z-10"></div>
           <div className="flex flex-col items-center text-center gap-2">
             <h1
@@ -982,21 +1019,21 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
         {/* Toolbar */}
         <div 
-          className="flex flex-col gap-6 bg-slate-900/60 backdrop-blur-xl p-6 pt-10 rounded-[2.5rem] border border-white/5 shadow-2xl sticky top-20 z-40 glacial-card overflow-hidden"
+          className={`cavern-toolbar-shell flex flex-col gap-4 bg-slate-900/60 backdrop-blur-xl p-5 sm:p-6 pt-6 rounded-[2.5rem] border border-white/5 shadow-2xl sticky z-40 theme-glass-card overflow-hidden ${themeConfig.caverns.toolbarStickyClass}`}
           style={{ '--card-radius': '2.5rem' }}
         >
-          <div className="relative z-20 flex flex-col gap-6">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="relative z-20 flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
               <button
                 onClick={() => { setCategory('relics'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
-                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'relics' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'relics' ? themeConfig.caverns.relicActiveClass : themeConfig.caverns.inactiveChipClass}`}
               >
                 📦 Relics & Planars
               </button>
               <button
                 onClick={() => { setCategory('traces'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
-                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'traces' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
               >
                 ⚡ Traces / Mats
               </button>
@@ -1010,7 +1047,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   placeholder="Search domains..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-black/40 border border-white/5 focus:border-purple-500/50 rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold text-white outline-none transition-all placeholder:text-slate-600"
+                  className="theme-input w-full rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold outline-none"
                 />
                 {searchTerm && (
                   <button
@@ -1033,14 +1070,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
             <div className="flex gap-4 w-full md:w-auto">
               <button
                 onClick={fetchClears}
-                className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all cursor-pointer group shrink-0"
+                className="theme-action-secondary p-4 rounded-2xl transition-all cursor-pointer group shrink-0"
                 title="Sync Database"
               >
                 <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-white ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => { setIsFormOpen(!isFormOpen); setSelectedDomain(null); setSubmitStatus({ type: '', msg: '' }); }}
-                className="flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs md:text-sm uppercase tracking-widest cursor-pointer"
+                className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all text-xs md:text-sm uppercase tracking-widest cursor-pointer ${themeConfig.caverns.addButtonClass}`}
               >
                 {isFormOpen ? <X className="w-5 h-5 shrink-0" /> : <PlusCircle className="w-5 h-5 shrink-0" />}
                 {isFormOpen ? 'Close Portal' : 'Add New Record'}
@@ -1049,7 +1086,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           </div>
 
           {/* Multi-Select Quick Filter Bar */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-6 pt-4 border-t border-white/5">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4 pt-3 border-t border-white/5">
 
             {/* Rarity Filter - ONLY FOR TRACES */}
             {category === 'traces' && (
@@ -1063,7 +1100,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                     <button
                       key={r}
                       onClick={() => setRarityFilter(prev => prev === r ? null : r)}
-                      className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all cursor-pointer ${rarityFilter === r ? 'bg-amber-500 text-black scale-105 shadow-md shadow-amber-500/30' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                      className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all cursor-pointer ${rarityFilter === r ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
                     >
                       {r}★
                     </button>
@@ -1119,16 +1156,16 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       </div>
 
         {isFormOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 bg-slate-950/40 backdrop-blur-md transition-all modal-overlay">
+          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 transition-all modal-overlay">
             <div
               ref={formRef}
-              className={`cavern-entry-modal bg-slate-900/40 w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(255,255,255,0.05),inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-[60px] flex flex-col overflow-hidden relative perspective-1000 ${isGlacial ? 'glacial-subtle-snow cavern-winter-shell' : ''}`}
+              className={`theme-modal-shell cavern-entry-modal w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] flex flex-col overflow-hidden relative perspective-1000 ${isGlacial ? 'glacial-subtle-snow cavern-winter-shell' : ''}`}
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/5 bg-white/5 relative overflow-hidden">
+              <div className="theme-modal-header flex items-center justify-between p-6 sm:p-8 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500/40 to-amber-500/0"></div>
                 <div className="flex items-center gap-6">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(249,115,22,0.2)]">
+                  <div className="theme-badge-accent theme-accent-glow flex h-14 w-14 items-center justify-center rounded-2xl">
                     <PlusCircle className="w-7 h-7 text-amber-500" />
                   </div>
                   <div>
@@ -1142,11 +1179,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
                       
                       {/* QUICK NAV SWITCH */}
-                      <div className="flex items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-1 gap-1 shadow-inner overflow-hidden">
+                      <div className="theme-subpanel flex items-center rounded-xl p-1 gap-1 shadow-inner overflow-hidden">
                         <button
                           type="button"
                           onClick={() => handleSwitchCategory('relics')}
-                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'relics' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'relics' ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
                         >
                           <Trophy className="w-3 h-3" />
                           Relics
@@ -1154,7 +1191,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         <button
                           type="button"
                           onClick={() => handleSwitchCategory('traces')}
-                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'traces' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 scale-105' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
                         >
                           <Sparkles className="w-3 h-3" />
                           Traces
@@ -1178,8 +1215,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         }}
                         className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer border ${
                           isBatchMode
-                            ? 'bg-emerald-500 text-black border-emerald-300 shadow-lg shadow-emerald-500/25'
-                            : 'bg-black/35 text-slate-400 border-white/10 hover:text-white hover:bg-white/5'
+                            ? themeConfig.caverns.traceActiveClass
+                            : 'theme-action-secondary text-slate-400 border-white/10 hover:text-white'
                         }`}
                         title="Batch mode keeps the modal open after each save"
                       >
@@ -1191,7 +1228,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 </div>
                 <button
                   onClick={() => setIsFormOpen(false)}
-                  className="w-14 h-14 rounded-full bg-white/5 hover:bg-white text-slate-400 hover:text-black flex items-center justify-center transition-all border border-white/10 cursor-pointer group shadow-2xl"
+                  className="theme-icon-button w-14 h-14 rounded-full flex items-center justify-center transition-all border cursor-pointer group shadow-2xl hover:bg-[color:var(--theme-accent)] hover:text-[color:var(--theme-accent-contrast)]"
                 >
                   <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
                 </button>
@@ -1206,7 +1243,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   )}
 
                   <form onSubmit={handleSubmit} className={`flex flex-col gap-12 ${submitting ? 'pointer-events-none opacity-50' : ''}`}>
-                    <div className="modal-section rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 sm:p-5 flex flex-col gap-4">
+                    <div className="theme-subpanel modal-section rounded-[1.5rem] p-4 sm:p-5 flex flex-col gap-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.22em]">Sticky Preset Memory</h3>
@@ -1841,8 +1878,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           </div>
         )}
 
-        {/* Domain Grid - keep original spacing untouched; only add extra offset for glacial themes */}
-        <div className={`cavern-domain-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 ${isGlacial ? 'mt-20' : ''}`}>
+        {/* Domain Grid */}
+        <div className={`cavern-domain-grid grid items-start grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 ${themeConfig.caverns.gridOffsetClass || ''}`}>
           {loading ? (
             <div className="col-span-full flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
           ) : filteredGridData.length === 0 ? (
@@ -1857,7 +1894,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card cavern-domain-card flex flex-col items-center text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative glacial-card"
+                  className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19rem] flex-col items-center self-start text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
                   style={{ '--card-radius': '1.5rem' }}
                 >
                   <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
@@ -1902,11 +1939,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
         {/* Archive Modal */}
         {selectedDomain && (
-          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 bg-slate-950/90 backdrop-blur-2xl transition-all overflow-y-auto">
-            <div className={`archive-modal-shell bg-[#0b0d14] w-full max-w-6xl max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-9rem)] rounded-[3rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative ${isGlacial ? 'glacial-subtle-snow archive-modal-glacial' : ''}`}>
-              <div className={`archive-modal-header flex items-center justify-between p-6 sm:p-10 bg-slate-950/50 border-b border-white/5 backdrop-blur-md ${isGlacial ? 'archive-modal-header-glacial' : ''}`}>
+          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 transition-all overflow-y-auto">
+            <div className={`theme-modal-shell archive-modal-shell w-full max-w-6xl max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-9rem)] rounded-[3rem] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative ${isGlacial ? 'glacial-subtle-snow archive-modal-glacial' : ''}`}>
+              <div className={`theme-modal-header archive-modal-header flex items-center justify-between p-6 sm:p-10 backdrop-blur-md ${isGlacial ? 'archive-modal-header-glacial' : ''}`}>
                 <div className="flex items-center gap-5 sm:gap-8">
-                  <div className={`w-16 h-16 sm:w-24 sm:h-24 bg-black/60 rounded-[1.5rem] border border-white/10 flex items-center justify-center p-3 shadow-2xl relative ${isGlacial ? 'archive-modal-icon-glacial' : ''}`}>
+                  <div className={`theme-subpanel w-16 h-16 sm:w-24 sm:h-24 rounded-[1.5rem] flex items-center justify-center p-3 shadow-2xl relative ${isGlacial ? 'archive-modal-icon-glacial' : ''}`}>
                     <VisualIcon src={selectedDomain.image} name={selectedDomain.name} className="w-full h-full object-contain drop-shadow-2xl scale-110" />
                     <div className="absolute inset-0 bg-blue-500/5 rounded-[1.5rem] blur-xl animate-pulse"></div>
                   </div>
@@ -1919,7 +1956,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className={`inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'bg-slate-900/55 border-cyan-300/25' : 'bg-black/35 border-white/10'}`}>
+                  <div className={`theme-subpanel inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'border-cyan-300/25' : ''}`}>
                     <button
                       onClick={() => {
                         setArchiveViewMode('grouped');
@@ -1957,14 +1994,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   </div>
                   <button
                     onClick={() => setSelectedDomain(null)}
-                    className={`w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'bg-cyan-500/10 hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'bg-white/5 hover:bg-white border-white/10 hover:text-black'}`}
+                    className={`theme-icon-button w-14 h-14 rounded-full text-slate-400 flex items-center justify-center transition-all border cursor-pointer shadow-xl group ${isGlacial ? 'hover:bg-cyan-300 border-cyan-300/30 hover:text-slate-950' : 'hover:bg-[color:var(--theme-accent)] hover:text-[color:var(--theme-accent-contrast)]'}`}
                   >
                     <X className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
                   </button>
                 </div>
               </div>
 
-              <div className={`flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar bg-black/30 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
+              <div className={`theme-subpanel flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar rounded-none border-0 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
                   const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
@@ -2286,6 +2323,58 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           100% { transform: translateX(0%); }
         }
         .animate-progress-long { animation: progress-long 25s linear forwards; }
+        .cavern-neon-999-wrap {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .cavern-neon-999-layer {
+          position: absolute;
+          top: 56%;
+          width: min(28vw, 460px);
+          max-width: 460px;
+          height: auto;
+          object-fit: contain;
+          pointer-events: none;
+          mix-blend-mode: screen;
+          opacity: 0.2;
+          filter: saturate(1.2) contrast(1.08) brightness(0.68) drop-shadow(0 0 18px rgba(0,243,255,0.2));
+          transform-origin: center center;
+        }
+        .cavern-neon-999-layer-1 {
+          left: 18%;
+          transform: translate(-50%, -50%) skewX(-9deg) rotate(-5deg) scale(1.02);
+          animation: neon-999-float-a 12s ease-in-out infinite;
+        }
+        .cavern-neon-999-layer-2 {
+          left: 50%;
+          transform: translate(-50%, -50%) skewX(-8deg) rotate(-1deg) scale(1.08);
+          animation: neon-999-float-b 13.6s ease-in-out infinite;
+        }
+        .cavern-neon-999-layer-3 {
+          left: 82%;
+          transform: translate(-50%, -50%) skewX(-9deg) rotate(4deg) scale(1.02);
+          animation: neon-999-float-c 11.4s ease-in-out infinite;
+        }
+        @keyframes neon-999-float-a {
+          0%, 100% { transform: translate(-50%, -50%) skewX(-9deg) rotate(-5deg) scale(1.02); opacity: 0.18; }
+          50% { transform: translate(-50%, -52%) skewX(-10deg) rotate(-6deg) scale(1.06); opacity: 0.24; }
+        }
+        @keyframes neon-999-float-b {
+          0%, 100% { transform: translate(-50%, -50%) skewX(-8deg) rotate(-1deg) scale(1.08); opacity: 0.22; }
+          50% { transform: translate(-50%, -53%) skewX(-9deg) rotate(-2deg) scale(1.13); opacity: 0.28; }
+        }
+        @keyframes neon-999-float-c {
+          0%, 100% { transform: translate(-50%, -50%) skewX(-9deg) rotate(4deg) scale(1.02); opacity: 0.18; }
+          50% { transform: translate(-50%, -52%) skewX(-10deg) rotate(5deg) scale(1.06); opacity: 0.24; }
+        }
+        @media (max-width: 900px) {
+          .cavern-neon-999-layer {
+            width: min(38vw, 320px);
+            top: 58%;
+            opacity: 0.16;
+          }
+        }
         .group:hover > .tooltip-fast { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .cavern-domain-grid { position: relative; }
         .cavern-domain-card { position: relative; }
