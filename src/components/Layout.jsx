@@ -1,11 +1,49 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { Palette } from 'lucide-react';
+import { Cpu, Flame, Palette, Sparkles, Snowflake, Star } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
+import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
+const THEME_VISUALS = {
+  modern: {
+    Icon: Sparkles,
+    iconClass: 'text-violet-200',
+    glowClass: 'shadow-violet-500/35',
+    ringClass: 'border-violet-400/45 bg-violet-500/12',
+    washClass: 'from-violet-500/20 via-purple-500/10 to-transparent',
+  },
+  arctic: {
+    Icon: Snowflake,
+    iconClass: 'text-cyan-100',
+    glowClass: 'shadow-cyan-500/35',
+    ringClass: 'border-cyan-300/55 bg-cyan-400/12',
+    washClass: 'from-cyan-400/20 via-blue-500/10 to-transparent',
+  },
+  crimson: {
+    Icon: Flame,
+    iconClass: 'text-rose-100',
+    glowClass: 'shadow-red-500/40',
+    ringClass: 'border-rose-300/60 bg-rose-500/16',
+    washClass: 'from-red-500/26 via-rose-500/12 to-transparent',
+  },
+  neon: {
+    Icon: Cpu,
+    iconClass: 'text-cyan-100',
+    glowClass: 'shadow-fuchsia-500/40',
+    ringClass: 'border-cyan-300/60 bg-cyan-400/12',
+    washClass: 'from-cyan-400/25 via-fuchsia-500/15 to-transparent',
+  },
+  astral: {
+    Icon: Star,
+    iconClass: 'text-amber-100',
+    glowClass: 'shadow-amber-500/35',
+    ringClass: 'border-amber-300/55 bg-amber-400/12',
+    washClass: 'from-amber-400/22 via-yellow-500/12 to-transparent',
+  },
+};
 
 export default function Layout({
   region,
@@ -21,14 +59,16 @@ export default function Layout({
   onThemeChange = () => {},
 }) {
   const location = useLocation();
+  const normalizedSessionTheme =
+    sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
   const themeMenuRef = useRef(null);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const isModernTheme = sessionTheme === "modern";
-  const activeTabTextClass = isModernTheme ? "text-purple-200" : "text-white";
-  const inactiveTabTextClass = isModernTheme ? "text-slate-400 hover:text-purple-200" : "text-slate-400 hover:text-slate-200";
+  const themeConfig = getSessionThemeConfig(sessionTheme);
+  const activeTabTextClass = themeConfig.layout.activeTabTextClass;
+  const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
 
   const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;
@@ -83,81 +123,86 @@ export default function Layout({
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-transparent">
       {/* Live Stats Banner */}
-      <LiveStatsBanner />
+      <LiveStatsBanner sessionTheme={sessionTheme} />
 
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-50 glacial-header-glass">
+      {/* Header */}
+      <header className="relative z-50 glacial-header-glass">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
             {/* Top Row: Logo + Controls (Mobile) / Left Side (Desktop) */}
-            <div className="flex flex-wrap items-center justify-between gap-3 w-full lg:w-auto">
-              <NavLink to="/" className="flex items-center gap-3 cursor-pointer">
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center overflow-hidden">
-                  <img
-                    src={svarog}
-                    alt="svarog"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div>
-                  <h1 className="text-xs sm:text-sm font-bold text-slate-100 uppercase tracking-tight leading-none">
-                    Svarog Tracer
-                  </h1>
-                  <p className="hidden sm:block text-[10px] text-slate-500 mt-0.5">
-                    Relic RNG Observation Engine
-                  </p>
-                </div>
-              </NavLink>
+            <div className="flex flex-wrap lg:flex-nowrap items-center w-full justify-between lg:justify-start gap-4 lg:gap-8">
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                <NavLink to="/" className="flex items-center gap-3 cursor-pointer">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center overflow-hidden">
+                    <img
+                      src={svarog}
+                      alt="svarog"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div>
+                    <h1 className="theme-font-display text-xs sm:text-sm font-bold text-slate-100 uppercase tracking-tight leading-none">
+                      Svarog Tracer
+                    </h1>
+                    <p className="hidden sm:block text-[10px] text-slate-500 mt-0.5">
+                      Relic RNG Observation Engine
+                    </p>
+                  </div>
+                </NavLink>
 
-              {/* Region & Patch (Compact on Mobile) */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/50 rounded-lg px-2 py-1.5">
-                  <select
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                    className="bg-transparent text-[10px] sm:text-xs text-slate-200 outline-none border-none cursor-pointer appearance-none px-1"
-                  >
-                    <option className="bg-slate-900">America</option>
-                    <option className="bg-slate-900">EU</option>
-                    <option className="bg-slate-900">ASIA</option>
-                  </select>
-                </div>
+                {/* Region & Patch (Compact on Mobile) */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 border rounded-lg px-2 py-1.5" style={themeConfig.layout.controlPillStyle}>
+                    <select
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                      className="theme-select bg-transparent text-[10px] sm:text-xs text-slate-200 outline-none border-none cursor-pointer appearance-none px-1"
+                    >
+                      <option className="bg-slate-900">America</option>
+                      <option className="bg-slate-900">EU</option>
+                      <option className="bg-slate-900">ASIA</option>
+                    </select>
+                  </div>
 
-                <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/50 rounded-lg px-2 py-1.5">
-                  <select
-                    value={isCustomPatch ? "custom" : patch}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "custom") {
-                        setIsCustomPatch(true);
-                      } else {
-                        setIsCustomPatch(false);
-                        setPatch(v);
-                      }
-                    }}
-                    className="bg-transparent text-[10px] sm:text-xs text-slate-200 outline-none border-none cursor-pointer appearance-none px-1"
-                  >
-                    {PATCH_PRESETS.map((p) => (
-                      <option key={p} className="bg-slate-900" value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1.5 border rounded-lg px-2 py-1.5" style={themeConfig.layout.controlPillStyle}>
+                    <select
+                      value={isCustomPatch ? "custom" : patch}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "custom") {
+                          setIsCustomPatch(true);
+                        } else {
+                          setIsCustomPatch(false);
+                          setPatch(v);
+                        }
+                      }}
+                      className="theme-select bg-transparent text-[10px] sm:text-xs text-slate-200 outline-none border-none cursor-pointer appearance-none px-1"
+                    >
+                      {PATCH_PRESETS.map((p) => (
+                        <option key={p} className="bg-slate-900" value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Middle/Bottom Row: Navigation + Export Button */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-              {/* Navigation Tabs with Animated Indicator */}
-              <nav ref={navRef} className="relative flex items-center gap-1 sm:gap-2 p-1 bg-slate-800/40 rounded-xl border border-slate-700/30 w-full sm:w-auto overflow-x-auto scrollbar-hide">
+              {/* Navigation Tabs with Animated Indicator (Middle on Desktop, Second Row on Mobile) */}
+              <nav
+                ref={navRef}
+                className="relative flex items-center gap-1 sm:gap-2 p-1 rounded-xl border w-full lg:w-auto overflow-x-auto scrollbar-hide flex-1 lg:flex-none justify-start sm:justify-center"
+                style={themeConfig.layout.navShellStyle}
+              >
                 {/* Animated indicator background */}
                 <div
                   ref={indicatorRef}
-                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${isModernTheme ? 'bg-gradient-to-r from-violet-500/45 to-purple-500/45 shadow-lg shadow-purple-500/25' : 'bg-white/20 shadow-lg shadow-white/10'}`}
+                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${
+                    themeConfig.layout.navIndicatorClass
+                  }`}
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
 
@@ -248,50 +293,75 @@ export default function Layout({
               </nav>
 
               {/* Theme Switch (Paint Dropdown) */}
-              <div ref={themeMenuRef} className="relative w-full sm:w-auto">
+              <div ref={themeMenuRef} className="relative w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto">
                 <button
                   type="button"
                   onClick={() => setThemeMenuOpen(prev => !prev)}
-                  className="w-full sm:w-11 h-10 sm:h-11 rounded-xl sm:rounded-full border border-cyan-400/30 bg-slate-900/70 text-cyan-200 hover:text-white hover:border-cyan-300/50 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(34,211,238,0.2)] cursor-pointer"
+                  className="w-full lg:w-11 h-10 lg:h-11 rounded-xl lg:rounded-full border flex items-center justify-center transition-all cursor-pointer"
+                  style={themeConfig.layout.themeButtonStyle}
                   title="Theme menu"
                   aria-label="Open theme menu"
                 >
-                  <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Palette className="w-4 h-4 lg:w-5 lg:h-5" />
                 </button>
                 {themeMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-slate-700/60 bg-slate-900/95 backdrop-blur-xl p-2 z-[70] shadow-2xl">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 px-1 pb-1">
+                  <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border backdrop-blur-xl p-2.5 z-[70] shadow-2xl" style={themeConfig.layout.themeMenuStyle}>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 px-1.5 pb-2">
                       Theme
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onThemeChange('modern');
-                          setThemeMenuOpen(false);
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
-                          sessionTheme === 'modern'
-                            ? 'bg-violet-500/25 text-violet-100 border-violet-400/40'
-                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
-                        }`}
-                      >
-                        Original
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onThemeChange('arctic');
-                          setThemeMenuOpen(false);
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
-                          sessionTheme === 'arctic'
-                            ? 'bg-cyan-500/20 text-cyan-100 border-cyan-400/40'
-                            : 'bg-slate-800/70 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
-                        }`}
-                      >
-                        Glacial
-                      </button>
+                    <div className="flex flex-col gap-2">
+                      {THEME_OPTIONS.map((themeOption) => {
+                        const isActive = normalizedSessionTheme === themeOption.id;
+                        const visual = THEME_VISUALS[themeOption.id] || THEME_VISUALS.modern;
+                        const ThemeIcon = visual.Icon;
+                        return (
+                          <button
+                            key={themeOption.id}
+                            type="button"
+                            onClick={() => {
+                              onThemeChange(themeOption.id);
+                              setThemeMenuOpen(false);
+                            }}
+                            className={`group w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
+                              isActive
+                                ? 'bg-slate-800/70 text-white border-slate-500/70'
+                                : 'bg-slate-800/55 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                            }`}
+                            style={isActive ? themeConfig.layout.themeOptionActiveStyles?.[themeOption.id] : undefined}
+                            aria-label={`Switch to ${themeOption.label} theme`}
+                          >
+                            <span className="relative flex items-center justify-center overflow-hidden">
+                              <span
+                                className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${visual.washClass} opacity-0 transition-opacity duration-300 ${
+                                  isActive ? 'opacity-100' : 'group-hover:opacity-100'
+                                }`}
+                              />
+                              <span className="relative z-10 flex items-center justify-center gap-2">
+                                <span
+                                  className={`flex h-7 w-7 items-center justify-center rounded-lg border shadow-lg transition-all duration-300 ${visual.ringClass} ${visual.glowClass} ${
+                                    isActive ? 'scale-110' : 'group-hover:scale-110 group-hover:-translate-y-0.5'
+                                  }`}
+                                >
+                                  <ThemeIcon
+                                    className={`h-4 w-4 transition-transform duration-300 ${visual.iconClass} ${
+                                      isActive ? 'animate-pulse' : 'group-hover:rotate-12'
+                                    }`}
+                                  />
+                                </span>
+                                <span
+                                  className={`overflow-hidden whitespace-nowrap text-[10px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
+                                    isActive
+                                      ? 'max-w-44 opacity-100'
+                                      : 'max-w-0 opacity-0 group-hover:max-w-44 group-hover:opacity-100'
+                                  }`}
+                                >
+                                  {themeOption.label}
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -300,7 +370,7 @@ export default function Layout({
               {/* Export Button */}
               <button
                 onClick={onExportCSV}
-                className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-[10px] sm:text-xs font-bold rounded-lg shadow-lg shadow-purple-500/20 active:scale-95 transition-all text-center"
+                className={`w-full lg:w-auto px-4 py-2 text-[10px] sm:text-xs font-bold rounded-lg active:scale-95 transition-all text-center mt-2 lg:mt-0 ${themeConfig.layout.exportButtonClass}`}
               >
                 EXPORT CSV
               </button>

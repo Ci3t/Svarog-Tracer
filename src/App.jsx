@@ -9,8 +9,8 @@ import React, {
 } from "react";
 import { Routes, Route } from "react-router-dom";
 import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
-import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // 🔥 OLD Kiyo
-import { predictWithPairs } from "./utils/pairTransitionPredictor"; // 🔥 NEW SUGGEST
+import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // ðŸ”¥ OLD Kiyo
+import { predictWithPairs } from "./utils/pairTransitionPredictor"; // ðŸ”¥ NEW SUGGEST
 import {
   WAVE_SCHEMES,
   analyzeColumnWave,
@@ -20,17 +20,27 @@ import {
 // Layout Component
 import Layout from "./components/Layout";
 
-import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // 🔥 NEW Modern UI
-import ModernLongStringPage from "./pages/ModernLongStringPage"; // 🔥 NEW Modern Long String
-import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // 🔥 NEW Modern Kiyo Mode
-import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // 🔥 NEW Warp Analyzer
-import ModernGuidesPage from "./pages/ModernGuidesPage"; // 🔥 NEW Guides Page
-import HomePage from "./pages/HomePage"; // 🔥 NEW Landing Page
-import BannerTracker from "./pages/BannerTracker"; // 🔥 NEW Banner Tracker
-import CavernTimesPage from "./pages/CavernTimesPage"; // 🔥 NEW Caverns Page
+import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // ðŸ”¥ NEW Modern UI
+import ModernLongStringPage from "./pages/ModernLongStringPage"; // ðŸ”¥ NEW Modern Long String
+import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // ðŸ”¥ NEW Modern Kiyo Mode
+import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // ðŸ”¥ NEW Warp Analyzer
+import ModernGuidesPage from "./pages/ModernGuidesPage"; // ðŸ”¥ NEW Guides Page
+import HomePage from "./pages/HomePage"; // ðŸ”¥ NEW Landing Page
+import BannerTracker from "./pages/BannerTracker"; // ðŸ”¥ NEW Banner Tracker
+import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns Page
 import ArcticSnow from "./components/snow/ArcticSnow";
-import "./styles/arctic-theme.css"; // ❄️ NEW Arctic Theme
-import "./styles/winter-theme.css"; // ❄️ Modern Winter Theme
+import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
+import AstralStars from "./components/snow/AstralStars"; // ðŸŒŒ NEW Astral Stars
+import AstralExpress from "./components/snow/AstralExpress"; // ðŸš‚ NEW Astral Express
+import VoidPetals from "./components/snow/VoidPetals"; // í¼¸ NEW Void Petals
+import CrimsonBloom from "./components/snow/CrimsonBloom";
+import SilverWolf999Backdrop from "./components/snow/SilverWolf999Backdrop";
+
+import "./styles/arctic-theme.css"; // â„ï¸ NEW Arctic Theme
+import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
+import "./styles/astral-theme.css"; // ðŸŒŒ NEW Astral Theme
+import "./styles/neon-protocol.css"; // 👾 NEW Neon Protocol
+import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Effect
 
 
 
@@ -48,15 +58,39 @@ import {
   resetSessionStats,
 } from "./utils/predictNext";
 import KiyoModeCard from "./components/KiyoModeCard";
-import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // 🔥 NEW 3-str
+import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // ðŸ”¥ NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
+const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
 const SESSION_SECONDS = 5 * 60;
 const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-// 🔥 DEBUG MODE: ?debug=true in URL
+const normalizeSessionTheme = (theme) => {
+  if (theme === "winter") return "arctic";
+  if (theme === "void") return "crimson";
+  return theme || "modern";
+};
+
+const readPersistedTheme = () => {
+  try {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    return normalizeSessionTheme(storedTheme);
+  } catch {
+    return "modern";
+  }
+};
+
+const persistTheme = (theme) => {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, normalizeSessionTheme(theme));
+  } catch {
+    // ignore storage errors for theme-only persistence
+  }
+};
+
+// ðŸ”¥ DEBUG MODE: ?debug=true in URL
 const urlParams = new URLSearchParams(window.location.search);
 const isDebugMode = urlParams.get("debug") === "true";
 
@@ -66,9 +100,12 @@ export default function App() {
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("4.0");
-  const [sessionTheme, setSessionTheme] = useState("modern"); // ❄️ Theme State
+  const [sessionTheme, setSessionTheme] = useState(() => readPersistedTheme()); // Theme state (bootstrapped from localStorage)
+  const handleThemeChange = useCallback((nextTheme) => {
+    setSessionTheme(normalizeSessionTheme(nextTheme));
+  }, []);
 
-  const entriesRef = useRef([]); // 👈 ADD: Ref for calculations to avoid stale closures
+  const entriesRef = useRef([]); // ðŸ‘ˆ ADD: Ref for calculations to avoid stale closures
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
@@ -85,8 +122,8 @@ export default function App() {
 
   const [isCustomPatch, setIsCustomPatch] = useState(false);
   const [kiyoDebugData, setKiyoDebugData] = useState(null);
-  const pendingKiyoSnapshotsRef = useRef([]); // 👈 ADD
-  const lastSnapshotKeyRef = useRef(null); // 👈 ADD (dedupe)
+  const pendingKiyoSnapshotsRef = useRef([]); // ðŸ‘ˆ ADD
+  const lastSnapshotKeyRef = useRef(null); // ðŸ‘ˆ ADD (dedupe)
   const timerRef = useRef(null);
   const longStringCtxRef = useRef([]);
   const livePrefixPredictionRef = useRef(null);
@@ -94,10 +131,10 @@ export default function App() {
     // keep latest snapshot for UI
     setKiyoDebugData(debugData);
 
-    // 👇 ADD: push a frozen snapshot to queue
+    // ðŸ‘‡ ADD: push a frozen snapshot to queue
     const snap = {
       t: Date.now(),
-      latestRawRoll: debugData?.waveData?.latestRawRoll || null, // 🔥 NEW: Raw roll for Col 1
+      latestRawRoll: debugData?.waveData?.latestRawRoll || null, // ðŸ”¥ NEW: Raw roll for Col 1
       waveC1: debugData?.waveData?.col1RawPrediction || null,
       waveC2: debugData?.waveData?.col2Prediction || null,
       waveC3: debugData?.waveData?.col3Prediction || null,
@@ -126,7 +163,7 @@ export default function App() {
     (data) => {
       setKiyoDebugData(data);
 
-      // 🔥 NEW: Store the current prefix prediction for next roll
+      // ðŸ”¥ NEW: Store the current prefix prediction for next roll
       if (data.smartPrefix?.prediction) {
         livePrefixPredictionRef.current = {
           main: data.smartPrefix.prediction,
@@ -150,7 +187,7 @@ export default function App() {
                 logs[i] = {
                   ...logs[i],
                   waveData: { ...data.waveData },
-                  // 🔥 NEW: Raw roll for Column 1 analysis
+                  // ðŸ”¥ NEW: Raw roll for Column 1 analysis
                   rawActual: data.waveData?.latestRawRoll || null,
                   // Fill root fields as well for display/export
                   waveC1: data.waveData?.col1RawPrediction || null,
@@ -165,7 +202,7 @@ export default function App() {
                   col1Status: data.waveData?.col1RawStatus || null,
                   col2Status: data.waveData?.col2Status || null,
                   col3Status: data.waveData?.col3Status || null,
-                  // 🔥 NEW: Attach the "live" prefix that was showing before this roll
+                  // ðŸ”¥ NEW: Attach the "live" prefix that was showing before this roll
                   livePrefix: livePrefixPredictionRef.current
                     ? { ...livePrefixPredictionRef.current }
                     : null,
@@ -182,11 +219,11 @@ export default function App() {
     [debugLogs]
   );
 
-  // 🔬 Kiyo Mode: Send predictions to debug
+  // ðŸ”¬ Kiyo Mode: Send predictions to debug
   function handleKiyoToDebug(newRolls = [], kind = "3-str") {
     if (!newRolls.length) return;
 
-    // 🔥 FIX: Log each NEW roll individually, not just the last one
+    // ðŸ”¥ FIX: Log each NEW roll individually, not just the last one
     const prevRolls = kiyoCtxRef.current || [];
     const rollsToLog = newRolls.slice(prevRolls.length); // Only new rolls
 
@@ -200,13 +237,13 @@ export default function App() {
       if (contextRolls.length < 3) return;
 
       // const actual3 = String(roll).slice(0, 3); // actual3 is already the roll value
-      // Allow 2-digit (2-str) rolls — actual may be 2 or 3 chars
+      // Allow 2-digit (2-str) rolls â€” actual may be 2 or 3 chars
       if (String(actual3).length < 2) return;
 
       const p = predictNext3(contextRolls);
       const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
 
-      // Always create a log entry — even for 2-str sessions where predictNext3 returns "—"
+      // Always create a log entry â€” even for 2-str sessions where predictNext3 returns "â€”"
       {
         const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
         const actualStr = String(actual3).slice(0, 3); // 2 or 3 chars depending on mode
@@ -214,11 +251,11 @@ export default function App() {
         const newLog = {
           ts: Date.now() + idx,
           kind: "3",
-          prediction: (p.prediction && p.prediction !== "—" && !String(p.prediction).toLowerCase().startsWith("insufficient"))
-            ? p.prediction : "—",
+          prediction: (p.prediction && p.prediction !== "â€”" && !String(p.prediction).toLowerCase().startsWith("insufficient"))
+            ? p.prediction : "â€”",
           confidence: p.confidence || 0,
           alt: p.alt || null,
-          mode: p.mode || "—",
+          mode: p.mode || "â€”",
           actual: actualStr,
           ctx: contextRolls.slice(-8),
           candidates: p.candidates || [],
@@ -258,15 +295,15 @@ export default function App() {
         });
       }
 
-      // 🔥 NEW: Also log 2-str BBP predictions for accuracy tracking
+      // ðŸ”¥ NEW: Also log 2-str BBP predictions for accuracy tracking
       const rolls2 = contextRolls.map(r => String(r).slice(0, 2)).filter(r => r.length === 2);
       if (rolls2.length >= 6) { // SUGGEST needs at least 6 rolls
-        const p2 = predictWithPairs(rolls2); // 🔥 Use SUGGEST logic instead of OLD Kiyo BBP
+        const p2 = predictWithPairs(rolls2); // ðŸ”¥ Use SUGGEST logic instead of OLD Kiyo BBP
         const actual2 = String(actual3).slice(0, 2);
 
         if (
           p2.prediction &&
-          p2.prediction !== "—" &&
+          p2.prediction !== "â€”" &&
           !String(p2.prediction).toLowerCase().startsWith("insufficient")
         ) {
           const newLog2 = {
@@ -274,14 +311,14 @@ export default function App() {
             kind: "2",
             prediction: p2.prediction,
             confidence: p2.confidence || 0,
-            baseConfidence: p2.baseConfidence || p2.confidence || 0, // 🔥 NEW
+            baseConfidence: p2.baseConfidence || p2.confidence || 0, // ðŸ”¥ NEW
             alt: p2.alt || null,
-            mode: p2.mode || "—",
+            mode: p2.mode || "â€”",
             actual: actual2,
             ctx: rolls2.slice(-8),
             candidates: p2.candidates || [],
             source: "live", // Mark as live for accuracy tracking
-            // 🔥 NEW: Enhanced BBP data
+            // ðŸ”¥ NEW: Enhanced BBP data
             pattern: p2.pattern,
             patternStrength: p2.patternStrength,
             patternSequence: p2.patternSequence,
@@ -299,14 +336,18 @@ export default function App() {
 
     kiyoCtxRef.current = newRolls;
   }
-  // 👇 ADD THIS NEW HANDLER FUNCTION
+  // ðŸ‘‡ ADD THIS NEW HANDLER FUNCTION
 
   const kiyoCtxRef = useRef([]);
   /* ========= LOAD ========= */
   useEffect(() => {
     try {
+      const persistedTheme = readPersistedTheme();
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        setSessionTheme(persistedTheme);
+        return;
+      }
 
       const parsed = JSON.parse(raw);
 
@@ -327,11 +368,17 @@ export default function App() {
       setNotes(parsed.notes || "");
       setCaesarInput(parsed.caesarInput || "");
       setDebugLogs(parsed.debugLogs || []);
-      setSessionTheme(parsed.sessionTheme || "modern"); // ❄️ Load Theme
+      const loadedTheme = normalizeSessionTheme(parsed.sessionTheme || persistedTheme);
+      setSessionTheme(loadedTheme); // â„ï¸ Load Theme
+      persistTheme(loadedTheme);
     } catch (err) {
       console.warn("storage load error", err);
     }
   }, []);
+
+  useEffect(() => {
+    persistTheme(sessionTheme);
+  }, [sessionTheme]);
 
   /* ========= SAVE ========= */
   useEffect(() => {
@@ -344,7 +391,7 @@ export default function App() {
       notes,
       caesarInput,
       debugLogs,
-      sessionTheme, // ❄️ Save Theme
+      sessionTheme, // â„ï¸ Save Theme
       savedAt: Date.now(),
     };
     try {
@@ -361,7 +408,26 @@ export default function App() {
     notes,
     caesarInput,
     debugLogs,
+    sessionTheme,
   ]);
+
+  useEffect(() => {
+    const classNames = [
+      "modern-theme",
+      "arctic-theme",
+      "astral-theme",
+      "crimson-theme",
+      "neon-theme",
+      "void-theme",
+      "winter-theme",
+    ];
+    document.body.classList.remove(...classNames);
+    document.body.classList.add(getRootThemeClassName(sessionTheme));
+
+    return () => {
+      document.body.classList.remove(...classNames);
+    };
+  }, [sessionTheme]);
 
   /* ========= TIMER ========= */
   useEffect(() => {
@@ -384,7 +450,7 @@ export default function App() {
 
   function archiveCurrentSession() {
     if (entries.length > 0) {
-      // 🔥 Calculate BBP Mode frequency distribution for this session
+      // ðŸ”¥ Calculate BBP Mode frequency distribution for this session
       const rollValues = entries
         .map(e => (e.translated || e.s2 || '').slice(0, 2))
         .filter(Boolean);
@@ -427,7 +493,7 @@ export default function App() {
         }
       }
 
-      // 🔥 NEW: Calculate BBP Mode 3-str frequency distribution
+      // ðŸ”¥ NEW: Calculate BBP Mode 3-str frequency distribution
       const rollValues3str = entries
         .map(e => (e.translated || '').slice(0, 3))
         .filter(v => v && v.length === 3);
@@ -477,8 +543,8 @@ export default function App() {
           region,
           patch,
           entries,
-          beastAnalysis, // 🔥 NEW: Save BBP Mode analysis
-          beastAnalysis3str, // 🔥 NEW: Save BBP Mode 3-str analysis
+          beastAnalysis, // ðŸ”¥ NEW: Save BBP Mode analysis
+          beastAnalysis3str, // ðŸ”¥ NEW: Save BBP Mode 3-str analysis
         },
         ...prev,
       ]);
@@ -509,7 +575,7 @@ export default function App() {
 
     const clean = sanitizeRollInput(value);
 
-    // 🔥 NEW: Enforce minimum 2 digits
+    // ðŸ”¥ NEW: Enforce minimum 2 digits
     if (clean.length < 2) {
       console.warn('Roll must be at least 2 digits');
       return;
@@ -521,13 +587,13 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    // 🔥 FIXED: Capture the CURRENT live prediction BEFORE adding the roll
+    // ðŸ”¥ FIXED: Capture the CURRENT live prediction BEFORE adding the roll
     // Use entriesRef.current to avoid stale closures during auto-import
     const currentEntries = entriesRef.current;
 
     const rolls2Before = currentEntries
       .map((e) => (e.translated || "").slice(0, 2))
-      .filter(Boolean); // Chronological (oldest → newest)
+      .filter(Boolean); // Chronological (oldest â†’ newest)
 
     const rolls3Before = currentEntries
       .map((e) => (e.translated || "").slice(0, 3))
@@ -537,7 +603,7 @@ export default function App() {
       .map((e) => (e.translated || "").slice(0, 4))
       .filter((r) => r.length === 4); // Chronological
 
-    // 🔥 CAPTURE: The predictions that were SHOWING before this roll
+    // ðŸ”¥ CAPTURE: The predictions that were SHOWING before this roll
     const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before) : null;
     const p3Before = predictNext3(rolls3Before);
     const p4Before = predictNext4(rolls4Before);
@@ -554,7 +620,7 @@ export default function App() {
 
     // Capture live state of the smart predictor
     const liveSmartPrefix = {
-      main: p3Before.prediction || "—",
+      main: p3Before.prediction || "â€”",
       alt: p3Before.alt || safeCandidates(p3Before)[1]?.value || null,
     };
 
@@ -564,15 +630,15 @@ export default function App() {
       prediction: liveSmartPrefix.main,
       confidence: p3Before.confidence || 0,
       alt: liveSmartPrefix.alt,
-      mode: p3Before.mode || "—",
+      mode: p3Before.mode || "â€”",
       actual: actual3,
       ctx: rolls3Before.slice(-8),
       candidates: safeCandidates(p3Before),
       smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
     });
 
-    // 🔥 FIXED: Use the prediction that was SHOWING (p2Before), not a new one
-    if (p2Before && p2Before.prediction && p2Before.prediction !== "—" &&
+    // ðŸ”¥ FIXED: Use the prediction that was SHOWING (p2Before), not a new one
+    if (p2Before && p2Before.prediction && p2Before.prediction !== "â€”" &&
       !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
       newLogsToAdd.push({
         ts: nowTs + 0.1, // Slight offset
@@ -581,12 +647,12 @@ export default function App() {
         confidence: p2Before.confidence || 0,
         baseConfidence: p2Before.baseConfidence || p2Before.confidence || 0,
         alt: p2Before.alt || null,
-        mode: p2Before.mode || "—",
+        mode: p2Before.mode || "â€”",
         actual: actual2,
-        ctx: [...rolls2Before], // Chronological (oldest→newest)
+        ctx: [...rolls2Before], // Chronological (oldestâ†’newest)
         candidates: safeCandidates(p2Before),
         source: "live", // Mark as live for accuracy tracking
-        // 🔥 Enhanced BBP data
+        // ðŸ”¥ Enhanced BBP data
         pattern: p2Before.pattern,
         patternStrength: p2Before.patternStrength,
         patternSequence: p2Before.patternSequence,
@@ -610,7 +676,7 @@ export default function App() {
     }]);
     setDebugLogs((old) => [...newLogsToAdd, ...old].slice(0, 200));
 
-    // 🔥 Track prediction in live stats
+    // ðŸ”¥ Track prediction in live stats
     if (window.__trackPrediction) {
       window.__trackPrediction();
     }
@@ -619,13 +685,13 @@ export default function App() {
       setRollInput("");
     }
   }
-  // 🔬 Long String sandbox → stream to debug (supports both 2-str and 3-str)
+  // ðŸ”¬ Long String sandbox â†’ stream to debug (supports both 2-str and 3-str)
   function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
     if (!newRolls.length) return;
 
     const is3Str = targetStream === "3-str";
 
-    // 🔥 FIX: Don't send ALL rolls, only send the LAST roll as a single prediction
+    // ðŸ”¥ FIX: Don't send ALL rolls, only send the LAST roll as a single prediction
     // This prevents sending 19 duplicate entries for 19 rolls
 
     const lastRoll = newRolls[newRolls.length - 1];
@@ -650,7 +716,7 @@ export default function App() {
     // Only log if we have a real prediction
     if (
       p.prediction &&
-      p.prediction !== "—" &&
+      p.prediction !== "â€”" &&
       !String(p.prediction).toLowerCase().startsWith("insufficient")
     ) {
       const newLog = {
@@ -659,7 +725,7 @@ export default function App() {
         prediction: p.prediction,
         confidence: p.confidence || 0,
         alt,
-        mode: p.mode || "—",
+        mode: p.mode || "â€”",
         actual: actualStr,
         ctx: contextRolls.slice(-8).reverse(), // Last 8 in reverse (newest first)
         candidates,
@@ -701,7 +767,7 @@ export default function App() {
     }
   }
 
-  // 🔥 CSV Export Handler
+  // ðŸ”¥ CSV Export Handler
   function handleExportCSV() {
     const allEntries = [];
 
@@ -711,7 +777,7 @@ export default function App() {
       const digits = str.split("").map((d) => {
         const n = parseInt(d, 10);
         if (isNaN(n)) return null;
-        // ✅ MAP 1–8 → 1–4 USING MODULO (GAME-NATIVE)
+        // âœ… MAP 1â€“8 â†’ 1â€“4 USING MODULO (GAME-NATIVE)
         return ((n - 1) % 4) + 1;
       }).filter(Boolean);
 
@@ -806,7 +872,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  // 🔥 NEW: Clear debug logs handler
+  // ðŸ”¥ NEW: Clear debug logs handler
   function handleClearDebugLogs() {
     setDebugLogs([]);
   }
@@ -874,8 +940,8 @@ export default function App() {
     .map((e) => (e.s4 || "").replace(/0+$/, ""))
     .filter((r) => r.length >= 4);
 
-  // 🔥 UPDATED: Use BBP mode for live prediction display
-  const livePrediction = rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "—", confidence: 0 };
+  // ðŸ”¥ UPDATED: Use BBP mode for live prediction display
+  const livePrediction = rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "â€”", confidence: 0 };
 
   const livePrediction3 = predictNext3(rolls3);
   const livePrediction4 = predictNext4(rolls4);
@@ -921,7 +987,10 @@ export default function App() {
         </div>
       }
     >
-      <div className={sessionTheme === "arctic" ? "arctic-theme transition-colors duration-1000" : sessionTheme === "winter" ? "winter-theme transition-colors duration-1000" : "modern-theme transition-colors duration-1000"}>
+      <div
+        className={`theme-root ${getRootThemeClassName(sessionTheme)} transition-colors duration-1000`}
+        style={getSessionThemeConfig(sessionTheme).cssVars}
+      >
         {sessionTheme === 'arctic' && (
           <>
             <div className="aurora-layer aurora-blob-1" />
@@ -930,8 +999,36 @@ export default function App() {
             <ArcticSnow particleCount={24} speedScale={0.50} />
           </>
         )}
-                <Routes>
-          <Route path="/" element={<HomePage />} />
+        {sessionTheme === 'astral' && (
+          <>
+            <AstralStars />
+            <AstralExpress />
+          </>
+        )}
+        {normalizeSessionTheme(sessionTheme) === 'crimson' && (
+          <>
+            <CrimsonBloom />
+            <VoidPetals />
+          </>
+        )}
+        <div className="relative z-20">
+          {sessionTheme === "neon" && (
+            <div className="pointer-events-none fixed inset-0 z-0">
+              <SilverWolf999Backdrop image="999SW.png" />
+              <AetherEffect />
+            </div>
+          )}
+          <div className="relative z-10">
+            <Routes>
+          <Route
+            path="/"
+            element={
+                <HomePage
+                  sessionTheme={sessionTheme}
+                onThemeChange={handleThemeChange}
+              />
+            }
+          />
           {/* Wrap all other routes with Layout for navigation */}
           <Route element={
             <Layout
@@ -945,7 +1042,7 @@ export default function App() {
               prevSessions={prevSessions}
               onExportCSV={handleExportCSV}
               sessionTheme={sessionTheme}
-              onThemeChange={setSessionTheme}
+              onThemeChange={handleThemeChange}
             />
           }>
             <Route
@@ -1010,6 +1107,7 @@ export default function App() {
                   onClearLogs={handleClearDebugLogs}
                   onImportLogs={handleImportDebugLogs}
                   isDebugMode={isDebugMode}
+                  sessionTheme={sessionTheme}
                 />
               }
             />
@@ -1033,17 +1131,22 @@ export default function App() {
                   onClearLogs={handleClearDebugLogs}
                   onImportLogs={handleImportDebugLogs}
                   isDebugMode={isDebugMode}
+                  sessionTheme={sessionTheme}
                 />
               }
             />
-            <Route path="/warp-analyzer" element={<WarpAnalyzerPage />} />
-            <Route path="/banner-tracker" element={<BannerTracker />} />
+            <Route path="/warp-analyzer" element={<WarpAnalyzerPage sessionTheme={sessionTheme} />} />
+            <Route path="/banner-tracker" element={<BannerTracker sessionTheme={sessionTheme} />} />
             <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
-            <Route path="/guides" element={<ModernGuidesPage />} />
+            <Route path="/guides" element={<ModernGuidesPage sessionTheme={sessionTheme} />} />
           </Route>
-        </Routes>
+            </Routes>
+          </div>
+        </div>
       </div>
     </Suspense>
   );
 }
+
+
 

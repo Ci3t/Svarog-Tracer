@@ -1,0 +1,282 @@
+/* Crimson Void theme */
+
+:is(.crimson-theme, .void-theme) {
+  --crimson-black: #050505;
+  --crimson-ink: #0b0b0c;
+  --crimson-accent: #ff0033;
+  --crimson-accent-soft: rgba(255, 0, 51, 0.18);
+  --crimson-border: rgba(255, 0, 51, 0.24);
+  --crimson-border-strong: rgba(255, 77, 109, 0.5);
+  --crimson-text: #ffffff;
+  --crimson-muted: #a1a1aa;
+  background-color: #050505;
+  color: var(--crimson-text);
+}
+
+body:is(.crimson-theme, .void-theme) {
+  background-color: #050505;
+}
+
+:is(.crimson-theme, .void-theme).theme-root {
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(255, 0, 51, 0.12), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.06), transparent 28%),
+    linear-gradient(180deg, #0a0a0b 0%, #050505 68%, #050505 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-size: auto, auto, auto;
+  background-position: center, center, center;
+  background-color: #050505;
+}
+
+:is(.crimson-theme, .void-theme) .theme-glass-card,
+:is(.crimson-theme, .void-theme) .theme-modal-shell,
+:is(.crimson-theme, .void-theme) .cavern-entry-modal {
+  background:
+    linear-gradient(180deg, rgba(14, 14, 16, 0.95), rgba(8, 8, 9, 0.96)) !important;
+  border: 1px solid var(--crimson-border) !important;
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.66),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+  color: var(--crimson-text);
+  position: relative;
+  overflow: hidden;
+}
+
+:is(.crimson-theme, .void-theme) .theme-panel-surface,
+:is(.crimson-theme, .void-theme) .theme-subpanel,
+:is(.crimson-theme, .void-theme) .modal-section,
+:is(.crimson-theme, .void-theme) .cavern-domain-card,
+:is(.crimson-theme, .void-theme) .archive-team-card,
+:is(.crimson-theme, .void-theme) .archive-team-stats {
+  position: relative;
+  overflow: hidden;
+}
+
+:is(.crimson-theme, .void-theme) .theme-glass-card::before,
+:is(.crimson-theme, .void-theme) .theme-panel-surface::before,
+:is(.crimson-theme, .void-theme) .theme-subpanel::before,
+:is(.crimson-theme, .void-theme) .modal-section::before,
+:is(.crimson-theme, .void-theme) .cavern-domain-card::before,
+:is(.crimson-theme, .void-theme) .archive-team-card::before,
+:is(.crimson-theme, .void-theme) .archive-team-stats::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 120px;
+  height: 120px;
+  opacity: 0.35;
+  pointer-events: none;
+  background-image: url('data:image/svg+xml;utf8,<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M60 40C80 10 110 30 110 60C80 50 60 70 60 60Z" fill="%23ff0033"/><path d="M60 60C40 90 10 70 10 40C40 50 60 30 60 40Z" fill="%23ff0033"/><path d="M0 120L120 0L125 5L5 125Z" fill="%23ff0033" opacity="0.6"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+  animation: crimson-corner-bloom 6.2s ease-in-out infinite;
+  z-index: 2;
+}
+
+:is(.crimson-theme, .void-theme) .cavern-entry-modal::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 90px;
+  height: 90px;
+  opacity: 0.24;
+  pointer-events: none;
+  background-image: url("/acheron-flower.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: saturate(1.22) contrast(1.08) brightness(0.9);
+}
+
+:is(.crimson-theme, .void-theme) .theme-glass-card::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  bottom: 0;
+  width: 80%;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0.66;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 0, 51, 0.92) 30%,
+    rgba(255, 77, 109, 0.55) 56%,
+    transparent 100%
+  );
+}
+
+:is(.crimson-theme, .void-theme) .theme-glass-card:hover,
+:is(.crimson-theme, .void-theme) .theme-modal-shell:hover {
+  border-color: var(--crimson-border-strong) !important;
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.76),
+    0 0 26px rgba(255, 0, 51, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+:is(.crimson-theme, .void-theme) .theme-modal-overlay {
+  background: rgba(0, 0, 0, 0.82) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+:is(.crimson-theme, .void-theme) input,
+:is(.crimson-theme, .void-theme) select,
+:is(.crimson-theme, .void-theme) textarea {
+  background: rgba(12, 12, 13, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  color: #ffffff !important;
+}
+
+:is(.crimson-theme, .void-theme) input:focus,
+:is(.crimson-theme, .void-theme) select:focus,
+:is(.crimson-theme, .void-theme) textarea:focus {
+  border-color: rgba(255, 0, 51, 0.48) !important;
+  box-shadow: 0 0 0 3px rgba(255, 0, 51, 0.16) !important;
+}
+
+:is(.crimson-theme, .void-theme) .text-purple-500,
+:is(.crimson-theme, .void-theme) .text-indigo-500,
+:is(.crimson-theme, .void-theme) .text-blue-500,
+:is(.crimson-theme, .void-theme) .text-cyan-500,
+:is(.crimson-theme, .void-theme) .text-violet-500,
+:is(.crimson-theme, .void-theme) .text-green-500,
+:is(.crimson-theme, .void-theme) .astral-gold-text,
+:is(.crimson-theme, .void-theme) .text-astral-gold {
+  color: #ff0033 !important;
+}
+
+:is(.crimson-theme, .void-theme) .text-purple-400,
+:is(.crimson-theme, .void-theme) .text-indigo-400,
+:is(.crimson-theme, .void-theme) .text-cyan-400 {
+  color: #e5e7eb !important;
+}
+
+:is(.crimson-theme, .void-theme) .theme-action-primary,
+:is(.crimson-theme, .void-theme) button.bg-purple-600,
+:is(.crimson-theme, .void-theme) button.bg-indigo-600,
+:is(.crimson-theme, .void-theme) button.bg-blue-600 {
+  background: linear-gradient(180deg, #ff335e 0%, #c40029 100%) !important;
+  border-color: rgba(255, 77, 109, 0.5) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(255, 0, 51, 0.3) !important;
+}
+
+:is(.crimson-theme, .void-theme) button:not(:disabled):hover,
+:is(.crimson-theme, .void-theme) .theme-action-primary:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+:is(.crimson-theme, .void-theme) .window-progress-track {
+  border-color: rgba(255, 0, 51, 0.34) !important;
+  background: rgba(38, 10, 18, 0.35) !important;
+}
+
+:is(.crimson-theme, .void-theme) .window-progress-bar,
+:is(.crimson-theme, .void-theme) .glacial-progress-bar,
+:is(.crimson-theme, .void-theme) .progress-bar-fill {
+  background-image:
+    repeating-linear-gradient(
+      -24deg,
+      rgba(255, 255, 255, 0.16) 0px,
+      rgba(255, 255, 255, 0.16) 10px,
+      rgba(255, 255, 255, 0.04) 10px,
+      rgba(255, 255, 255, 0.04) 20px
+    ),
+    linear-gradient(90deg, #8f001f 0%, #ff0033 45%, #ff4d6d 100%) !important;
+  box-shadow: 0 0 16px rgba(255, 0, 51, 0.3) !important;
+  animation: crimson-bar-flow 1.9s linear infinite;
+}
+
+:is(.crimson-theme, .void-theme) .bg-slate-900,
+:is(.crimson-theme, .void-theme) .bg-slate-950,
+:is(.crimson-theme, .void-theme) .bg-black {
+  background-color: #080808 !important;
+}
+
+:is(.crimson-theme, .void-theme) .border-white\/10,
+:is(.crimson-theme, .void-theme) .border-slate-800,
+:is(.crimson-theme, .void-theme) .border-green-500\/20 {
+  border-color: rgba(255, 0, 51, 0.24) !important;
+}
+
+:is(.crimson-theme, .void-theme) .bg-green-500\/10 {
+  background-color: rgba(255, 0, 51, 0.1) !important;
+}
+
+:is(.crimson-theme, .void-theme) .hover\:bg-white\/5:hover {
+  background-color: rgba(255, 0, 51, 0.08) !important;
+}
+
+:is(.crimson-theme, .void-theme) .hero-title {
+  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.58), 0 0 16px rgba(255, 0, 51, 0.1);
+}
+
+:is(.crimson-theme, .void-theme) .cavern-toolbar-shell {
+  margin-top: clamp(0.6rem, 1.35vw, 1.1rem);
+}
+
+:is(.crimson-theme, .void-theme) .cavern-toolbar-shell::after {
+  content: "";
+  position: absolute;
+  right: 0.9rem;
+  top: -0.35rem;
+  width: min(42vw, 360px);
+  height: 56px;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: url('data:image/svg+xml;utf8,<svg width="400" height="60" viewBox="0 0 400 60" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 55L40 45L120 48L280 12L360 8L400 2L350 18L180 32L60 52L0 60Z" fill="%23ff0033" fill-opacity="0.8"/></svg>');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: right top;
+  filter: drop-shadow(0 0 8px rgba(255, 0, 51, 0.4));
+}
+
+:is(.crimson-theme, .void-theme) ::-webkit-scrollbar-thumb {
+  background: #ff0033;
+}
+
+:is(.crimson-theme, .void-theme) ::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+@keyframes crimson-bar-flow {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 56px 0, 0 0;
+  }
+}
+
+@keyframes crimson-corner-bloom {
+  0% {
+    opacity: 0.24;
+    transform: translate3d(4px, -3px, 0) scale(0.95);
+    filter: drop-shadow(0 0 0 rgba(255, 0, 51, 0.2));
+  }
+  50% {
+    opacity: 0.4;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: drop-shadow(0 0 8px rgba(255, 0, 51, 0.34));
+  }
+  100% {
+    opacity: 0.3;
+    transform: translate3d(2px, -1px, 0) scale(0.98);
+    filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.24));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.crimson-theme, .void-theme) .theme-glass-card::before,
+  :is(.crimson-theme, .void-theme) .theme-panel-surface::before,
+  :is(.crimson-theme, .void-theme) .theme-subpanel::before,
+  :is(.crimson-theme, .void-theme) .modal-section::before,
+  :is(.crimson-theme, .void-theme) .cavern-domain-card::before,
+  :is(.crimson-theme, .void-theme) .archive-team-card::before,
+  :is(.crimson-theme, .void-theme) .archive-team-stats::before {
+    animation: none !important;
+  }
+}

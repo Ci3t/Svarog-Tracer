@@ -3,183 +3,180 @@
  * Discovers live Genshin banners from paimon.moe
  */
 
-// DYNAMIC DISCOVERY - No more hardcoding needed
-const OVERRIDE_MAP = {};
-
+const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
+const GENSHIN_WEAPON_IMG_BASE = 'https://paimon.moe/images/weapons/';
 const GENSHIN_BANNER_IMG_BASE = 'https://paimon.moe/images/banners/';
+
+const MINOR_WORDS = new Set(['of', 'the', 'and', 'in', 'a', 'an']);
+
+function toTitleCaseFromSlug(slug) {
+  return slug
+    .split('_')
+    .map((word, idx) =>
+      (idx > 0 && MINOR_WORDS.has(word.toLowerCase()))
+        ? word.toLowerCase()
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(' ');
+}
+
+function extractFeaturedCharacterSlugs(list) {
+  if (!list || list.length === 0) return [];
+
+  const standard = ['diluc', 'jean', 'keqing', 'mona', 'qiqi', 'tighnari', 'dehya', 'ororon', 'lan_yan'];
+  const fourStarBlocklist = [
+    'fischl', 'bennett', 'xiangling', 'xingqiu', 'barbara', 'noelle', 'sucrose', 'diona', 'chongyun', 'razor',
+    'beidou', 'ningguang', 'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou', 'yun_jin',
+    'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla', 'faruzan', 'yaoyao', 'mika', 'kaveh',
+    'kirara', 'lynette', 'freminet', 'charlotte', 'gaming', 'chevreuse', 'sethos', 'kachina', 'aino'
+  ];
+
+  return list
+    .filter(item => {
+      if (item.type !== 'character') return false;
+      const name = item.name.toLowerCase();
+      if (standard.includes(name)) return false;
+      if (fourStarBlocklist.includes(name)) return false;
+      return item.count >= 1000 && item.count < 35000;
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(item => item.name);
+}
+
+function extractFeaturedWeaponSlugs(list) {
+  if (!list || list.length === 0) return [];
+
+  const standardWeapons = [
+    'amos_bow', 'skyward_harp', 'skyward_atlas', 'lost_prayer_to_the_sacred_winds',
+    'primordial_jade_winged_spear', 'skyward_spine', 'wolfs_gravestone', 'skyward_pride',
+    'skyward_blade', 'aquila_favonia'
+  ];
+
+  const weapon4StarBlocklist = [
+    'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade',
+    'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
+    'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
+  ];
+
+  return list
+    .filter(item => {
+      if (item.type !== 'weapon') return false;
+      const name = item.name.toLowerCase();
+      if (standardWeapons.includes(name)) return false;
+      if (weapon4StarBlocklist.includes(name)) return false;
+      return item.count > 500 && item.count < 35000;
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(item => item.name);
+}
+
+function buildCharacterBannerPayload(bannerId, slugs, legendaryCount) {
+  if (!slugs.length) return null;
+
+  return {
+    id: `${bannerId}_character`,
+    bannerId,
+    name: slugs.map(toTitleCaseFromSlug).join(' / '),
+    type: 'character',
+    image: `${GENSHIN_CHAR_IMG_BASE}${slugs[0]}.png`,
+    characterId: slugs[0],
+    game: 'genshin',
+    source: 'auto',
+    pullCount: legendaryCount
+  };
+}
+
+function buildWeaponBannerPayload(bannerId, slugs, legendaryCount) {
+  const name = slugs.length ? slugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation';
+  const image = slugs.length
+    ? `${GENSHIN_WEAPON_IMG_BASE}${slugs[0]}.png`
+    : `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerId.slice(-2)}.png`;
+
+  return {
+    id: `${bannerId}_weapon`,
+    bannerId,
+    name,
+    type: 'weapon',
+    image,
+    characterId: 'weapon_banner',
+    game: 'genshin',
+    source: 'auto',
+    pullCount: legendaryCount
+  };
+}
+
+async function discoverBannerNear(baseId, prefix, type) {
+  const scanIds = [];
+  for (let i = baseId + 2; i >= baseId - 8 && i >= 0; i--) {
+    scanIds.push(`${prefix}${String(i).padStart(3, '0')}`);
+  }
+
+  for (const bannerId of scanIds) {
+    try {
+      const response = await fetch(`${PAIMON_API}?banner=${bannerId}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0)'
+        },
+        signal: AbortSignal.timeout(3000)
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const legendaryCount = data?.total?.legendary || 0;
+      if (legendaryCount <= 1000) continue;
+
+      if (type === 'character') {
+        const slugs = extractFeaturedCharacterSlugs(data.list);
+        const payload = buildCharacterBannerPayload(bannerId, slugs, legendaryCount);
+        if (payload) return payload;
+      } else {
+        const slugs = extractFeaturedWeaponSlugs(data.list);
+        return buildWeaponBannerPayload(bannerId, slugs, legendaryCount);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
 
 export async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
+
   if (req.method === 'OPTIONS') return res.status(200).end();
-  
+
   try {
     console.log('[Genshin Banners API] Auto-discovering current banners...');
-    const banners = [];
-    
-    // Probing recent ID ranges to auto-detect new banners
-    const currentCharBase = 96; 
-    const currentWeaponBase = 94;
-    const probeRange = 3; 
-    
-    // Helper function to probe banner IDs
-    const probeBanners = async (baseId, prefix, type) => {
-      const discovered = [];
-      const checks = [];
-      
-      for (let i = baseId; i <= baseId + probeRange; i++) {
-        const bannerId = `${prefix}${i.toString().padStart(3, '0')}`;
-        
-        // Skip anomalies
-        if (bannerId === '300093') continue;
-        
-        checks.push((async () => {
-          try {
-            const response = await fetch(`https://api.paimon.moe/wish?banner=${bannerId}`, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-              },
-              signal: AbortSignal.timeout(3000)
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              
-              // Validate: Must have enough pull data (>200 legendary pulls)
-              if (data.total && data.total.legendary > 200) {
-                let name;
-                let image;
-                
-                if (type === 'character') {
-                  name = extractGenshinBannerName(data.list);
-                  image = `${GENSHIN_CHAR_IMG_BASE}${name.toLowerCase().replace(/[\s·•]+/g, '_')}.png`;
-                } else {
-                  // Weapon banner
-                  name = extractGenshinWeaponNames(data.list) || "Epitome Invocation";
-                  const bannerNum = bannerId.slice(-2);
-                  image = `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerNum}.png`;
-                }
-                
-                return {
-                  id: `${bannerId}_${type}`,
-                  bannerId,
-                  name,
-                  type,
-                  image,
-                  characterId: type === 'character' ? name.toLowerCase().replace(/[\s·•]+/g, '_') : 'weapon_banner',
-                  game: 'genshin',
-                  pullCount: data.total.legendary 
-                };
-              }
-            }
-          } catch (e) {}
-          return null;
-        })());
-      }
-      
-      const results = (await Promise.all(checks)).filter(b => b !== null);
-      if (type === 'weapon' && results.length > 1) {
-        return [results.sort((a, b) => parseInt(b.bannerId) - parseInt(a.bannerId))[0]];
-      }
-      return results;
-    };
-    
-    // Discover character and weapon banners in parallel
-    const [characterBanners, weaponBanners] = await Promise.all([
-      probeBanners(currentCharBase, '300', 'character'),
-      probeBanners(currentWeaponBase, '400', 'weapon')
+
+    const currentCharBase = 97;
+    const currentWeaponBase = 95;
+
+    const [characterBanner, weaponBanner] = await Promise.all([
+      discoverBannerNear(currentCharBase, '300', 'character'),
+      discoverBannerNear(currentWeaponBase, '400', 'weapon')
     ]);
-    
-    const allBanners = [...characterBanners, ...weaponBanners];
-    allBanners.sort((a, b) => parseInt(b.bannerId) - parseInt(a.bannerId));
-    
-    console.log('[Genshin Banners API] Discovered', allBanners.length, 'active banner(s):', 
-      allBanners.map(b => `${b.name} (${b.bannerId})`).join(', '));
-    
+
+    const allBanners = [characterBanner, weaponBanner].filter(Boolean);
+    allBanners.sort((a, b) => parseInt(b.bannerId, 10) - parseInt(a.bannerId, 10));
+
+    console.log(
+      '[Genshin Banners API] Discovered',
+      allBanners.length,
+      'active banner(s):',
+      allBanners.map(b => `${b.name} (${b.bannerId})`).join(', ')
+    );
+
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
     return res.status(200).json(allBanners);
-    
   } catch (error) {
     console.error('[Genshin Banners API] Fatal Error:', error);
     return res.status(500).json({ error: 'Failed to discover Genshin banners', message: error.message });
   }
-}
-
-function extractGenshinBannerName(list) {
-  if (!list || list.length === 0) return "Unknown";
-  
-  // Characters to exclude from "featured" status
-  const standard = ['Diluc', 'Jean', 'Keqing', 'Mona', 'Qiqi', 'Tighnari', 'Dehya', 'Ororon', 'Lan Yan', 'Mualani', 'Kachina'];
-  const fourStarBlocklist = [
-    'Fischl', 'Bennett', 'Xiangling', 'Xingqiu', 'Barbara', 'Noelle', 'Sucrose', 'Diona', 'Chongyun', 'Razor', 
-    'Beidou', 'Ningguang', 'Yanfei', 'Rosaria', 'Xinyan', 'Sayu', 'Kujou Sara', 'Thoma', 'Gorou', 'Yun Jin', 
-    'Kuki Shinobu', 'Heizou', 'Collei', 'Dori', 'Candace', 'Layla', 'Faruzan', 'Yaoyao', 'Mika', 'Kaveh', 
-    'Kirara', 'Lynette', 'Freminet', 'Charlotte', 'Gaming', 'Chevreuse', 'Sethos', 'Kachina', 'Ororon', 'Lan Yan', 'Aino'
-  ].map(n => n.toLowerCase());
-
-  
-  const characterCandidates = list.filter(item => {
-    if (item.type !== 'character') return false;
-    
-    const nameLower = item.name.toLowerCase();
-    
-    // 1. Exclude standard 5-stars
-    if (standard.some(s => s.toLowerCase() === nameLower)) return false;
-    
-    // 2. Exclude all known 4-stars
-    if (fourStarBlocklist.includes(nameLower)) return false;
-    
-    // 3. Count Heuristic: 5-stars typically have 1,000-35,000 pulls
-    // 4-stars usually have <1,000 or >35,000 (shared across many banners)
-    return item.count >= 1000 && item.count < 35000;
-  });
-  
-  // Sort by count descending (most relevant 5-star)
-  characterCandidates.sort((a, b) => b.count - a.count);
-  
-  if (characterCandidates.length > 0) {
-    return characterCandidates[0].name;
-  }
-  
-  return "Featured Banner";
-}
-
-function extractGenshinWeaponNames(list) {
-  if (!list || list.length === 0) return null;
-  
-  const standardWeapons = [
-    'amos_bow', 'skyward_harp', 'skyward_atlas', 'lost_prayer_to_the_sacred_winds',
-    'primordial_jade_winged_spear', 'skyward_spine', 'wolfs_gravestone', 'skyward_pride',
-    'skyward_blade', 'aquila_favonia'
-  ].map(n => n.toLowerCase());
-
-  const weaponCandidates = list.filter(item => {
-    if (item.type !== 'weapon') return false;
-    const nameLower = item.name.toLowerCase();
-    if (standardWeapons.includes(nameLower)) return false;
-    
-    // Exclude common 4-star weapons
-    const weapon4StarBlocklist = [
-      'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade', 
-      'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
-      'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
-    ];
-    if (weapon4StarBlocklist.includes(nameLower)) return false;
-
-    return item.count > 200 && item.count < 35000;
-  });
-
-  weaponCandidates.sort((a, b) => b.count - a.count);
-  
-  if (weaponCandidates.length > 0) {
-    // Take top 2 weapons (dual featured)
-    return weaponCandidates.slice(0, 2).map(item => 
-      item.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-    ).join(' / ');
-  }
-  
-  return null;
 }

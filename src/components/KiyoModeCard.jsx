@@ -1051,7 +1051,7 @@ export default function KiyoModeCard({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-bold text-emerald-400">🌊 Kiyo Mode</h3>
           <p className="text-xs text-slate-400">
@@ -1059,7 +1059,7 @@ export default function KiyoModeCard({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <input
             ref={fileInputRef}
             type="file"
@@ -1069,13 +1069,13 @@ export default function KiyoModeCard({
           />
           <button
             onClick={() => setShowGuide(true)}
-            className="px-3 py-1.5 text-xs font-semibold bg-purple-500/20 text-purple-300 hover:bg-purple-500/35 border border-purple-500/40 rounded-lg transition cursor-pointer"
+            className="px-3 py-1.5 text-xs font-semibold kiyo-accent-soft rounded-lg transition cursor-pointer"
           >
             📖 Guide
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 rounded-lg transition cursor-pointer"
+            className="px-3 py-1.5 text-xs font-semibold kiyo-accent-soft rounded-lg transition cursor-pointer"
           >
             📁 Import
           </button>
@@ -1125,7 +1125,7 @@ export default function KiyoModeCard({
 
         <div className="flex flex-col sm:flex-row gap-3 items-stretch">
           {/* Roll Input + window stats below it */}
-          <div className="flex-1 min-w-0 glacial-card kiyo-snow-card p-3">
+          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
             <RollInput
               testInput={testInput}
               setTestInput={setTestInput}
@@ -1139,7 +1139,7 @@ export default function KiyoModeCard({
           </div>
 
           {/* Caesar Shift */}
-          <div className="flex-1 min-w-0 glacial-card kiyo-snow-card p-3">
+          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
             <CompactCaesarShift
               caesarInput={caesarInput}
               setCaesarInput={setCaesarInput}
@@ -1149,9 +1149,9 @@ export default function KiyoModeCard({
       </div>
 
       {/* ── Added Rolls + Wave Pairing Table (side by side) ───────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.5fr)', gap: '14px', alignItems: 'start' }}>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3.5 items-start">
         {/* LEFT: Added Rolls (no old WaveAnalysisDisplay child) */}
-        <div className="glacial-card kiyo-snow-card p-2">
+        <div className="theme-glass-card kiyo-snow-card p-2">
           <AddedRollsPanel
             testRolls={testRolls}
             setTestRolls={setTestRolls}
@@ -1162,7 +1162,7 @@ export default function KiyoModeCard({
         </div>
 
         {/* RIGHT: Wave Pairing Table */}
-        <div className="glacial-card kiyo-snow-card p-2">
+        <div className="theme-glass-card kiyo-snow-card p-2">
           {pairingViz && pairingViz.length > 0 && (
             <WavePairingTable
               pairingViz={pairingViz}
@@ -1405,3 +1405,4 @@ export default function KiyoModeCard({
     </div>
   );
 }
+

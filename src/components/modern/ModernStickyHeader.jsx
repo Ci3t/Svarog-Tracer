@@ -59,7 +59,7 @@ export default function ModernStickyHeader({
 
   return (
     <div 
-      className="sticky top-[110px] sm:top-[120px] lg:top-[64px] z-40 transition-all duration-300 glacial-header-glass"
+      className="astral-sticky-header sticky top-[110px] sm:top-[120px] lg:top-[64px] z-40 transition-all duration-300 glacial-header-glass"
       style={{ opacity: isScrolled ? 0.95 : 1 }}
     >
       <div className="max-w-[1920px] mx-auto px-4 py-3">

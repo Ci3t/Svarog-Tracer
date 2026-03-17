@@ -52,7 +52,7 @@
 }
 
 /* 🧊 OPTIMIZED GLACIAL CARD 🧊 */
-.arctic-theme .glacial-card {
+.arctic-theme .theme-glass-card {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(14, 165, 233, 0.25) 100%) !important;
   backdrop-filter: blur(3px) saturate(110%) !important;
   -webkit-backdrop-filter: blur(3px) saturate(110%) !important;
@@ -66,13 +66,13 @@
   will-change: auto;
 }
 
-.arctic-theme .glacial-card:hover {
+.arctic-theme .theme-glass-card:hover {
   border-color: rgba(125, 211, 252, 0.6) !important;
   box-shadow: 0 0 20px rgba(103, 232, 249, 0.14) !important;
 }
 
 /* ❄️ Premium Static Snow Caps (Organic Multi-Layer Depth) */
-.arctic-theme .glacial-card::after,
+.arctic-theme .theme-glass-card::after,
 .arctic-theme .glacial-subtle-snow::after {
   content: "";
   position: absolute;
@@ -158,7 +158,7 @@
   text-shadow: none !important;
 }
 
-.arctic-theme .glacial-card button,
+.arctic-theme .theme-glass-card button,
 .arctic-theme .glacial-header-glass button {
   cursor: pointer !important;
 }

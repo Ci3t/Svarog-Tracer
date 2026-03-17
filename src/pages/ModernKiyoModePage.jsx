@@ -20,7 +20,8 @@ export default function ModernKiyoModePage({
   pendingKiyoSnapshotsRef,
   onClearLogs,
   onImportLogs,
-  isDebugMode = false,
+  isDebugMode,
+  sessionTheme,
 }) {
   return (
     <div className="modern-kiyo-page w-full p-2 sm:p-3 lg:p-4 mt-2 sm:mt-4 lg:mt-6">
@@ -40,8 +41,8 @@ export default function ModernKiyoModePage({
       <div className="modern-kiyo-shell">
         <ModernDebugPanel
           debugLogs={debugLogs}
-          onClear={onClearLogs}
-          onImport={onImportLogs}
+          onClearLogs={onClearLogs}
+          onImportLogs={onImportLogs}
           isDebugMode={isDebugMode}
         />
       </div>

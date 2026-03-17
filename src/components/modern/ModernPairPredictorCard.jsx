@@ -159,7 +159,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   // 🚨 SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
     return (
-      <div className="rounded-2xl border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-900/30 p-4">
+      <div className="astral-bbp-card rounded-2xl border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-900/30 p-4">
         <div className="flex items-center gap-3 mb-2">
           <span className="text-red-400 text-lg animate-pulse">🔴</span>
           <span className="text-red-300 text-sm font-bold uppercase tracking-wide">Session Reset Detected</span>
@@ -183,7 +183,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   // ── Warming-up: render after all hooks have run ───────────────────────────
   if (isWarming) {
     return (
-      <div className={`bg-gradient-to-br from-slate-800/60 to-slate-900/90 rounded-2xl p-4 border shadow-xl ${getCardStyle(false, true)}`}>
+      <div className={`astral-bbp-card bg-gradient-to-br from-slate-800/60 to-slate-900/90 rounded-2xl p-4 border shadow-xl ${getCardStyle(false, true)}`}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">🎯 BBP Mode</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${getBadgeStyle('⏳')}`}>⏳ Warming Up</span>
@@ -222,7 +222,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   })();
 
   return (
-    <div className={`bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
+    <div className={`astral-bbp-card bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -265,7 +265,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
 
             {/* Main pick — lean here */}
             <div className="flex flex-col items-center">
-              <div className={`relative w-20 h-20 rounded-2xl flex flex-col items-center justify-center
+              <div className={`astral-pick-primary relative w-20 h-20 rounded-2xl flex flex-col items-center justify-center
                 border-2 shadow-lg transition-all duration-300
                 ${isChaotic
                   ? 'bg-orange-500/15 border-orange-400/60 shadow-orange-900/30'
@@ -284,7 +284,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
 
             {/* Alt pick — always a common, never noise */}
             <div className="flex flex-col items-center">
-              <div className="w-20 h-20 rounded-2xl flex flex-col items-center justify-center border border-slate-600/50 bg-slate-800/40 shadow-md">
+              <div className="astral-pick-secondary w-20 h-20 rounded-2xl flex flex-col items-center justify-center border border-slate-600/50 bg-slate-800/40 shadow-md">
                 <span className="text-2xl font-bold text-slate-300">{altCommon}</span>
                 <span className="text-xs text-slate-500 mt-0.5">{altPct}%</span>
               </div>
@@ -394,7 +394,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       {/* ── EXPAND BUTTON ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setExpanded(e => !e)}
-        className="w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
+        className="astral-bbp-toggle w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
       >
         <span>{expanded ? '▲ Hide details' : '▼ Show details (Advanced Mode)'}</span>
       </button>

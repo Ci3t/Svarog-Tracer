@@ -3,7 +3,9 @@ import { getBannerHistory, fetchCharacterMetadataMap } from '../utils/warpDataSe
 import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 
-const BannerTracker = () => {
+const BannerTracker = ({ sessionTheme }) => {
+    const isThemed = sessionTheme && sessionTheme !== 'modern';
+
     const [history, setHistory] = useState([]);
     const [metadata, setMetadata] = useState({});
     const [gridData, setGridData] = useState(null);
@@ -205,7 +207,8 @@ const BannerTracker = () => {
 
     if (loading || !gridData) {
         return (
-            <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+            <div className={`min-h-screen ${isThemed ? 'bg-transparent' : 'bg-[#020617]'} flex items-center justify-center`}>
+
                 <div className="w-12 h-12 border-4 border-t-purple-500 border-slate-800 rounded-full animate-spin"></div>
             </div>
         );
@@ -214,18 +217,23 @@ const BannerTracker = () => {
     const predictions = getTopPredictions();
 
     return (
-        <div className="relative min-h-screen bg-[#020617] text-slate-100 selection:bg-purple-500 selection:text-white font-sans overflow-x-hidden">
+        <div className={`banner-tracker-page relative min-h-screen ${isThemed ? 'bg-transparent' : 'bg-[#020617]'} text-slate-100 selection:bg-purple-500 selection:text-white font-sans overflow-x-hidden`}>
+
             
             {/* CINEMATIC ATMOSPHERE */}
             <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] bg-[length:100%_2px,3px_100%]" />
-            <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+            {(!isThemed) && (
+                <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+
                 <img 
                     src={`${baseUrl}clara.jpg`} 
                     alt="Backdrop" 
                     className="w-full h-full object-cover opacity-[0.35] brightness-75"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-transparent to-[#020617]" />
-            </div>
+                </div>
+            )}
+
 
             <div className="relative z-10 max-w-[1600px] mx-auto px-6 py-6 flex flex-col min-h-screen">
                 
@@ -351,9 +359,9 @@ const BannerTracker = () => {
                     }
                 `}</style>
 
-                <div className="flex-1 rounded-[3rem] bg-slate-900/40 border border-slate-800/80 backdrop-blur-3xl shadow-2xl overflow-hidden flex flex-col glacial-card">
+                <div className="theme-glass-card flex flex-1 flex-col overflow-hidden rounded-[3rem]">
                     
-                    <div className="px-10 py-3 bg-slate-950/40 border-b border-white/[0.03]">
+                    <div className="theme-subpanel px-10 py-3 border-b rounded-none">
                         <div ref={topScrollRef} className="overflow-x-auto h-2 custom-scrollbar">
                             <div style={{ width: `${gridData.columns.length * 75 + 180}px`, height: '1px' }} />
                         </div>
@@ -364,9 +372,9 @@ const BannerTracker = () => {
                         className="overflow-auto flex-1 custom-scrollbar"
                     >
                         <table ref={gridRef} className="w-max border-collapse">
-                            <thead className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-2xl">
+                            <thead className="theme-subpanel sticky top-0 z-30 rounded-none backdrop-blur-2xl">
                                 <tr>
-                                    <th className="sticky left-0 z-40 bg-slate-900/95 p-0 border-b border-r border-slate-800/60 min-w-[180px]">
+                                    <th className="theme-subpanel sticky left-0 z-40 min-w-[180px] rounded-none border-b border-r p-0">
                                         <div className="p-4 text-left first:rounded-tl-[2rem] border-r border-white/5 last:border-r-0">
                                             <div className="flex items-center gap-4">
                                                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Target Identifier</div>
@@ -454,15 +462,15 @@ const BannerTracker = () => {
 
                 {/* MODAL */}
                 {modalData && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xl p-4" onClick={closeModal}>
-                        <div className="bg-slate-900/90 border border-white/5 rounded-[2.5rem] p-8 max-w-lg w-full relative overflow-hidden group shadow-2xl" onClick={e => e.stopPropagation()}>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 shadow-[0_0_20px_#a855f7]" />
+                    <div className="theme-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+                        <div className="theme-modal-shell relative group w-full max-w-lg overflow-hidden rounded-[2.5rem] p-8" onClick={e => e.stopPropagation()}>
+                            <div className="theme-action-primary absolute top-0 left-0 h-1 w-full rounded-none border-0 shadow-none" />
                             <div className="flex gap-8">
-                                <div className="w-28 h-28 rounded-2xl overflow-hidden border-2 border-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.25)] flex-shrink-0">
+                                <div className="theme-accent-glow h-28 w-28 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-[color:var(--theme-border-strong)]">
                                     <img src={modalData.img} alt={modalData.char} className="w-full h-full object-cover scale-110" />
                                 </div>
                                 <div className="flex-1">
-                                    <div className="text-[9px] font-black text-purple-400 uppercase tracking-[0.4em] mb-2">Observation Record</div>
+                                    <div className="theme-text-accent mb-2 text-[9px] font-black uppercase tracking-[0.4em]">Observation Record</div>
                                     <h3 className="text-3xl font-black text-white tracking-tighter mb-6 leading-none italic uppercase">{modalData.char}</h3>
                                     <div className="grid grid-cols-2 gap-2.5">
                                         {[
@@ -471,9 +479,9 @@ const BannerTracker = () => {
                                             { l: "Phase Count", v: modalData.stats.totalAppearances },
                                             { l: "Drought", v: `${modalData.stats.currentDrought} P`, h: true }
                                         ].map(s => (
-                                            <div key={s.l} className="bg-slate-950/60 p-4 rounded-xl border border-white/[0.03]">
-                                                <div className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1.5">{s.l}</div>
-                                                <div className={`text-xs font-black ${s.h ? 'text-purple-400' : 'text-slate-200'}`}>{s.v}</div>
+                                            <div key={s.l} className="theme-subpanel rounded-xl p-4">
+                                                <div className="theme-text-muted mb-1.5 text-[8px] font-black uppercase tracking-[0.2em]">{s.l}</div>
+                                                <div className={`text-xs font-black ${s.h ? 'theme-text-accent' : 'text-slate-200'}`}>{s.v}</div>
                                             </div>
                                         ))}
                                     </div>

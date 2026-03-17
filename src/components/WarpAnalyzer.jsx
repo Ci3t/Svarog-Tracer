@@ -15,7 +15,9 @@ const Icons = {
   Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>
 };
 
-export default function WarpAnalyzer() {
+export default function WarpAnalyzer({ sessionTheme }) {
+  const isThemed = sessionTheme && sessionTheme !== 'modern';
+
   const [url, setUrl] = useState(() => localStorage.getItem('warp_source_url') || "");
   const [genshinBannerId, setGenshinBannerId] = useState(() => localStorage.getItem('genshin_banner_id') || "");
   const [selectedGame, setSelectedGame] = useState('hsr'); // 'hsr' | 'genshin'
@@ -465,8 +467,10 @@ export default function WarpAnalyzer() {
             </div>
         )}
 
-        {/* GLOBAL BACKGROUND ELEMENTS */}
-        <div className="fixed inset-0 pointer-events-none z-0">
+        {/* GLOBAL BACKGROUND ELEMENTS - Only show when not themed or specific to modern */}
+        {(!isThemed) && (
+          <div className="fixed inset-0 pointer-events-none z-0">
+
             {/* DOT PATTERN */}
             <div className="absolute inset-0 opacity-[0.15]" 
                  style={{ backgroundImage: 'radial-gradient(#f59e0b 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }} />
@@ -485,7 +489,9 @@ export default function WarpAnalyzer() {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" />
                 </div>
             )}
-        </div>
+          </div>
+        )}
+
 
         <div className="relative container mx-auto px-4 py-8 md:py-12 max-w-7xl z-10">
            <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
@@ -659,7 +665,7 @@ export default function WarpAnalyzer() {
                                      <div 
                                          onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                                          className={`
-                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 glacial-card
+                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
                                               ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
                                               bg-slate-900/50 backdrop-blur-sm
                                           `}
@@ -1127,6 +1133,7 @@ export default function WarpAnalyzer() {
     </div>
   );
 }
+
 
 
 
