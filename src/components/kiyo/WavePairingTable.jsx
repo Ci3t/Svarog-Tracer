@@ -274,7 +274,7 @@ export default function WavePairingTable({ pairingViz, combinedRolls }) {
       </div>
 
       {/* ── Dual Signal Cards ─────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
 
         {/* ── WAVE CARD ─────────────────────────────────────────── */}
         {wave2 && (() => {
@@ -495,7 +495,7 @@ export default function WavePairingTable({ pairingViz, combinedRolls }) {
       )}
 
       {/* ── Pairing legend cards ─────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-2 text-[11px]">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
         {PAIRINGS.map(p => {
           const isActive = activePairingKey === p.key;
           return (

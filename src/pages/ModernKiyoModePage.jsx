@@ -41,8 +41,8 @@ export default function ModernKiyoModePage({
       <div className="modern-kiyo-shell">
         <ModernDebugPanel
           debugLogs={debugLogs}
-          onClear={onClearLogs}
-          onImport={onImportLogs}
+          onClearLogs={onClearLogs}
+          onImportLogs={onImportLogs}
           isDebugMode={isDebugMode}
         />
       </div>

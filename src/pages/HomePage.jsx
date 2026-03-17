@@ -322,7 +322,10 @@ export default function HomePage({
 
           <div className="mt-20 flex justify-center w-full">
             <div className="w-full max-w-4xl">
-              <HomeStatsWidget theme={homeTheme.statsTheme} />
+              <HomeStatsWidget
+                theme={homeTheme.statsTheme}
+                themeKey={normalizedSessionTheme}
+              />
             </div>
           </div>
         </div>

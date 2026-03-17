@@ -1,5 +1,5 @@
 // Simplified Modern Debug Panel - keeping core functionality
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { exportDebugLogsToTXT } from "../../utils/exportHelpers";
 import ModernLongStringCard from "./ModernLongStringCard";
 import { runBacktest } from "../../utils/backtester";
@@ -24,6 +24,7 @@ export default function ModernDebugPanel({
   const [backtestResults, setBacktestResults] = useState(null);
   const [longStringBacktestResults, setLongStringBacktestResults] = useState(null);
   const [kiyoBacktestResults, setKiyoBacktestResults] = useState(null);
+  const kiyoExportButtonRef = useRef(null);
 
   // 2str wave pairing detection for live Kiyo table
   const kiyoLogsForDisplay = useMemo(() =>
@@ -58,6 +59,24 @@ export default function ModernDebugPanel({
     tabs.push({ id: 'backtest-longstring', label: 'Backtest Long String', icon: '📊' });
     tabs.push({ id: 'backtest-kiyo', label: 'Backtest Kiyo', icon: '🎯' });
   }
+
+  const handleQuickKiyoExport = () => {
+    const kiyoLogs = (debugLogs || []).filter((log) => log.kind === "3" && log.source === "kiyo");
+    if (kiyoLogs.length === 0) {
+      alert("No Kiyo logs to download");
+      return;
+    }
+
+    if (activeTab !== "kiyo") {
+      setActiveTab("kiyo");
+      setTimeout(() => {
+        kiyoExportButtonRef.current?.click();
+      }, 0);
+      return;
+    }
+
+    kiyoExportButtonRef.current?.click();
+  };
 
   // Always show the panel, just collapsed by default
   return (
@@ -96,16 +115,22 @@ export default function ModernDebugPanel({
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2 pt-4">
             <button
-              onClick={() => exportDebugLogsToTXT(debugLogs)}
+              onClick={() => exportDebugLogsToTXT(debugLogs, entries)}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-all duration-200 transform hover:scale-[1.02]"
             >
-              📥 Export Logs
+              📥 Export Live/Lab TXT
+            </button>
+            <button
+              onClick={handleQuickKiyoExport}
+              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              🎯 Export Kiyo TXT
             </button>
             <button
               onClick={onClearLogs}
               className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-medium transition-all duration-200 transform hover:scale-[1.02]"
             >
-              Clear Logs
+              Clear All Logs
             </button>
           </div>
 
@@ -277,6 +302,7 @@ export default function ModernDebugPanel({
                   Kiyo Mode Predictions (kind="3", source="kiyo")
                 </div>
                 <button
+                  ref={kiyoExportButtonRef}
                   onClick={() => { try {
                     const kiyoLogs = debugLogs.filter((log) => log.kind === "3" && log.source === "kiyo");
                     if (kiyoLogs.length === 0) {
@@ -584,7 +610,7 @@ export default function ModernDebugPanel({
                   } catch (err) { alert('Download error: ' + err?.message); }}}
                   className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-semibold rounded-lg transition-all"
                 >
-                  📥 Download Kiyo Logs
+                  🎯 Export Kiyo TXT
                 </button>
               </div>
               

@@ -72,7 +72,11 @@ body.astral-theme,
   margin: 0 !important;
 }
 
-.astral-theme .theme-glass-card::before {
+.astral-theme .theme-glass-card::before,
+.astral-theme .astral-next-prediction::before,
+.astral-theme .astral-session-table::before,
+.astral-theme .astral-stats-panel::before,
+.astral-theme .astral-bbp-card::before {
   content: "";
   position: absolute;
   inset: 0;

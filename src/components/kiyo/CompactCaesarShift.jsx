@@ -7,7 +7,6 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
   const clean = (caesarInput || "").replace(/[^1-4]/g, "");
   const shifted = clean ? translateTo4(clean) : "";
 
-  // Reverse section local state
   const [revInput, setRevInput] = useState("");
   const [revLine, setRevLine] = useState(1);
 
@@ -15,17 +14,14 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
   const revResult = cleanRev.length >= 2 ? caesarShiftForLine(cleanRev, revLine) : "";
 
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 h-full flex flex-col">
-      {/* ── Caesar Shift (existing) ── */}
+    <div className="kiyo-inner-card rounded-xl p-3 h-full flex flex-col">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🔄</span>
-          <div className="text-sm font-bold text-violet-300">Caesar Shift</div>
+          <span className="text-lg theme-text-muted">[R]</span>
+          <div className="text-sm font-bold theme-text-accent">Caesar Shift</div>
         </div>
         {shifted && (
-          <span className="font-mono text-lg font-bold bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
-            {shifted}
-          </span>
+          <span className="font-mono text-lg font-bold theme-text-accent">{shifted}</span>
         )}
       </div>
 
@@ -37,15 +33,13 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
         }}
         placeholder="e.g. 234"
         maxLength={10}
-        className="w-full bg-slate-900/50 border border-violet-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 mb-2"
+        className="w-full theme-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--theme-input-focus)] mb-2"
       />
 
-      {/* ── Divider ── */}
-      <div className="border-t border-slate-700 mb-2" />
+      <div className="border-t border-[color:var(--theme-border-soft)] mb-2" />
 
-      {/* ── Reverse String (new) ── */}
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-xs text-slate-400 shrink-0">↩ Reverse</span>
+        <span className="text-xs theme-text-muted shrink-0">Reverse</span>
         <div className="flex gap-1">
           {[1, 2, 3, 4].map((l) => (
             <button
@@ -53,8 +47,8 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
               onClick={() => setRevLine(l)}
               className={`w-6 h-6 text-xs rounded-md font-bold transition-all cursor-pointer ${
                 revLine === l
-                  ? "bg-violet-600 text-white"
-                  : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+                  ? "kiyo-accent-soft"
+                  : "kiyo-inner-subcard theme-text-muted hover:brightness-110"
               }`}
             >
               {l}
@@ -63,8 +57,8 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
         </div>
         {revResult && (
           <>
-            <span className="text-slate-500 text-xs ml-1">→</span>
-            <span className="font-mono font-bold text-emerald-400 text-sm ml-0.5">{revResult}</span>
+            <span className="theme-text-soft text-xs ml-1">-&gt;</span>
+            <span className="font-mono font-bold theme-text-accent text-sm ml-0.5">{revResult}</span>
           </>
         )}
       </div>
@@ -74,7 +68,7 @@ export default function CompactCaesarShift({ caesarInput, setCaesarInput }) {
         onChange={(e) => setRevInput(e.target.value.replace(/[^1-4]/g, "").slice(0, 3))}
         placeholder="e.g. 412"
         maxLength={3}
-        className="w-full bg-slate-900/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+        className="w-full theme-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--theme-input-focus)]"
       />
     </div>
   );

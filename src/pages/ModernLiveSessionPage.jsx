@@ -41,7 +41,7 @@ export default function ModernLiveSessionPage({
   setCaesarInput,
   notes,
   setNotes,
-  
+
   // Computed
   freq2,
   freq3,
@@ -50,7 +50,7 @@ export default function ModernLiveSessionPage({
   livePrediction,
   livePrediction3,
   livePrediction4,
-  
+
   // Handlers
   handleAddRoll,
   handleStartSession,
@@ -61,10 +61,10 @@ export default function ModernLiveSessionPage({
   handleClearDebugLogs,
   handleImportDebugLogs,
   handleImportRolls, // NEW: Import rolls from file
-  
+
   // Refs
   pendingKiyoSnapshotsRef,
-  
+
   // Other
   isDebugMode,
   kiyoDebugData,
@@ -86,39 +86,27 @@ export default function ModernLiveSessionPage({
       />
 
       <div className="max-w-[1920px] mx-auto p-2 sm:p-3 lg:p-4 mt-2 sm:mt-4 lg:mt-6">
-        {/* 3-Column Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
-          
-          {/* LEFT COLUMN - Prediction, Caesar, Modes */}
-          <div className="lg:col-span-3 space-y-4">
-
-            {/* OLD Main Prediction - COMMENTED OUT, replaced by experimental
-            <ModernPredictionCard prediction={livePrediction} />
-            */}
-
-            {/* 🧪 Experimental Pair Predictor - NOW THE MAIN PREDICTOR */}
-            <div className="theme-glass-card">
+        {/* Mobile: single flow with explicit order. Desktop: independent stacked columns. */}
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-12 lg:items-start">
+          <div className="contents lg:block lg:col-span-3 lg:space-y-4">
+            <div className="order-1 lg:order-none">
               <ModernPairPredictorCard entries={entries} />
             </div>
 
-            {/* Caesar Shift */}
-            <div className="theme-glass-card">
+            <div className="theme-glass-card order-3 lg:order-none">
               <ModernCaesarCard
                 caesarInput={caesarInput}
                 setCaesarInput={setCaesarInput}
               />
             </div>
 
-            {/* Default Order / Modes Info */}
-            <div className="theme-glass-card">
+            <div className="theme-glass-card order-4 lg:order-none">
               <ModernDefaultOrderCard />
             </div>
           </div>
 
-          {/* CENTER COLUMN - Session Table, BBP/MARK Mode, Notes */}
-          <div className="lg:col-span-6 space-y-4">
-            {/* Session Table */}
-            <div className="theme-glass-card">
+          <div className="contents lg:block lg:col-span-6 lg:space-y-4">
+            <div className="theme-glass-card order-2 lg:order-none">
               <ModernSessionTable
                 sessionTab={sessionTab}
                 setSessionTab={setSessionTab}
@@ -131,74 +119,47 @@ export default function ModernLiveSessionPage({
               />
             </div>
 
-            {/* Live Tracking Tables - COMMENTED OUT, replaced with PatternAnalysisTable */}
-            {/* sessionTab === 'current' && entries.length >= 6 && (() => {
-              const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
-              return (
-                <ModernLiveTrackingTable rolls={sortedEntries.map(e => e.translated)} />
-              );
-            })() */}
-
-            {/* Pattern Analysis Table - COMMENTED OUT for now
-            {sessionTab === 'current' && entries.length >= 6 && (() => {
-              const sortedEntries = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
-              return (
-                <PatternAnalysisTable entries={sortedEntries} />
-              );
-            })()} */}
-
-            {/* 🔬 Test Predictor Card - COMMENTED OUT after testing
-            {sessionTab === 'current' && entries.length >= 6 && (
-              <TestPredictorCard entries={entries} />
-            )} */}
-
-            {/* 3-str tracking */}
             {entries.length > 0 && entries.some(e => (e.translated || '').length >= 3) && (
-              <div className="theme-glass-card">
-                {/* Predicted Mode (3-str) */}
+              <div className="theme-glass-card order-8 lg:order-none">
                 <LiveTrackingTable3str entries={entries} />
               </div>
             )}
 
-            {/* Notes Card */}
-            <div className="theme-glass-card">
+            <div className="theme-glass-card order-9 lg:order-none">
               <ModernNotesCard
                 notes={notes}
                 setNotes={setNotes}
               />
             </div>
-            {/* Debug Panel */}
-            <div className="theme-glass-card">
+
+            <div className="theme-glass-card order-10 lg:order-none">
               <ModernDebugPanel
                 debugLogs={debugLogs}
-                onClear={handleClearDebugLogs}
-                onImport={handleImportDebugLogs}
+                entries={entries}
+                onClearLogs={handleClearDebugLogs}
+                onImportLogs={handleImportDebugLogs}
                 isDebugMode={isDebugMode}
               />
             </div>
           </div>
 
-          {/* RIGHT COLUMN - Accuracy, Frequency (compact), Stats */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Accuracy Gauge - Now wrapped for Glacial look */}
-            <div className="theme-glass-card">
+          <div className="contents lg:block lg:col-span-3 lg:space-y-4">
+            <div className="theme-glass-card order-5 lg:order-none">
               <ModernAccuracyCard debugLogs={debugLogs} />
             </div>
 
-            {/* Frequency Bars - More compact */}
-            <div className="theme-glass-card">
-              <ModernFrequencyCard 
-                freq2={freq2} 
-                freq3={freq3} 
-                freq4={freq4} 
-                freq5={freq5} 
+            <div className="theme-glass-card order-6 lg:order-none">
+              <ModernFrequencyCard
+                freq2={freq2}
+                freq3={freq3}
+                freq4={freq4}
+                freq5={freq5}
                 freqTab={freqTab}
                 setFreqTab={setFreqTab}
               />
             </div>
 
-            {/* Stats + Line Helper */}
-            <div className="theme-glass-card">
+            <div className="theme-glass-card order-7 lg:order-none">
               <ModernStatsPanel
                 entries={entries}
                 prediction2={livePrediction}
@@ -209,12 +170,10 @@ export default function ModernLiveSessionPage({
               />
             </div>
 
-            {/* Relic Position Card */}
-            <div className="theme-glass-card">
+            <div className="theme-glass-card order-11 lg:order-none">
               <ModernRelicPositionCard />
             </div>
           </div>
-
         </div>
       </div>
     </div>

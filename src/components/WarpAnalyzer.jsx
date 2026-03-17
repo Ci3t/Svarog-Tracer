@@ -665,7 +665,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                                      <div 
                                          onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                                          className={`
-                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card
+                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
                                               ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
                                               bg-slate-900/50 backdrop-blur-sm
                                           `}
@@ -1133,6 +1133,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
     </div>
   );
 }
+
 
 
 

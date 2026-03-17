@@ -34,6 +34,7 @@ import AstralStars from "./components/snow/AstralStars"; // ðŸŒŒ NEW Astral 
 import AstralExpress from "./components/snow/AstralExpress"; // ðŸš‚ NEW Astral Express
 import VoidPetals from "./components/snow/VoidPetals"; // í¼¸ NEW Void Petals
 import CrimsonBloom from "./components/snow/CrimsonBloom";
+import SilverWolf999Backdrop from "./components/snow/SilverWolf999Backdrop";
 
 import "./styles/arctic-theme.css"; // â„ï¸ NEW Arctic Theme
 import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
@@ -99,7 +100,7 @@ export default function App() {
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("4.0");
-  const [sessionTheme, setSessionTheme] = useState("modern"); // â„ï¸ Theme State
+  const [sessionTheme, setSessionTheme] = useState(() => readPersistedTheme()); // Theme state (bootstrapped from localStorage)
   const handleThemeChange = useCallback((nextTheme) => {
     setSessionTheme(normalizeSessionTheme(nextTheme));
   }, []);
@@ -411,7 +412,15 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    const classNames = ["modern-theme", "arctic-theme", "astral-theme", "crimson-theme", "void-theme", "winter-theme"];
+    const classNames = [
+      "modern-theme",
+      "arctic-theme",
+      "astral-theme",
+      "crimson-theme",
+      "neon-theme",
+      "void-theme",
+      "winter-theme",
+    ];
     document.body.classList.remove(...classNames);
     document.body.classList.add(getRootThemeClassName(sessionTheme));
 
@@ -1002,9 +1011,15 @@ export default function App() {
             <VoidPetals />
           </>
         )}
-        {sessionTheme === "neon" && <AetherEffect />}
         <div className="relative z-20">
-          <Routes>
+          {sessionTheme === "neon" && (
+            <div className="pointer-events-none fixed inset-0 z-0">
+              <SilverWolf999Backdrop image="999SW.png" />
+              <AetherEffect />
+            </div>
+          )}
+          <div className="relative z-10">
+            <Routes>
           <Route
             path="/"
             element={
@@ -1125,11 +1140,13 @@ export default function App() {
             <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
             <Route path="/guides" element={<ModernGuidesPage sessionTheme={sessionTheme} />} />
           </Route>
-          </Routes>
+            </Routes>
+          </div>
         </div>
       </div>
     </Suspense>
   );
 }
+
 
 

@@ -39,8 +39,24 @@ const defaultTheme = {
   },
 };
 
-export default function HomeStatsWidget({ theme = defaultTheme }) {
+const THEME_ICON_SETS = {
+  modern: { online: "👥", prediction: "🎯", today: "📊", total: "🎲" },
+  arctic: { online: "❄️", prediction: "🧭", today: "📈", total: "🧊" },
+  astral: { online: "🚂", prediction: "✦", today: "🌠", total: "🪙" },
+  crimson: { online: "🩸", prediction: "⛧", today: "🗡️", total: "☠️" },
+  neon: { online: "⌘", prediction: "◎", today: "▦", total: "◈" },
+};
+
+export default function HomeStatsWidget({
+  theme = defaultTheme,
+  themeKey = "modern",
+}) {
   const { stats } = usePresenceContext();
+  const normalizedThemeKey =
+    themeKey === "winter" ? "arctic" : themeKey === "void" ? "crimson" : themeKey;
+  const isNeonTheme = normalizedThemeKey === "neon";
+  const iconSet = THEME_ICON_SETS[normalizedThemeKey] || THEME_ICON_SETS.modern;
+
   const resolvedTheme = {
     ...defaultTheme,
     ...theme,
@@ -118,10 +134,10 @@ export default function HomeStatsWidget({ theme = defaultTheme }) {
     <div
       className="home-stats-widget"
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: "1rem",
-        padding: "1.5rem 0",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.95rem",
+        padding: "1.25rem 0",
         maxWidth: "1000px",
         margin: "0 auto",
         width: "100%",
@@ -130,32 +146,39 @@ export default function HomeStatsWidget({ theme = defaultTheme }) {
         isolation: "isolate",
       }}
     >
-      <div className="stat-card stat-online">
-        <div className="stat-card-glow" />
-        <div className="stat-icon">👥</div>
-        <div className="stat-value">{formatNumber(stats.online)}</div>
-        <div className="stat-label">Online Status</div>
-      </div>
+      <h2 className="home-stats-title text-3xl font-black tracking-tight flex items-center gap-3">
+        HSR OVERVIEW
+        {isNeonTheme ? <span className="theme-badge-lv999" /> : null}
+      </h2>
 
-      <div className="stat-card stat-prediction">
-        <div className="stat-card-glow" />
-        <div className="stat-icon">🎯</div>
-        <div className="stat-value">{formatNumber(stats.active)}</div>
-        <div className="stat-label">Prediction Now</div>
-      </div>
+      <div className="home-stats-grid">
+        <div className="stat-card stat-online">
+          <div className="stat-card-glow" />
+          <div className="stat-icon">{iconSet.online}</div>
+          <div className="stat-value">{formatNumber(stats.online)}</div>
+          <div className="stat-label">Online Status</div>
+        </div>
 
-      <div className="stat-card stat-today">
-        <div className="stat-card-glow" />
-        <div className="stat-icon">📊</div>
-        <div className="stat-value">{formatNumber(stats.today)}</div>
-        <div className="stat-label">Today Predictions</div>
-      </div>
+        <div className="stat-card stat-prediction">
+          <div className="stat-card-glow" />
+          <div className="stat-icon">{iconSet.prediction}</div>
+          <div className="stat-value">{formatNumber(stats.active)}</div>
+          <div className="stat-label">Prediction Now</div>
+        </div>
 
-      <div className="stat-card stat-total">
-        <div className="stat-card-glow" />
-        <div className="stat-icon">🎲</div>
-        <div className="stat-value">{formatNumber(stats.total)}</div>
-        <div className="stat-label">Total Predictions</div>
+        <div className="stat-card stat-today">
+          <div className="stat-card-glow" />
+          <div className="stat-icon">{iconSet.today}</div>
+          <div className="stat-value">{formatNumber(stats.today)}</div>
+          <div className="stat-label">Today Predictions</div>
+        </div>
+
+        <div className="stat-card stat-total">
+          <div className="stat-card-glow" />
+          <div className="stat-icon">{iconSet.total}</div>
+          <div className="stat-value">{formatNumber(stats.total)}</div>
+          <div className="stat-label">Total Predictions</div>
+        </div>
       </div>
 
       <style>{`
@@ -163,6 +186,20 @@ export default function HomeStatsWidget({ theme = defaultTheme }) {
           opacity: 1 !important;
           visibility: visible !important;
           margin-top: 0.5rem;
+        }
+
+        .home-stats-title {
+          width: 100%;
+          margin: 0 0 0.15rem;
+          justify-content: flex-start;
+        }
+
+        .home-stats-grid {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 1rem;
+          align-items: stretch;
         }
 
         .stat-card {
@@ -244,6 +281,21 @@ export default function HomeStatsWidget({ theme = defaultTheme }) {
           border-left: 2px solid ${resolvedTheme.total.borderColor};
         }
         .stat-total .stat-value { color: ${resolvedTheme.total.valueColor}; }
+
+        @media (max-width: 1024px) {
+          .home-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 640px) {
+          .home-stats-title {
+            justify-content: center;
+          }
+          .home-stats-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
     </div>
   );

@@ -856,6 +856,17 @@ const themeOverrides = {
         background: "rgba(10, 10, 10, 0.92)",
         borderColor: "rgba(255, 255, 255, 0.08)",
       },
+      tokens: {
+        bodyGradient: "radial-gradient(circle at 50% 50%, #1a1d22 0%, #121417 100%)",
+        mainAccent: "#ff0033",
+        secondaryAccent: "#d8002c",
+        surfaceBg: "rgba(14, 14, 16, 0.92)",
+        borderColor: "rgba(255, 0, 51, 0.28)",
+        textColor: "#ffffff",
+        fontDisplay: "'Outfit', sans-serif",
+        fontBody: "'Outfit', sans-serif",
+        fontMono: "'Share Tech Mono', monospace",
+      },
       controlPillStyle: {
         background: "rgba(15, 15, 15, 0.9)",
         borderColor: "rgba(255, 255, 255, 0.12)",
@@ -1045,6 +1056,17 @@ const themeOverrides = {
         "bg-gradient-to-r from-cyan-500 to-fuchsia-600 text-white shadow-[0_10px_20px_rgba(0,243,255,0.2)]",
       footerVersionClass: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     },
+    tokens: {
+      bodyGradient: "radial-gradient(circle at 50% 50%, #1a1d22 0%, #121417 100%)",
+      mainAccent: "#00f3ff",
+      secondaryAccent: "#bc00ff",
+      surfaceBg: "rgba(18, 20, 23, 0.82)",
+      borderColor: "rgba(0, 243, 255, 0.25)",
+      textColor: "#e2e8f0",
+      fontDisplay: "'JetBrains Mono', monospace",
+      fontBody: "'Outfit', sans-serif",
+      fontMono: "'Share Tech Mono', monospace",
+    },
     liveStats: {
       bannerBackground: "rgba(18, 20, 23, 0.92)",
       borderColor: "rgba(0, 243, 255, 0.2)",
@@ -1062,15 +1084,16 @@ const themeOverrides = {
       toolbarStickyClass: "top-5 sm:top-7 lg:top-9",
       gridOffsetClass: "mt-12",
       backdropImage: "999SW.png",
-      disableBackdropImage: false,
+      disableBackdropImage: true,
     },
     home: {
       backgroundClass:
         "bg-[#121417] text-slate-100 selection:bg-cyan-500/40 selection:text-white",
       backdropImage: "999SW.png",
       backdropImageClass: "opacity-[0.22] saturate-[1.4] brightness-[1.1] contrast-[1.2] transform scale-[1.15]",
+      disableBackdropImage: true,
       overlayClass:
-        "bg-gradient-to-b from-[#13161b]/96 via-[#121417]/78 to-[#0f1114]/98",
+        "bg-gradient-to-b from-[#13161b]/82 via-[#121417]/42 to-[#0f1114]/86",
       orbPrimaryClass: "bg-cyan-500/18",
       orbSecondaryClass: "bg-fuchsia-600/14",
       statusBadgeClass:

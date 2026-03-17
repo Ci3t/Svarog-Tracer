@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Sparkles, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
+import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
+import NeonGlitchButton from '../components/NeonGlitchButton';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 
 // Static Data
@@ -46,6 +47,71 @@ const TEAM_PRESETS_PAGE_SIZE = 6;
 const RECENT_ITEMS_LIMIT = 8;
 const RECENT_TEAMS_LIMIT = 8;
 
+const splitTimeParts = (rawValue = '') => {
+  const cleaned = String(rawValue).replace(/[^\d:]/g, '');
+  const colonIndex = cleaned.indexOf(':');
+
+  if (colonIndex >= 0) {
+    const minutesDigits = cleaned.slice(0, colonIndex).replace(/\D/g, '').slice(0, 2);
+    const secondsDigits = cleaned.slice(colonIndex + 1).replace(/\D/g, '').slice(0, 2);
+    return { minutesDigits, secondsDigits, hasColon: true };
+  }
+
+  const digits = cleaned.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) {
+    return { minutesDigits: digits, secondsDigits: '', hasColon: false };
+  }
+
+  return { minutesDigits: digits.slice(0, 2), secondsDigits: digits.slice(2), hasColon: true };
+};
+
+const clampSeconds = (secondsDigits = '') => {
+  if (secondsDigits.length < 2) return secondsDigits;
+  const seconds = Number(secondsDigits);
+  if (Number.isNaN(seconds)) return '';
+  return String(Math.min(seconds, 59)).padStart(2, '0');
+};
+
+const formatLiveTimeInput = (rawValue = '') => {
+  const { minutesDigits, secondsDigits, hasColon } = splitTimeParts(rawValue);
+  if (!minutesDigits && !secondsDigits) return '';
+
+  const nextSeconds = clampSeconds(secondsDigits);
+  if (!hasColon && !nextSeconds) return minutesDigits;
+
+  return `${minutesDigits}:${nextSeconds}`;
+};
+
+const normalizeTimeForSubmit = (rawValue = '') => {
+  const { minutesDigits, secondsDigits } = splitTimeParts(rawValue);
+  if (!minutesDigits || !secondsDigits || secondsDigits.length !== 2) return null;
+
+  const minutes = Number(minutesDigits);
+  const seconds = Number(secondsDigits);
+
+  if (Number.isNaN(minutes) || Number.isNaN(seconds) || seconds > 59) return null;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+const normalizeTimeOnBlur = (rawValue = '') => {
+  const normalized = normalizeTimeForSubmit(rawValue);
+  if (normalized) return normalized;
+
+  const { minutesDigits, secondsDigits } = splitTimeParts(rawValue);
+  if (!minutesDigits && !secondsDigits) return '';
+  if (!minutesDigits) return '';
+
+  if (secondsDigits.length === 1) {
+    const minutes = Number(minutesDigits);
+    const seconds = Number(secondsDigits);
+    if (!Number.isNaN(minutes) && !Number.isNaN(seconds) && seconds <= 59) {
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  }
+
+  return formatLiveTimeInput(rawValue);
+};
+
 const readStorageJson = (key, fallback) => {
   try {
     const raw = localStorage.getItem(key);
@@ -63,6 +129,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const rootThemeClass = themeConfig.rootClassName;
   const isGlacial = rootThemeClass === 'arctic-theme';
   const isNeon = rootThemeClass === 'neon-theme';
+  const isCrimson = rootThemeClass === 'crimson-theme' || rootThemeClass === 'void-theme';
   const cavernTheme = themeConfig.caverns || {};
   const showCavernBackdropImage =
     cavernTheme.disableBackdropImage !== true && Boolean(cavernTheme.backdropImage);
@@ -152,15 +219,17 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   );
   const [modalRarityFilter, setModalRarityFilter] = useState(null);
   const [resetTimer, setResetTimer] = useState('');
+  const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
 
   const getTimeUntilReset = () => {
     const now = new Date();
     const nextReset = new Date();
-    nextReset.setUTCHours(4, 0, 0, 0);
+    nextReset.setUTCHours(6, 0, 0, 0);
     const day = nextReset.getUTCDay(); 
-    // If it's Monday but before 4 AM UTC, target today. Otherwise target next Monday.
+    // If it's Monday but before 6 AM UTC, target today. Otherwise target next Monday.
     let diff = (1 - day + 7) % 7;
-    if (diff === 0 && now.getUTCHours() >= 4) diff = 7;
+    if (diff === 0 && now.getUTCHours() >= 6) diff = 7;
     nextReset.setUTCDate(nextReset.getUTCDate() + diff);
 
     const dist = nextReset.getTime() - now.getTime();
@@ -191,9 +260,30 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   }, [selectedDomain?.id]);
 
   useEffect(() => {
+    const modalOpen = isFormOpen || Boolean(selectedDomain);
+    if (!modalOpen) return;
+
+    const { overflow, paddingRight } = document.body.style;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = 'hidden';
+    if (scrollBarWidth > 0) {
+      document.body.style.paddingRight = `${scrollBarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = overflow;
+      document.body.style.paddingRight = paddingRight;
+    };
+  }, [isFormOpen, selectedDomain]);
+
+
+  useEffect(() => {
     if (!isFormOpen) {
       setIsBatchMode(false);
       setBatchAddedCount(0);
+      setDraggedSlotIndex(null);
+      setDragOverSlotIndex(null);
     }
   }, [isFormOpen]);
 
@@ -409,8 +499,13 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const keepOpenForNext = isBatchMode || submitModeRef.current === 'continue';
     submitModeRef.current = 'close';
 
-    if (!formItemId || !formTime || !formDiscord) {
+    const normalizedFormTime = normalizeTimeForSubmit(formTime);
+
+    if (!formItemId || !formTime.trim() || !formDiscord) {
       return setSubmitStatus({ type: 'error', msg: 'Please complete all steps.' });
+    }
+    if (!normalizedFormTime) {
+      return setSubmitStatus({ type: 'error', msg: 'Time must be in MM:SS format (seconds 00-59).' });
     }
     if (formChars.length !== 4) {
       return setSubmitStatus({ type: 'error', msg: 'Assemble a team of 4.' });
@@ -435,13 +530,15 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const submittedChars = [...formChars];
       const submittedDiscord = formDiscord.trim();
       const submittedMainStat = formMainStat || '';
+      const submittedTime = normalizedFormTime;
+      setFormTime(submittedTime);
 
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           relicId: formItemId,
-          clearTime: formTime,
+          clearTime: submittedTime,
           characters: formChars,
           discordUser: formDiscord,
           note: formNote || undefined,
@@ -484,7 +581,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       // OPTIMISTIC UI UPDATE
       const newReport = {
         relicId: formItemId,
-        clearTime: formTime,
+        clearTime: submittedTime,
         characters: formChars,
         verifiedCount: 1,
         reporters: [formDiscord.trim()],
@@ -502,12 +599,13 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         const charactersSorted = [...formChars].sort().join(',');
         const substatsSorted = [...payloadSubstats].sort().join(',');
 
-        const existingIndex = prev.findIndex(entry =>
-          entry.relicId === formItemId &&
-          entry.clearTime === formTime &&
-          [...entry.characters].sort().join(',') === charactersSorted &&
-          ((entry.substats || (entry.reports?.[0]?.substats)) && [...(entry.substats || entry.reports[0].substats)].sort().join(',') === substatsSorted)
-        );
+        const existingIndex = prev.findIndex((entry) => {
+          const entryTime = normalizeTimeForSubmit(entry.clearTime) || String(entry.clearTime || '').trim();
+          return entry.relicId === formItemId &&
+            entryTime === submittedTime &&
+            [...entry.characters].sort().join(',') === charactersSorted &&
+            ((entry.substats || (entry.reports?.[0]?.substats)) && [...(entry.substats || entry.reports[0].substats)].sort().join(',') === substatsSorted);
+        });
 
         if (existingIndex >= 0) {
           const updatedClears = [...prev];
@@ -589,6 +687,75 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         );
       }, 30); // 30ms margin to ensure React re-render completes
     }
+  };
+
+
+  const handleTeamSlotDragStart = (slotIndex, event) => {
+    if (!formChars[slotIndex]) {
+      event.preventDefault();
+      return;
+    }
+
+    setDraggedSlotIndex(slotIndex);
+    setDragOverSlotIndex(null);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(slotIndex));
+  };
+
+  const handleTeamSlotDragEnd = () => {
+    setDraggedSlotIndex(null);
+    setDragOverSlotIndex(null);
+  };
+
+  const handleTeamSlotDragOver = (slotIndex, event) => {
+    if (draggedSlotIndex === null || draggedSlotIndex === slotIndex) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverSlotIndex !== slotIndex) setDragOverSlotIndex(slotIndex);
+  };
+
+  const handleTeamSlotDragLeave = (slotIndex) => {
+    if (dragOverSlotIndex === slotIndex) setDragOverSlotIndex(null);
+  };
+
+  const handleTeamSlotDrop = (slotIndex, event) => {
+    event.preventDefault();
+
+    const sourceRaw = event.dataTransfer.getData('text/plain');
+    const sourceIndex = Number.isInteger(Number(sourceRaw)) ? Number(sourceRaw) : draggedSlotIndex;
+
+    if (
+      !Number.isInteger(sourceIndex) ||
+      sourceIndex < 0 ||
+      sourceIndex > 3 ||
+      sourceIndex === slotIndex ||
+      !formChars[sourceIndex]
+    ) {
+      setDragOverSlotIndex(null);
+      return;
+    }
+
+    setFormChars((prev) => {
+      const next = [...prev];
+      const fromVal = next[sourceIndex];
+      if (!fromVal) return prev;
+
+      if (next[slotIndex]) {
+        // Occupied target: swap slots.
+        next[sourceIndex] = next[slotIndex];
+        next[slotIndex] = fromVal;
+      } else {
+        // Empty target: move dragged slot and keep lineup compact.
+        next.splice(sourceIndex, 1);
+        const insertionIndex = Math.min(slotIndex, next.length);
+        next.splice(insertionIndex, 0, fromVal);
+      }
+
+      return next;
+    });
+
+    setDraggedSlotIndex(null);
+    setDragOverSlotIndex(null);
   };
 
   const handleDelete = async (params, skipConfirm = false) => {
@@ -941,31 +1108,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
       {/* BACKGROUND IMAGE - Theme-Driven Backdrop */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        {showCavernBackdropImage && !isNeon && (
+        {showCavernBackdropImage && (
           <img
             src={`${baseUrl}${cavernTheme.backdropImage}`}
             alt="Backdrop"
             className={`w-full h-full object-cover ${cavernTheme.backdropImageClass || 'opacity-[0.22] saturate-[0.9] brightness-[0.72] blur-[1px]'}`}
           />
-        )}
-        {showCavernBackdropImage && isNeon && (
-          <div className="cavern-neon-999-wrap absolute inset-0">
-            <img
-              src={`${baseUrl}${cavernTheme.backdropImage}`}
-              alt="999SW left"
-              className="cavern-neon-999-layer cavern-neon-999-layer-1"
-            />
-            <img
-              src={`${baseUrl}${cavernTheme.backdropImage}`}
-              alt="999SW center"
-              className="cavern-neon-999-layer cavern-neon-999-layer-2"
-            />
-            <img
-              src={`${baseUrl}${cavernTheme.backdropImage}`}
-              alt="999SW right"
-              className="cavern-neon-999-layer cavern-neon-999-layer-3"
-            />
-          </div>
         )}
         <div className={`absolute inset-0 bg-gradient-to-b ${cavernOverlayClass}`} />
       </div>
@@ -1156,7 +1304,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       </div>
 
         {isFormOpen && (
-          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 transition-all modal-overlay">
+          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 transition-all modal-overlay overflow-y-auto overscroll-contain">
             <div
               ref={formRef}
               className={`theme-modal-shell cavern-entry-modal w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] flex flex-col overflow-hidden relative perspective-1000 ${isGlacial ? 'glacial-subtle-snow cavern-winter-shell' : ''}`}
@@ -1179,23 +1327,40 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
                       
                       {/* QUICK NAV SWITCH */}
-                      <div className="theme-subpanel flex items-center rounded-xl p-1 gap-1 shadow-inner overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => handleSwitchCategory('relics')}
-                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'relics' ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
-                        >
-                          <Trophy className="w-3 h-3" />
-                          Relics
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSwitchCategory('traces')}
-                          className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          Traces
-                        </button>
+                      <div className="theme-subpanel cavern-modal-switch-shell flex items-center rounded-xl p-1 gap-1 shadow-inner overflow-hidden">
+                        {isNeon ? (
+                          <>
+                            <NeonGlitchButton
+                              label="Relics"
+                              active={category === 'relics'}
+                              onClick={() => handleSwitchCategory('relics')}
+                              className="min-w-[108px]"
+                            />
+                            <NeonGlitchButton
+                              label="Traces"
+                              active={category === 'traces'}
+                              onClick={() => handleSwitchCategory('traces')}
+                              className="min-w-[108px]"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchCategory('relics')}
+                              className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'relics' ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
+                            >
+                              Relics
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchCategory('traces')}
+                              className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
+                            >
+                              Traces
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
@@ -1448,7 +1613,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                               required
                               placeholder="MM:SS"
                               value={formTime}
-                              onChange={e => setFormTime(e.target.value)}
+                              onChange={e => setFormTime(formatLiveTimeInput(e.target.value))}
+                              onBlur={e => setFormTime(normalizeTimeOnBlur(e.target.value))}
+                              inputMode="numeric"
+                              maxLength={5}
+                              autoComplete="off"
                               className="w-full bg-white/[0.03] backdrop-blur-sm shadow-[inset_0_0_15px_rgba(255,255,255,0.02)] border border-white/10 rounded-[1.5rem] p-5 pl-14 text-white font-mono text-xl md:text-2xl font-black outline-none focus:border-amber-500/50 focus:bg-white/[0.08] transition-all placeholder:text-slate-500 cursor-text hover:bg-white/[0.08] hover:border-white/20"
                             />
                           </div>
@@ -1785,6 +1954,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                           </div>
                         </div>
 
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Drag a portrait onto another slot to swap, or onto an empty slot to move.</p>
+
                         <div className="grid grid-cols-4 gap-3 md:gap-4 w-full max-w-2xl">
                           {[0, 1, 2, 3].map(i => {
                             const char = formChars[i] ? getCharData(formChars[i]) : null;
@@ -1792,8 +1963,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             return (
                               <div
                                 key={i}
+                                draggable={Boolean(formChars[i])}
+                                onDragStart={(e) => handleTeamSlotDragStart(i, e)}
+                                onDragEnd={handleTeamSlotDragEnd}
+                                onDragOver={(e) => handleTeamSlotDragOver(i, e)}
+                                onDragLeave={() => handleTeamSlotDragLeave(i)}
+                                onDrop={(e) => handleTeamSlotDrop(i, e)}
                                 onClick={() => formChars[i] && toggleChar(formChars[i])}
-                                className={`slot-anim-${i} cavern-squad-slot aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center cursor-pointer ${isGlacial ? 'cavern-winter-slot-frame' : ''} ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)]' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)]') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]'}`}
+                                className={`slot-anim-${i} cavern-squad-slot aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center ${draggedSlotIndex === i ? 'opacity-70 scale-[0.98] cursor-grabbing' : ''} ${dragOverSlotIndex === i ? 'ring-2 ring-cyan-300/65 ring-offset-2 ring-offset-black/50 scale-[1.02]' : ''} ${isGlacial ? 'cavern-winter-slot-frame' : ''} ${formChars[i] ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.5)] cursor-grab' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.5)] cursor-grab') : 'border-white/10 border-dashed bg-black/30 hover:border-white/30 hover:bg-black/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] cursor-pointer'}`}
                               >
                                 {char && (
                                   <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
@@ -1907,8 +2084,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   </div>
                   {itemClears.length > 0 && (
                     <>
-                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
-                      <div className="absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-[8px] font-black tracking-widest text-emerald-400 shadow-xl z-30">
+                      <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none ${isCrimson ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}></div>
+                      <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${
+                        isCrimson
+                          ? 'border-red-500/25 text-red-300'
+                          : 'border-white/10 text-emerald-400'
+                      }`}>
                         <Clock className="w-2.5 h-2.5" />
                         <span className="font-mono">{resetTimer}</span>
                       </div>
@@ -1922,7 +2103,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   </h3>
                   <div className="mt-auto pt-2">
                     {itemClears.length > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
+                          isCrimson
+                            ? 'bg-red-500/15 border-red-500/35 text-red-300'
+                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        }`}>
                         <CheckCircle2 className="w-3 h-3" /> {itemClears.reduce((sum, c) => sum + (c.verifiedCount || 1), 0)} Records
                       </span>
                     ) : (
@@ -1939,7 +2124,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
         {/* Archive Modal */}
         {selectedDomain && (
-          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 transition-all overflow-y-auto">
+          <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-6 sm:pb-10 transition-all overflow-y-auto overscroll-contain">
             <div className={`theme-modal-shell archive-modal-shell w-full max-w-6xl max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-9rem)] rounded-[3rem] flex flex-col overflow-hidden animate-in zoom-in-95 duration-400 relative ${isGlacial ? 'glacial-subtle-snow archive-modal-glacial' : ''}`}>
               <div className={`theme-modal-header archive-modal-header flex items-center justify-between p-6 sm:p-10 backdrop-blur-md ${isGlacial ? 'archive-modal-header-glacial' : ''}`}>
                 <div className="flex items-center gap-5 sm:gap-8">
@@ -1956,41 +2141,66 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className={`theme-subpanel inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'border-cyan-300/25' : ''}`}>
-                    <button
-                      onClick={() => {
-                        setArchiveViewMode('grouped');
-                        setArchiveFocusedTime(null);
-                      }}
-                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        archiveViewMode === 'grouped'
-                          ? (isGlacial
-                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
-                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
-                          : (isGlacial
-                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
-                            : 'text-slate-300 hover:text-white hover:bg-white/10')
-                      }`}
-                    >
-                      By Time
-                    </button>
-                    <button
-                      onClick={() => {
-                        setArchiveViewMode('flat');
-                        setArchiveFocusedTime(null);
-                      }}
-                      className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        archiveViewMode === 'flat'
-                          ? (isGlacial
-                            ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
-                            : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
-                          : (isGlacial
-                            ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
-                            : 'text-slate-300 hover:text-white hover:bg-white/10')
-                      }`}
-                    >
-                      All Grid
-                    </button>
+                  <div className={`theme-subpanel archive-view-switch-shell inline-flex items-center p-1 rounded-xl border shadow-inner ${isGlacial ? 'border-cyan-300/25' : ''}`}>
+                    {isNeon ? (
+                      <>
+                        <NeonGlitchButton
+                          label="By Time"
+                          active={archiveViewMode === 'grouped'}
+                          onClick={() => {
+                            setArchiveViewMode('grouped');
+                            setArchiveFocusedTime(null);
+                          }}
+                          className="min-w-[108px]"
+                        />
+                        <NeonGlitchButton
+                          label="All Grid"
+                          active={archiveViewMode === 'flat'}
+                          onClick={() => {
+                            setArchiveViewMode('flat');
+                            setArchiveFocusedTime(null);
+                          }}
+                          className="min-w-[108px]"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setArchiveViewMode('grouped');
+                            setArchiveFocusedTime(null);
+                          }}
+                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            archiveViewMode === 'grouped'
+                              ? (isGlacial
+                                ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                                : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                              : (isGlacial
+                                ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                                : 'text-slate-300 hover:text-white hover:bg-white/10')
+                          }`}
+                        >
+                          By Time
+                        </button>
+                        <button
+                          onClick={() => {
+                            setArchiveViewMode('flat');
+                            setArchiveFocusedTime(null);
+                          }}
+                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            archiveViewMode === 'flat'
+                              ? (isGlacial
+                                ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
+                                : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
+                              : (isGlacial
+                                ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
+                                : 'text-slate-300 hover:text-white hover:bg-white/10')
+                          }`}
+                        >
+                          All Grid
+                        </button>
+                      </>
+                    )}
                   </div>
                   <button
                     onClick={() => setSelectedDomain(null)}
@@ -2323,57 +2533,38 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           100% { transform: translateX(0%); }
         }
         .animate-progress-long { animation: progress-long 25s linear forwards; }
-        .cavern-neon-999-wrap {
-          position: absolute;
-          inset: 0;
-          overflow: hidden;
+        .neon-theme .cavern-domain-card,
+        .neon-theme .archive-team-card,
+        .neon-theme .archive-team-stats,
+        .neon-theme .modal-section,
+        .neon-theme .cavern-entry-modal .theme-subpanel {
+          background: linear-gradient(180deg, rgba(18, 20, 23, 0.86), rgba(12, 14, 18, 0.94)) !important;
+          border-color: rgba(0, 243, 255, 0.22) !important;
+          box-shadow: 0 14px 36px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 0 0 1px rgba(188, 0, 255, 0.08) !important;
         }
-        .cavern-neon-999-layer {
-          position: absolute;
-          top: 56%;
-          width: min(28vw, 460px);
-          max-width: 460px;
-          height: auto;
-          object-fit: contain;
-          pointer-events: none;
-          mix-blend-mode: screen;
-          opacity: 0.2;
-          filter: saturate(1.2) contrast(1.08) brightness(0.68) drop-shadow(0 0 18px rgba(0,243,255,0.2));
-          transform-origin: center center;
+        .neon-theme .cavern-domain-card:hover,
+        .neon-theme .archive-team-card:hover {
+          border-color: rgba(0, 243, 255, 0.42) !important;
+          box-shadow: 0 0 24px rgba(0, 243, 255, 0.2), 0 18px 42px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(188, 0, 255, 0.18) !important;
         }
-        .cavern-neon-999-layer-1 {
-          left: 18%;
-          transform: translate(-50%, -50%) skewX(-9deg) rotate(-5deg) scale(1.02);
-          animation: neon-999-float-a 12s ease-in-out infinite;
+        .neon-theme .cavern-entry-modal .bg-black\\/20,
+        .neon-theme .cavern-entry-modal .bg-black\\/25,
+        .neon-theme .cavern-entry-modal .bg-black\\/30,
+        .neon-theme .archive-modal-shell .bg-black\\/25,
+        .neon-theme .archive-modal-shell .bg-black\\/30 {
+          background-color: rgba(16, 19, 24, 0.74) !important;
+          border-color: rgba(0, 243, 255, 0.16) !important;
         }
-        .cavern-neon-999-layer-2 {
-          left: 50%;
-          transform: translate(-50%, -50%) skewX(-8deg) rotate(-1deg) scale(1.08);
-          animation: neon-999-float-b 13.6s ease-in-out infinite;
+        .neon-theme .cavern-entry-modal .cavern-modal-switch-shell,
+        .neon-theme .archive-modal-shell .archive-view-switch-shell {
+          background-image: none !important;
         }
-        .cavern-neon-999-layer-3 {
-          left: 82%;
-          transform: translate(-50%, -50%) skewX(-9deg) rotate(4deg) scale(1.02);
-          animation: neon-999-float-c 11.4s ease-in-out infinite;
-        }
-        @keyframes neon-999-float-a {
-          0%, 100% { transform: translate(-50%, -50%) skewX(-9deg) rotate(-5deg) scale(1.02); opacity: 0.18; }
-          50% { transform: translate(-50%, -52%) skewX(-10deg) rotate(-6deg) scale(1.06); opacity: 0.24; }
-        }
-        @keyframes neon-999-float-b {
-          0%, 100% { transform: translate(-50%, -50%) skewX(-8deg) rotate(-1deg) scale(1.08); opacity: 0.22; }
-          50% { transform: translate(-50%, -53%) skewX(-9deg) rotate(-2deg) scale(1.13); opacity: 0.28; }
-        }
-        @keyframes neon-999-float-c {
-          0%, 100% { transform: translate(-50%, -50%) skewX(-9deg) rotate(4deg) scale(1.02); opacity: 0.18; }
-          50% { transform: translate(-50%, -52%) skewX(-10deg) rotate(5deg) scale(1.06); opacity: 0.24; }
-        }
-        @media (max-width: 900px) {
-          .cavern-neon-999-layer {
-            width: min(38vw, 320px);
-            top: 58%;
-            opacity: 0.16;
-          }
+        .neon-theme .cavern-entry-modal .cavern-modal-switch-shell::before,
+        .neon-theme .cavern-entry-modal .cavern-modal-switch-shell::after,
+        .neon-theme .archive-modal-shell .archive-view-switch-shell::before,
+        .neon-theme .archive-modal-shell .archive-view-switch-shell::after {
+          content: none !important;
+          display: none !important;
         }
         .group:hover > .tooltip-fast { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .cavern-domain-grid { position: relative; }
@@ -2383,7 +2574,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         .cavern-filter-chip:hover { z-index: 70; }
         .cavern-filter-tooltip { z-index: 80; }
         .arctic-theme .cavern-domain-card,
-        .winter-theme .cavern-domain-card {
+        .winter-theme .cavern-domain-card,
+        .crimson-theme .cavern-domain-card,
+        .void-theme .cavern-domain-card {
           overflow: visible !important;
         }
         .cavern-entry-modal.glacial-subtle-snow::after {

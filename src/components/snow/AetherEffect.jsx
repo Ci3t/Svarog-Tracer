@@ -6,14 +6,15 @@ const PARTICLE_COUNT = 84;
 const random = (min, max) => Math.random() * (max - min) + min;
 
 function createParticle(width, height) {
-  const isBinary = Math.random() > 0.35;
+  const isBinary = Math.random() > 0.4;
   return {
     x: random(0, width),
     y: random(0, height),
-    size: random(1.6, 4.2),
-    speedX: random(16, 44),
-    floatY: random(-0.2, 0.2),
-    opacity: random(0.16, 0.48),
+    size: random(1.5, 4),
+    // Drift speed - varied to simulate different depths
+    speedX: random(0.5, 2.5),
+    floatY: random(-0.4, 0.4),
+    opacity: random(0.1, 0.4),
     phase: random(0, Math.PI * 2),
     char: Math.random() > 0.5 ? "0" : "1",
     color: COLORS[Math.floor(Math.random() * COLORS.length)],
@@ -101,33 +102,44 @@ const AetherEffect = () => {
 
       for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i];
-        const influenceX = (mouse.x - width / 2) * 0.00045;
-        const influenceY = (mouse.y - height / 2) * 0.00028;
+        
+        // "Data Vacuum" Drift - particles drift left towards a vanishing point
+        const vacuumSpeed = p.speedX * 35;
+        p.x -= vacuumSpeed * dt;
+        p.y += (Math.sin(timeMs * 0.001 + p.phase) * p.floatY * 8) * dt * 60;
 
-        p.x -= (p.speedX + influenceX * 24) * dt;
-        p.y += Math.sin(timeMs * 0.0015 + p.phase) * p.floatY * 6 + influenceY * 2;
+        // Mouse influence - bits "bend" around the cursor
+        const dx = mouse.x - p.x;
+        const dy = mouse.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 200) {
+          p.x += (dx / dist) * 1.5;
+          p.y += (dy / dist) * 1.5;
+        }
 
-        if (p.x < -36) {
+        if (p.x < -40) {
           particles[i] = {
             ...createParticle(width, height),
-            x: width + random(10, 80),
+            x: width + 40,
             y: random(0, height),
           };
           continue;
         }
-
-        if (p.y < -24) p.y = height + 24;
-        if (p.y > height + 24) p.y = -24;
 
         ctx.save();
         ctx.globalAlpha = p.opacity;
         ctx.fillStyle = p.color;
 
         if (p.isBinary) {
-          ctx.font = `${p.size * 2.5}px "JetBrains Mono", monospace`;
+          ctx.font = `${p.size * 2.8}px "Share Tech Mono", monospace`;
           ctx.fillText(p.char, p.x, p.y);
         } else {
+          // 8-bit pixel fragment
           ctx.fillRect(p.x, p.y, p.size, p.size);
+          // Glitch secondary pixel
+          if (Math.random() > 0.95) {
+            ctx.fillRect(p.x + 4, p.y - 2, p.size / 2, p.size / 2);
+          }
         }
 
         ctx.restore();

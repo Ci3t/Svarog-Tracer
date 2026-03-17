@@ -227,12 +227,12 @@ export default function ModernSessionTable({
               {[...entries].reverse().map((e) => (
                 <tr
                   key={e.id}
-                  className="hover:bg-slate-800/30 transition-colors duration-150"
+                  className="theme-session-row hover:bg-slate-800/30 transition-colors duration-150"
                 >
                   <td className="py-3 px-6 font-mono text-xs sm:text-sm text-slate-200">
                     {e.raw}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs sm:text-sm">
+                  <td className="theme-data-value py-3 px-4 font-mono text-xs sm:text-sm">
                     <span className="astral-primary-display bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent font-semibold">
                       {e.translated}
                     </span>
@@ -370,7 +370,8 @@ export default function ModernSessionTable({
                       const secondHalf = sess.entries.slice(mid);
                       const value = toTranslatedPadded(e.s2).slice(0, 2);
                       const firstCount = firstHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
-                      const secondCount = secondHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value).length;
+                      const secondHalfEntries = secondHalf.filter(entry => toTranslatedPadded(entry.s2).slice(0, 2) === value);
+                      const secondCount = secondHalfEntries.length;
                       
                       let trend = '→';
                       let trendColor = 'text-slate-400';
