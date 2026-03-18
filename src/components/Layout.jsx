@@ -5,6 +5,7 @@ import { Cpu, Flame, Palette, Sparkles, Snowflake, Star } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
 import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
+import { useAuth } from '../hooks/useAuth';
 
 const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
 const THEME_VISUALS = {
@@ -59,6 +60,7 @@ export default function Layout({
   onThemeChange = () => {},
 }) {
   const location = useLocation();
+  const { isAuthenticated, signOut } = useAuth();
   const normalizedSessionTheme =
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const navRef = useRef(null);
@@ -278,6 +280,20 @@ export default function Layout({
                 >
                   🛖 Caverns
                 </NavLink>
+                {isAuthenticated && (
+                  <NavLink
+                    to="/zone-tracker"
+                    data-active={location.pathname === '/zone-tracker'}
+                    className={({ isActive }) =>
+                      `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                        ? activeTabTextClass
+                        : inactiveTabTextClass
+                      }`
+                    }
+                  >
+                    Zone
+                  </NavLink>
+                )}
                 <NavLink
                   to="/guides"
                   data-active={location.pathname === '/guides'}
@@ -374,6 +390,23 @@ export default function Layout({
               >
                 EXPORT CSV
               </button>
+
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="w-full lg:w-auto px-4 py-2 text-[10px] sm:text-xs font-bold rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-all text-center mt-2 lg:mt-0"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <NavLink
+                  to="/auth"
+                  className="w-full lg:w-auto px-4 py-2 text-[10px] sm:text-xs font-bold rounded-lg border border-indigo-400/40 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 transition-all text-center mt-2 lg:mt-0 inline-flex items-center justify-center"
+                >
+                  Zone Login
+                </NavLink>
+              )}
             </div>
           </div>
         </div>

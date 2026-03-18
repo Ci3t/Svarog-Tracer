@@ -28,6 +28,10 @@ import ModernGuidesPage from "./pages/ModernGuidesPage"; // ðŸ”¥ NEW Guides
 import HomePage from "./pages/HomePage"; // ðŸ”¥ NEW Landing Page
 import BannerTracker from "./pages/BannerTracker"; // ðŸ”¥ NEW Banner Tracker
 import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns Page
+import AuthPage from "./pages/AuthPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
+import ZoneTrackerPage from "./pages/ZoneTrackerPage";
+import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
 import AstralStars from "./components/snow/AstralStars"; // ðŸŒŒ NEW Astral Stars
@@ -1020,6 +1024,8 @@ export default function App() {
           )}
           <div className="relative z-10">
             <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route
             path="/"
             element={
@@ -1138,6 +1144,14 @@ export default function App() {
             <Route path="/warp-analyzer" element={<WarpAnalyzerPage sessionTheme={sessionTheme} />} />
             <Route path="/banner-tracker" element={<BannerTracker sessionTheme={sessionTheme} />} />
             <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
+            <Route
+              path="/zone-tracker"
+              element={
+                <RequireAuth>
+                  <ZoneTrackerPage />
+                </RequireAuth>
+              }
+            />
             <Route path="/guides" element={<ModernGuidesPage sessionTheme={sessionTheme} />} />
           </Route>
             </Routes>
@@ -1147,6 +1161,7 @@ export default function App() {
     </Suspense>
   );
 }
+
 
 
 

@@ -13,7 +13,8 @@
     "migrate:caverns": "node scripts/migrate-caverns-to-supabase.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "update-banners": "python scripts/update_banners.py"
+    "update-banners": "python scripts/update_banners.py",
+    "build:gh": "cross-env VITE_BASE_PATH=/Svarog-Tracer/ vite build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

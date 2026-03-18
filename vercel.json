@@ -6,16 +6,38 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Cache-Control, x-api-key, Authorization, X-Requested-With, Pragma" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Cache-Control, x-api-key, Authorization, X-Requested-With, Pragma"
+        }
       ]
     }
   ],
   "rewrites": [
-    { "source": "/api/hsr/:slug*", "destination": "/api/hsr" },
-    { "source": "/api/wuwa/:slug*", "destination": "/api/wuwa" },
-    { "source": "/api/genshin/:slug*", "destination": "/api/genshin" }
+    {
+      "source": "/api/hsr/:slug*",
+      "destination": "/api/hsr"
+    },
+    {
+      "source": "/api/wuwa/:slug*",
+      "destination": "/api/wuwa"
+    },
+    {
+      "source": "/api/genshin/:slug*",
+      "destination": "/api/genshin"
+    },
+    {
+      "source": "/api/zone/:slug*",
+      "destination": "/api/zone"
+    }
   ],
   "crons": [
     {
@@ -24,4 +46,3 @@
     }
   ]
 }
-
