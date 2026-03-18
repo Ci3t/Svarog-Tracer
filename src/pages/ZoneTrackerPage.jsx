@@ -39,9 +39,9 @@ const OUTCOME_OPTIONS = [
 ];
 
 const CONFIDENCE_STYLES = {
-  HIGH: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]',
-  MEDIUM: 'border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]',
-  LOW: 'border-slate-500/40 bg-slate-800/50 text-slate-300',
+  HIGH: 'border-emerald-400/60 bg-emerald-500/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.4)] text-shadow-glow',
+  MEDIUM: 'border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]',
+  LOW: 'border-slate-600/40 bg-slate-800/50 text-slate-400',
 };
 
 const SERVER_REGION_OPTIONS = [
@@ -1177,6 +1177,38 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
   return (
     <div className={`${rootThemeClass} max-w-[1440px] mx-auto space-y-8 pb-20 animate-in fade-in duration-700`}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .modern-theme .zone-glass { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(51, 65, 85, 0.6); }
+        .svarog-theme .zone-glass { background: rgba(5, 10, 24, 0.75); border: 1px solid rgba(99, 102, 241, 0.2); box-shadow: 0 8px 32px rgba(9, 9, 11, 0.6), inset 0 0 32px rgba(67, 56, 202, 0.05); backdrop-filter: blur(16px); }
+        .arctic-theme .zone-glass { background: rgba(248, 250, 252, 0.6); border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 8px 32px rgba(100, 116, 139, 0.1), inset 0 0 32px rgba(255, 255, 255, 0.5); backdrop-filter: blur(16px); }
+
+        .modern-theme .zone-glass-panel { background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(51, 65, 85, 0.4); }
+        .svarog-theme .zone-glass-panel { background: rgba(9, 14, 30, 0.6); border: 1px solid rgba(79, 70, 229, 0.15); box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5); }
+        .arctic-theme .zone-glass-panel { background: rgba(241, 245, 249, 0.5); border: 1px solid rgba(203, 213, 225, 0.5); box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.8); }
+
+        .svarog-theme .text-shadow-glow { text-shadow: 0 0 16px currentColor, 0 0 32px currentColor; }
+        .arctic-theme .text-shadow-glow { text-shadow: 0 2px 10px rgba(14, 165, 233, 0.3); }
+
+        .custom-zone-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-zone-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .svarog-theme .custom-zone-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
+        .arctic-theme .custom-zone-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 10px; }
+
+        .zone-slot-hover:hover {
+           transform: scale(1.02) translateY(-4px);
+           box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+        .svarog-theme .zone-slot-active { box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); border-color: rgba(129, 140, 248, 0.6); }
+        .arctic-theme .zone-slot-active { box-shadow: 0 0 30px rgba(14, 165, 233, 0.2); border-color: rgba(56, 189, 248, 0.6); }
+
+        .svarog-theme .relic-button { background: rgba(15, 23, 42, 0.7); border-color: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
+        .svarog-theme .relic-button:hover { border-color: rgba(99, 102, 241, 0.5); background: rgba(30, 41, 59, 0.9); }
+        .svarog-theme .relic-button.active { background: rgba(79, 70, 229, 0.15); border-color: rgba(99, 102, 241, 0.6); color: #e0e7ff; box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
+
+        .arctic-theme .relic-button { background: rgba(255, 255, 255, 0.7); border-color: rgba(226, 232, 240, 0.8); color: #475569; }
+        .arctic-theme .relic-button:hover { border-color: rgba(14, 165, 233, 0.5); background: rgba(248, 250, 252, 0.9); }
+        .arctic-theme .relic-button.active { background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.5); color: #0284c7; box-shadow: 0 0 15px rgba(14, 165, 233, 0.15); }
+      `}} />
       
       {/* Header & Epoch Status Bar */}
       <section className="page-header relative overflow-hidden theme-glass-card p-6 border-indigo-500/20">
@@ -1332,10 +1364,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                                   setActiveSlotIndex(i);
                                }
                             }}
-                            className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center 
+                            className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center zone-slot-hover
                               ${dragIndex === i ? 'opacity-70 scale-[0.98] cursor-grabbing' : ''} 
                               ${isDragOver ? 'ring-4 ring-cyan-300/65 ring-offset-4 ring-offset-slate-900 scale-[1.05] z-10' : ''} 
-                              ${isTarget && !isDragOver && !charId ? 'border-indigo-400/50 ring-2 ring-indigo-500/20 scale-[1.02]' : ''}
+                              ${isTarget && !isDragOver && !charId ? 'border-indigo-400/50 ring-2 ring-indigo-500/20 scale-[1.02] zone-slot-active' : ''}
                               ${charId ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.3)] cursor-grab hover:border-red-400' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)] cursor-grab hover:border-red-400') : 'border-slate-700 border-dashed bg-slate-900/40 hover:border-indigo-400/80 hover:bg-slate-900/80 cursor-pointer'}`}
                          >
                             {charId && char && (
@@ -1463,7 +1495,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                             draggable={!inTeam}
                             onDragStart={(e) => handleRosterDragStart(numId, e)}
                             onClick={(e) => handleRosterCharacterClick(numId, e)}
-                            className={`relative aspect-square rounded-full cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${inTeam ? 'ring-2 ring-indigo-400/50 shadow-[0_0_18px_rgba(99,102,241,0.35)]' : 'hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:border-slate-300 hover:z-10 bg-slate-900 active:scale-95 group'}`}
+                            className={`relative aspect-square rounded-full cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${inTeam ? 'ring-2 ring-indigo-400/50 shadow-[0_0_18px_rgba(99,102,241,0.35)]' : 'zone-node-hover hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:z-10 bg-slate-900 active:scale-95 group'}`}
                             title={c.name}
                           >
                             <div className="absolute left-1/2 -top-11 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
@@ -1493,10 +1525,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                         key={opt.value}
                         type="button"
                         onClick={() => { setOutcomeTouched(true); setOutcome(opt.value); }}
-                        className={`px-3 py-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                        className={`px-3 py-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all relic-button ${
                           outcome === opt.value
-                          ? 'bg-indigo-500/15 border-indigo-500/60 text-indigo-100 shadow-[0_0_15px_rgba(99,102,241,0.15)] scale-[1.02]'
-                          : 'bg-slate-950/40 border-slate-800/60 text-slate-500 hover:border-slate-700 hover:text-slate-300 hover:-translate-y-1'
+                          ? 'active scale-[1.02]'
+                          : 'hover:-translate-y-1'
                         }`}
                       >
                         {opt.label}
@@ -1632,7 +1664,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                             <select
                               value={card.mainStat || ''}
                               onChange={(event) => setRelicCardMainStat(cardIndex, event.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-cyan-500/50"
+                              className="w-full bg-slate-950/60 border border-slate-700 hover:border-indigo-400/50 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
                             >
                               <option value="">Unknown / Skip</option>
                               {getMainStatOptionsForPiece(card.piece).map((mainStat) => (
@@ -1654,7 +1686,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                                 key={`${card.index}-${substat}`}
                                 type="button"
                                 onClick={() => !disabled && toggleRelicCardSubstat(cardIndex, substat)}
-                                className={`${relicChipBaseClass} ${selected ? 'bg-indigo-500/20 border-indigo-400/50 text-indigo-100' : blockedByMain ? 'bg-slate-900 border-rose-500/40 text-rose-300 cursor-not-allowed' : limitReached ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'}`}
+                                className={`${relicChipBaseClass} relic-button ${selected ? 'active' : blockedByMain ? 'opacity-30 cursor-not-allowed border-rose-500/40 text-rose-300' : limitReached ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 title={blockedByMain ? 'Substat cannot match main stat.' : undefined}
                               >
                                 {substat}
