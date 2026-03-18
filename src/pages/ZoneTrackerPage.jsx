@@ -1,27 +1,153 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { gsap } from 'gsap';
+import { 
+  Target, 
+  Activity, 
+  Flag, 
+  Shield, 
+  Zap, 
+  BarChart3, 
+  Plus, 
+  Search,
+  RefreshCw, 
+  Clock, 
+  Info, 
+  User, 
+  LayoutGrid,
+  History,
+  AlertTriangle,
+  CheckCircle2,
+  X,
+  Dna,
+  Navigation,
+  Users,
+  PlusCircle
+} from 'lucide-react';
 import charactersData from '../data/characters.json';
 import { HSR_CAVERNS } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
+import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 
 const OUTCOME_OPTIONS = [
-  { value: 'spd-double-crit', label: 'SPD + CR + CD' },
-  { value: 'double-crit', label: 'CR + CD only' },
-  { value: 'spd-one-crit', label: 'SPD + one crit' },
-  { value: 'one-crit', label: 'One crit only' },
-  { value: 'effect-junk', label: 'Effect junk' },
-  { value: 'flat-junk', label: 'Flat junk' },
-  { value: 'mixed', label: 'Mixed' },
+  { value: 'spd-double-crit', label: 'SPD + CR + CD', color: 'indigo' },
+  { value: 'double-crit', label: 'CR + CD only', color: 'emerald' },
+  { value: 'spd-one-crit', label: 'SPD + one crit', color: 'cyan' },
+  { value: 'one-crit', label: 'One crit only', color: 'blue' },
+  { value: 'effect-junk', label: 'Effect junk', color: 'amber' },
+  { value: 'flat-junk', label: 'Flat junk', color: 'slate' },
+  { value: 'mixed', label: 'Mixed', color: 'slate' },
 ];
 
 const CONFIDENCE_STYLES = {
-  HIGH: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200',
-  MEDIUM: 'border-amber-400/30 bg-amber-500/10 text-amber-200',
-  LOW: 'border-slate-500/40 bg-slate-800/50 text-slate-200',
+  HIGH: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]',
+  MEDIUM: 'border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]',
+  LOW: 'border-slate-500/40 bg-slate-800/50 text-slate-300',
 };
+
+const SERVER_REGION_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'asia', label: 'Asia' },
+  { value: 'europe', label: 'EU' },
+  { value: 'america', label: 'NA' },
+];
+
+const SERVER_REGION_SUBMIT_OPTIONS = SERVER_REGION_OPTIONS.filter((region) => region.value !== 'all');
+
+const MAP_TARGET_PRESET_OPTIONS = [
+  { value: 'crit_potential', label: 'Crit Pot' },
+  { value: 'crit_substats', label: 'Crit Stats' },
+  { value: 'spd', label: 'SPD' },
+  { value: 'hp_pct', label: 'HP%' },
+  { value: 'break_effect', label: 'Break' },
+  { value: 'spd_crit', label: 'SPD + Crit' },
+  { value: 'custom', label: 'Custom' },
+];
+
+const MAP_TARGET_CUSTOM_MAX_STATS = 4;
+
+const RELIC_CARD_PIECES = ['Head', 'Hands', 'Body', 'Feet', 'Orb', 'Rope'];
+const RELIC_SUBSTAT_OPTIONS = ['Flat HP', 'Flat ATK', 'Flat DEF', 'HP%', 'ATK%', 'DEF%', 'SPD', 'CRIT Rate', 'CRIT DMG', 'Effect Hit Rate', 'Effect RES', 'Break Effect'];
+const RELIC_MAIN_STAT_OPTIONS_BY_PIECE = Object.freeze({
+  Head: ['Flat HP'],
+  Hands: ['Flat ATK'],
+  Body: ['CRIT Rate', 'CRIT DMG', 'Outgoing Healing Boost', 'Effect Hit Rate', 'ATK%', 'DEF%', 'HP%'],
+  Feet: ['SPD', 'ATK%', 'DEF%', 'HP%', 'Break Effect'],
+  Orb: ['Physical DMG', 'Fire DMG', 'Ice DMG', 'Wind DMG', 'Lightning DMG', 'Quantum DMG', 'Imaginary DMG', 'ATK%', 'DEF%', 'HP%'],
+  Rope: ['Energy Regeneration Rate', 'Break Effect', 'ATK%', 'DEF%', 'HP%'],
+});
+const RELIC_FIXED_MAIN_STATS = Object.freeze({
+  Head: 'Flat HP',
+  Hands: 'Flat ATK',
+});
+
+function getMainStatOptionsForPiece(piece) {
+  return RELIC_MAIN_STAT_OPTIONS_BY_PIECE[piece] || [];
+}
+
+function getDefaultMainStatForPiece(piece) {
+  return RELIC_FIXED_MAIN_STATS[piece] || null;
+}
+
+function buildEmptyRelicCard(index) {
+  const piece = 'Head';
+  return {
+    index,
+    piece,
+    mainStat: getDefaultMainStatForPiece(piece),
+    substats: [],
+  };
+}
+
+function inferOutcomeFromRelics(relicCards) {
+  const cards = Array.isArray(relicCards) ? relicCards : [];
+  if (cards.length === 0) return 'mixed';
+
+  const totalRelics = cards.length;
+  let critOnlyCount = 0;
+  let speedAndCritCount = 0;
+  let oneCritCount = 0;
+  let junkCount = 0;
+
+  for (const card of cards) {
+    const substats = Array.isArray(card.substats) ? card.substats : [];
+    const hasCr = substats.includes('CRIT Rate');
+    const hasCd = substats.includes('CRIT DMG');
+    const hasSpd = substats.includes('SPD');
+    const hasAnyCrit = hasCr || hasCd;
+
+    if (hasSpd && hasCr && hasCd) {
+      speedAndCritCount += 1;
+    } else if (hasCr && hasCd) {
+      critOnlyCount += 1;
+    } else if (hasSpd && hasAnyCrit) {
+      oneCritCount += 1;
+    } else if (!hasAnyCrit) {
+      const junkLike = substats.filter((stat) => ['Flat HP', 'Flat ATK', 'Flat DEF', 'Effect RES'].includes(stat)).length;
+      if (junkLike >= 2) {
+        junkCount += 1;
+      }
+    }
+  }
+
+  if (speedAndCritCount / totalRelics >= 0.4) return 'spd-double-crit';
+  if (critOnlyCount / totalRelics >= 0.4) return 'double-crit';
+  if (oneCritCount / totalRelics >= 0.4) return 'spd-one-crit';
+
+  const anyCrit = speedAndCritCount + critOnlyCount + oneCritCount;
+  if (anyCrit / totalRelics >= 0.4) return 'one-crit';
+  if (junkCount / totalRelics >= 0.5) return 'flat-junk';
+
+  return 'mixed';
+}
 
 function formatRate(rate) {
   if (rate === null || rate === undefined) return '--';
   return `${Math.round(Number(rate) * 100)}%`;
+}
+
+function formatDropScore(score) {
+  if (score === null || score === undefined) return '--';
+  return `${Math.round(Number(score) * 100)}%`;
 }
 
 function mapAuthError(error) {
@@ -30,18 +156,60 @@ function mapAuthError(error) {
   return error.message || 'Request failed';
 }
 
-export default function ZoneTrackerPage() {
+function findNextEmptySlot(slotsArray, startIndex = 0) {
+  for (let i = 0; i < 4; i++) {
+    const idx = (startIndex + i) % 4;
+    if (!slotsArray[idx]) return idx;
+  }
+  return 0; // default if all full
+}
+
+function parseNonNegativeInteger(value, { max = null } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  if (!/^\d+$/.test(raw)) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
+
+  if (max !== null && parsed > max) {
+    return max;
+  }
+
+  return parsed;
+}
+
+export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const { user, getAuthHeader } = useAuth();
+  const themeConfig = getSessionThemeConfig(sessionTheme);
+  const rootThemeClass = themeConfig.rootClassName || 'modern-theme';
 
   const [slots, setSlots] = useState([null, null, null, null]);
+  const [activeSlotIndex, setActiveSlotIndex] = useState(0);
   const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
+  
   const [outcome, setOutcome] = useState('mixed');
+  const [outcomeTouched, setOutcomeTouched] = useState(false);
   const [cavern, setCavern] = useState('');
+  const [serverRegion, setServerRegion] = useState('asia');
   const [notes, setNotes] = useState('');
+  const [relicDropCount, setRelicDropCount] = useState(7);
+  const [relicCards, setRelicCards] = useState(() => Array.from({ length: 7 }, (_, index) => buildEmptyRelicCard(index + 1)));
+  const [relicGridCompact, setRelicGridCompact] = useState(false);
   const [flagNotes, setFlagNotes] = useState('');
 
   const [requestedEpoch, setRequestedEpoch] = useState('current');
   const [mapData, setMapData] = useState(null);
+  const [mapRegion, setMapRegion] = useState('all');
+  const [mapTargetPreset, setMapTargetPreset] = useState('crit_potential');
+  const [mapTargetMode, setMapTargetMode] = useState('any');
+  const [mapTargetCustomStats, setMapTargetCustomStats] = useState(['SPD']);
 
   const [loadingMap, setLoadingMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -49,17 +217,90 @@ export default function ZoneTrackerPage() {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [charSearchTerm, setCharSearchTerm] = useState('');
+
+  const [ownedCharIds, setOwnedCharIds] = useState([]);
+  const [ownedSearchTerm, setOwnedSearchTerm] = useState('');
+  const [ownedLoading, setOwnedLoading] = useState(false);
+  const [ownedSaving, setOwnedSaving] = useState(false);
+  const [rosterMode, setRosterMode] = useState('team');
+
+  const [variantOwnershipFilter, setVariantOwnershipFilter] = useState('all');
+  const [variantEnforceSum, setVariantEnforceSum] = useState(true);
+  const [variantsByZone, setVariantsByZone] = useState({});
+  const [variantLoadingZoneKey, setVariantLoadingZoneKey] = useState('');
+  const [exportingDebug, setExportingDebug] = useState(false);
+  const [adminEligible, setAdminEligible] = useState(false);
+  const [adminModeEnabled, setAdminModeEnabled] = useState(false);
+  const [adminStatusLoading, setAdminStatusLoading] = useState(false);
+
+  const [tuneXorInput, setTuneXorInput] = useState('');
+  const [tuneSlotInput, setTuneSlotInput] = useState('');
+  const [tuneSumInput, setTuneSumInput] = useState('');
+  const [tunedZones, setTunedZones] = useState([]);
+  const [manualVariantPayload, setManualVariantPayload] = useState(null);
+  const [manualVariantLoading, setManualVariantLoading] = useState(false);
+
+
+
+  const mapRef = useRef(null);
+  const formRef = useRef(null);
+  const tunerRef = useRef(null);
 
   const charactersByNumId = useMemo(() => {
     return new Map((Array.isArray(charactersData) ? charactersData : []).map((entry) => [Number(entry.numId), entry]));
   }, []);
 
   const characterOptions = useMemo(() => {
-    return [...(Array.isArray(charactersData) ? charactersData : [])].sort((a, b) => {
+    let list = [...(Array.isArray(charactersData) ? charactersData : [])];
+    if (charSearchTerm) {
+      const term = charSearchTerm.toLowerCase();
+      list = list.filter(c => 
+        c.name.toLowerCase().includes(term) || 
+        String(c.numId).includes(term)
+      );
+    }
+    return list.sort((a, b) => {
       if (b.rarity !== a.rarity) return b.rarity - a.rarity;
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
-  }, []);
+  }, [charSearchTerm]);
+
+  const ownedOptions = useMemo(() => {
+    let list = [...(Array.isArray(charactersData) ? charactersData : [])];
+    if (ownedSearchTerm) {
+      const term = ownedSearchTerm.toLowerCase();
+      list = list.filter(c =>
+        c.name.toLowerCase().includes(term) ||
+        String(c.numId).includes(term)
+      );
+    }
+
+    return list.sort((a, b) => {
+      if (b.rarity !== a.rarity) return b.rarity - a.rarity;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }, [ownedSearchTerm]);
+
+  const ownedSet = useMemo(() => new Set(ownedCharIds.map((id) => Number(id))), [ownedCharIds]);
+
+  const relicSubstatFrequency = useMemo(() => {
+    const frequency = {};
+    for (const stat of RELIC_SUBSTAT_OPTIONS) {
+      frequency[stat] = 0;
+    }
+
+    for (const card of relicCards) {
+      for (const stat of card.substats || []) {
+        frequency[stat] = (frequency[stat] || 0) + 1;
+      }
+    }
+
+    return frequency;
+  }, [relicCards]);
+
+  const suggestedOutcome = useMemo(() => inferOutcomeFromRelics(relicCards), [relicCards]);
 
   const fetchMap = useCallback(
     async (epoch = 'current') => {
@@ -67,7 +308,20 @@ export default function ZoneTrackerPage() {
       setError('');
 
       try {
-        const response = await fetch(`/api/zone/map?epoch=${encodeURIComponent(epoch)}`, {
+        const params = new URLSearchParams({
+          epoch: String(epoch),
+          region: String(mapRegion),
+        });
+
+        if (mapTargetPreset !== 'crit_potential') {
+          params.set('target', mapTargetPreset);
+          if (mapTargetPreset === 'custom') {
+            params.set('stats', mapTargetCustomStats.join(','));
+            params.set('match_mode', mapTargetMode);
+          }
+        }
+
+        const response = await fetch(`/api/zone/map?${params.toString()}`, {
           method: 'GET',
           headers: {
             ...getAuthHeader(),
@@ -80,15 +334,374 @@ export default function ZoneTrackerPage() {
         }
 
         setMapData(payload);
-        setRequestedEpoch(epoch);
+        
+        // Staggered entry animation for zones
+        const zoneCards = mapRef.current?.querySelectorAll('.zone-card');
+        if (zoneCards && zoneCards.length > 0) {
+          gsap.fromTo(zoneCards,
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, stagger: 0.1, duration: 0.5, ease: 'power2.out' }
+          );
+        }
       } catch (mapError) {
         setError(mapAuthError(mapError));
       } finally {
         setLoadingMap(false);
       }
     },
-    [getAuthHeader]
+    [getAuthHeader, mapRegion, mapTargetCustomStats, mapTargetMode, mapTargetPreset]
   );
+
+  const loadOwnedRoster = useCallback(async () => {
+    setOwnedLoading(true);
+
+    try {
+      const response = await fetch('/api/zone/owned', {
+        method: 'GET',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      if (response.status === 404) {
+        setOwnedCharIds([]);
+        return;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+
+      setOwnedCharIds(Array.isArray(payload.owned_char_ids) ? payload.owned_char_ids.map(Number) : []);
+    } catch (ownedError) {
+      setError(mapAuthError(ownedError));
+    } finally {
+      setOwnedLoading(false);
+    }
+  }, [getAuthHeader]);
+
+  const saveOwnedRoster = useCallback(async () => {
+    setOwnedSaving(true);
+
+    try {
+      const response = await fetch('/api/zone/owned', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ owned_char_ids: ownedCharIds }),
+      });
+
+      if (response.status === 404) {
+        throw new Error('Owned roster API is not available. Run backend API (npx vercel dev).');
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+
+      setOwnedCharIds(Array.isArray(payload.owned_char_ids) ? payload.owned_char_ids.map(Number) : []);
+      setSuccess('Owned roster saved.');
+    } catch (ownedError) {
+      setError(mapAuthError(ownedError));
+    } finally {
+      setOwnedSaving(false);
+    }
+  }, [getAuthHeader, ownedCharIds]);
+
+  const toggleOwnedCharacter = useCallback((charId) => {
+    const normalized = Number(charId);
+
+    setOwnedCharIds((prev) => {
+      if (prev.includes(normalized)) {
+        return prev.filter((value) => value !== normalized);
+      }
+
+      return [...prev, normalized].sort((a, b) => a - b);
+    });
+  }, []);
+
+  const toggleMapTargetCustomStat = useCallback((stat) => {
+    setMapTargetCustomStats((prev) => {
+      if (prev.includes(stat)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((entry) => entry !== stat);
+      }
+
+      if (prev.length >= MAP_TARGET_CUSTOM_MAX_STATS) {
+        return [...prev.slice(1), stat];
+      }
+
+      return [...prev, stat];
+    });
+  }, []);
+
+  const fetchVariantsForZone = useCallback(async (zone) => {
+    if (!zone?.xor_slot_key) return;
+
+    setVariantLoadingZoneKey(zone.xor_slot_key);
+
+    const useOwnedFilter = variantOwnershipFilter === 'owned';
+    const minOwned = useOwnedFilter ? 3 : 0;
+
+    try {
+      const params = new URLSearchParams({
+        xor: String(zone.char_xor),
+        slot: String(zone.char_slot),
+        sum: String(zone.char_sum),
+        epoch: requestedEpoch,
+        min_owned: String(minOwned),
+        enforce_sum: variantEnforceSum ? 'true' : 'false',
+        use_owned: useOwnedFilter ? 'true' : 'false',
+        limit: '12',
+      });
+
+      const response = await fetch(`/api/zone/variants?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detailsText = typeof payload.details === 'string'
+          ? payload.details
+          : payload.details?.message || payload.details?.hint || '';
+        const baseError = payload.error || `HTTP ${response.status}`;
+        throw new Error(detailsText ? baseError + ': ' + detailsText : baseError);
+      }
+
+      setVariantsByZone((prev) => ({ ...prev, [zone.xor_slot_key]: payload }));
+
+      if (payload?.ownership?.warning === 'owned_roster_table_missing') {
+        setSuccess('Owned roster table is not ready yet.');
+      } else if (payload?.ownership?.warning === 'owned_roster_empty') {
+        setSuccess('Owned roster is empty. Save your owned characters first.');
+      }
+    } catch (variantError) {
+      setError(mapAuthError(variantError));
+    } finally {
+      setVariantLoadingZoneKey('');
+    }
+  }, [getAuthHeader, requestedEpoch, variantOwnershipFilter, variantEnforceSum]);
+
+  const handleTuneFromZone = useCallback((zone) => {
+    if (!zone) return;
+    setTuneXorInput(String(zone.char_xor ?? ''));
+    setTuneSlotInput(String(zone.char_slot ?? ''));
+    setTuneSumInput(String(zone.char_sum ?? ''));
+    setSuccess(`Tune target loaded: Zone ${zone.char_xor} / Slot ${zone.char_slot}.`);
+    setError('');
+    if (tunerRef.current) {
+      tunerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      gsap.fromTo(
+        tunerRef.current,
+        { borderColor: 'rgba(51, 65, 85, 0.6)', boxShadow: '0 0 0 rgba(0,0,0,0)' },
+        { borderColor: 'rgba(34, 211, 238, 0.5)', boxShadow: '0 0 24px rgba(34, 211, 238, 0.2)', duration: 0.4, yoyo: true, repeat: 1, ease: 'power2.out' }
+      );
+    }
+  }, []);
+
+  const handleFindTunedZones = useCallback(() => {
+    setError('');
+    setSuccess('');
+    setManualVariantPayload(null);
+
+    const targetXor = parseNonNegativeInteger(tuneXorInput, { max: 99999 });
+    if (targetXor === null) {
+      setError('Enter a valid XOR target to scan zones.');
+      return;
+    }
+
+    const targetSlot = parseNonNegativeInteger(tuneSlotInput, { max: 9999 });
+    if (String(tuneSlotInput || '').trim() && targetSlot === null) {
+      setError('Slot must be a valid number (0-9999) when provided.');
+      return;
+    }
+
+    const targetSum = parseNonNegativeInteger(tuneSumInput, { max: 99999 });
+    if (variantEnforceSum && String(tuneSumInput || '').trim() && targetSum === null) {
+      setError('Sum must be a valid number when Sum Lock is enabled.');
+      return;
+    }
+
+    const smartXorRange = targetSlot !== null ? 12 : 24;
+    const smartSlotRange = targetSlot !== null ? 80 : 0;
+
+    const candidateZones = Array.isArray(mapData?.zones) ? mapData.zones : [];
+    const matched = candidateZones
+      .filter((zone) => {
+        const xorDiff = Math.abs(Number(zone.char_xor) - targetXor);
+        if (xorDiff > smartXorRange) return false;
+
+        if (targetSlot !== null) {
+          const slotDiff = Math.abs(Number(zone.char_slot) - targetSlot);
+          if (slotDiff > smartSlotRange) return false;
+        }
+
+        if (variantEnforceSum && targetSum !== null && Number(zone.char_sum) !== targetSum) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const aDiff = Math.abs(Number(a.char_xor) - targetXor) + (targetSlot !== null ? Math.abs(Number(a.char_slot) - targetSlot) : 0);
+        const bDiff = Math.abs(Number(b.char_xor) - targetXor) + (targetSlot !== null ? Math.abs(Number(b.char_slot) - targetSlot) : 0);
+        if (aDiff !== bDiff) return aDiff - bDiff;
+        if ((b.crit_rate || 0) !== (a.crit_rate || 0)) return (b.crit_rate || 0) - (a.crit_rate || 0);
+        return (b.runs || 0) - (a.runs || 0);
+      })
+      .slice(0, 24);
+
+    setTunedZones(matched);
+    setSuccess(
+      'Found ' +
+        matched.length +
+        ' zone suggestion(s) near Zone ' +
+        targetXor +
+        (targetSlot !== null ? ' / Slot ' + targetSlot : '') +
+        '.'
+    );
+  }, [mapData, tuneSlotInput, tuneSumInput, tuneXorInput, variantEnforceSum]);
+
+  const handleGenerateManualVariants = useCallback(async () => {
+    setError('');
+    setSuccess('');
+
+    const targetXor = parseNonNegativeInteger(tuneXorInput, { max: 99999 });
+    const targetSlot = parseNonNegativeInteger(tuneSlotInput, { max: 9999 });
+    const targetSum = parseNonNegativeInteger(tuneSumInput, { max: 99999 });
+
+    if (targetXor === null || targetSlot === null) {
+      setError('Manual variant generation requires both XOR and SLOT.');
+      return;
+    }
+
+    if (variantEnforceSum && String(tuneSumInput || '').trim() && targetSum === null) {
+      setError('Sum must be valid when Sum Lock is enabled.');
+      return;
+    }
+
+    const useOwnedFilter = variantOwnershipFilter === 'owned';
+    const minOwned = useOwnedFilter ? 3 : 0;
+
+    setManualVariantLoading(true);
+
+    try {
+      const params = new URLSearchParams({
+        xor: String(targetXor),
+        slot: String(targetSlot),
+        epoch: requestedEpoch,
+        min_owned: String(minOwned),
+        enforce_sum: variantEnforceSum ? 'true' : 'false',
+        use_owned: useOwnedFilter ? 'true' : 'false',
+        limit: '20',
+      });
+
+      if (targetSum !== null) {
+        params.set('sum', String(targetSum));
+      }
+
+      const response = await fetch(`/api/zone/variants?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+
+      setManualVariantPayload(payload);
+      if (payload?.ownership?.warning === 'owned_roster_empty') {
+        setSuccess('Owned roster is empty. Save your owned characters first.');
+      } else if (payload?.ownership?.warning === 'owned_roster_table_missing') {
+        setSuccess('Owned roster table is not ready yet.');
+      } else {
+        setSuccess(`Generated ${Array.isArray(payload?.variants) ? payload.variants.length : 0} manual variant(s).`);
+      }
+    } catch (manualError) {
+      setError(mapAuthError(manualError));
+    } finally {
+      setManualVariantLoading(false);
+    }
+  }, [getAuthHeader, requestedEpoch, tuneSlotInput, tuneSumInput, tuneXorInput, variantEnforceSum, variantOwnershipFilter]);
+
+  useEffect(() => {
+    fetchMap(requestedEpoch);
+  }, [fetchMap, requestedEpoch]);
+
+  useEffect(() => {
+    setTunedZones([]);
+    setManualVariantPayload(null);
+  }, [requestedEpoch, mapRegion, mapTargetCustomStats, mapTargetMode, mapTargetPreset]);
+
+
+  useEffect(() => {
+    loadOwnedRoster();
+  }, [loadOwnedRoster]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchAdminStatus = async () => {
+      setAdminStatusLoading(true);
+
+      try {
+        const response = await fetch('/api/zone/export?status=true', {
+          method: 'GET',
+          headers: {
+            ...getAuthHeader(),
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        if (!isMounted) return;
+
+        const allowed = Boolean(payload?.is_admin);
+        setAdminEligible(allowed);
+        if (!allowed) {
+          setAdminModeEnabled(false);
+        }
+      } catch {
+        if (!isMounted) return;
+        setAdminEligible(false);
+        setAdminModeEnabled(false);
+      } finally {
+        if (isMounted) {
+          setAdminStatusLoading(false);
+        }
+      }
+    };
+
+    fetchAdminStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getAuthHeader]);
+
+  // Initial page hook
+  useEffect(() => {
+    const header = document.querySelector('.page-header');
+    if (!header) return;
+
+    gsap.fromTo(header,
+      { opacity: 0, y: -20 },
+      { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }
+    );
+  }, []);
 
   const slotSummary = useMemo(() => {
     return slots
@@ -96,31 +709,292 @@ export default function ZoneTrackerPage() {
       .join(' / ');
   }, [charactersByNumId, slots]);
 
-  const setSlotAt = (slotIndex, nextValue) => {
-    const parsed = Number(nextValue);
-    setSlots((prev) => {
-      const next = [...prev];
-      next[slotIndex] = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const currentTeamSignature = useMemo(() => {
+    const numeric = slots
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    if (numeric.length !== 4) {
+      return null;
+    }
+
+    return numeric.reduce((total, value) => total + value, 0);
+  }, [slots]);
+
+  useEffect(() => {
+    const safeCount = Math.min(12, Math.max(1, Number(relicDropCount) || 1));
+    setRelicDropCount(safeCount);
+
+    setRelicCards((prev) => {
+      const next = [];
+      for (let i = 0; i < safeCount; i += 1) {
+        const existing = prev[i];
+
+        if (!existing) {
+          next.push(buildEmptyRelicCard(i + 1));
+          continue;
+        }
+
+        const piece = RELIC_CARD_PIECES.includes(existing.piece) ? existing.piece : 'Head';
+        const allowedMainStats = getMainStatOptionsForPiece(piece);
+        const defaultMainStat = getDefaultMainStatForPiece(piece);
+        const mainStat = allowedMainStats.includes(existing.mainStat) ? existing.mainStat : defaultMainStat;
+        const substats = Array.isArray(existing.substats)
+          ? existing.substats.filter((substat) => !mainStat || substat !== mainStat).slice(0, 4)
+          : [];
+
+        next.push({
+          index: i + 1,
+          piece,
+          mainStat,
+          substats,
+        });
+      }
       return next;
     });
+  }, [relicDropCount]);
+
+  useEffect(() => {
+    if (!outcomeTouched) {
+      setOutcome(suggestedOutcome);
+    }
+  }, [outcomeTouched, suggestedOutcome]);
+
+  const cycleRelicPiece = useCallback((cardIndex) => {
+    setRelicCards((prev) => prev.map((card, index) => {
+      if (index !== cardIndex) return card;
+
+      const currentIndex = RELIC_CARD_PIECES.indexOf(card.piece);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % RELIC_CARD_PIECES.length : 0;
+      const nextPiece = RELIC_CARD_PIECES[nextIndex];
+      const allowedMainStats = getMainStatOptionsForPiece(nextPiece);
+      const defaultMainStat = getDefaultMainStatForPiece(nextPiece);
+      const nextMainStat = allowedMainStats.includes(card.mainStat) ? card.mainStat : defaultMainStat;
+
+      return {
+        ...card,
+        piece: nextPiece,
+        mainStat: nextMainStat,
+        substats: (card.substats || []).filter((substat) => !nextMainStat || substat !== nextMainStat),
+      };
+    }));
+  }, []);
+
+  const setRelicCardMainStat = useCallback((cardIndex, nextMainStatRaw) => {
+    setRelicCards((prev) => prev.map((card, index) => {
+      if (index !== cardIndex) return card;
+
+      const fixedMainStat = RELIC_FIXED_MAIN_STATS[card.piece] || null;
+      const allowedMainStats = getMainStatOptionsForPiece(card.piece);
+      const nextMainStat = fixedMainStat || (allowedMainStats.includes(nextMainStatRaw) ? nextMainStatRaw : null);
+
+      return {
+        ...card,
+        mainStat: nextMainStat,
+        substats: (card.substats || []).filter((substat) => !nextMainStat || substat !== nextMainStat),
+      };
+    }));
+  }, []);
+
+  const toggleRelicCardSubstat = useCallback((cardIndex, substat) => {
+    setRelicCards((prev) => prev.map((card, index) => {
+      if (index !== cardIndex) return card;
+
+      if (card.mainStat && card.mainStat === substat) {
+        return card;
+      }
+
+      if (card.substats.includes(substat)) {
+        return { ...card, substats: card.substats.filter((value) => value !== substat) };
+      }
+
+      if (card.substats.length >= 4) {
+        return card;
+      }
+
+      return { ...card, substats: [...card.substats, substat] };
+    }));
+  }, []);
+
+  const assignCharacterToSlot = useCallback((charId, targetSlotIndex) => {
+    let nextActiveSlot = targetSlotIndex;
+
+    setSlots((prev) => {
+      const next = [...prev];
+      const normalizedCharId = Number(charId);
+      const existingIndex = next.indexOf(normalizedCharId);
+
+      // Same slot = no op
+      if (existingIndex === targetSlotIndex) {
+        nextActiveSlot = targetSlotIndex;
+        return prev;
+      }
+
+      if (existingIndex !== -1) {
+        // Swap or move
+        if (next[targetSlotIndex]) {
+          next[existingIndex] = next[targetSlotIndex];
+          next[targetSlotIndex] = normalizedCharId;
+        } else {
+          next[existingIndex] = null;
+          next[targetSlotIndex] = normalizedCharId;
+        }
+      } else {
+        // Fresh drop
+        next[targetSlotIndex] = normalizedCharId;
+      }
+
+      nextActiveSlot = findNextEmptySlot(next, targetSlotIndex);
+      return next;
+    });
+
+    setActiveSlotIndex(nextActiveSlot);
+  }, []);
+
+  const clearSlot = (slotIndex) => {
+    setSlots((prev) => {
+      const next = [...prev];
+      next[slotIndex] = null;
+      return next;
+    });
+    setActiveSlotIndex(slotIndex);
   };
 
-  const swapSlots = (fromIndex, toIndex) => {
-    if (fromIndex === null || toIndex === null || fromIndex === toIndex) return;
+  const handleRosterCharacterClick = (charId, event) => {
+    // Anim for grid node click
+    if (event && event.currentTarget) {
+          const el = event.currentTarget;
+          gsap.timeline({ onComplete: () => gsap.set(el, { clearProps: "all" }) })
+            .to(el, { scale: 0.8, duration: 0.1, ease: "power2.in" })
+            .to(el, { scale: 1.15, filter: 'brightness(1.5) contrast(1.2)', duration: 0.15, ease: "back.out(3)" })
+            .to(el, { scale: 0.9, opacity: 0.3, filter: 'grayscale(1) brightness(0.5)', duration: 0.2 });
+    }
+    
+    const existingIndex = slots.indexOf(Number(charId));
+    if (existingIndex !== -1) {
+      clearSlot(existingIndex);
+    } else {
+      const targetSlotIndex = slots[activeSlotIndex] ? findNextEmptySlot(slots, activeSlotIndex) : activeSlotIndex;
+      assignCharacterToSlot(Number(charId), targetSlotIndex);
+      
+      // Anim for slot appearance
+      if (document.querySelector(`.slot-anim-${targetSlotIndex}`)) {
+        gsap.fromTo(`.slot-anim-${targetSlotIndex}`,
+          { scale: 0.8, opacity: 0, rotateY: 90 },
+          { scale: 1, opacity: 1, rotateY: 0, duration: 0.5, ease: 'back.out(1.5)' }
+        );
+      }
+    }
+  };
+
+  const handleTeamSlotDragStart = (slotIndex, event) => {
+    if (!slots[slotIndex]) {
+      event.preventDefault();
+      return;
+    }
+
+    setDragIndex(slotIndex);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('zone-slot-index', String(slotIndex));
+    
+    if (document.querySelector(`.slot-anim-${slotIndex}`)) {
+      gsap.to(`.slot-anim-${slotIndex}`, { scale: 0.9, opacity: 0.7, duration: 0.2 });
+    }
+  };
+
+  const handleTeamSlotDragEnd = () => {
+    if (dragIndex !== null && document.querySelector(`.slot-anim-${dragIndex}`)) {
+      gsap.to(`.slot-anim-${dragIndex}`, { scale: 1, opacity: 1, duration: 0.2 });
+    }
+    setDragIndex(null);
+    setDragOverSlotIndex(null);
+  };
+  
+  const handleSlotDragOver = (slotIndex, event) => {
+    event.preventDefault();
+    if (dragOverSlotIndex !== slotIndex) {
+      setDragOverSlotIndex(slotIndex);
+    }
+  };
+
+  const handleSlotDragLeave = (slotIndex) => {
+    if (dragOverSlotIndex === slotIndex) {
+      setDragOverSlotIndex(null);
+    }
+  };
+
+  const handleRosterDragStart = (charId, event) => {
+    event.dataTransfer.effectAllowed = 'copyMove';
+    event.dataTransfer.setData('zone-char-numid', String(charId));
+  };
+
+  const handleSlotDrop = (slotIndex, event) => {
+    event.preventDefault();
+
+    const droppedCharId = Number(event.dataTransfer.getData('zone-char-numid'));
+    if (Number.isInteger(droppedCharId) && droppedCharId > 0) {
+      assignCharacterToSlot(droppedCharId, slotIndex);
+      setDragIndex(null);
+      setDragOverSlotIndex(null);
+      return;
+    }
+
+    const sourceRaw = event.dataTransfer.getData('zone-slot-index');
+    const sourceIndex = Number.isInteger(Number(sourceRaw)) ? Number(sourceRaw) : dragIndex;
+
+    if (
+      !Number.isInteger(sourceIndex) ||
+      sourceIndex < 0 ||
+      sourceIndex > 3 ||
+      sourceIndex === slotIndex ||
+      !slots[sourceIndex]
+    ) {
+      setDragIndex(null);
+      setDragOverSlotIndex(null);
+      return;
+    }
+
+    // Animation for swap
+    const sourceSlotEl = document.querySelector(`.slot-anim-${sourceIndex}`);
+    const targetSlotEl = document.querySelector(`.slot-anim-${slotIndex}`);
+    if (sourceSlotEl) {
+      gsap.to(sourceSlotEl, { scale: 1.05, duration: 0.1, yoyo: true, repeat: 1 });
+    }
+    if (targetSlotEl) {
+      gsap.to(targetSlotEl, { scale: 1.05, duration: 0.1, yoyo: true, repeat: 1 });
+    }
+
     setSlots((prev) => {
       const next = [...prev];
-      const temp = next[fromIndex];
-      next[fromIndex] = next[toIndex];
-      next[toIndex] = temp;
+      if (next[slotIndex]) {
+        const temp = next[slotIndex];
+        next[slotIndex] = next[sourceIndex];
+        next[sourceIndex] = temp;
+      } else {
+        next[slotIndex] = next[sourceIndex];
+        next[sourceIndex] = null;
+      }
       return next;
     });
+
+    setActiveSlotIndex(slotIndex);
+    setDragIndex(null);
+    setDragOverSlotIndex(null);
   };
 
   const handleLoadZoneTeam = (zone) => {
     if (!Array.isArray(zone.sample_slot_order) || zone.sample_slot_order.length !== 4) return;
     setSlots(zone.sample_slot_order.map((value) => Number(value) || null));
-    setSuccess(`Loaded team from zone ${zone.xor_slot_key}`);
+    setSuccess(`Loaded team from Zone ${zone.char_xor} / Slot ${zone.char_slot}`);
     setError('');
+    
+    // Highlight team builder
+    if (formRef.current) {
+       gsap.fromTo(formRef.current, 
+         { outline: "2px solid #6366f1", outlineOffset: "10px" },
+         { outline: "0px solid transparent", outlineOffset: "0px", duration: 1, ease: "power2.out" }
+       );
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -139,6 +1013,18 @@ export default function ZoneTrackerPage() {
       return;
     }
 
+    const invalidRelic = relicCards.find((card) => !Array.isArray(card.substats) || card.substats.length !== 4);
+    if (invalidRelic) {
+      setError(`Relic #${invalidRelic.index} must have exactly 4 unique substats.`);
+      return;
+    }
+
+    const conflictRelic = relicCards.find((card) => card.mainStat && card.substats.includes(card.mainStat));
+    if (conflictRelic) {
+      setError(`Relic #${conflictRelic.index} cannot include main stat in substats.`);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -152,7 +1038,16 @@ export default function ZoneTrackerPage() {
           slot_order: slots.map((value) => Number(value)),
           outcome,
           cavern: cavern || null,
+          server_region: serverRegion,
           notes: notes || null,
+          relic_data: {
+            relic_count: relicCards.length,
+            relics: relicCards.map((card) => ({
+              piece: card.piece,
+              main_stat: card.mainStat || null,
+              substats: [...card.substats],
+            })),
+          },
         }),
       });
 
@@ -161,8 +1056,14 @@ export default function ZoneTrackerPage() {
         throw new Error(payload.error || `HTTP ${response.status}`);
       }
 
-      setSuccess('Run submitted. Zone map refreshed.');
-      await fetchMap('current');
+      const zoneXor = payload.submitted_zone?.char_xor ?? payload.run?.char_xor ?? '--';
+      const zoneSlot = payload.submitted_zone?.char_slot ?? payload.run?.char_slot ?? '--';
+      const warningText = payload.warning === 'relic_data_column_missing_in_zone_runs_table'
+        ? ' (relic_data column missing in DB schema)'
+        : '';
+
+      setSuccess(`Run submitted. XOR ${zoneXor} / SLOT ${zoneSlot}${warningText}`);
+      setRequestedEpoch('current');
     } catch (submitError) {
       setError(mapAuthError(submitError));
     } finally {
@@ -193,12 +1094,14 @@ export default function ZoneTrackerPage() {
       if (payload.did_rotate_epoch) {
         setSuccess('Epoch rotation confirmed. New epoch started.');
       } else if (payload.already_flagged) {
-        setSuccess('You already flagged this epoch. Waiting for more confirmations.');
+        setSuccess('You already flagged this epoch.');
       } else {
         setSuccess('Epoch flag submitted.');
       }
 
-      await fetchMap('current');
+      setShowFlagModal(false);
+      setFlagNotes('');
+      setRequestedEpoch('current');
     } catch (flagError) {
       setError(mapAuthError(flagError));
     } finally {
@@ -206,286 +1109,1174 @@ export default function ZoneTrackerPage() {
     }
   };
 
-  useEffect(() => {
-    fetchMap('current');
-  }, [fetchMap]);
+  const handleExportDebugLogs = useCallback(async () => {
+    setError('');
+    setSuccess('');
+    setExportingDebug(true);
 
+    const exportScope = adminModeEnabled && adminEligible ? 'all' : 'self';
+
+    try {
+      const response = await fetch(`/api/zone/export?scope=${encodeURIComponent(exportScope)}`, {
+        method: 'GET',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      if (!response.ok) {
+        let message = `HTTP ${response.status}`;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const payload = await response.json().catch(() => ({}));
+          message = payload.error || message;
+        } else {
+          const rawText = await response.text().catch(() => '');
+          message = rawText || message;
+        }
+
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const filename = filenameMatch?.[1] || `zone-debug-export-${new Date().toISOString().slice(0, 10)}.txt`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+
+      setSuccess(exportScope === 'all' ? 'Admin export downloaded (all user logs).' : 'Debug export downloaded. Share this TXT file for analysis.');
+    } catch (exportError) {
+      const message = mapAuthError(exportError);
+      if (message.toLowerCase().includes('admin scope denied')) {
+        setAdminModeEnabled(false);
+      }
+      setError(message);
+    } finally {
+      setExportingDebug(false);
+    }
+  }, [adminEligible, adminModeEnabled, getAuthHeader]);
   const currentEpoch = mapData?.current_epoch;
   const epoch = mapData?.epoch;
   const zones = Array.isArray(mapData?.zones) ? mapData.zones : [];
+  const mapTargetFilter = mapData?.target_filter || null;
+  const isRelicTargetMode = Boolean(mapTargetFilter?.active);
+  const signalMetricLabel = isRelicTargetMode ? `${mapTargetFilter?.label || 'Target Match'} Match` : 'Crit Potential';
+
+  const relicGridClass = relicGridCompact ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-3';
+  const relicCardClass = relicGridCompact ? 'rounded-xl border border-slate-800 bg-slate-950/60 p-2' : 'rounded-xl border border-slate-800 bg-slate-950/60 p-3';
+  const relicSubstatGridClass = relicGridCompact ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-2 sm:grid-cols-4 gap-2';
+  const relicChipBaseClass = relicGridCompact ? 'px-1.5 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all' : 'px-2 py-1.5 rounded-md border text-[9px] font-black uppercase tracking-wide transition-all';
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-indigo-500/25 bg-slate-900/45 p-5 text-slate-100 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-black uppercase tracking-wide">Zone Tracker</h1>
-            <p className="text-xs text-slate-400">
-              Authenticated as <span className="text-indigo-200">{user?.user_metadata?.full_name || user?.email || user?.id}</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchMap('current')}
-              disabled={loadingMap}
-              className="rounded-lg border border-slate-600/70 bg-slate-800/60 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-100"
-            >
-              {loadingMap && requestedEpoch === 'current' ? 'Loading...' : 'Load Current'}
-            </button>
-            <button
-              type="button"
-              onClick={() => fetchMap('previous')}
-              disabled={loadingMap}
-              className="rounded-lg border border-slate-600/70 bg-slate-800/60 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-100"
-            >
-              {loadingMap && requestedEpoch === 'previous' ? 'Loading...' : 'Load Previous'}
-            </button>
-          </div>
+    <div className={`${rootThemeClass} max-w-[1440px] mx-auto space-y-8 pb-20 animate-in fade-in duration-700`}>
+      
+      {/* Header & Epoch Status Bar */}
+      <section className="page-header relative overflow-hidden theme-glass-card p-6 border-indigo-500/20">
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+          <Dna className="w-40 h-40 text-indigo-400 rotate-12" />
         </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/55 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Current Epoch</p>
-            <p className="mt-1 text-sm font-bold text-slate-100">#{currentEpoch?.id || '--'}</p>
-            <p className="text-[11px] text-slate-400">{currentEpoch?.calendar_week || 'Not initialized'}</p>
-          </div>
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/55 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Viewing</p>
-            <p className="mt-1 text-sm font-bold text-slate-100">
-              {requestedEpoch === 'previous' ? `Previous (#${epoch?.id || '--'})` : `Current (#${epoch?.id || '--'})`}
-            </p>
-            <p className="text-[11px] text-slate-400">{epoch?.calendar_week || 'No data'}</p>
-          </div>
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/55 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Pending Flags (48h)</p>
-            <p className="mt-1 text-sm font-bold text-slate-100">{mapData?.pending_flag_count ?? '--'}</p>
-            <p className="text-[11px] text-slate-400">Need 2 distinct users to rotate</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-slate-700/60 bg-slate-900/45 p-5 text-slate-100 shadow-xl"
-        >
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-indigo-200">Submit Run</h2>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {slots.map((charId, slotIndex) => {
-              const char = charId ? charactersByNumId.get(Number(charId)) : null;
-              return (
-                <div
-                  key={`slot-${slotIndex}`}
-                  className="rounded-xl border border-slate-700/60 bg-slate-800/50 p-3"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => {
-                    swapSlots(dragIndex, slotIndex);
-                    setDragIndex(null);
-                  }}
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Slot {slotIndex + 1}</span>
-                    {char ? (
-                      <button
-                        type="button"
-                        className="text-[10px] font-bold uppercase tracking-[0.14em] text-rose-300"
-                        onClick={() => setSlotAt(slotIndex, null)}
-                      >
-                        Clear
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div
-                    draggable={Boolean(char)}
-                    onDragStart={() => setDragIndex(slotIndex)}
-                    onDragEnd={() => setDragIndex(null)}
-                    className="mb-2 flex min-h-14 items-center gap-3 rounded-lg border border-slate-700/60 bg-slate-900/60 px-2 py-1.5"
-                  >
-                    {char?.image ? (
-                      <img src={char.image} alt={char.name} className="h-10 w-10 rounded-md border border-slate-600/60 object-cover" />
-                    ) : (
-                      <div className="h-10 w-10 rounded-md border border-slate-600/60 bg-slate-800" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-slate-100">{char?.name || 'No character selected'}</p>
-                      <p className="text-[10px] text-slate-400">ID: {char?.numId || '-'}</p>
-                    </div>
-                  </div>
-
-                  <select
-                    value={charId || ''}
-                    onChange={(event) => setSlotAt(slotIndex, event.target.value)}
-                    className="w-full rounded-lg border border-slate-600/70 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-100 outline-none"
-                  >
-                    <option value="">Select character</option>
-                    {characterOptions.map((entry) => (
-                      <option key={entry.numId} value={entry.numId}>
-                        {entry.name} ({entry.numId})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 rounded-lg border border-slate-700/60 bg-slate-800/40 px-3 py-2 text-xs text-slate-300">
-            Team: {slotSummary}
-          </div>
-
-          <div className="mt-4">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Outcome</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {OUTCOME_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setOutcome(option.value)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition ${
-                    outcome === option.value
-                      ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-100'
-                      : 'border-slate-600/70 bg-slate-800/50 text-slate-300'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+        
+        <div className="flex flex-wrap items-center justify-between gap-6 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-lg shadow-indigo-500/10">
+              <Target className="w-8 h-8 text-indigo-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-widest text-white leading-tight">
+                Zone <span className="text-indigo-400">Tracker</span>
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <User className="w-3 h-3 text-slate-500" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Logged in: <span className="text-indigo-300/80">{user?.email || user?.id}</span>
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Cavern (optional)
-              <select
-                value={cavern}
-                onChange={(event) => setCavern(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-100 outline-none"
-              >
-                <option value="">None</option>
-                {HSR_CAVERNS.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Notes (optional, max 200)
-              <input
-                type="text"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value.slice(0, 200))}
-                className="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-100 outline-none"
-                placeholder="Short note"
-              />
-            </label>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setRequestedEpoch('current')}
+              disabled={loadingMap}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all ${
+                requestedEpoch === 'current' 
+                ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-100 shadow-lg shadow-indigo-500/20' 
+                : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingMap && requestedEpoch === 'current' ? 'animate-spin' : ''}`} />
+              Current Epoch
+            </button>
+            <button
+              onClick={() => setRequestedEpoch('previous')}
+              disabled={loadingMap}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all ${
+                requestedEpoch === 'previous' 
+                ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-100 shadow-lg shadow-indigo-500/20' 
+                : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+              }`}
+            >
+              <History className={`w-3.5 h-3.5 ${loadingMap && requestedEpoch === 'previous' ? 'animate-spin' : ''}`} />
+              Previous
+            </button>
           </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-5 w-full rounded-lg border border-emerald-400/50 bg-emerald-500/20 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100"
-          >
-            {submitting ? 'Submitting...' : 'Submit Run'}
-          </button>
-        </form>
-
-        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/45 p-5 text-slate-100 shadow-xl">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-indigo-200">Epoch Shift Flag</h2>
-          <p className="mt-2 text-xs text-slate-300">
-            Use only when you believe the zone changed. Distinct users required to rotate epoch.
-          </p>
-
-          <input
-            type="text"
-            value={flagNotes}
-            onChange={(event) => setFlagNotes(event.target.value.slice(0, 200))}
-            placeholder="Reason (optional)"
-            className="mt-3 w-full rounded-lg border border-slate-600/70 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-100 outline-none"
-          />
-
-          <button
-            type="button"
-            onClick={handleFlagEpoch}
-            disabled={flagging}
-            className="mt-3 w-full rounded-lg border border-amber-400/45 bg-amber-500/15 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-amber-100"
-          >
-            {flagging ? 'Submitting Flag...' : 'Flag Epoch Shift'}
-          </button>
-
-          {error ? (
-            <div className="mt-4 rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-xs text-red-200">{error}</div>
-          ) : null}
-          {success ? (
-            <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-3 text-xs text-emerald-200">{success}</div>
-          ) : null}
-        </section>
-      </section>
-
-      <section className="rounded-2xl border border-slate-700/60 bg-slate-900/45 p-5 text-slate-100 shadow-xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-indigo-200">Zone Map</h2>
-          <p className="text-xs text-slate-400">Total runs: {mapData?.total_runs ?? '--'}</p>
         </div>
 
-        {!mapData ? (
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/45 p-4 text-sm text-slate-300">
-            Load current or previous epoch map to begin.
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="relative group p-4 rounded-2xl bg-slate-950/40 border border-slate-800/60 hover:border-indigo-500/30 transition-all">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Epoch</span>
+              <Activity className="w-3 h-3 text-indigo-400/50" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-white">#{currentEpoch?.id || '--'}</span>
+              <span className="text-xs font-bold text-slate-400 font-mono">{currentEpoch?.calendar_week || 'N/A'}</span>
+            </div>
+            <div className="mt-2 h-1 w-full bg-slate-800/50 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500/40 w-full animate-pulse" />
+            </div>
           </div>
-        ) : zones.length === 0 ? (
-          <div className="rounded-xl border border-slate-700/60 bg-slate-800/45 p-4 text-sm text-slate-300">
-            No submissions for this epoch yet.
+
+          <div className="relative group p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/10 hover:border-indigo-500/30 transition-all">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Viewing Map</span>
+              <LayoutGrid className="w-3 h-3 text-indigo-400/50" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-indigo-100">#{epoch?.id || '--'}</span>
+              <span className="text-xs font-bold text-indigo-400/60 font-mono tracking-wider italic">
+                {requestedEpoch === 'previous' ? 'HISTORICAL' : 'CURRENT SESSION'}
+              </span>
+            </div>
+            <p className="mt-1 text-[10px] text-indigo-300/40 font-mono uppercase tracking-widest">{epoch?.calendar_week || 'MAP NOT LOADED'}</p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {zones.map((zone, index) => (
-              <div
-                key={zone.xor_slot_key}
-                className="rounded-xl border border-slate-700/60 bg-slate-800/45 p-4"
+
+          <div className="relative group p-4 rounded-2xl bg-slate-950/40 border border-slate-800/60 hover:border-amber-500/30 transition-all">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Epoch Rotation</span>
+              <Flag className="w-3 h-3 text-amber-400/50" />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-2xl font-black text-white">{mapData?.pending_flag_count ?? 0}</span>
+                <span className="text-xs font-bold text-slate-500 ml-2">Flags Reported</span>
+              </div>
+              <button 
+                onClick={() => setShowFlagModal(true)}
+                className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest text-amber-300 hover:bg-amber-500/20 transition-all"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Rank #{index + 1}</p>
-                    <h3 className="text-sm font-bold text-slate-100">Zone {zone.xor_slot_key}</h3>
-                    <p className="text-[11px] text-slate-400">
-                      XOR {zone.char_xor} | SLOT {zone.char_slot} | SUM {zone.char_sum}
-                    </p>
-                  </div>
+                FLAG DISCREPANCY
+              </button>
+            </div>
+            <p className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-tighter italic">2 distinct user flags required to shift</p>
+          </div>
+        </div>
+      </section>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${CONFIDENCE_STYLES[zone.confidence] || CONFIDENCE_STYLES.LOW}`}>
-                      {zone.confidence}
-                    </span>
-                    <span className="rounded-full border border-slate-600/70 bg-slate-900/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200">
-                      Crit {formatRate(zone.crit_rate)}
-                    </span>
-                    <span className="rounded-full border border-slate-600/70 bg-slate-900/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200">
-                      Runs {zone.runs}
-                    </span>
+      {/* Main Content Grid */}
+      <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+        
+        {/* Left Column: Submit & Status */}
+        <div className="space-y-8">
+          
+          <section ref={formRef} className="theme-glass-card p-8 border-indigo-500/10 shadow-2xl overflow-visible">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+              <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white">Zone Transmitter</h2>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-12">
+              
+              {/* Squad Assembly UI */}
+              <div className="flex flex-col gap-6">
+                 <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">01</span>
+                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Squad Assembly <span className="text-slate-600 ml-2">({slots.filter(Boolean).length}/4 REQUIRED)</span></h3>
+                     </div>
+                 </div>
+                 
+                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 mb-2">Drag a portrait onto another slot to swap, or tap to remove.</p>
+                 <p className="text-[10px] font-semibold text-slate-500 mb-2">Current slot order: <span className="font-mono text-slate-300">{slotSummary}</span></p>
+
+                 {/* 4 Cards Grid */}
+                 <div className="grid grid-cols-4 gap-3 md:gap-4 w-full max-w-2xl mx-auto">
+                    {[0, 1, 2, 3].map(i => {
+                      const charId = slots[i];
+                      const char = charId ? charactersByNumId.get(Number(charId)) : null;
+                      const rarityBg = char ? (char.rarity === 5 ? 'bg-gradient-to-t from-orange-500/80 via-orange-500/20 to-transparent' : 'bg-gradient-to-t from-purple-500/80 via-purple-500/20 to-transparent') : '';
+                      const isDragOver = dragOverSlotIndex === i;
+                      const isTarget = activeSlotIndex === i && slots.filter(Boolean).length < 4;
+                      
+                      return (
+                         <div
+                            key={`slot-${i}`}
+                            draggable={Boolean(charId)}
+                            onDragStart={(e) => handleTeamSlotDragStart(i, e)}
+                            onDragEnd={handleTeamSlotDragEnd}
+                            onDragOver={(e) => handleSlotDragOver(i, e)}
+                            onDragLeave={() => handleSlotDragLeave(i)}
+                            onDrop={(e) => handleSlotDrop(i, e)}
+                            onClick={() => {
+                               if (charId) {
+                                  clearSlot(i);
+                               } else {
+                                  setActiveSlotIndex(i);
+                               }
+                            }}
+                            className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center 
+                              ${dragIndex === i ? 'opacity-70 scale-[0.98] cursor-grabbing' : ''} 
+                              ${isDragOver ? 'ring-4 ring-cyan-300/65 ring-offset-4 ring-offset-slate-900 scale-[1.05] z-10' : ''} 
+                              ${isTarget && !isDragOver && !charId ? 'border-indigo-400/50 ring-2 ring-indigo-500/20 scale-[1.02]' : ''}
+                              ${charId ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.3)] cursor-grab hover:border-red-400' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)] cursor-grab hover:border-red-400') : 'border-slate-700 border-dashed bg-slate-900/40 hover:border-indigo-400/80 hover:bg-slate-900/80 cursor-pointer'}`}
+                         >
+                            {charId && char && (
+                               <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
+                                  {char.name}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                               </div>
+                            )}
+
+                            {charId && char ? (
+                               <div className={`relative w-full h-full overflow-hidden rounded-[1.8rem]`}>
+                                  <div className={`absolute inset-0 ${rarityBg}`}></div>
+                                  <img src={char.image} alt={char.name} className="w-full h-full object-cover relative z-10 scale-105 group-hover:scale-110 group-hover:grayscale-[0.5] transition-all duration-500" />
+                                  <div className="absolute inset-x-0 bottom-0 bg-red-600/90 py-3 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center backdrop-blur-sm z-20">
+                                     <X className="w-6 h-6 text-white" />
+                                  </div>
+                               </div>
+                            ) : (
+                               <div className="flex flex-col items-center gap-2 text-slate-600 group-hover:text-indigo-400 transition-colors">
+                                  <PlusCircle className="w-8 h-8 md:w-12 md:h-12" />
+                                  {isTarget && <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Targeting</span>}
+                               </div>
+                            )}
+                         </div>
+                      );
+                    })}
+                 </div>
+
+                 {/* Unified Character Roster Panel */}
+                 <div className="bg-slate-950/60 rounded-[2rem] p-5 border border-slate-800 shadow-inner w-full mt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                       <div className="inline-flex rounded-xl border border-slate-700/70 bg-slate-900/70 p-1">
+                          <button
+                            type="button"
+                            onClick={() => setRosterMode('team')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${rosterMode === 'team' ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-200' : 'text-slate-400 hover:text-slate-200'}`}
+                          >
+                            Team Select
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRosterMode('owned')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${rosterMode === 'owned' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-200' : 'text-slate-400 hover:text-slate-200'}`}
+                          >
+                            Owned Roster
+                          </button>
+                       </div>
+
+                       <span className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-200">{ownedCharIds.length} owned</span>
+                    </div>
+
+                    {rosterMode === 'owned' ? (
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <button type="button" onClick={loadOwnedRoster} disabled={ownedLoading} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 transition-all">
+                          {ownedLoading ? 'Loading...' : 'Reload'}
+                        </button>
+                        <button type="button" onClick={saveOwnedRoster} disabled={ownedSaving} className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-[10px] font-black uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/20 transition-all">
+                          {ownedSaving ? 'Saving...' : 'Save Owned'}
+                        </button>
+                        <button type="button" onClick={() => setOwnedCharIds([])} className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 transition-all">
+                          Clear
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Click to add/remove from team slots.</p>
+                    )}
+
+                    <div className="relative mb-3">
+                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                       <input
+                          type="text"
+                          placeholder={rosterMode === 'owned' ? 'Search owned characters...' : 'Search character...'}
+                          value={rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm}
+                          onChange={(e) => {
+                            if (rosterMode === 'owned') {
+                              setOwnedSearchTerm(e.target.value);
+                            } else {
+                              setCharSearchTerm(e.target.value);
+                            }
+                          }}
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl py-2.5 pl-11 pr-4 text-sm text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 transition-all"
+                       />
+                       {(rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (rosterMode === 'owned') {
+                                setOwnedSearchTerm('');
+                              } else {
+                                setCharSearchTerm('');
+                              }
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                          >
+                             <X className="w-4 h-4" />
+                          </button>
+                       ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-[320px] overflow-y-auto custom-scrollbar p-2 mt-2">
+                      {(rosterMode === 'owned' ? ownedOptions : characterOptions).map((c) => {
+                        const numId = Number(c.numId);
+                        const inTeam = slots.includes(numId);
+                        const isOwned = ownedSet.has(numId);
+                        const rarityBorder = c.rarity === 5 ? 'border-orange-500/60' : 'border-purple-500/60';
+
+                        if (rosterMode === 'owned') {
+                          return (
+                            <button
+                              key={`owned-toggle-${c.id || c.numId}`}
+                              type="button"
+                              onClick={() => toggleOwnedCharacter(numId)}
+                              className={`relative aspect-square rounded-full border-[3px] transition-all duration-200 group overflow-hidden ${isOwned ? 'border-emerald-400 bg-emerald-500/15 scale-95' : `${rarityBorder} bg-slate-900 hover:border-emerald-300/60`}`}
+                              title={c.name}
+                            >
+                              <img src={c.image} alt={c.name} className={`w-full h-full object-cover scale-110 transition-all ${isOwned ? 'opacity-95 grayscale-0 saturate-100' : 'grayscale-[0.95] saturate-0 opacity-45 group-hover:grayscale-[0.65] group-hover:opacity-70'}`} />
+                              {isOwned ? <span className="absolute inset-0 bg-emerald-500/10" /> : null}
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={c.id || c.numId}
+                            draggable={!inTeam}
+                            onDragStart={(e) => handleRosterDragStart(numId, e)}
+                            onClick={(e) => handleRosterCharacterClick(numId, e)}
+                            className={`relative aspect-square rounded-full cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${inTeam ? 'ring-2 ring-indigo-400/50 shadow-[0_0_18px_rgba(99,102,241,0.35)]' : 'hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:border-slate-300 hover:z-10 bg-slate-900 active:scale-95 group'}`}
+                            title={c.name}
+                          >
+                            <div className="absolute left-1/2 -top-11 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
+                              {c.name}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
+                            </div>
+                            <div className="relative w-full h-full overflow-hidden rounded-full">
+                              <img src={c.image} alt={c.name} className={`w-full h-full object-cover relative z-10 scale-[1.2] transition-transform ${inTeam ? 'grayscale-[0.2]' : 'group-hover:scale-110'}`} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                 </div>
+              </div>
+
+              {/* Form Controls */}
+              <div className="grid gap-8">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-black">02</span>
+                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Run Outcome</h3>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {OUTCOME_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => { setOutcomeTouched(true); setOutcome(opt.value); }}
+                        className={`px-3 py-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                          outcome === opt.value
+                          ? 'bg-indigo-500/15 border-indigo-500/60 text-indigo-100 shadow-[0_0_15px_rgba(99,102,241,0.15)] scale-[1.02]'
+                          : 'bg-slate-950/40 border-slate-800/60 text-slate-500 hover:border-slate-700 hover:text-slate-300 hover:-translate-y-1'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="mt-3 text-xs text-slate-300">
-                  <p className="font-semibold text-slate-200">Sample Team</p>
-                  <p>{(zone.sample_char_names || []).join(' / ') || '-'}</p>
-                </div>
+                <div className="space-y-6">
+                  <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-black">03</span>
+                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Cavern <span className="text-slate-500 ml-2">(Optional)</span></h3>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+                          <button
+                            type="button"
+                            onClick={() => setCavern('')}
+                            className={cavern ? 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all' : 'px-3 py-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-left text-[10px] font-black uppercase tracking-[0.14em] text-indigo-200 transition-all'}
+                          >
+                            None
+                          </button>
+                          {HSR_CAVERNS.map((entry) => (
+                            <button
+                              key={entry.id}
+                              type="button"
+                              onClick={() => setCavern(entry.id)}
+                              className={cavern === entry.id ? 'px-3 py-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-left text-[10px] font-black uppercase tracking-[0.14em] text-indigo-200 transition-all' : 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all'}
+                            >
+                              {entry.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
 
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">04</span>
+                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Server Region <span className="text-rose-400 ml-2">(Required)</span></h3>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          {SERVER_REGION_SUBMIT_OPTIONS.map((region) => (
+                            <button
+                              key={region.value}
+                              type="button"
+                              onClick={() => setServerRegion(region.value)}
+                              className={serverRegion === region.value ? 'px-3 py-2.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 transition-all' : 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all'}
+                            >
+                              {region.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">05</span>
+                      <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Notes <span className="text-slate-500 ml-2">(Optional)</span></h3>
+                    </div>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value.slice(0, 200))}
+                      placeholder="e.g. Turn 2 breakage..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-xs text-slate-200 outline-none hover:border-slate-600 focus:border-indigo-500/50 transition-all placeholder:text-slate-600"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">06</span>
+                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Relic Logger</h3>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-[180px_1fr_auto] items-end">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Relics Dropped</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={relicDropCount}
+                        onChange={(event) => setRelicDropCount(event.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none hover:border-slate-600 focus:border-cyan-500/40 transition-all"
+                      />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Suggested outcome from relic data: <span className="text-cyan-300">{suggestedOutcome}</span></p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRelicGridCompact(false)}
+                        className={relicGridCompact ? 'px-3 py-2 rounded-lg border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500' : 'px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200'}
+                      >
+                        Zoom In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRelicGridCompact(true)}
+                        className={relicGridCompact ? 'px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200' : 'px-3 py-2 rounded-lg border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                      >
+                        Zoom Out
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={relicGridClass}>
+                    {relicCards.map((card, cardIndex) => (
+                      <div key={`relic-card-${card.index}`} className={relicCardClass}>
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Relic #{card.index}</p>
+                          <button
+                            type="button"
+                            onClick={() => cycleRelicPiece(cardIndex)}
+                            className="px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200 hover:bg-cyan-500/20 transition-all"
+                          >
+                            {card.piece}
+                          </button>
+                        </div>
+
+                        <div className="mb-2">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Main Stat</p>
+                          {RELIC_FIXED_MAIN_STATS[card.piece] ? (
+                            <div className="px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-wider text-cyan-200">
+                              {RELIC_FIXED_MAIN_STATS[card.piece]}
+                            </div>
+                          ) : (
+                            <select
+                              value={card.mainStat || ''}
+                              onChange={(event) => setRelicCardMainStat(cardIndex, event.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-cyan-500/50"
+                            >
+                              <option value="">Unknown / Skip</option>
+                              {getMainStatOptionsForPiece(card.piece).map((mainStat) => (
+                                <option key={`${card.index}-${mainStat}`} value={mainStat}>{mainStat}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        <div className={relicSubstatGridClass}>
+                          {RELIC_SUBSTAT_OPTIONS.map((substat) => {
+                            const selected = card.substats.includes(substat);
+                            const blockedByMain = Boolean(card.mainStat && card.mainStat === substat);
+                            const limitReached = !selected && card.substats.length >= 4;
+                            const disabled = blockedByMain || limitReached;
+
+                            return (
+                              <button
+                                key={`${card.index}-${substat}`}
+                                type="button"
+                                onClick={() => !disabled && toggleRelicCardSubstat(cardIndex, substat)}
+                                className={`${relicChipBaseClass} ${selected ? 'bg-indigo-500/20 border-indigo-400/50 text-indigo-100' : blockedByMain ? 'bg-slate-900 border-rose-500/40 text-rose-300 cursor-not-allowed' : limitReached ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'}`}
+                                title={blockedByMain ? 'Substat cannot match main stat.' : undefined}
+                              >
+                                {substat}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Substat Frequency</p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {RELIC_SUBSTAT_OPTIONS.map((substat) => {
+                        const count = relicSubstatFrequency[substat] || 0;
+                        const pct = relicCards.length > 0 ? Math.round((count / relicCards.length) * 100) : 0;
+                        return (
+                          <div key={`freq-${substat}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
+                            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wide text-slate-400">
+                              <span>{substat}</span>
+                              <span>{count} ({pct}%)</span>
+                            </div>
+                            <div className="mt-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
+                              <div className="h-full bg-cyan-400/70" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 mt-4 border-t border-slate-800/50 pt-8">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="relative group overflow-hidden px-8 py-5 rounded-2xl bg-indigo-600 font-black text-sm uppercase tracking-[0.3em] text-white shadow-xl shadow-indigo-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100"
+                >
+                  <span className="relative z-10 flex items-center justify-center gap-3">
+                    {submitting ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5" />
+                        Transmit Run Data
+                      </>
+                    )}
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/0 via-white/20 to-indigo-400/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                </button>
+
+                {error && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 animate-in slide-in-from-top-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold leading-relaxed">{error}</p>
+                  </div>
+                )}
+                
+                {success && (
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 animate-in slide-in-from-top-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <p className="text-xs font-semibold">{success}</p>
+                  </div>
+                )}
+              </div>
+            </form>
+          </section>
+
+                                        {/* Guidelines Mini Panel */}
+          <div className="theme-glass-card p-6 border-slate-700/40 bg-slate-950/20">
+            <div className="flex items-center gap-3 mb-3">
+              <Info className="w-4 h-4 text-slate-500" />
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reporting Guidelines</h3>
+            </div>
+            <ul className="space-y-2 text-[11px] text-slate-500 leading-relaxed font-bold">
+              <li className="flex gap-2">
+                <span className="text-indigo-500/60">*</span>
+                Only submit runs where characters remained in the specified slot order throughout.
+              </li>
+              <li className="flex gap-2">
+                <span className="text-indigo-500/60">*</span>
+                Aggregated statistics rely on volume. Multiple user reports confirm "Active Zones".
+              </li>
+              <li className="flex gap-2 text-indigo-400/60">
+                <span className="text-indigo-500/60">*</span>
+                Confidentiality: Your user ID is used purely for anti-spam; reports are listed anonymously.
+              </li>
+            </ul>
+          </div>
+
+          <div className="theme-glass-card p-6 border-slate-700/40 bg-slate-950/20 mt-6">
+            <div className="flex items-center gap-3 mb-3">
+              <Info className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Debug Export</h3>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+              Download zone logs as TXT for analysis. Admin mode can export all users.
+            </p>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-3 mb-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Admin Access</p>
+                <span className={adminEligible ? 'px-2 py-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-widest text-emerald-300' : 'px-2 py-1 rounded-lg border border-slate-700 bg-slate-900 text-[9px] font-black uppercase tracking-widest text-slate-500'}>
+                  {adminStatusLoading ? 'Checking...' : adminEligible ? 'Granted' : 'User'}
+                </span>
+              </div>
+
+              {adminEligible ? (
                 <button
                   type="button"
-                  onClick={() => handleLoadZoneTeam(zone)}
-                  className="mt-3 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-indigo-100"
+                  onClick={() => setAdminModeEnabled((prev) => !prev)}
+                  disabled={adminStatusLoading}
+                  className={adminModeEnabled ? 'w-full px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[10px] font-black uppercase tracking-widest text-amber-200 hover:bg-amber-500/20 disabled:opacity-60' : 'w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:border-slate-500 disabled:opacity-60'}
                 >
-                  Load Team To Form
+                  {adminModeEnabled ? 'Admin View: ON (Export All)' : 'Admin View: OFF (Export Self)'}
+                </button>
+              ) : (
+                <p className="text-[10px] text-slate-500">Standard user mode: export includes your own logs only.</p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportDebugLogs}
+              disabled={exportingDebug || adminStatusLoading}
+              className="w-full px-4 py-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
+            >
+              {exportingDebug
+                ? 'Preparing Export...'
+                : adminModeEnabled && adminEligible
+                  ? 'Export All Logs (.txt)'
+                  : 'Export My Logs (.txt)'}
+            </button>
+
+            <p className="text-[10px] text-slate-500 mt-3">
+              Export includes slot order, hash values, region, outcome, notes, and full relic payload.
+            </p>
+          </div>
+        </div>
+
+        {/* Right Column: Zone Map */}
+        <div ref={mapRef} className="space-y-8">
+          
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-6 h-6 text-indigo-400" />
+              <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white text-shadow-glow">Community Map</h2>
+            </div>
+            <div className="flex items-center gap-4">
+               <div className="text-right">
+                 <p className="text-[10px] font-black tracking-widest text-slate-500 leading-none">Global Coverage</p>
+                 <p className="text-lg font-black text-indigo-300">{mapData?.total_runs ?? 0} <span className="text-[10px] text-slate-600">REPORTS</span></p>
+                 <p className="text-[9px] font-black tracking-widest text-slate-500">{isRelicTargetMode ? `TARGET ${String(mapTargetFilter?.label || 'Custom').toUpperCase()}` : `AVG DROP ${formatDropScore(mapData?.epoch_summary?.avg_drop_score)}`}</p>
+               </div>
+            </div>
+          </div>
+
+          <div className="mx-2 mt-2 p-3 rounded-xl bg-slate-950/50 border border-slate-800/70 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Region Filter</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {SERVER_REGION_OPTIONS.map((region) => (
+                <button
+                  key={`region-${region.value}`}
+                  type="button"
+                  onClick={() => setMapRegion(region.value)}
+                  className={mapRegion === region.value ? 'px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-[10px] font-black uppercase tracking-widest text-indigo-100' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                >
+                  {region.label}
+                </button>
+              ))}
+            </div>
+
+            {mapData?.mixed_region_warning && mapRegion === 'all' ? (
+              <p className="text-[10px] font-bold text-amber-300">{mapData.mixed_region_warning}</p>
+            ) : null}
+
+            <div className="pt-2 border-t border-slate-800/60 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drop Target</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {MAP_TARGET_PRESET_OPTIONS.map((option) => (
+                  <button
+                    key={`target-${option.value}`}
+                    type="button"
+                    onClick={() => setMapTargetPreset(option.value)}
+                    className={mapTargetPreset === option.value ? 'px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-black uppercase tracking-widest text-emerald-100' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {mapTargetPreset === 'custom' ? (
+                <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMapTargetMode('any')}
+                      className={mapTargetMode === 'any' ? 'px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-wide text-emerald-200' : 'px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500'}
+                    >
+                      Any
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapTargetMode('all')}
+                      className={mapTargetMode === 'all' ? 'px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-wide text-emerald-200' : 'px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500'}
+                    >
+                      All
+                    </button>
+                    <span className="text-[9px] text-slate-500">Pick up to {MAP_TARGET_CUSTOM_MAX_STATS}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {RELIC_SUBSTAT_OPTIONS.map((stat) => {
+                      const active = mapTargetCustomStats.includes(stat);
+                      return (
+                        <button
+                          key={`custom-target-${stat}`}
+                          type="button"
+                          onClick={() => toggleMapTargetCustomStat(stat)}
+                          className={active ? 'px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-wide text-emerald-200' : 'px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500'}
+                        >
+                          {stat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              <p className="text-[10px] text-slate-500">Target ranking uses submitted relic substats from real runs.</p>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800/60 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Variant Filter</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVariantOwnershipFilter('all')}
+                  className={variantOwnershipFilter === 'all' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVariantOwnershipFilter('owned')}
+                  className={variantOwnershipFilter === 'owned' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                >
+                  Owned
                 </button>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={() => setVariantEnforceSum((current) => !current)}
+                className={variantEnforceSum ? 'px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-[10px] font-black uppercase tracking-widest text-indigo-100' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+              >
+                {variantEnforceSum ? 'Sum Lock On' : 'Sum Lock Off'}
+              </button>
+            </div>
+
+            <div ref={tunerRef} className="pt-2 border-t border-slate-800/60 space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zone Tuner</p>
+              <p className="text-[10px] text-slate-500">Enter Zone and Slot Key from a good report, then add Team Signature only if you want stricter matching.</p>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Zone</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={tuneXorInput}
+                    onChange={(event) => setTuneXorInput(event.target.value)}
+                    placeholder="e.g. 423"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-cyan-500/50"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Slot Key</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={tuneSlotInput}
+                    onChange={(event) => setTuneSlotInput(event.target.value)}
+                    placeholder="e.g. 7747"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-cyan-500/50"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Team Signature (optional)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={tuneSumInput}
+                    onChange={(event) => setTuneSumInput(event.target.value)}
+                    placeholder="SUM"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-cyan-500/50"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentTeamSignature !== null) {
+                          setTuneSumInput(String(currentTeamSignature));
+                        }
+                      }}
+                      disabled={currentTeamSignature === null}
+                      className="px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500 disabled:opacity-50"
+                    >
+                      Use Current Team
+                    </button>
+                    <span className="text-[9px] text-slate-500">
+                      {currentTeamSignature === null ? 'Pick 4 characters' : 'Current: ' + currentTeamSignature}
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+
+              <div className="grid sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleFindTunedZones}
+                  className="px-3 py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-black uppercase tracking-widest text-cyan-100 hover:bg-cyan-500/25"
+                >
+                  Find Zone Suggestions
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateManualVariants}
+                  disabled={manualVariantLoading}
+                  className="px-3 py-2 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-[10px] font-black uppercase tracking-widest text-indigo-100 hover:bg-indigo-500/25 disabled:opacity-60"
+                >
+                  {manualVariantLoading ? 'Generating...' : 'Generate Variant Teams'}
+                </button>
+              </div>
+
+              {tunedZones.length > 0 ? (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                  {tunedZones.map((zone) => (
+                    <div key={`tuned-${zone.xor_slot_key}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-200">Zone {zone.char_xor} / Slot {zone.char_slot}</p>
+                        <p className="text-[9px] text-slate-500">Crit {formatRate(zone.crit_rate)} | Runs {zone.runs}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => handleTuneFromZone(zone)} className="px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500">Use</button>
+                        <button type="button" onClick={() => handleLoadZoneTeam(zone)} className="px-2 py-1 rounded border border-indigo-500/40 text-[9px] font-black uppercase tracking-wide text-indigo-200 hover:bg-indigo-500/15">Load</button>
+                        <button type="button" onClick={() => fetchVariantsForZone(zone)} disabled={variantLoadingZoneKey === zone.xor_slot_key} className="px-2 py-1 rounded border border-cyan-500/40 text-[9px] font-black uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/15 disabled:opacity-60">Var</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {manualVariantPayload ? (
+                <div className="rounded-xl border border-indigo-500/20 bg-slate-950/70 p-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300 mb-2">Manual Variant Results ({Array.isArray(manualVariantPayload.variants) ? manualVariantPayload.variants.length : 0})</p>
+                  {Array.isArray(manualVariantPayload.variants) && manualVariantPayload.variants.length > 0 ? (
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar">
+                      {manualVariantPayload.variants.map((variant) => (
+                        <div key={`manual-variant-${variant.slot_order.join('-')}`} className="rounded-lg border border-slate-800 bg-slate-900/70 px-2 py-1.5">
+                          <p className="text-[10px] font-black text-slate-200">{(variant.char_names || []).join(' / ')}</p>
+                          <p className="text-[9px] text-slate-500">Owned {variant.owned_count}/4 | Seen {variant.observed_runs} | Crit {formatRate(variant.observed_crit_rate)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-500">No variants found for this exact target.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
-      </section>
+
+          {!mapData ? (
+            <div className="h-64 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-600 gap-4">
+              <RefreshCw className="w-10 h-10 opacity-20" />
+              <p className="text-xs font-black uppercase tracking-[0.16em]">Initialize map to view signals</p>
+            </div>
+          ) : zones.length === 0 ? (
+            <div className="h-64 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-600 gap-4">
+              <RefreshCw className="w-10 h-10 opacity-20" />
+              <p className="text-xs font-black uppercase tracking-[0.16em]">No data signals detected in this epoch</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {zones.map((zone, index) => {
+                const signalRateRaw = isRelicTargetMode ? zone.target_rate : zone.crit_rate;
+                const signalRate = signalRateRaw === null || signalRateRaw === undefined ? 0 : Number(signalRateRaw);
+                const isGreat = signalRate >= 0.7 && zone.confidence !== 'LOW';
+                const variantState = variantsByZone[zone.xor_slot_key];
+                const variants = Array.isArray(variantState?.variants) ? variantState.variants : [];
+                
+                return (
+                  <div
+                    key={zone.xor_slot_key}
+                    className={`zone-card group relative p-5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.99] cursor-default ${
+                      isGreat 
+                      ? 'bg-indigo-900/20 border-indigo-500/30 hover:border-indigo-400/50 shadow-[0_4px_20px_rgba(79,70,229,0.1)]' 
+                      : 'bg-slate-900/40 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row justify-between gap-6 relative z-10">
+                      <div className="flex-1 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-slate-950 text-[10px] font-black text-indigo-400 border border-slate-800 shadow-inner">
+                              {index + 1}
+                            </span>
+                            <h3 className="text-sm font-black text-white uppercase tracking-widest">Zone {zone.char_xor} / Slot {zone.char_slot}</h3>
+                          </div>
+                          <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${CONFIDENCE_STYLES[zone.confidence] || CONFIDENCE_STYLES.LOW}`}>
+                            {zone.confidence}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 pb-2">
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{signalMetricLabel}</span>
+                            <span className={`text-sm font-black font-mono ${signalRate >= 0.5 ? 'text-indigo-300' : 'text-slate-400'}`}>
+                              {formatRate(signalRateRaw)}
+                            </span>
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden p-0.5 border border-white/5">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${
+                                signalRate >= 0.7 ? 'bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.5)]' : 
+                                signalRate >= 0.4 ? 'bg-indigo-500/60' : 'bg-slate-700'
+                              }`} 
+                              style={{ width: `${signalRate * 100}%` }} 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Zone</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{zone.char_xor}</span>
+                           </div>
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Slot Key</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{zone.char_slot}</span>
+                           </div>
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Team Sig</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{zone.char_sum}</span>
+                           </div>
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Reports</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{zone.runs}</span>
+                           </div>
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{isRelicTargetMode ? 'Target Match' : 'Drop Score'}</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{isRelicTargetMode ? formatRate(zone.target_rate) : formatDropScore(zone.avg_drop_score)}</span>
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="sm:w-64 flex flex-col gap-3 justify-end shrink-0">
+                        <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 h-full flex flex-col justify-center">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                             <Users className="w-3 h-3 text-slate-400" />
+                             Top Performing Team
+                          </p>
+                          <div className="flex justify-between items-center bg-slate-900 border border-slate-800/80 p-1.5 rounded-[1.2rem]">
+                            {(zone.sample_slot_order || []).map((charId, cidx) => {
+                              const char = charactersByNumId.get(Number(charId));
+                              return (
+                                <div key={`sample-${cidx}`} title={char?.name} className="relative w-10 h-10 rounded-full border border-slate-700 overflow-hidden bg-slate-800 shrink-0">
+                                  {char?.image ? (
+                                    <img src={char.image} alt={char.name} className="w-full h-full object-cover scale-110" />
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleLoadZoneTeam(zone)}
+                          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition-all hover:border-indigo-500/50 shadow-lg shadow-indigo-500/5 active:scale-95"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          Load Setup
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTuneFromZone(zone)}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 hover:border-slate-500 hover:text-white transition-all"
+                        >
+                          Tune Zone/Slot
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fetchVariantsForZone(zone)}
+                          disabled={variantLoadingZoneKey === zone.xor_slot_key}
+                          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300 hover:bg-cyan-500/20 hover:text-white transition-all hover:border-cyan-500/50 shadow-lg shadow-cyan-500/5 active:scale-95 disabled:opacity-60"
+                        >
+                          <Dna className="w-3.5 h-3.5" />
+                          {variantLoadingZoneKey === zone.xor_slot_key ? 'Generating...' : 'Generate Variants'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {variantState ? (
+                      <div className="mt-4 p-3 rounded-xl border border-cyan-500/20 bg-slate-950/60">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300 mb-2">Variant Team Matches ({variants.length})</p>
+                        {variants.length === 0 ? (
+                          <p className="text-[10px] text-slate-500 font-bold">No matching variants for selected filter.</p>
+                        ) : (
+                          <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                            {variants.map((variant) => (
+                              <div key={variant.slot_order.join('-')} className="p-2 rounded-lg border border-slate-800 bg-slate-900/70">
+                                <p className="text-[10px] font-black text-slate-200 leading-tight">{(variant.char_names || []).join(' / ')}</p>
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-1">Owned {variant.owned_count}/4 | Seen {variant.observed_runs} | Crit {formatRate(variant.observed_crit_rate)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Map Footer Info */}
+          <div className="flex items-start gap-4 p-5 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
+            <Info className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" />
+            <p className="text-[10.5px] text-slate-400 leading-relaxed font-medium normal-case">
+              Practical scouting heuristic based on community reports. Hidden server state causes run-to-run variance. Scout before farming.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Epoch Flag Modal */}
+      {showFlagModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-950/80 animate-in fade-in duration-300">
+          <div className="w-full max-w-md theme-glass-card p-8 border-amber-500/30 shadow-[0_0_50px_rgba(245,158,11,0.1)]">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black uppercase tracking-wider text-white">Report Anomaly</h3>
+                <p className="text-xs text-slate-400">Flag an epoch shift if zones feel different.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-6">
+              Official epoch rotation occurs when <span className="text-amber-300 font-bold underline">2 distinct users</span> flag the current epoch.
+              This resets the map data to gather fresh signals.
+            </p>
+
+            <div className="space-y-4">
+              <textarea
+                value={flagNotes}
+                onChange={(e) => setFlagNotes(e.target.value.slice(0, 200))}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none h-24 focus:border-amber-500/40 transition-all placeholder:text-slate-600"
+                placeholder="Optional: Why do you think the zone shifted?"
+              />
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowFlagModal(false)}
+                  className="px-4 py-3.5 rounded-xl bg-slate-800 text-xs font-black uppercase tracking-widest text-slate-200 hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFlagEpoch}
+                  disabled={flagging}
+                  className="px-4 py-3.5 rounded-xl bg-amber-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-amber-600/20 active:scale-95 transition-all hover:bg-amber-500"
+                >
+                  {flagging ? 'Processing...' : 'Confirm Flag'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
