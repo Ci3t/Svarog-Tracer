@@ -1,18 +1,11 @@
+import { GENSHIN_BANNER_CONTROL } from './_services/genshin/bannerControl.js';
+// Patch-day banner IDs live in api/_services/genshin/bannerControl.js
+
 // =========================================================================
 // GENSHIN CONTROL CENTER - Edit this for new characters!
 // =========================================================================
 const GENSHIN_CONFIG = {
-  // 1. Current Active Banner IDs (Check Paimon.moe/wish/tally)
-  active: {
-    charBannerId: "300097",
-    weaponBannerId: "400095",
-    // Set to null to enable FULL AUTO. Only use for emergency fixes.
-    forceName: null,
-    forceWeaponName: null,
-    forceImage: null,
-  },
-
-  // 2. Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
+  // Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
   characters: [
     'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
     'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'emilie',
@@ -45,7 +38,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 3, // Increment this to force cache refresh (was 1, now 2 for 4-banner support)
+  CACHE_VERSION: 4, // Increment this to force cache refresh after fallback logic updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -190,15 +183,49 @@ function toPaimonSlug(name) {
     .replace(/^_+|_+$/g, '');
 }
 
+const GENSHIN_FOUR_STAR_CHARACTER_BLOCKLIST = new Set([
+  'fischl', 'chevreuse', 'bennett', 'xiangling', 'xingqiu', 'barbara',
+  'noelle', 'sucrose', 'diona', 'chongyun', 'razor', 'beidou', 'ningguang',
+  'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou',
+  'yun_jin', 'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla',
+  'faruzan', 'yaoyao', 'mika', 'kaveh', 'kirara', 'lynette', 'freminet',
+  'charlotte', 'gaming', 'sethos', 'kachina', 'ororon', 'lan_yan', 'lanyan', 'aino'
+]);
+
+const GENSHIN_FOUR_STAR_WEAPON_BLOCKLIST = new Set([
+  'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade',
+  'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
+  'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
+]);
+
+const GENSHIN_STANDARD_WEAPONS = new Set([
+  'amos_bow', 'skyward_harp', 'skyward_atlas', 'lost_prayer_to_the_sacred_winds',
+  'primordial_jade_winged_spear', 'skyward_spine', 'wolfs_gravestone', 'skyward_pride',
+  'skyward_blade', 'aquila_favonia'
+]);
+
 function extractGenshinFeaturedCharacterSlugs(pullList) {
   if (!pullList || pullList.length === 0) return [];
 
-  return pullList
-    .filter(p =>
-      p.type === 'character' &&
-      GENSHIN_CONFIG.characters.includes(p.name.toLowerCase()) &&
-      !GENSHIN_CONFIG.standard.includes(p.name.toLowerCase())
-    )
+  const normalized = pullList.filter(p =>
+    p.type === 'character' &&
+    !GENSHIN_CONFIG.standard.includes(p.name.toLowerCase())
+  );
+
+  const curated = normalized.filter(p => GENSHIN_CONFIG.characters.includes(p.name.toLowerCase()));
+  if (curated.length > 0) {
+    return curated
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2)
+      .map(p => p.name);
+  }
+
+  return normalized
+    .filter(p => {
+      const slug = p.name.toLowerCase();
+      if (GENSHIN_FOUR_STAR_CHARACTER_BLOCKLIST.has(slug)) return false;
+      return p.count > 300 && p.count < 35000;
+    })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -207,11 +234,25 @@ function extractGenshinFeaturedCharacterSlugs(pullList) {
 function extractGenshinFeaturedWeaponSlugs(pullList) {
   if (!pullList || pullList.length === 0) return [];
 
-  return pullList
-    .filter(p =>
-      p.type === 'weapon' &&
-      GENSHIN_CONFIG.weapons.includes(p.name.toLowerCase())
-    )
+  const normalized = pullList.filter(p =>
+    p.type === 'weapon' &&
+    !GENSHIN_STANDARD_WEAPONS.has(p.name.toLowerCase())
+  );
+
+  const curated = normalized.filter(p => GENSHIN_CONFIG.weapons.includes(p.name.toLowerCase()));
+  if (curated.length > 0) {
+    return curated
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2)
+      .map(p => p.name);
+  }
+
+  return normalized
+    .filter(p => {
+      const slug = p.name.toLowerCase();
+      if (GENSHIN_FOUR_STAR_WEAPON_BLOCKLIST.has(slug)) return false;
+      return p.count > 200 && p.count < 35000;
+    })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -231,10 +272,30 @@ function extractGenshinWeaponNames(pullList) {
   return featured.map(toTitleCaseFromSlug).join(' / ');
 }
 async function fetchActiveGenshinBanners() {
-  const manualBanners = [];
+  // 1. Build normalized banner payload from paimon.moe list data
+  const buildBannerPayload = (bannerId, type, list, source) => {
+    const featuredSlugs = type === 'weapon'
+      ? extractGenshinFeaturedWeaponSlugs(list)
+      : extractGenshinFeaturedCharacterSlugs(list);
 
-  // 1. Helper: Search for precise banner data near a specific ID
-  const findBanners = async (startId, prefix, type) => {
+    if (type === 'character' && featuredSlugs.length === 0) return null;
+
+    const name = type === 'weapon'
+      ? (featuredSlugs.length ? featuredSlugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation')
+      : featuredSlugs.map(toTitleCaseFromSlug).join(' / ');
+
+    const firstSlug = featuredSlugs[0];
+    const image = type === 'weapon'
+      ? (firstSlug
+        ? `https://paimon.moe/images/weapons/${firstSlug}.png`
+        : `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`)
+      : (firstSlug ? `https://paimon.moe/images/characters/${firstSlug}.png` : null);
+
+    return { id: bannerId, name, type, image, game: 'genshin', source };
+  };
+
+  // 2. Search nearby IDs (auto-discovery)
+  const findBannerNear = async (startId, prefix, type) => {
     const scanRange = [];
     for (let i = startId + 2; i >= startId - 8 && i >= 0; i--) {
       scanRange.push(`${prefix}${String(i).padStart(3, '0')}`);
@@ -246,26 +307,11 @@ async function fetchActiveGenshinBanners() {
         if (!res.ok) continue;
 
         const data = await res.json();
-        if (!(data.total && data.total.legendary > 1000)) continue;
+        const legendaryCount = data?.total?.legendary || 0;
+        if (legendaryCount <= 1000) continue;
 
-        const featuredSlugs = type === 'weapon'
-          ? extractGenshinFeaturedWeaponSlugs(data.list)
-          : extractGenshinFeaturedCharacterSlugs(data.list);
-
-        if (type === 'character' && featuredSlugs.length === 0) continue;
-
-        const name = type === 'weapon'
-          ? (featuredSlugs.length ? featuredSlugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation')
-          : featuredSlugs.map(toTitleCaseFromSlug).join(' / ');
-
-        const firstSlug = featuredSlugs[0];
-        const image = type === 'weapon'
-          ? (firstSlug
-            ? `https://paimon.moe/images/weapons/${firstSlug}.png`
-            : `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`)
-          : `https://paimon.moe/images/characters/${firstSlug}.png`;
-
-        return { id: bannerId, name, type, image, game: 'genshin', source: 'auto' };
+        const payload = buildBannerPayload(bannerId, type, data.list, 'auto');
+        if (payload) return payload;
       } catch {
         continue;
       }
@@ -274,57 +320,72 @@ async function fetchActiveGenshinBanners() {
     return null;
   };
 
-  // 2. Perform Auto-Discovery
+  // 3. Exact ID fallback (single source-of-truth: GENSHIN_BANNER_CONTROL)
+  const fetchBannerByExactId = async (bannerId, type) => {
+    if (!bannerId) return null;
+
+    try {
+      const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      const legendaryCount = data?.total?.legendary || 0;
+      if (legendaryCount < 200) return null;
+
+      return buildBannerPayload(bannerId, type, data.list, 'manual-id');
+    } catch {
+      return null;
+    }
+  };
+
   console.log('[Genshin] Running intelligent auto-discovery...');
-  const targetCharId = parseInt(GENSHIN_CONFIG.active.charBannerId?.slice(-3) || '115');
-  const targetWpnId = parseInt(GENSHIN_CONFIG.active.weaponBannerId?.slice(-3) || '115');
+
+  const targetCharId = parseInt(GENSHIN_BANNER_CONTROL.characterBannerId?.slice(-3) || '97', 10);
+  const targetWpnId = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId?.slice(-3) || '95', 10);
 
   const [charAuto, wpnAuto] = await Promise.all([
-    findBanners(targetCharId, '300', 'character'),
-    findBanners(targetWpnId, '400', 'weapon')
+    findBannerNear(targetCharId, '300', 'character'),
+    findBannerNear(targetWpnId, '400', 'weapon')
   ]);
 
-  // 3. Build manual fallback entries per missing side (or explicit force)
-  const shouldBuildManual = !charAuto || !wpnAuto || GENSHIN_CONFIG.active.forceName || GENSHIN_CONFIG.active.forceWeaponName;
-  if (shouldBuildManual) {
-    if (GENSHIN_CONFIG.active.charBannerId && (GENSHIN_CONFIG.active.forceName || !charAuto)) {
-      const forcedCharSlug = toPaimonSlug(GENSHIN_CONFIG.active.forceName);
-      manualBanners.push({
-        id: GENSHIN_CONFIG.active.charBannerId,
-        name: GENSHIN_CONFIG.active.forceName || 'Character Event Wish',
-        type: 'character',
-        image: GENSHIN_CONFIG.active.forceImage || (forcedCharSlug ? `https://paimon.moe/images/characters/${forcedCharSlug}.png` : null),
-        game: 'genshin',
-        source: 'manual'
-      });
-    }
+  let characterBanner = charAuto;
+  let weaponBanner = wpnAuto;
 
-    if (GENSHIN_CONFIG.active.weaponBannerId && (GENSHIN_CONFIG.active.forceWeaponName || !wpnAuto)) {
-      const forcedWeaponSlug = toPaimonSlug(GENSHIN_CONFIG.active.forceWeaponName);
-      manualBanners.push({
-        id: GENSHIN_CONFIG.active.weaponBannerId,
-        name: GENSHIN_CONFIG.active.forceWeaponName || 'Epitome Invocation',
-        type: 'weapon',
-        image: forcedWeaponSlug
-          ? `https://paimon.moe/images/weapons/${forcedWeaponSlug}.png`
-          : `https://paimon.moe/images/banners/Epitome%20Invocation%20${GENSHIN_CONFIG.active.weaponBannerId.slice(-2)}.png`,
-        game: 'genshin',
-        source: 'manual'
-      });
-    }
+  if (!characterBanner) {
+    characterBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character');
+  }
+  if (!weaponBanner) {
+    weaponBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon');
   }
 
-  const manualChar = manualBanners.find(b => b.type === 'character');
-  const manualWeapon = manualBanners.find(b => b.type === 'weapon');
+  // 4. Optional emergency manual overrides (lowest priority)
+  if (GENSHIN_BANNER_CONTROL.overrideCharacterName) {
+    const forcedCharSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideCharacterName);
+    characterBanner = {
+      id: GENSHIN_BANNER_CONTROL.characterBannerId,
+      name: GENSHIN_BANNER_CONTROL.overrideCharacterName,
+      type: 'character',
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || (forcedCharSlug ? `https://paimon.moe/images/characters/${forcedCharSlug}.png` : characterBanner?.image || null),
+      game: 'genshin',
+      source: 'manual-override'
+    };
+  }
 
-  const results = [];
-  if (charAuto && !GENSHIN_CONFIG.active.forceName) results.push(charAuto);
-  else if (manualChar) results.push(manualChar);
+  if (GENSHIN_BANNER_CONTROL.overrideWeaponName) {
+    const forcedWeaponSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideWeaponName);
+    weaponBanner = {
+      id: GENSHIN_BANNER_CONTROL.weaponBannerId,
+      name: GENSHIN_BANNER_CONTROL.overrideWeaponName,
+      type: 'weapon',
+      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage || (forcedWeaponSlug
+        ? `https://paimon.moe/images/weapons/${forcedWeaponSlug}.png`
+        : (weaponBanner?.image || `https://paimon.moe/images/banners/Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`)),
+      game: 'genshin',
+      source: 'manual-override'
+    };
+  }
 
-  if (wpnAuto && !GENSHIN_CONFIG.active.forceWeaponName) results.push(wpnAuto);
-  else if (manualWeapon) results.push(manualWeapon);
-
-  return results;
+  return [characterBanner, weaponBanner].filter(Boolean);
 }
 // =========================================================================
 // WUWA BANNER FETCHING (HTML Scraping)

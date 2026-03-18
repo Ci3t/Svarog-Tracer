@@ -2071,7 +2071,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 <div
                   key={item.id}
                   onClick={() => setSelectedDomain(item)}
-                  className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19rem] flex-col items-center self-start text-center gap-3 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
+                  className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19.5rem] flex-col items-center self-start text-center gap-2 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
                   style={{ '--card-radius': '1.5rem' }}
                 >
                   <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
@@ -2095,13 +2095,15 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       </div>
                     </>
                   )}
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
-                    <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
+                  <div className="cavern-domain-media w-full flex-1 min-h-[8.75rem] sm:min-h-[9.5rem] flex flex-col items-center justify-center gap-3 pt-1 sm:pt-2">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
+                      <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
+                    </div>
+                    <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-1 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
+                      {item.name}
+                    </h3>
                   </div>
-                  <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-2 mt-2 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
-                    {item.name}
-                  </h3>
-                  <div className="mt-auto pt-2">
+                  <div className="mt-auto pt-1">
                     {itemClears.length > 0 ? (
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
                           isCrimson
