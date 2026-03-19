@@ -501,20 +501,38 @@ export default function ZoneMap({
 
                   {/* Body: Actions & Info */}
                   <div className={`p-5 flex-1 ${zoneCardView === 'list' ? 'py-2 flex items-center justify-between' : ''}`}>
-                    <div className={zoneCardView === 'grid' ? "flex items-center gap-3 mb-6" : "flex items-center gap-4"}>
-                       <div className="flex -space-x-2">
-                         {Array.isArray(zone.reporter_names) && zone.reporter_names.slice(0, 5).map((name, i) => (
-                           <div key={i} className="w-7 h-7 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-[8px] font-black text-indigo-300 uppercase overflow-hidden ring-1 ring-indigo-500/20" title={name}>
-                             {name.slice(0, 1)}
+                    <div className={zoneCardView === 'grid' ? "space-y-4 mb-6" : "flex items-center gap-4"}>
+                       <div className="flex items-center justify-between border-b border-slate-800/40 pb-2">
+                         <div className="flex items-center gap-2">
+                           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Batch Average</p>
+                           <span className="text-[8px] font-bold text-slate-700 bg-slate-900 border border-slate-800/40 px-1.5 py-0.5 rounded uppercase">Top 4 Stats</span>
+                         </div>
+                         <div className="flex -space-x-2">
+                           {Array.isArray(zone.reporter_names) && zone.reporter_names.slice(0, 5).map((name, i) => (
+                             <div key={i} className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-[7px] font-black text-indigo-300 uppercase overflow-hidden ring-1 ring-indigo-500/10" title={name}>
+                               {name.slice(0, 1)}
+                             </div>
+                           ))}
+                           {Array.isArray(zone.reporter_names) && zone.reporter_names.length > 5 && (
+                             <div className="w-6 h-6 rounded-full bg-slate-900 border-2 border-slate-950 flex items-center justify-center text-[6px] font-black text-slate-600">
+                               +{zone.reporter_names.length - 5}
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                       
+                       <div className="grid grid-cols-2 gap-2">
+                         {top4Stats.map(([stat, count]) => (
+                           <div key={stat} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800/40 shadow-inner group/stat relative overflow-hidden transition-all hover:border-cyan-500/30">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter truncate pr-2 z-10">{stat}</span>
+                             <span className="text-xs font-bold text-cyan-400 z-10">{count}</span>
+                             <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                            </div>
                          ))}
-                         {Array.isArray(zone.reporter_names) && zone.reporter_names.length > 5 && (
-                           <div className="w-7 h-7 rounded-full bg-slate-900 border-2 border-slate-950 flex items-center justify-center text-[7px] font-black text-slate-500">
-                             +{zone.reporter_names.length - 5}
-                           </div>
+                         {top4Stats.length === 0 && (
+                            <p className="col-span-2 text-[9px] text-slate-600 italic py-2 text-center">No substat data available for this squad</p>
                          )}
                        </div>
-                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest opacity-60">Verified reports for this matrix</p>
                     </div>
 
                     <div className={`grid grid-cols-2 gap-2 ${zoneCardView === 'list' ? 'w-80' : ''}`}>
