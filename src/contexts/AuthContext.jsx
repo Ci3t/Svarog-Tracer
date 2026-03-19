@@ -11,11 +11,23 @@ import {
 } from '../lib/supabaseClient';
 import { AuthContext } from './auth-context';
 
+const ROLE_MODE_STORAGE_KEY = 'hsr_role_mode';
+
+function readRoleMode() {
+  try {
+    const raw = String(window.localStorage.getItem(ROLE_MODE_STORAGE_KEY) || 'user').toLowerCase();
+    return raw === 'admin' ? 'admin' : 'user';
+  } catch {
+    return 'user';
+  }
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState('');
+  const [roleMode, setRoleModeState] = useState(() => (typeof window === 'undefined' ? 'user' : readRoleMode()));
 
   const resetAuth = useCallback(() => {
     setSession(null);
@@ -109,6 +121,27 @@ export function AuthProvider({ children }) {
     return { Authorization: `Bearer ${session.access_token}` };
   }, [session?.access_token]);
 
+  const setRoleMode = useCallback((nextMode) => {
+    const normalized = String(nextMode || '').toLowerCase() === 'admin' ? 'admin' : 'user';
+    setRoleModeState(normalized);
+
+    try {
+      window.localStorage.setItem(ROLE_MODE_STORAGE_KEY, normalized);
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key !== ROLE_MODE_STORAGE_KEY) return;
+      setRoleModeState(readRoleMode());
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
@@ -120,8 +153,10 @@ export function AuthProvider({ children }) {
       completeOAuthFromUrl,
       signOut,
       getAuthHeader,
+      roleMode,
+      setRoleMode,
     }),
-    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, getAuthHeader]
+    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, getAuthHeader, roleMode, setRoleMode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

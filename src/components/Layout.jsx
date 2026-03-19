@@ -60,7 +60,7 @@ export default function Layout({
   onThemeChange = () => {},
 }) {
   const location = useLocation();
-  const { isAuthenticated, signOut } = useAuth();
+  const { isAuthenticated, signOut, roleMode, setRoleMode } = useAuth();
   const normalizedSessionTheme =
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const navRef = useRef(null);
@@ -391,6 +391,33 @@ export default function Layout({
                 EXPORT CSV
               </button>
 
+              {/* Role Mode Toggle */}
+              {isAuthenticated ? (
+                <div className="w-full lg:w-auto inline-flex items-center gap-1 rounded-lg border border-slate-700/70 bg-slate-900/60 p-1 mt-2 lg:mt-0">
+                  <button
+                    type="button"
+                    onClick={() => setRoleMode('user')}
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      roleMode === 'user'
+                        ? 'bg-slate-700/80 text-slate-100 border border-slate-500/70'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoleMode('admin')}
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      roleMode === 'admin'
+                        ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Admin
+                  </button>
+                </div>
+              ) : null}
               {isAuthenticated ? (
                 <button
                   type="button"

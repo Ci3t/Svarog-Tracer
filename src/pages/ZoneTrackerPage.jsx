@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { gsap } from 'gsap';
 import { 
   Target, 
@@ -201,6 +201,25 @@ function formatClearTimeSeconds(value) {
   return String(minutes) + ':' + seconds.toFixed(1).padStart(4, '0');
 }
 
+
+function sanitizeClearTimeMmSsInput(value) {
+  const raw = String(value || '').replace(/[^\d:]/g, '');
+  const parts = raw.split(':');
+  const minutes = (parts[0] || '').slice(0, 2);
+  const secondsRaw = parts.length > 1 ? parts.slice(1).join('') : '';
+  const seconds = secondsRaw.slice(0, 2);
+  return secondsRaw.length > 0 || raw.includes(':') ? `${minutes}:${seconds}` : minutes;
+}
+
+function normalizeClearTimeMmSsInput(value) {
+  const parsed = parseClearTimeToSeconds(value);
+  if (parsed === null) return String(value || '').trim();
+
+  const totalSeconds = Math.round(parsed);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
 function resolveAuthDisplayName(user) {
   if (!user || typeof user !== 'object') return null;
 
@@ -282,7 +301,7 @@ function buildZoneVariantKey(zone) {
 }
 
 export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
-  const { user, getAuthHeader } = useAuth();
+  const { user, getAuthHeader, roleMode } = useAuth();
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const rootThemeClass = themeConfig.rootClassName || 'modern-theme';
 
@@ -309,6 +328,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const [mapTargetPreset, setMapTargetPreset] = useState('crit_potential');
   const [mapTargetMode, setMapTargetMode] = useState('any');
   const [mapTargetCustomStats, setMapTargetCustomStats] = useState(['SPD']);
+  const [zoneCardView, setZoneCardView] = useState('grid');
+  const [showMapFilters, setShowMapFilters] = useState(false);
+  const [showTuner, setShowTuner] = useState(false);
 
   const [loadingMap, setLoadingMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -795,6 +817,15 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     };
   }, [getAuthHeader]);
 
+  useEffect(() => {
+    if (!adminEligible) {
+      setAdminModeEnabled(false);
+      return;
+    }
+
+    setAdminModeEnabled(roleMode === 'admin');
+  }, [adminEligible, roleMode]);
+
   // Initial page hook
   useEffect(() => {
     const header = document.querySelector('.page-header');
@@ -1123,7 +1154,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
     const clearTimeSeconds = parseClearTimeToSeconds(clearTimeInput);
     if (clearTimeSeconds === null) {
-      setError('Clear time is required. Use seconds or mm:ss format.');
+      setError('Clear time is required. Use MM:SS format.');
       return;
     }
 
@@ -1192,6 +1223,18 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
       setSuccess(`Run submitted. XOR ${zoneXor} / SLOT ${zoneSlot}${warningText}`);
       setRequestedEpoch('current');
       setWorkspaceView('zones');
+      setSlots([null, null, null, null]);
+      setActiveSlotIndex(0);
+      setDragIndex(null);
+      setDragOverSlotIndex(null);
+      setOutcomeTouched(false);
+      setCavern('');
+      setServerRegion('asia');
+      setNotes('');
+      setClearTimeInput('');
+      setRelicDropCount(7);
+      setRelicCards(Array.from({ length: 7 }, (_, index) => buildEmptyRelicCard(index + 1)));
+      setCharSearchTerm('');
 
       if (payload?.submitted_zone) {
         const incoming = payload.submitted_zone;
@@ -1525,12 +1568,12 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const signalMetricLabel = isRelicTargetMode ? `${mapTargetFilter?.label || 'Target Match'} Match` : 'Crit Potential';
 
   const relicGridClass = relicGridCompact ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-3';
-  const relicCardClass = relicGridCompact ? 'rounded-xl border border-slate-800 bg-slate-950/60 p-2' : 'rounded-xl border border-slate-800 bg-slate-950/60 p-3';
+  const relicCardClass = relicGridCompact ? 'rounded-xl border relic-card-surface p-2' : 'rounded-xl border relic-card-surface p-3';
   const relicSubstatGridClass = relicGridCompact ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-2 sm:grid-cols-4 gap-2';
   const relicChipBaseClass = relicGridCompact ? 'px-1.5 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all' : 'px-2 py-1.5 rounded-md border text-[9px] font-black uppercase tracking-wide transition-all';
 
   return (
-    <div className={`${rootThemeClass} max-w-[1440px] mx-auto space-y-8 pb-20 animate-in fade-in duration-700`}>
+    <div className={`${rootThemeClass} zone-tracker-shell max-w-[1440px] mx-auto space-y-8 pb-20 animate-in fade-in duration-700`}>
       <style dangerouslySetInnerHTML={{ __html: `
         .modern-theme .zone-glass { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(51, 65, 85, 0.6); }
         .svarog-theme .zone-glass { background: rgba(5, 10, 24, 0.75); border: 1px solid rgba(99, 102, 241, 0.2); box-shadow: 0 8px 32px rgba(9, 9, 11, 0.6), inset 0 0 32px rgba(67, 56, 202, 0.05); backdrop-filter: blur(16px); }
@@ -1566,6 +1609,65 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         .arctic-theme .relic-button { background: rgba(255, 255, 255, 0.7); border-color: rgba(226, 232, 240, 0.8); color: #475569; }
         .arctic-theme .relic-button:hover { border-color: rgba(14, 165, 233, 0.5); background: rgba(248, 250, 252, 0.9); }
         .arctic-theme .relic-button.active { background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.5); color: #0284c7; box-shadow: 0 0 15px rgba(14, 165, 233, 0.15); }
+
+        .zone-tracker-shell button:not(:disabled), .zone-tracker-shell [role="button"], .zone-tracker-shell select { cursor: pointer; }
+        .zone-tracker-shell button:disabled { cursor: not-allowed; }
+
+        .zone-tracker-shell .relic-card-surface {
+          background: rgba(2, 6, 23, 0.45);
+          border-color: rgba(71, 85, 105, 0.5);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .zone-tracker-shell .relic-button { background: rgba(2, 6, 23, 0.55); border-color: rgba(71, 85, 105, 0.8); color: #cbd5e1; }
+        .zone-tracker-shell .relic-button:hover { border-color: rgba(99, 102, 241, 0.45); background: rgba(15, 23, 42, 0.9); }
+        .zone-tracker-shell .relic-button.active { background: rgba(79, 70, 229, 0.14); border-color: rgba(99, 102, 241, 0.6); color: #e0e7ff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.15); }
+
+        .svarog-theme .zone-tracker-shell .relic-card-surface {
+          background: rgba(9, 14, 30, 0.72);
+          border-color: rgba(79, 70, 229, 0.24);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px rgba(9, 9, 11, 0.22);
+        }
+        .svarog-theme .zone-tracker-shell .relic-button { background: rgba(15, 23, 42, 0.72); border-color: rgba(30, 41, 59, 0.85); color: #cbd5e1; }
+        .svarog-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(99, 102, 241, 0.52); background: rgba(30, 41, 59, 0.92); }
+        .svarog-theme .zone-tracker-shell .relic-button.active { background: rgba(79, 70, 229, 0.17); border-color: rgba(99, 102, 241, 0.66); color: #e0e7ff; box-shadow: 0 0 15px rgba(99, 102, 241, 0.24); }
+
+        .arctic-theme .zone-tracker-shell .relic-card-surface {
+          background: rgba(255, 255, 255, 0.78);
+          border-color: rgba(125, 211, 252, 0.34);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        }
+        .arctic-theme .zone-tracker-shell .relic-button { background: rgba(255, 255, 255, 0.78); border-color: rgba(203, 213, 225, 0.9); color: #475569; }
+        .arctic-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(14, 165, 233, 0.55); background: rgba(248, 250, 252, 0.95); }
+        .arctic-theme .zone-tracker-shell .relic-button.active { background: rgba(14, 165, 233, 0.12); border-color: rgba(14, 165, 233, 0.56); color: #0369a1; box-shadow: 0 0 15px rgba(14, 165, 233, 0.18); }
+
+        .astral-theme .zone-tracker-shell .relic-card-surface {
+          background: rgba(11, 14, 21, 0.85) !important;
+          border-color: rgba(227, 192, 114, 0.28) !important;
+          box-shadow: inset 0 1px 0 rgba(246, 223, 155, 0.08);
+        }
+        .astral-theme .zone-tracker-shell .relic-button { background: rgba(15, 18, 27, 0.88) !important; border-color: rgba(227, 192, 114, 0.34) !important; color: #d7dde8 !important; }
+        .astral-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(246, 223, 155, 0.5) !important; color: #f6df9b !important; }
+        .astral-theme .zone-tracker-shell .relic-button.active { background: rgba(227, 192, 114, 0.14) !important; border-color: rgba(246, 223, 155, 0.6) !important; color: #f6df9b !important; box-shadow: 0 0 16px rgba(227, 192, 114, 0.24); }
+
+        .crimson-theme .zone-tracker-shell .relic-card-surface {
+          background: rgba(12, 12, 13, 0.9) !important;
+          border-color: rgba(255, 0, 51, 0.24) !important;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .crimson-theme .zone-tracker-shell .relic-button { background: rgba(16, 16, 17, 0.92) !important; border-color: rgba(255, 0, 51, 0.3) !important; color: #f4f4f5 !important; }
+        .crimson-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(255, 77, 109, 0.52) !important; color: #ffe4eb !important; }
+        .crimson-theme .zone-tracker-shell .relic-button.active { background: rgba(255, 0, 51, 0.18) !important; border-color: rgba(255, 77, 109, 0.62) !important; color: #ffe4eb !important; box-shadow: 0 0 15px rgba(255, 0, 51, 0.24); }
+
+        .neon-theme .zone-tracker-shell .relic-card-surface {
+          background: rgba(13, 17, 22, 0.9) !important;
+          border-color: rgba(0, 243, 255, 0.26) !important;
+          box-shadow: inset 0 1px 0 rgba(188, 0, 255, 0.12);
+        }
+        .neon-theme .zone-tracker-shell .relic-button { background: rgba(14, 18, 22, 0.92) !important; border-color: rgba(0, 243, 255, 0.3) !important; color: #d5faff !important; }
+        .neon-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(188, 0, 255, 0.5) !important; color: #ffffff !important; box-shadow: 0 0 10px rgba(0, 243, 255, 0.22); }
+        .neon-theme .zone-tracker-shell .relic-button.active { background: rgba(0, 243, 255, 0.16) !important; border-color: rgba(0, 243, 255, 0.58) !important; color: #ffffff !important; box-shadow: 0 0 16px rgba(0, 243, 255, 0.3), 0 0 22px rgba(188, 0, 255, 0.14); }
+
       `}} />
       
       {/* Header & Epoch Status Bar */}
@@ -1902,27 +2004,6 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                     <p className="mt-0.5 text-[10px] font-mono uppercase tracking-wider text-indigo-300/70">Key: {suggestedOutcome}</p>
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">03</span>
-                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Clear Time <span className="text-emerald-300 ml-2">(Required)</span></h3>
-                  </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-300/70" />
-                      <input
-                        type="text"
-                        value={clearTimeInput}
-                        onChange={(event) => setClearTimeInput(event.target.value)}
-                        placeholder="e.g. 95.4 or 1:35.4"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/50"
-                      />
-                    </div>
-                    <p className="mt-2 text-[10px] text-slate-500">Accepted formats: seconds, mm:ss, or hh:mm:ss.</p>
-                  </div>
-                </div>
-
                   <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
@@ -1962,6 +2043,22 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                               {region.label}
                             </button>
                           ))}
+                        </div>
+                        <div className="max-w-[160px]">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-emerald-300/80">Clear Time (MM:SS)</label>
+                          <div className="relative mt-1">
+                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-300/70" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={5}
+                              value={clearTimeInput}
+                              onChange={(event) => setClearTimeInput(sanitizeClearTimeMmSsInput(event.target.value))}
+                              onBlur={(event) => setClearTimeInput(normalizeClearTimeMmSsInput(event.target.value))}
+                              placeholder="00:00"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-2 py-1.5 text-[10px] font-mono text-slate-200 outline-none focus:border-emerald-500/50"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2212,22 +2309,47 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
         {/* Right Column: Zone Map */}
         <div ref={mapRef} className={workspaceView === 'zones' ? 'space-y-8' : 'hidden'}>
-          
-          <div className="flex items-center justify-between px-2">
+          <div className="flex flex-wrap items-end justify-between gap-3 px-2">
             <div className="flex items-center gap-3">
               <BarChart3 className="w-6 h-6 text-indigo-400" />
               <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white text-shadow-glow">Community Map</h2>
             </div>
-            <div className="flex items-center gap-4">
-               <div className="text-right">
-                 <p className="text-[10px] font-black tracking-widest text-slate-500 leading-none">Global Coverage</p>
-                 <p className="text-lg font-black text-indigo-300">{mapData?.total_runs ?? 0} <span className="text-[10px] text-slate-600">REPORTS</span></p>
-                 <p className="text-[9px] font-black tracking-widest text-slate-500">{isRelicTargetMode ? `TARGET ${String(mapTargetFilter?.label || 'Custom').toUpperCase()}` : `AVG DROP ${formatDropScore(mapData?.epoch_summary?.avg_drop_score)}`}</p>
-               </div>
+
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <div className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/70 p-1">
+                <button
+                  type="button"
+                  onClick={() => setZoneCardView('grid')}
+                  className={zoneCardView === 'grid' ? 'px-3 py-1.5 rounded-md border border-indigo-500/40 bg-indigo-500/20 text-[10px] font-black uppercase tracking-widest text-indigo-100' : 'px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                >
+                  Grid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoneCardView('list')}
+                  className={zoneCardView === 'list' ? 'px-3 py-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/20 text-[10px] font-black uppercase tracking-widest text-cyan-100' : 'px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                >
+                  List
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMapFilters((prev) => !prev)}
+                className={showMapFilters ? 'px-3 py-1.5 rounded-lg border border-indigo-500/40 bg-indigo-500/15 text-[10px] font-black uppercase tracking-widest text-indigo-100' : 'px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+              >
+                {showMapFilters ? 'Hide Filters' : 'Show Filters'}
+              </button>
+
+              <div className="text-right">
+                <p className="text-[10px] font-black tracking-widest text-slate-500 leading-none">Global Coverage</p>
+                <p className="text-lg font-black text-indigo-300">{mapData?.total_runs ?? 0} <span className="text-[10px] text-slate-600">REPORTS</span></p>
+                <p className="text-[9px] font-black tracking-widest text-slate-500">{isRelicTargetMode ? `TARGET ${String(mapTargetFilter?.label || 'Custom').toUpperCase()}` : `AVG DROP ${formatDropScore(mapData?.epoch_summary?.avg_drop_score)}`}</p>
+              </div>
             </div>
           </div>
 
-          <div className="mx-2 mt-2 p-3 rounded-xl bg-slate-950/50 border border-slate-800/70 space-y-3">
+          <div className={showMapFilters ? 'mx-2 mt-2 p-3 rounded-xl bg-slate-950/50 border border-slate-800/70 space-y-3' : 'hidden'}>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Region Filter</p>
             <div className="flex flex-wrap items-center gap-2">
               {SERVER_REGION_OPTIONS.map((region) => (
@@ -2371,7 +2493,18 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
               )}
             </div>
 
-            <div ref={tunerRef} className="pt-2 border-t border-slate-800/60 space-y-3">
+            <div className="pt-2 border-t border-slate-800/60">
+              <button
+                type="button"
+                onClick={() => setShowTuner((prev) => !prev)}
+                className={showTuner ? 'px-3 py-1.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-[10px] font-black uppercase tracking-widest text-indigo-100' : 'px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+              >
+                {showTuner ? 'Hide Zone Tuner' : 'Show Zone Tuner'}
+              </button>
+            </div>
+
+            {showTuner ? (
+              <div ref={tunerRef} className="pt-2 border-t border-slate-800/60 space-y-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zone Tuner</p>
               <p className="text-[10px] text-slate-500">Enter Zone and Slot Key from a good report, then add Team Signature only if you want stricter matching.</p>
 
@@ -2484,8 +2617,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                   )}
                 </div>
               ) : null}
+              </div>
+            ) : null}
             </div>
-          </div>
 
           {!mapData ? (
             <div className="h-64 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-600 gap-4">
@@ -2498,7 +2632,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
               <p className="text-xs font-black uppercase tracking-[0.16em]">No data signals detected in this epoch</p>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className={zoneCardView === 'grid' ? 'grid gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'grid gap-4'}>
               {zones.map((zone, index) => {
                 const signalRateRaw = isRelicTargetMode ? zone.target_rate : zone.crit_rate;
                 const signalRate = signalRateRaw === null || signalRateRaw === undefined ? 0 : Number(signalRateRaw);
@@ -2521,7 +2655,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                       : 'bg-slate-900/40 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row justify-between gap-6 relative z-10">
+                    <div className={zoneCardView === 'grid' ? 'flex flex-col justify-between gap-4 relative z-10 h-full' : 'flex flex-col sm:flex-row justify-between gap-6 relative z-10'}>
                       <div className="flex-1 space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -2600,7 +2734,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                         </div>
                       </div>
 
-                      <div className="sm:w-64 flex flex-col gap-3 justify-end shrink-0">
+                      <div className={zoneCardView === 'grid' ? 'flex flex-col gap-2 justify-end' : 'sm:w-64 flex flex-col gap-3 justify-end shrink-0'}>
                         <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 h-full flex flex-col justify-center">
                           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                              <Users className="w-3 h-3 text-slate-400" />
@@ -2760,54 +2894,3 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
