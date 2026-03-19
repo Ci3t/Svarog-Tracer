@@ -71,7 +71,8 @@ export default function ZoneMap({
   handleAdminEditZone,
   adminActionLoadingKey,
   variantsByZone,
-  handleExportZoneToCaverns
+  handleExportZoneToCaverns,
+  charactersByNumId
 }) {
   return (
     <div ref={mapRef} className={workspaceView === 'zones' ? 'space-y-8' : 'hidden'}>
@@ -390,19 +391,51 @@ export default function ZoneMap({
           </div>
         ) : (
           <div className={zoneCardView === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 XL:grid-cols-4 gap-6" : "space-y-4"}>
-            {zones.map((zone) => {
-              const zoneKey = buildZoneVariantKey(zone);
-              const isLoadingVar = variantLoadingZoneKey === zoneKey;
-              const hasVariants = Boolean(variantsByZone[zoneKey]);
-              
-              return (
-                <div key={zoneKey} className={`zone-card theme-glass-card border-slate-800/60 overflow-hidden group transition-all duration-500 hover:border-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/10 ${zoneCardView === 'list' ? 'flex items-center gap-6 p-4' : 'flex flex-col'}`}>
-                  {/* Top: Stats Header */}
-                  <div className={`p-4 bg-slate-900/60 border-b border-slate-800/40 ${zoneCardView === 'list' ? 'w-48 border-b-0 border-r py-2' : ''}`}>
-                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-[10px] font-black text-indigo-400 tracking-tighter">ZONE {zone.char_xor} / SLOT {zone.char_slot}</span>
-                       <span className="px-1.5 py-0.5 rounded bg-slate-950 text-[8px] font-mono text-slate-500">#{zone.char_sum || 'NA'}</span>
-                    </div>
+            {React.useMemo(() => {
+              const groups = {};
+              zones.forEach(z => {
+                const key = `${z.char_xor}-${z.char_slot}-${z.char_sum}`;
+                if (!groups[key]) {
+                  groups[key] = { ...z };
+                } else {
+                  groups[key].runs = (groups[key].runs || 0) + (z.runs || 1);
+                  if (z.latest_reporter_name && groups[key].latest_reporter_name !== z.latest_reporter_name) {
+                    if (!Array.isArray(groups[key].reporter_names)) groups[key].reporter_names = [groups[key].latest_reporter_name];
+                    if (!groups[key].reporter_names.includes(z.latest_reporter_name)) {
+                      groups[key].reporter_names.push(z.latest_reporter_name);
+                    }
+                  }
+                }
+              });
+              return Object.values(groups);
+            }, [zones]).map((zone) => {
+                const zoneKey = buildZoneVariantKey(zone);
+                const isLoadingVar = variantLoadingZoneKey === zoneKey;
+                const hasVariants = Boolean(variantsByZone[zoneKey]);
+                
+                // Process card details
+                const sampleTeam = Array.isArray(zone.sample_slot_order) ? zone.sample_slot_order : [];
+                const sampleRelics = Array.isArray(zone.sample_relic_data?.relics) ? zone.sample_relic_data.relics : [];
+                const cardSubstatFreq = {};
+                sampleRelics.forEach(r => {
+                  if (Array.isArray(r.substats)) {
+                    r.substats.forEach(s => {
+                      cardSubstatFreq[s] = (cardSubstatFreq[s] || 0) + 1;
+                    });
+                  }
+                });
+                const top4Stats = Object.entries(cardSubstatFreq)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 4);
+
+                return (
+                  <div key={zoneKey} className={`zone-card theme-glass-card border-slate-800/60 overflow-hidden group transition-all duration-500 hover:border-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/10 ${zoneCardView === 'list' ? 'flex items-center gap-6 p-4' : 'flex flex-col'}`}>
+                    {/* Top: Stats Header */}
+                    <div className={`p-4 bg-slate-900/60 border-b border-slate-800/40 ${zoneCardView === 'list' ? 'w-48 border-b-0 border-r py-2' : ''}`}>
+                      <div className="flex items-center justify-between mb-2">
+                         <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase">Zone {zone.char_xor} / Slot {zone.char_slot}</span>
+                         <span className="px-1.5 py-0.5 rounded bg-slate-950 text-[8px] font-mono text-slate-500 uppercase">Team {zone.char_sum || 'NA'}</span>
+                      </div>
                     <div className="flex items-end justify-between">
                        <div>
                          <p className="text-[9px] font-black text-slate-500 uppercase leading-none tracking-widest">{signalMetricLabel}</p>
@@ -415,9 +448,41 @@ export default function ZoneMap({
                     </div>
                   </div>
 
+                  {/* Team & Substats Section */}
+                  {zoneCardView === 'grid' && (
+                    <div className="px-4 py-3 border-b border-slate-800/20 bg-slate-950/20 grid grid-cols-2 gap-4">
+                      {/* Team Mini View */}
+                      <div className="space-y-2">
+                        <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Sample Squad</p>
+                        <div className="flex -space-x-1.5">
+                          {sampleTeam.map((id, i) => {
+                            const char = charactersByNumId?.get(Number(id));
+                            return (
+                              <div key={i} className="w-7 h-7 rounded-full border border-slate-800 bg-slate-900 overflow-hidden ring-1 ring-slate-950" title={char?.name || id}>
+                                {char?.image ? <img src={char.image} alt={char.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-500">?</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Substats Mini View */}
+                      <div className="space-y-2">
+                         <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Reported Subs</p>
+                         <div className="flex flex-wrap gap-1">
+                            {top4Stats.map(([stat, count]) => (
+                              <span key={stat} className="px-1.5 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[7px] font-bold text-cyan-400 capitalize">
+                                {stat}
+                              </span>
+                            ))}
+                         </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Body: Actions & Info */}
                   <div className={`p-5 flex-1 ${zoneCardView === 'list' ? 'py-2 flex items-center justify-between' : ''}`}>
-                    <div className={zoneCardView === 'grid' ? "flex items-center gap-2 mb-4" : "flex items-center gap-4"}>
+                    <div className={zoneCardView === 'grid' ? "flex items-center gap-3 mb-4" : "flex items-center gap-4"}>
                        <div className="flex -space-x-2">
                          {Array.isArray(zone.reporter_names) && zone.reporter_names.slice(0, 3).map((name, i) => (
                            <div key={i} className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-[8px] font-black text-indigo-300 uppercase overflow-hidden" title={name}>
@@ -430,9 +495,12 @@ export default function ZoneMap({
                            </div>
                          )}
                        </div>
-                       <p className="text-[9px] font-bold text-slate-500 italic truncate max-w-[120px]">
-                         {zone.latest_reporter_name ? `Latest: ${zone.latest_reporter_name}` : 'Mixed contributors'}
-                       </p>
+                       <div className="min-w-0">
+                         <p className="text-[9px] font-black text-indigo-200/60 uppercase tracking-widest mb-0.5">Contributor</p>
+                         <p className="text-[10px] font-black text-white truncate max-w-[140px]">
+                           {zone.latest_reporter_name || 'Mixed Team'}
+                         </p>
+                       </div>
                     </div>
 
                     <div className={`grid grid-cols-2 gap-2 ${zoneCardView === 'list' ? 'w-80' : ''}`}>

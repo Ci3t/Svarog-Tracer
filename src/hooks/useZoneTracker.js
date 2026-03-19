@@ -880,7 +880,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const handleLoadZoneTeam = (zone) => {
     if (!Array.isArray(zone.sample_slot_order) || zone.sample_slot_order.length !== 4) return;
     setSlots(zone.sample_slot_order.map((value) => Number(value) || null));
-    setSuccess(`Loaded team from Zone ${zone.char_xor} / Slot ${zone.char_slot}`);
+    setTuneXorInput(String(zone.char_xor || ''));
+    setTuneSlotInput(String(zone.char_slot || ''));
+    setTuneSumInput(String(zone.char_sum || ''));
+    setSuccess(`Loaded team and tuner from Zone ${zone.char_xor} / Slot ${zone.char_slot}`);
     setError('');
     if (formRef.current) {
        gsap.fromTo(formRef.current, { outline: "2px solid #6366f1", outlineOffset: "10px" }, { outline: "0px solid transparent", outlineOffset: "0px", duration: 1, ease: "power2.out" });

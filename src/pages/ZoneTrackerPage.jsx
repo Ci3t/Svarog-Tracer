@@ -177,7 +177,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             fetchVariantsForZone, variantLoadingZoneKey, manualVariantPayload,
             zones, signalMetricLabel, requestedEpoch, handleReportZoneCard,
             handleAdminDeleteZone, handleAdminEditZone, adminActionLoadingKey,
-            variantsByZone, handleExportZoneToCaverns
+            variantsByZone, handleExportZoneToCaverns, charactersByNumId
           }}
         />
       </div>
