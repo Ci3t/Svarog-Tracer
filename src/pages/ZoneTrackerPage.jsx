@@ -1854,22 +1854,21 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
               <h2 className="text-lg font-black uppercase tracking-[0.2em] text-white">Zone Transmitter</h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-12">
+            <form onSubmit={handleSubmit} className="lg:grid lg:grid-cols-[1fr_400px] gap-12 items-start space-y-12 lg:space-y-0">
               
-              {/* Squad Assembly UI */}
-              <div className="flex flex-col gap-6">
-                 <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">01</span>
-                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Squad Assembly <span className="text-slate-600 ml-2">({slots.filter(Boolean).length}/4 REQUIRED)</span></h3>
-                     </div>
-                 </div>
-                 
-                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 mb-2">Drag a portrait onto another slot to swap, or tap to remove.</p>
-                 <p className="text-[10px] font-semibold text-slate-500 mb-2">Current slot order: <span className="font-mono text-slate-300">{slotSummary}</span></p>
-
-                 {/* 4 Cards Grid */}
-                 <div className="grid grid-cols-4 gap-3 md:gap-4 w-full max-w-2xl mx-auto">
+              {/* Left Column: Team & Relics */}
+              <div className="space-y-12">
+                {/* Squad Assembly UI */}
+                <div className="theme-glass-card p-6 border-slate-700/40 bg-slate-950/20">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">01</span>
+                      <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Squad Assembly <span className="text-slate-600 ml-2">({slots.filter(Boolean).length}/4)</span></h3>
+                    </div>
+                  </div>
+                  
+                  {/* 4 Cards Grid */}
+                  <div className="grid grid-cols-4 gap-3 md:gap-4 w-full">
                     {[0, 1, 2, 3].map(i => {
                       const charId = slots[i];
                       const char = charId ? charactersByNumId.get(Number(charId)) : null;
@@ -1878,370 +1877,57 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                       const isTarget = activeSlotIndex === i && slots.filter(Boolean).length < 4;
                       
                       return (
-                         <div
-                            key={`slot-${i}`}
-                            draggable={Boolean(charId)}
-                            onDragStart={(e) => handleTeamSlotDragStart(i, e)}
-                            onDragEnd={handleTeamSlotDragEnd}
-                            onDragOver={(e) => handleSlotDragOver(i, e)}
-                            onDragLeave={() => handleSlotDragLeave(i)}
-                            onDrop={(e) => handleSlotDrop(i, e)}
-                            onClick={() => {
-                               if (charId) {
-                                  clearSlot(i);
-                               } else {
-                                  setActiveSlotIndex(i);
-                               }
-                            }}
-                            className={`slot-anim-${i} aspect-[3/4] md:aspect-[4/5] rounded-[2rem] border-[3px] transition-all relative group flex items-center justify-center zone-slot-hover
-                              ${dragIndex === i ? 'opacity-70 scale-[0.98] cursor-grabbing' : ''} 
-                              ${isDragOver ? 'ring-4 ring-cyan-300/65 ring-offset-4 ring-offset-slate-900 scale-[1.05] z-10' : ''} 
-                              ${isTarget && !isDragOver && !charId ? 'border-indigo-400/50 ring-2 ring-indigo-500/20 scale-[1.02] zone-slot-active' : ''}
-                              ${charId ? (char.rarity === 5 ? 'border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.3)] cursor-grab hover:border-red-400' : 'border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)] cursor-grab hover:border-red-400') : 'border-slate-700 border-dashed bg-slate-900/40 hover:border-indigo-400/80 hover:bg-slate-900/80 cursor-pointer'}`}
-                         >
-                            {charId && char && (
-                               <div className="absolute left-1/2 -top-12 -translate-x-1/2 px-3 py-1.5 bg-slate-800 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-2xl border border-white/20 scale-75 group-hover:scale-100 origin-bottom">
-                                  {char.name}
-                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
-                               </div>
-                            )}
-
-                            {charId && char ? (
-                               <div className={`relative w-full h-full overflow-hidden rounded-[1.8rem]`}>
-                                  <div className={`absolute inset-0 ${rarityBg}`}></div>
-                                  <img src={char.image} alt={char.name} className="w-full h-full object-cover relative z-10 scale-105 group-hover:scale-110 group-hover:grayscale-[0.5] transition-all duration-500" />
-                                  <div className="absolute inset-x-0 bottom-0 bg-red-600/90 py-3 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center backdrop-blur-sm z-20">
-                                     <X className="w-6 h-6 text-white" />
-                                  </div>
-                               </div>
-                            ) : (
-                               <div className="flex flex-col items-center gap-2 text-slate-600 group-hover:text-indigo-400 transition-colors">
-                                  <PlusCircle className="w-8 h-8 md:w-12 md:h-12" />
-                                  {isTarget && <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Targeting</span>}
-                               </div>
-                            )}
-                         </div>
-                      );
-                    })}
-                 </div>
-
-                 {/* Unified Character Roster Panel */}
-                 <div className="bg-slate-950/60 rounded-[2rem] p-5 border border-slate-800 shadow-inner w-full mt-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                       <div className="inline-flex rounded-xl border border-slate-700/70 bg-slate-900/70 p-1">
-                          <button
-                            type="button"
-                            onClick={() => setRosterMode('team')}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${rosterMode === 'team' ? 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-200' : 'text-slate-400 hover:text-slate-200'}`}
-                          >
-                            Team Select
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRosterMode('owned')}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${rosterMode === 'owned' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-200' : 'text-slate-400 hover:text-slate-200'}`}
-                          >
-                            Owned Roster
-                          </button>
-                       </div>
-
-                       <span className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-200">{ownedCharIds.length} owned</span>
-                    </div>
-
-                    {rosterMode === 'owned' ? (
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <button type="button" onClick={loadOwnedRoster} disabled={ownedLoading} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 transition-all">
-                          {ownedLoading ? 'Loading...' : 'Reload'}
-                        </button>
-                        <button type="button" onClick={saveOwnedRoster} disabled={ownedSaving} className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-[10px] font-black uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/20 transition-all">
-                          {ownedSaving ? 'Saving...' : 'Save Owned'}
-                        </button>
-                        <button type="button" onClick={() => setOwnedCharIds([])} className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 transition-all">
-                          Clear
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Click to add/remove from team slots.</p>
-                    )}
-
-                    <div className="relative mb-3">
-                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                       <input
-                          type="text"
-                          placeholder={rosterMode === 'owned' ? 'Search owned characters...' : 'Search character...'}
-                          value={rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm}
-                          onChange={(e) => {
-                            if (rosterMode === 'owned') {
-                              setOwnedSearchTerm(e.target.value);
-                            } else {
-                              setCharSearchTerm(e.target.value);
-                            }
-                          }}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl py-2.5 pl-11 pr-4 text-sm text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 transition-all"
-                       />
-                       {(rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm) ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (rosterMode === 'owned') {
-                                setOwnedSearchTerm('');
-                              } else {
-                                setCharSearchTerm('');
-                              }
-                            }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
-                          >
-                             <X className="w-4 h-4" />
-                          </button>
-                       ) : null}
-                    </div>
-
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-[320px] overflow-y-auto custom-scrollbar p-2 mt-2">
-                      {(rosterMode === 'owned' ? ownedOptions : characterOptions).map((c) => {
-                        const numId = Number(c.numId);
-                        const inTeam = slots.includes(numId);
-                        const isOwned = ownedSet.has(numId);
-                        const rarityBorder = c.rarity === 5 ? 'border-orange-500/60' : 'border-purple-500/60';
-
-                        if (rosterMode === 'owned') {
-                          return (
-                            <button
-                              key={`owned-toggle-${c.id || c.numId}`}
-                              type="button"
-                              onClick={() => toggleOwnedCharacter(numId)}
-                              className={`relative aspect-square rounded-full border-[3px] transition-all duration-200 group overflow-hidden ${isOwned ? 'border-emerald-400 bg-emerald-500/15 scale-95' : `${rarityBorder} bg-slate-900 hover:border-emerald-300/60`}`}
-                              title={c.name}
-                            >
-                              <img src={c.image} alt={c.name} className={`w-full h-full object-cover scale-110 transition-all ${isOwned ? 'opacity-95 grayscale-0 saturate-100' : 'grayscale-[0.95] saturate-0 opacity-45 group-hover:grayscale-[0.65] group-hover:opacity-70'}`} />
-                              {isOwned ? <span className="absolute inset-0 bg-emerald-500/10" /> : null}
-                            </button>
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={c.id || c.numId}
-                            draggable={!inTeam}
-                            onDragStart={(e) => handleRosterDragStart(numId, e)}
-                            onClick={(e) => handleRosterCharacterClick(numId, e)}
-                            className={`relative aspect-square rounded-full cursor-pointer transition-all duration-300 border-[3px] roster-char-node flex items-center justify-center ${rarityBorder} ${inTeam ? 'ring-2 ring-indigo-400/50 shadow-[0_0_18px_rgba(99,102,241,0.35)]' : 'zone-node-hover hover:-translate-y-2 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:z-10 bg-slate-900 active:scale-95 group'}`}
-                            title={c.name}
-                          >
-                            <div className="absolute left-1/2 -top-11 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
-                              {c.name}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
-                            </div>
-                            <div className="relative w-full h-full overflow-hidden rounded-full">
-                              <img src={c.image} alt={c.name} className={`w-full h-full object-cover relative z-10 scale-[1.2] transition-transform ${inTeam ? 'grayscale-[0.2]' : 'group-hover:scale-110'}`} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                 </div>
-              </div>
-
-              {/* Form Controls */}
-              <div className="grid gap-8">
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-black">02</span>
-                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Run Outcome (Auto)</h3>
-                  </div>
-                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Auto-derived from relic report</p>
-                    <p className="mt-1 text-xs font-black uppercase tracking-wider text-white">{OUTCOME_OPTIONS.find((option) => option.value === suggestedOutcome)?.label || suggestedOutcome}</p>
-                    <p className="mt-0.5 text-[10px] font-mono uppercase tracking-wider text-indigo-300/70">Key: {suggestedOutcome}</p>
-                  </div>
-                </div>
-                  <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-black">05</span>
-                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Cavern <span className="text-indigo-300 ml-2">(Required)</span></h3>
-                      </div>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-h-52 overflow-y-auto custom-scrollbar pr-1">
-                          {HSR_CAVERNS.map((entry) => (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              onClick={() => setCavern(entry.id)}
-                              className={cavern === entry.id ? 'px-3 py-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-left text-[10px] font-black uppercase tracking-[0.14em] text-indigo-200 transition-all' : 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all'}
-                            >
-                              {entry.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">04</span>
-                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Server Region <span className="text-rose-400 ml-2">(Required)</span></h3>
-                      </div>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
-                        <div className="grid grid-cols-3 gap-2">
-                          {SERVER_REGION_SUBMIT_OPTIONS.map((region) => (
-                            <button
-                              key={region.value}
-                              type="button"
-                              onClick={() => setServerRegion(region.value)}
-                              className={serverRegion === region.value ? 'px-3 py-2.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 transition-all' : 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all'}
-                            >
-                              {region.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="max-w-[160px]">
-                          <label className="text-[9px] font-black uppercase tracking-widest text-emerald-300/80">Clear Time (MM:SS)</label>
-                          <div className="relative mt-1">
-                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-300/70" />
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={5}
-                              value={clearTimeInput}
-                              onChange={(event) => setClearTimeInput(sanitizeClearTimeMmSsInput(event.target.value))}
-                              onBlur={(event) => setClearTimeInput(normalizeClearTimeMmSsInput(event.target.value))}
-                              placeholder="00:00"
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-2 py-1.5 text-[10px] font-mono text-slate-200 outline-none focus:border-emerald-500/50"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">06</span>
-                      <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Notes <span className="text-slate-500 ml-2">(Optional)</span></h3>
-                    </div>
-                    <input
-                      type="text"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value.slice(0, 200))}
-                      placeholder="e.g. Turn 2 breakage..."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-xs text-slate-200 outline-none hover:border-slate-600 focus:border-indigo-500/50 transition-all placeholder:text-slate-600"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">07</span>
-                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Relic Logger</h3>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-[180px_1fr_auto] items-end">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Relics Dropped</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={12}
-                        value={relicDropCount}
-                        onChange={(event) => setRelicDropCount(event.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none hover:border-slate-600 focus:border-cyan-500/40 transition-all"
-                      />
-                    </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Suggested outcome from relic data: <span className="text-cyan-300">{suggestedOutcome}</span></p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRelicGridCompact(false)}
-                        className={relicGridCompact ? 'px-3 py-2 rounded-lg border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500' : 'px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200'}
-                      >
-                        Zoom In
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRelicGridCompact(true)}
-                        className={relicGridCompact ? 'px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200' : 'px-3 py-2 rounded-lg border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
-                      >
-                        Zoom Out
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className={relicGridClass}>
-                    {relicCards.map((card, cardIndex) => (
-                      <div key={`relic-card-${card.index}`} className={relicCardClass}>
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-[9px] font-black">{String(card.index).padStart(2, '0')}</span>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Relic Card</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => cycleRelicPiece(cardIndex)}
-                            className="px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200 hover:bg-cyan-500/20 transition-all font-mono"
-                          >
-                            {card.piece}
-                          </button>
-
-                        </div>
-
-                        <div className="mb-2">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Main Stat</p>
-                          {RELIC_FIXED_MAIN_STATS[card.piece] ? (
-                            <div className="px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-wider text-cyan-200">
-                              {RELIC_FIXED_MAIN_STATS[card.piece]}
-                            </div>
+                        <div
+                          key={`slot-${i}`}
+                          draggable={Boolean(charId)}
+                          onDragStart={(e) => handleTeamSlotDragStart(i, e)}
+                          onDragEnd={handleTeamSlotDragEnd}
+                          onDragOver={(e) => handleSlotDragOver(i, e)}
+                          onDragLeave={() => handleSlotDragLeave(i)}
+                          onDrop={(e) => handleSlotDrop(i, e)}
+                          onClick={() => charId ? clearSlot(i) : setActiveSlotIndex(i)}
+                          className={`aspect-[3/4] rounded-2xl border-2 transition-all relative group flex items-center justify-center overflow-hidden
+                            ${isTarget ? 'border-indigo-500 ring-4 ring-indigo-500/20' : 'border-slate-800'}
+                            ${charId ? 'cursor-grab' : 'border-dashed bg-slate-900/40 hover:border-slate-600 cursor-pointer'}`}
+                        >
+                          {charId && char ? (
+                            <>
+                              <div className={`absolute inset-0 ${rarityBg}`}></div>
+                              <img src={char.image} alt={char.name} className="w-full h-full object-cover relative z-10" />
+                              <div className="absolute inset-0 bg-red-600/80 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center items-center z-20">
+                                <X className="w-6 h-6 text-white" />
+                              </div>
+                            </>
                           ) : (
-                            <select
-                              value={card.mainStat || ''}
-                              onChange={(event) => setRelicCardMainStat(cardIndex, event.target.value)}
-                              className="w-full bg-slate-950/60 border border-slate-700 hover:border-indigo-400/50 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
-                            >
-                              <option value="">Unknown / Skip</option>
-                              {getMainStatOptionsForPiece(card.piece).map((mainStat) => (
-                                <option key={`${card.index}-${mainStat}`} value={mainStat}>{mainStat}</option>
-                              ))}
-                            </select>
+                            <PlusCircle className={`w-8 h-8 ${isTarget ? 'text-indigo-400' : 'text-slate-600'}`} />
                           )}
                         </div>
-
-                        <div className={relicSubstatGridClass}>
-                          {RELIC_SUBSTAT_OPTIONS.map((substat) => {
-                            const selected = card.substats.includes(substat);
-                            const blockedByMain = Boolean(card.mainStat && card.mainStat === substat);
-                            const limitReached = !selected && card.substats.length >= 4;
-                            const disabled = blockedByMain || limitReached;
-
-                            return (
-                              <button
-                                key={`${card.index}-${substat}`}
-                                type="button"
-                                onClick={() => !disabled && toggleRelicCardSubstat(cardIndex, substat)}
-                                className={`${relicChipBaseClass} relic-button ${selected ? 'active' : blockedByMain ? 'opacity-30 cursor-not-allowed border-rose-500/40 text-rose-300' : limitReached ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                title={blockedByMain ? 'Substat cannot match main stat.' : undefined}
-                              >
-                                {substat}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Substat Frequency</p>
-                    <div className="grid sm:grid-cols-2 gap-2">
-                      {RELIC_SUBSTAT_OPTIONS.map((substat) => {
-                        const count = relicSubstatFrequency[substat] || 0;
-                        const pct = relicCards.length > 0 ? Math.round((count / relicCards.length) * 100) : 0;
+                  <div className="mt-8">
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        placeholder="Search for a character to add..."
+                        value={charSearchTerm}
+                        onChange={(e) => setCharSearchTerm(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2 mt-4 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                      {characterOptions.map((c) => {
+                        const inTeam = slots.includes(Number(c.numId));
                         return (
-                          <div key={`freq-${substat}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
-                            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wide text-slate-400">
-                              <span>{substat}</span>
-                              <span>{count} ({pct}%)</span>
-                            </div>
-                            <div className="mt-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
-                              <div className="h-full bg-cyan-400/70" style={{ width: `${pct}%` }} />
-                            </div>
+                          <div
+                            key={c.id}
+                            onClick={(e) => handleRosterCharacterClick(Number(c.numId), e)}
+                            className={`relative aspect-square rounded-full border-2 cursor-pointer transition-all ${inTeam ? 'border-indigo-500 scale-90 opacity-50' : 'border-slate-700 hover:border-slate-400'}`}
+                          >
+                            <img src={c.image} alt={c.name} className="w-full h-full object-cover rounded-full" />
                           </div>
                         );
                       })}
@@ -2249,41 +1935,180 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                   </div>
                 </div>
 
-              <div className="flex flex-col gap-4 mt-4 border-t border-slate-800/50 pt-8">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="relative group overflow-hidden px-8 py-5 rounded-2xl bg-indigo-600 font-black text-sm uppercase tracking-[0.3em] text-white shadow-xl shadow-indigo-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-3">
-                    {submitting ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-5 h-5" />
-                        Transmit Run Data
-                      </>
-                    )}
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/0 via-white/20 to-indigo-400/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                </button>
+                {/* Relic Logger Section */}
+                <div className="theme-glass-card p-6 border-slate-700/40 bg-slate-950/20">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">02</span>
+                      <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Relic Drops</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <button type="button" onClick={() => setRelicGridCompact(false)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${!relicGridCompact ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Large</button>
+                       <button type="button" onClick={() => setRelicGridCompact(true)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${relicGridCompact ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Compact</button>
+                    </div>
+                  </div>
 
-                {error && (
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 animate-in slide-in-from-top-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p className="text-xs font-semibold leading-relaxed">{error}</p>
+                  <div className="grid gap-6">
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-900/50 border border-slate-800/60">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Relics Dropped</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={relicDropCount}
+                          onChange={(e) => setRelicDropCount(e.target.value)}
+                          className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-cyan-300 outline-none focus:border-cyan-500/50"
+                        />
+                      </div>
+                      <div className="h-10 w-px bg-slate-800/60 mx-2" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Suggested Outcome</p>
+                        <p className="text-xs font-black text-white mt-1 uppercase">{(OUTCOME_OPTIONS.find(o => o.value === suggestedOutcome)?.label || suggestedOutcome)}</p>
+                      </div>
+                    </div>
+
+                    <div className={relicGridCompact ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"}>
+                      {relicCards.map((card, cardIndex) => (
+                        <div key={`relic-${cardIndex}`} className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-slate-600 transition-all group">
+                          <div className="flex items-center justify-between mb-3">
+                             <span className="text-[10px] font-mono text-slate-500">{String(cardIndex + 1).padStart(2, '0')}</span>
+                             <button type="button" onClick={() => cycleRelicPiece(cardIndex)} className="text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:underline">{card.piece}</button>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Main Stat</p>
+                              {RELIC_FIXED_MAIN_STATS[card.piece] ? (
+                                <div className="text-[10px] text-slate-300 font-medium">{RELIC_FIXED_MAIN_STATS[card.piece]}</div>
+                              ) : (
+                                <select
+                                  value={card.mainStat || ''}
+                                  onChange={(e) => setRelicCardMainStat(cardIndex, e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1 px-2 text-[10px] text-slate-300 outline-none focus:border-indigo-500/40"
+                                >
+                                  <option value="">Select Main</option>
+                                  {getMainStatOptionsForPiece(card.piece).map(ms => <option key={ms} value={ms}>{ms}</option>)}
+                                </select>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {RELIC_SUBSTAT_OPTIONS.map(substat => {
+                                const active = card.substats.includes(substat);
+                                return (
+                                  <button
+                                    key={substat}
+                                    type="button"
+                                    onClick={() => toggleRelicCardSubstat(cardIndex, substat)}
+                                    className={`px-1.5 py-1 rounded text-[8px] font-bold uppercase transition-all border ${active ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-200' : 'bg-slate-950/40 border-slate-800 text-slate-600 hover:border-slate-700'}`}
+                                  >
+                                    {substat}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
-                
-                {success && (
-                  <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 animate-in slide-in-from-top-2">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <p className="text-xs font-semibold">{success}</p>
+                </div>
+              </div>
+
+              {/* Right Column: Sidebar */}
+              <div className="lg:sticky lg:top-8 space-y-10">
+                <div className="theme-glass-card p-6 border-slate-700/40 bg-slate-950/20 space-y-8">
+                  
+                  {/* Step 03: Run Context */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-black">03</span>
+                      <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Configuration</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Cavern Location</label>
+                        <select
+                          value={cavern || ''}
+                          onChange={(e) => setCavern(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50"
+                        >
+                          <option value="">Select Cavern</option>
+                          {HSR_CAVERNS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Region</label>
+                          <select
+                            value={serverRegion}
+                            onChange={(e) => setServerRegion(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50"
+                          >
+                            {SERVER_REGION_SUBMIT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Clear Time</label>
+                          <input
+                            type="text"
+                            value={clearTimeInput}
+                            onChange={(e) => setClearTimeInput(sanitizeClearTimeMmSsInput(e.target.value))}
+                            onBlur={(e) => setClearTimeInput(normalizeClearTimeMmSsInput(e.target.value))}
+                            placeholder="MM:SS"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50 font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* Step 04: Submission */}
+                  <div className="space-y-6 pt-6 border-t border-slate-800/40">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Notes (Optional)</label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value.slice(0, 200))}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none h-20 resize-none focus:border-indigo-500/50"
+                        placeholder="Any notable drops or anomalies..."
+                      />
+                    </div>
+
+                    <div className="space-y-4">
+                       <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full py-4 rounded-xl bg-indigo-600 font-black text-xs uppercase tracking-widest text-white shadow-lg hover:bg-indigo-500 transition-all active:scale-95 disabled:opacity-50"
+                       >
+                        {submitting ? 'Transmitting Data...' : 'Submit Zone Report'}
+                       </button>
+
+                       {error && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-bold">{error}</div>}
+                       {success && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">{success}</div>}
+                    </div>
+                  </div>
+
+                  {/* Substat Stats Mini View */}
+                  <div className="pt-6 border-t border-slate-800/40">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4">Batch Distribution</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                       {RELIC_SUBSTAT_OPTIONS.map(substat => {
+                          const count = relicSubstatFrequency[substat] || 0;
+                          if (count === 0) return null;
+                          return (
+                            <div key={substat} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-900/40 border border-slate-800/60">
+                               <span className="text-[9px] font-bold text-slate-500 uppercase">{substat}</span>
+                               <span className="text-[10px] font-black text-cyan-400">{count}</span>
+                            </div>
+                          );
+                       })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </form>
           </section>
