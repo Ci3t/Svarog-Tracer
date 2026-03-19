@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { gsap } from 'gsap';
 import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
 import NeonGlitchButton from '../components/NeonGlitchButton';
+import { useLocation } from 'react-router-dom';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import { findCavernById } from '../constants/caverns';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -112,6 +114,16 @@ const normalizeTimeOnBlur = (rawValue = '') => {
   return formatLiveTimeInput(rawValue);
 };
 
+const formatMmSsFromSeconds = (secondsValue) => {
+  const numeric = Number(secondsValue);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '';
+
+  const total = Math.max(1, Math.round(numeric));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
 const readStorageJson = (key, fallback) => {
   try {
     const raw = localStorage.getItem(key);
@@ -125,6 +137,7 @@ const readStorageJson = (key, fallback) => {
 
 export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const baseUrl = import.meta.env.BASE_URL;
+  const location = useLocation();
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const rootThemeClass = themeConfig.rootClassName;
   const isGlacial = rootThemeClass === 'arctic-theme';
@@ -222,6 +235,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
 
+  const charIdByNumId = useMemo(() => {
+    const map = new Map();
+    for (const character of charactersData) {
+      map.set(String(character.numId), character.id);
+    }
+    return map;
+  }, []);
+
   const getTimeUntilReset = () => {
     const now = new Date();
     const nextReset = new Date();
@@ -250,6 +271,56 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const interval = setInterval(() => setResetTimer(getTimeUntilReset()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    if (params.get('source') !== 'zone') return;
+
+    const importedChars = String(params.get('chars') || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => charIdByNumId.get(entry))
+      .filter(Boolean)
+      .slice(0, 4);
+
+    const clearTime = formatMmSsFromSeconds(params.get('clear_seconds')) || normalizeTimeOnBlur(params.get('clear_time') || '');
+
+    const cavernId = String(params.get('cavern') || '').trim();
+    const cavernEntry = findCavernById(cavernId);
+    const relicIdFromQuery = String(params.get('relic_id') || '').trim();
+    const fallbackRelicId = cavernEntry?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
+    const selectedRelicId = relicIdFromQuery || fallbackRelicId;
+
+    setCategory('relics');
+    setSelectedDomain(null);
+    setIsFormOpen(true);
+    setShowItemSelector(true);
+
+    if (importedChars.length > 0) setFormChars(importedChars);
+    if (clearTime) setFormTime(clearTime);
+    if (selectedRelicId) setFormItemId(selectedRelicId);
+
+    const relatedRelicIds = Array.isArray(cavernEntry?.relicSetIds)
+      ? cavernEntry.relicSetIds.filter((entry) => String(entry || '').trim())
+      : [];
+    if (relatedRelicIds.length > 0) {
+      setActiveFilters(relatedRelicIds);
+    }
+
+    setSubmitStatus({
+      type: 'info',
+      msg: cavernEntry
+        ? 'Imported from Zone Tracker: ' + cavernEntry.name + '. Confirm relic set and submit.'
+        : 'Imported from Zone Tracker. Confirm relic set and submit.',
+    });
+
+    const nextParams = new URLSearchParams(location.search || '');
+    ['source', 'chars', 'clear_seconds', 'clear_time', 'cavern', 'relic_id', 'from_epoch'].forEach((key) => nextParams.delete(key));
+    const nextSearch = nextParams.toString();
+    window.history.replaceState({}, '', location.pathname + (nextSearch ? '?' + nextSearch : ''));
+  }, [charIdByNumId, location.pathname, location.search]);
+
 
   useEffect(() => {
     if (selectedDomain) {

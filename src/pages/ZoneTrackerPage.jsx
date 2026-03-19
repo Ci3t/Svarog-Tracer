@@ -24,7 +24,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import charactersData from '../data/characters.json';
-import { HSR_CAVERNS } from '../constants/caverns';
+import { HSR_CAVERNS, findCavernById, getCavernDisplayName } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 
@@ -1130,6 +1130,51 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
        );
     }
   };
+
+  const formatMmSsFromSeconds = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    const total = Math.max(1, Math.round(numeric));
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+  }, []);
+
+  const handleExportZoneToCaverns = useCallback((zone) => {
+    const slotOrder = Array.isArray(zone?.sample_slot_order)
+      ? zone.sample_slot_order.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0).slice(0, 4)
+      : [];
+
+    if (slotOrder.length !== 4) {
+      setError('Zone card cannot be exported: missing full team sample.');
+      return;
+    }
+
+    const clearSecondsRaw = zone?.latest_clear_time_seconds ?? zone?.avg_clear_time_seconds;
+    const clearMmSs = formatMmSsFromSeconds(clearSecondsRaw);
+    if (!clearMmSs) {
+      setError('Zone card cannot be exported: clear time is missing.');
+      return;
+    }
+
+    const zoneCavernIds = Array.isArray(zone?.caverns) ? zone.caverns : [];
+    const preferredCavern = findCavernById(zoneCavernIds[0]) || findCavernById(cavern) || null;
+    const relicId = preferredCavern?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
+
+    const params = new URLSearchParams({
+      source: 'zone',
+      chars: slotOrder.join(','),
+      clear_time: clearMmSs,
+    });
+
+    if (preferredCavern?.id) params.set('cavern', preferredCavern.id);
+    if (relicId) params.set('relic_id', relicId);
+    if (mapData?.epoch?.id) params.set('from_epoch', String(mapData.epoch.id));
+
+    const base = String(import.meta.env.BASE_URL || '/');
+    const basePath = base.endsWith('/') ? base.slice(0, -1) : base;
+    window.location.assign(basePath + '/caverns?' + params.toString());
+  }, [cavern, formatMmSsFromSeconds, mapData?.epoch?.id]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -2676,7 +2721,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                             </span>
                           ))}
                           {cavernTags.slice(0, 2).map((cavernId) => (
-                            <span key={`cavern-tag-${zoneKey}-${cavernId}`} className="px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-[9px] font-black uppercase tracking-widest text-indigo-200">
+                            <span key={`cavern-tag-${zoneKey}-${getCavernDisplayName(cavernId)}`} className="px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-[9px] font-black uppercase tracking-widest text-indigo-200">
                               {cavernId}
                             </span>
                           ))}
@@ -2780,6 +2825,14 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                           <Dna className="w-3.5 h-3.5" />
                           {variantLoadingZoneKey === buildZoneVariantKey(zone) ? 'Generating...' : 'Generate Variants'}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportZoneToCaverns(zone)}
+                          className="w-full py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          Export to Caverns
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleReportZoneCard(zone)}
