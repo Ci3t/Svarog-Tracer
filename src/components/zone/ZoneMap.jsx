@@ -396,14 +396,16 @@ export default function ZoneMap({
               zones.forEach(z => {
                 const key = `${z.char_xor}-${z.char_slot}-${z.char_sum}`;
                 if (!groups[key]) {
+                  const initialRelics = z.sample_relic_data?.relics || z.relic_data?.relics || [];
                   groups[key] = { 
                     ...z, 
-                    aggregated_relics: [...(z.sample_relic_data?.relics || [])] 
+                    aggregated_relics: [...initialRelics] 
                   };
                 } else {
                   groups[key].runs = (groups[key].runs || 0) + (z.runs || 1);
-                  if (z.sample_relic_data?.relics) {
-                    groups[key].aggregated_relics.push(...z.sample_relic_data.relics);
+                  const newRelics = z.sample_relic_data?.relics || z.relic_data?.relics;
+                  if (Array.isArray(newRelics)) {
+                    groups[key].aggregated_relics.push(...newRelics);
                   }
                   if (z.latest_reporter_name && groups[key].latest_reporter_name !== z.latest_reporter_name) {
                     if (!Array.isArray(groups[key].reporter_names)) groups[key].reporter_names = [groups[key].latest_reporter_name];
@@ -442,7 +444,7 @@ export default function ZoneMap({
                          <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase">XOR {zone.char_xor} / SLOT {zone.char_slot}</span>
-                              <span className="text-[8px] font-mono text-slate-600 bg-slate-950/40 px-1 rounded border border-slate-800/40" title="Report UID">UID: {zone.id?.toString().slice(-8) || 'N/A'}</span>
+                              <span className="text-[8px] font-mono text-slate-600 bg-slate-950/40 px-1 rounded border border-slate-800/40" title="Report UID">UID: {zone.id?.toString().slice(-8) || zone.xor_slot_key?.slice(0, 8) || 'N/A'}</span>
                             </div>
                             {zone.latest_reporter_name && (
                               <div className="flex items-center gap-1">
@@ -455,7 +457,7 @@ export default function ZoneMap({
                     <div className="flex items-end justify-between">
                        <div>
                          <p className="text-[9px] font-black text-slate-500 uppercase leading-none tracking-widest">{signalMetricLabel}</p>
-                         <p className="text-2xl font-black text-white leading-none mt-1 shadow-glow">{formatRate(isRelicTargetMode ? zone.crit_rate : zone.crit_rate)}</p>
+                         <p className="text-2xl font-black text-white leading-none mt-1 shadow-glow">{formatRate(zone.crit_rate ?? zone.observed_crit_rate ?? zone.target_rate)}</p>
                        </div>
                        <div className="text-right">
                          <p className="text-[9px] font-black text-slate-500 uppercase leading-none tracking-widest">Reports</p>
