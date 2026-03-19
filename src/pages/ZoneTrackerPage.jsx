@@ -189,25 +189,31 @@ function formatClearTimeSeconds(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return '--';
 
-  const minutes = Math.floor(numeric / 60);
-  const seconds = numeric % 60;
+  const totalSeconds = Math.round(numeric);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
 
   if (minutes >= 60) {
     const hours = Math.floor(minutes / 60);
     const remMinutes = minutes % 60;
-    return String(hours) + ':' + String(remMinutes).padStart(2, '0') + ':' + seconds.toFixed(1).padStart(4, '0');
+    return `${String(hours).padStart(2, '0')}:${String(remMinutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
-  return String(minutes) + ':' + seconds.toFixed(1).padStart(4, '0');
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 
 function sanitizeClearTimeMmSsInput(value) {
   const raw = String(value || '').replace(/[^\d:]/g, '');
   const parts = raw.split(':');
-  const minutes = (parts[0] || '').slice(0, 2);
-  const secondsRaw = parts.length > 1 ? parts.slice(1).join('') : '';
-  const seconds = secondsRaw.slice(0, 2);
+  let minutes = (parts[0] || '').slice(0, 2);
+  let secondsRaw = parts.length > 1 ? parts.slice(1).join('') : '';
+  let seconds = secondsRaw.slice(0, 2);
+  
+  if (seconds.length === 2 && parseInt(seconds, 10) >= 60) {
+    seconds = '59';
+  }
+  
   return secondsRaw.length > 0 || raw.includes(':') ? `${minutes}:${seconds}` : minutes;
 }
 
@@ -310,8 +316,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
   
-  const [outcome, setOutcome] = useState('mixed');
-  const [outcomeTouched, setOutcomeTouched] = useState(false);
+
   const [cavern, setCavern] = useState('');
   const [serverRegion, setServerRegion] = useState('asia');
   const [notes, setNotes] = useState('');
@@ -888,11 +893,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     });
   }, [relicDropCount]);
 
-  useEffect(() => {
-    if (!outcomeTouched) {
-      setOutcome(suggestedOutcome);
-    }
-  }, [outcomeTouched, suggestedOutcome]);
+
 
   const cycleRelicPiece = useCallback((cardIndex) => {
     setRelicCards((prev) => prev.map((card, index) => {
@@ -1161,6 +1162,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     const preferredCavern = findCavernById(zoneCavernIds[0]) || findCavernById(cavern) || null;
     const relicId = preferredCavern?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
 
+    // Extract substats if available from zone sample
+    const sampleRelics = Array.isArray(zone?.sample_relic_data?.relics) ? zone.sample_relic_data.relics : [];
+    const substatStrings = sampleRelics.map(r => Array.isArray(r.substats) ? r.substats.join(',') : '').filter(Boolean);
+
     const params = new URLSearchParams({
       source: 'zone',
       chars: slotOrder.join(','),
@@ -1170,6 +1175,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     if (preferredCavern?.id) params.set('cavern', preferredCavern.id);
     if (relicId) params.set('relic_id', relicId);
     if (mapData?.epoch?.id) params.set('from_epoch', String(mapData.epoch.id));
+    if (substatStrings.length > 0) params.set('substats', substatStrings.join('|'));
 
     const base = String(import.meta.env.BASE_URL || '/');
     const basePath = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -1272,7 +1278,6 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
       setActiveSlotIndex(0);
       setDragIndex(null);
       setDragOverSlotIndex(null);
-      setOutcomeTouched(false);
       setCavern('');
       setServerRegion('asia');
       setNotes('');
@@ -1612,9 +1617,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const isRelicTargetMode = Boolean(mapTargetFilter?.active);
   const signalMetricLabel = isRelicTargetMode ? `${mapTargetFilter?.label || 'Target Match'} Match` : 'Crit Potential';
 
-  const relicGridClass = relicGridCompact ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-3';
-  const relicCardClass = relicGridCompact ? 'rounded-xl border relic-card-surface p-2' : 'rounded-xl border relic-card-surface p-3';
-  const relicSubstatGridClass = relicGridCompact ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-2 sm:grid-cols-4 gap-2';
+  const relicGridClass = relicGridCompact ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6 gap-2' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4';
+  const relicCardClass = relicGridCompact ? 'rounded-xl border relic-card-surface p-2' : 'rounded-xl border relic-card-surface p-4 shadow-xl';
+  const relicSubstatGridClass = relicGridCompact ? 'grid grid-cols-2 gap-1.5' : 'grid grid-cols-1 gap-2';
   const relicChipBaseClass = relicGridCompact ? 'px-1.5 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all' : 'px-2 py-1.5 rounded-md border text-[9px] font-black uppercase tracking-wide transition-all';
 
   return (
@@ -2164,14 +2169,18 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                     {relicCards.map((card, cardIndex) => (
                       <div key={`relic-card-${card.index}`} className={relicCardClass}>
                         <div className="flex items-center justify-between gap-3 mb-2">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Relic #{card.index}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-[9px] font-black">{String(card.index).padStart(2, '0')}</span>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Relic Card</p>
+                          </div>
                           <button
                             type="button"
                             onClick={() => cycleRelicPiece(cardIndex)}
-                            className="px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200 hover:bg-cyan-500/20 transition-all"
+                            className="px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-200 hover:bg-cyan-500/20 transition-all font-mono"
                           >
                             {card.piece}
                           </button>
+
                         </div>
 
                         <div className="mb-2">
