@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { gsap } from 'gsap';
 import { 
   Target, 
@@ -150,6 +150,91 @@ function formatDropScore(score) {
   return `${Math.round(Number(score) * 100)}%`;
 }
 
+function parseClearTimeToSeconds(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) && numeric > 0 ? Number(numeric.toFixed(3)) : null;
+  }
+
+  const parts = raw.split(':').map((entry) => entry.trim());
+  if (parts.length !== 2 && parts.length !== 3) {
+    return null;
+  }
+
+  const nums = parts.map((entry) => Number(entry));
+  if (nums.some((num) => !Number.isFinite(num) || num < 0)) {
+    return null;
+  }
+
+  let seconds = 0;
+  if (parts.length === 2) {
+    const [minutes, secs] = nums;
+    if (secs >= 60) return null;
+    seconds = minutes * 60 + secs;
+  } else {
+    const [hours, minutes, secs] = nums;
+    if (minutes >= 60 || secs >= 60) return null;
+    seconds = hours * 3600 + minutes * 60 + secs;
+  }
+
+  return seconds > 0 ? Number(seconds.toFixed(3)) : null;
+}
+
+function formatClearTimeSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '--';
+
+  const minutes = Math.floor(numeric / 60);
+  const seconds = numeric % 60;
+
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    return String(hours) + ':' + String(remMinutes).padStart(2, '0') + ':' + seconds.toFixed(1).padStart(4, '0');
+  }
+
+  return String(minutes) + ':' + seconds.toFixed(1).padStart(4, '0');
+}
+
+function resolveAuthDisplayName(user) {
+  if (!user || typeof user !== 'object') return null;
+
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find((identity) => {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    return provider === 'discord';
+  });
+
+  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+
+  const picks = [
+    metadata.global_name,
+    metadata.full_name,
+    identityData.global_name,
+    metadata.user_name,
+    identityData.username,
+    metadata.preferred_username,
+    metadata.name,
+    user.email,
+    user.id,
+  ];
+
+  for (const value of picks) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 function mapAuthError(error) {
   if (!error) return 'Unknown error';
   if (error.message?.includes('401')) return 'Authentication required. Please sign in again.';
@@ -184,6 +269,18 @@ function parseNonNegativeInteger(value, { max = null } = {}) {
   return parsed;
 }
 
+function buildZoneVariantKey(zone) {
+  const explicit = String(zone?.xor_slot_key || '').trim();
+  if (explicit) return explicit;
+
+  const xor = parseNonNegativeInteger(zone?.char_xor, { max: 99999 });
+  const slot = parseNonNegativeInteger(zone?.char_slot, { max: 99999 });
+  const sum = parseNonNegativeInteger(zone?.char_sum, { max: 99999 });
+
+  if (xor === null || slot === null) return '';
+  return String(xor) + ':' + String(slot) + ':' + String(sum === null ? 'na' : sum);
+}
+
 export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const { user, getAuthHeader } = useAuth();
   const themeConfig = getSessionThemeConfig(sessionTheme);
@@ -203,6 +300,8 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const [relicCards, setRelicCards] = useState(() => Array.from({ length: 7 }, (_, index) => buildEmptyRelicCard(index + 1)));
   const [relicGridCompact, setRelicGridCompact] = useState(false);
   const [flagNotes, setFlagNotes] = useState('');
+  const [clearTimeInput, setClearTimeInput] = useState('');
+  const [workspaceView, setWorkspaceView] = useState('logger');
 
   const [requestedEpoch, setRequestedEpoch] = useState('current');
   const [mapData, setMapData] = useState(null);
@@ -234,6 +333,8 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const [adminEligible, setAdminEligible] = useState(false);
   const [adminModeEnabled, setAdminModeEnabled] = useState(false);
   const [adminStatusLoading, setAdminStatusLoading] = useState(false);
+  const [adminActionLoadingKey, setAdminActionLoadingKey] = useState('');
+  const [adminWipeLoading, setAdminWipeLoading] = useState(false);
 
   const [tuneXorInput, setTuneXorInput] = useState('');
   const [tuneSlotInput, setTuneSlotInput] = useState('');
@@ -251,6 +352,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   const charactersByNumId = useMemo(() => {
     return new Map((Array.isArray(charactersData) ? charactersData : []).map((entry) => [Number(entry.numId), entry]));
   }, []);
+  const authDisplayName = useMemo(() => resolveAuthDisplayName(user), [user]);
 
   const characterOptions = useMemo(() => {
     let list = [...(Array.isArray(charactersData) ? charactersData : [])];
@@ -440,9 +542,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
   }, []);
 
   const fetchVariantsForZone = useCallback(async (zone) => {
-    if (!zone?.xor_slot_key) return;
+    const zoneKey = buildZoneVariantKey(zone);
+    if (!zoneKey) return;
 
-    setVariantLoadingZoneKey(zone.xor_slot_key);
+    setVariantLoadingZoneKey(zoneKey);
 
     const useOwnedFilter = variantOwnershipFilter === 'owned';
     const minOwned = useOwnedFilter ? 3 : 0;
@@ -475,7 +578,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         throw new Error(detailsText ? baseError + ': ' + detailsText : baseError);
       }
 
-      setVariantsByZone((prev) => ({ ...prev, [zone.xor_slot_key]: payload }));
+      setVariantsByZone((prev) => ({ ...prev, [zoneKey]: payload }));
 
       if (payload?.ownership?.warning === 'owned_roster_table_missing') {
         setSuccess('Owned roster table is not ready yet.');
@@ -1013,6 +1116,17 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
       return;
     }
 
+    if (!cavern) {
+      setError('Cavern is required (Optional Details step).');
+      return;
+    }
+
+    const clearTimeSeconds = parseClearTimeToSeconds(clearTimeInput);
+    if (clearTimeSeconds === null) {
+      setError('Clear time is required. Use seconds or mm:ss format.');
+      return;
+    }
+
     const invalidRelic = relicCards.find((card) => !Array.isArray(card.substats) || card.substats.length !== 4);
     if (invalidRelic) {
       setError(`Relic #${invalidRelic.index} must have exactly 4 unique substats.`);
@@ -1036,7 +1150,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         },
         body: JSON.stringify({
           slot_order: slots.map((value) => Number(value)),
-          outcome,
+          outcome: suggestedOutcome,
+          clear_time_seconds: clearTimeSeconds,
+          reporter_name: authDisplayName || null,
           cavern: cavern || null,
           server_region: serverRegion,
           notes: notes || null,
@@ -1058,12 +1174,81 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
       const zoneXor = payload.submitted_zone?.char_xor ?? payload.run?.char_xor ?? '--';
       const zoneSlot = payload.submitted_zone?.char_slot ?? payload.run?.char_slot ?? '--';
-      const warningText = payload.warning === 'relic_data_column_missing_in_zone_runs_table'
-        ? ' (relic_data column missing in DB schema)'
+      const warnings = Array.isArray(payload?.warnings)
+        ? payload.warnings
+        : payload?.warning
+          ? [payload.warning]
+          : [];
+
+      const warningText = warnings.length > 0
+        ? ' (' + warnings.map((entry) => {
+          if (entry === 'reporter_name_column_missing_in_zone_runs_table') return 'reporter fallback active';
+          if (entry === 'clear_time_seconds_column_missing_in_zone_runs_table') return 'clear-time fallback active';
+          if (entry === 'relic_data_column_missing_in_zone_runs_table') return 'relic-data fallback active';
+          return entry;
+        }).join(', ') + ')'
         : '';
 
       setSuccess(`Run submitted. XOR ${zoneXor} / SLOT ${zoneSlot}${warningText}`);
       setRequestedEpoch('current');
+      setWorkspaceView('zones');
+
+      if (payload?.submitted_zone) {
+        const incoming = payload.submitted_zone;
+        const incomingKey = buildZoneVariantKey(incoming);
+
+        setMapData((prev) => {
+          if (!prev || !Array.isArray(prev.zones)) {
+            return {
+              success: true,
+              requested_epoch: 'current',
+              current_epoch: null,
+              epoch: null,
+              pending_flag_count: 0,
+              total_runs: Number(incoming?.runs) || 1,
+              epoch_summary: {
+                total_runs: Number(incoming?.runs) || 1,
+                crit_count: Number(incoming?.crit_count) || 0,
+                junk_count: Number(incoming?.junk_count) || 0,
+                mixed_count: Number(incoming?.mixed_count) || 0,
+                crit_rate: Number(incoming?.crit_rate) || null,
+                avg_drop_score: Number(incoming?.avg_drop_score) || null,
+                avg_clear_time_seconds: Number(incoming?.avg_clear_time_seconds) || null,
+                clear_time_samples: Number(incoming?.clear_time_samples) || 0,
+              },
+              zones: [incoming],
+              generated_at: new Date().toISOString(),
+            };
+          }
+
+          const zones = [...prev.zones];
+          const existingIndex = zones.findIndex((entry) => buildZoneVariantKey(entry) === incomingKey);
+
+          if (existingIndex >= 0) {
+            const existing = zones[existingIndex];
+            zones[existingIndex] = {
+              ...existing,
+              ...incoming,
+              runs: (Number(existing?.runs) || 0) + (Number(incoming?.runs) || 1),
+              latest_reporter_name: incoming.latest_reporter_name || existing.latest_reporter_name || null,
+              latest_clear_time_seconds: incoming.latest_clear_time_seconds ?? existing.latest_clear_time_seconds ?? null,
+              reporter_names: Array.from(new Set([...(Array.isArray(existing?.reporter_names) ? existing.reporter_names : []), ...(Array.isArray(incoming?.reporter_names) ? incoming.reporter_names : [])])),
+              regions: Array.from(new Set([...(Array.isArray(existing?.regions) ? existing.regions : []), ...(Array.isArray(incoming?.regions) ? incoming.regions : [])])),
+              caverns: Array.from(new Set([...(Array.isArray(existing?.caverns) ? existing.caverns : []), ...(Array.isArray(incoming?.caverns) ? incoming.caverns : [])])),
+            };
+          } else {
+            zones.unshift(incoming);
+          }
+
+          return {
+            ...prev,
+            total_runs: (Number(prev?.total_runs) || 0) + (Number(incoming?.runs) || 1),
+            zones,
+          };
+        });
+      }
+
+      await fetchMap('current');
     } catch (submitError) {
       setError(mapAuthError(submitError));
     } finally {
@@ -1108,6 +1293,175 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
       setFlagging(false);
     }
   };
+
+  const runAdminZoneAction = useCallback(async (payload) => {
+    const response = await fetch('/api/zone/admin-runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || 'HTTP ' + response.status);
+    }
+
+    return result;
+  }, [getAuthHeader]);
+
+  const handleReportZoneCard = useCallback((zone) => {
+    if (!zone) return;
+    const zoneXor = zone?.char_xor ?? '--';
+    const zoneSlot = zone?.char_slot ?? '--';
+    setFlagNotes('Zone report: XOR ' + zoneXor + ' / SLOT ' + zoneSlot);
+    setShowFlagModal(true);
+  }, []);
+
+  const handleAdminDeleteZone = useCallback(async (zone) => {
+    if (!adminEligible || !adminModeEnabled || !zone) return;
+
+    const zoneKey = buildZoneVariantKey(zone);
+    const label = 'Zone ' + (zone?.char_xor ?? '--') + ' / Slot ' + (zone?.char_slot ?? '--');
+    const confirmed = window.confirm('Delete ' + label + ' from ' + requestedEpoch + ' epoch? This removes matching reports.');
+    if (!confirmed) return;
+
+    setAdminActionLoadingKey('delete:' + zoneKey);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await runAdminZoneAction({
+        action: 'delete_zone',
+        epoch: requestedEpoch,
+        region: mapRegion,
+        xor_slot_key: zone?.xor_slot_key || '',
+        char_xor: zone?.char_xor,
+        char_slot: zone?.char_slot,
+      });
+
+      setSuccess('Deleted ' + (result.deleted_count || 0) + ' run(s) from ' + label + '.');
+      await fetchMap(requestedEpoch);
+    } catch (deleteError) {
+      setError(mapAuthError(deleteError));
+    } finally {
+      setAdminActionLoadingKey('');
+    }
+  }, [adminEligible, adminModeEnabled, fetchMap, mapRegion, requestedEpoch, runAdminZoneAction]);
+
+  const handleAdminEditZone = useCallback(async (zone) => {
+    if (!adminEligible || !adminModeEnabled || !zone) return;
+
+    const draft = window.prompt(
+      'Enter new Zone, Slot, Sig (comma separated):',
+      String(zone?.char_xor ?? '') + ',' + String(zone?.char_slot ?? '') + ',' + String(zone?.char_sum ?? '')
+    );
+
+    if (!draft) return;
+
+    const parts = String(draft)
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (parts.length < 2) {
+      setError('Edit requires at least Zone and Slot (comma separated).');
+      return;
+    }
+
+    const nextXor = parseNonNegativeInteger(parts[0], { max: 99999 });
+    const nextSlot = parseNonNegativeInteger(parts[1], { max: 99999 });
+    const nextSum = parts[2] !== undefined ? parseNonNegativeInteger(parts[2], { max: 99999 }) : null;
+
+    if (nextXor === null || nextSlot === null) {
+      setError('Invalid Zone/Slot values.');
+      return;
+    }
+
+    const zoneKey = buildZoneVariantKey(zone);
+    setAdminActionLoadingKey('edit:' + zoneKey);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await runAdminZoneAction({
+        action: 'edit_zone',
+        epoch: requestedEpoch,
+        region: mapRegion,
+        xor_slot_key: zone?.xor_slot_key || '',
+        char_xor: zone?.char_xor,
+        char_slot: zone?.char_slot,
+        new_char_xor: nextXor,
+        new_char_slot: nextSlot,
+        ...(nextSum !== null ? { new_char_sum: nextSum } : {}),
+      });
+
+      setSuccess('Updated ' + (result.updated_count || 0) + ' run(s) to Zone ' + nextXor + ' / Slot ' + nextSlot + '.');
+      await fetchMap(requestedEpoch);
+    } catch (editError) {
+      setError(mapAuthError(editError));
+    } finally {
+      setAdminActionLoadingKey('');
+    }
+  }, [adminEligible, adminModeEnabled, fetchMap, mapRegion, requestedEpoch, runAdminZoneAction]);
+
+  const handleAdminWipeEpoch = useCallback(async () => {
+    if (!adminEligible || !adminModeEnabled) return;
+
+    const confirmed = window.confirm('Full wipe ' + requestedEpoch + ' epoch reports?');
+    if (!confirmed) return;
+
+    setAdminWipeLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await runAdminZoneAction({
+        action: 'wipe_epoch',
+        epoch: requestedEpoch,
+      });
+
+      setSuccess('Wiped ' + (result.deleted_count || 0) + ' run(s) from ' + requestedEpoch + ' epoch.');
+      await fetchMap(requestedEpoch);
+    } catch (wipeError) {
+      setError(mapAuthError(wipeError));
+    } finally {
+      setAdminWipeLoading(false);
+    }
+  }, [adminEligible, adminModeEnabled, fetchMap, requestedEpoch, runAdminZoneAction]);
+
+  const handleAdminWipeAll = useCallback(async () => {
+    if (!adminEligible || !adminModeEnabled) return;
+
+    const confirmText = window.prompt('Type WIPE_ALL_ZONE_RUNS to wipe all zone reports:');
+    if (!confirmText) return;
+
+    if (confirmText.trim() !== 'WIPE_ALL_ZONE_RUNS') {
+      setError('Wipe cancelled: confirmation text did not match.');
+      return;
+    }
+
+    setAdminWipeLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await runAdminZoneAction({
+        action: 'wipe_all',
+        confirm: 'WIPE_ALL_ZONE_RUNS',
+      });
+
+      setSuccess('Wiped ' + (result.deleted_count || 0) + ' run(s) across all epochs.');
+      await fetchMap('current');
+      setRequestedEpoch('current');
+    } catch (wipeError) {
+      setError(mapAuthError(wipeError));
+    } finally {
+      setAdminWipeLoading(false);
+    }
+  }, [adminEligible, adminModeEnabled, fetchMap, runAdminZoneAction]);
 
   const handleExportDebugLogs = useCallback(async () => {
     setError('');
@@ -1201,6 +1555,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         .svarog-theme .zone-slot-active { box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); border-color: rgba(129, 140, 248, 0.6); }
         .arctic-theme .zone-slot-active { box-shadow: 0 0 30px rgba(14, 165, 233, 0.2); border-color: rgba(56, 189, 248, 0.6); }
 
+        .relic-button { background: rgba(2, 6, 23, 0.55); border-color: rgba(71, 85, 105, 0.8); color: #cbd5e1; cursor: pointer; }
+        .relic-button:hover { border-color: rgba(99, 102, 241, 0.45); }
+        .relic-button.active { background: rgba(79, 70, 229, 0.12); border-color: rgba(99, 102, 241, 0.55); color: #e0e7ff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.15); }
+
         .svarog-theme .relic-button { background: rgba(15, 23, 42, 0.7); border-color: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
         .svarog-theme .relic-button:hover { border-color: rgba(99, 102, 241, 0.5); background: rgba(30, 41, 59, 0.9); }
         .svarog-theme .relic-button.active { background: rgba(79, 70, 229, 0.15); border-color: rgba(99, 102, 241, 0.6); color: #e0e7ff; box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
@@ -1228,7 +1586,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
               <div className="flex items-center gap-2 mt-1">
                 <User className="w-3 h-3 text-slate-500" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Logged in: <span className="text-indigo-300/80">{user?.email || user?.id}</span>
+                  Logged in: <span className="text-indigo-300/80">{authDisplayName || user?.id}</span>
                 </p>
               </div>
             </div>
@@ -1313,11 +1671,30 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         </div>
       </section>
 
+      <section className="theme-glass-card p-3 border-slate-800/70">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setWorkspaceView('logger')}
+            className={workspaceView === 'logger' ? 'px-4 py-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 text-[10px] font-black uppercase tracking-widest text-indigo-100 cursor-pointer' : 'px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+          >
+            Relic Log
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorkspaceView('zones')}
+            className={workspaceView === 'zones' ? 'px-4 py-2.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+          >
+            Zones
+          </button>
+        </div>
+      </section>
+
       {/* Main Content Grid */}
-      <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-8 grid-cols-1">
         
         {/* Left Column: Submit & Status */}
-        <div className="space-y-8">
+        <div className={workspaceView === 'logger' ? 'space-y-8' : 'hidden'}>
           
           <section ref={formRef} className="theme-glass-card p-8 border-indigo-500/10 shadow-2xl overflow-visible">
             <div className="flex items-center gap-3 mb-8">
@@ -1517,42 +1894,43 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                 <div>
                   <div className="flex items-center gap-3 mb-4">
                     <span className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-black">02</span>
-                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Run Outcome</h3>
+                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Run Outcome (Auto)</h3>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {OUTCOME_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => { setOutcomeTouched(true); setOutcome(opt.value); }}
-                        className={`px-3 py-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all relic-button ${
-                          outcome === opt.value
-                          ? 'active scale-[1.02]'
-                          : 'hover:-translate-y-1'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Auto-derived from relic report</p>
+                    <p className="mt-1 text-xs font-black uppercase tracking-wider text-white">{OUTCOME_OPTIONS.find((option) => option.value === suggestedOutcome)?.label || suggestedOutcome}</p>
+                    <p className="mt-0.5 text-[10px] font-mono uppercase tracking-wider text-indigo-300/70">Key: {suggestedOutcome}</p>
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">03</span>
+                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Clear Time <span className="text-emerald-300 ml-2">(Required)</span></h3>
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-300/70" />
+                      <input
+                        type="text"
+                        value={clearTimeInput}
+                        onChange={(event) => setClearTimeInput(event.target.value)}
+                        placeholder="e.g. 95.4 or 1:35.4"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/50"
+                      />
+                    </div>
+                    <p className="mt-2 text-[10px] text-slate-500">Accepted formats: seconds, mm:ss, or hh:mm:ss.</p>
+                  </div>
+                </div>
+
                   <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-black">03</span>
-                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Cavern <span className="text-slate-500 ml-2">(Optional)</span></h3>
+                        <span className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-black">05</span>
+                        <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Cavern <span className="text-indigo-300 ml-2">(Required)</span></h3>
                       </div>
                       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-h-52 overflow-y-auto custom-scrollbar pr-1">
-                          <button
-                            type="button"
-                            onClick={() => setCavern('')}
-                            className={cavern ? 'px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:border-slate-500 transition-all' : 'px-3 py-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-left text-[10px] font-black uppercase tracking-[0.14em] text-indigo-200 transition-all'}
-                          >
-                            None
-                          </button>
                           {HSR_CAVERNS.map((entry) => (
                             <button
                               key={entry.id}
@@ -1591,7 +1969,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">05</span>
+                      <span className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">06</span>
                       <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Notes <span className="text-slate-500 ml-2">(Optional)</span></h3>
                     </div>
                     <input
@@ -1605,7 +1983,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">06</span>
+                    <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">07</span>
                     <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Relic Logger</h3>
                   </div>
 
@@ -1719,7 +2097,6 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                     </div>
                   </div>
                 </div>
-              </div>
 
               <div className="flex flex-col gap-4 mt-4 border-t border-slate-800/50 pt-8">
                 <button
@@ -1834,7 +2211,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         </div>
 
         {/* Right Column: Zone Map */}
-        <div ref={mapRef} className="space-y-8">
+        <div ref={mapRef} className={workspaceView === 'zones' ? 'space-y-8' : 'hidden'}>
           
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-3">
@@ -1950,6 +2327,50 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
               </button>
             </div>
 
+            <div className="pt-2 border-t border-slate-800/60 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Admin Controls</p>
+                <span className={adminEligible ? 'px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-widest text-emerald-200' : 'px-2 py-1 rounded border border-slate-700 bg-slate-900 text-[9px] font-black uppercase tracking-widest text-slate-500'}>
+                  {adminStatusLoading ? 'Checking...' : adminEligible ? 'Granted' : 'User'}
+                </span>
+              </div>
+
+              {adminEligible ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdminModeEnabled((prev) => !prev)}
+                    className={adminModeEnabled ? 'w-full px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[10px] font-black uppercase tracking-widest text-amber-200' : 'w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:border-slate-500'}
+                  >
+                    {adminModeEnabled ? 'Admin View: ON' : 'Admin View: OFF'}
+                  </button>
+
+                  {adminModeEnabled ? (
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAdminWipeEpoch}
+                        disabled={adminWipeLoading}
+                        className="px-3 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                      >
+                        Wipe Epoch
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAdminWipeAll}
+                        disabled={adminWipeLoading}
+                        className="px-3 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                      >
+                        Wipe All
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-500">Enable admin mode to edit/delete or wipe reported zones.</p>
+              )}
+            </div>
+
             <div ref={tunerRef} className="pt-2 border-t border-slate-800/60 space-y-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zone Tuner</p>
               <p className="text-[10px] text-slate-500">Enter Zone and Slot Key from a good report, then add Team Signature only if you want stricter matching.</p>
@@ -2039,7 +2460,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                       <div className="flex items-center gap-1">
                         <button type="button" onClick={() => handleTuneFromZone(zone)} className="px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500">Use</button>
                         <button type="button" onClick={() => handleLoadZoneTeam(zone)} className="px-2 py-1 rounded border border-indigo-500/40 text-[9px] font-black uppercase tracking-wide text-indigo-200 hover:bg-indigo-500/15">Load</button>
-                        <button type="button" onClick={() => fetchVariantsForZone(zone)} disabled={variantLoadingZoneKey === zone.xor_slot_key} className="px-2 py-1 rounded border border-cyan-500/40 text-[9px] font-black uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/15 disabled:opacity-60">Var</button>
+                        <button type="button" onClick={() => fetchVariantsForZone(zone)} disabled={variantLoadingZoneKey === buildZoneVariantKey(zone)} className="px-2 py-1 rounded border border-cyan-500/40 text-[9px] font-black uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/15 disabled:opacity-60">Var</button>
                       </div>
                     </div>
                   ))}
@@ -2082,12 +2503,18 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                 const signalRateRaw = isRelicTargetMode ? zone.target_rate : zone.crit_rate;
                 const signalRate = signalRateRaw === null || signalRateRaw === undefined ? 0 : Number(signalRateRaw);
                 const isGreat = signalRate >= 0.7 && zone.confidence !== 'LOW';
-                const variantState = variantsByZone[zone.xor_slot_key];
+                const zoneKey = buildZoneVariantKey(zone);
+                const variantState = variantsByZone[zoneKey];
                 const variants = Array.isArray(variantState?.variants) ? variantState.variants : [];
+                const regionTags = Array.isArray(zone?.regions) ? zone.regions : [];
+                const cavernTags = Array.isArray(zone?.caverns) ? zone.caverns : [];
+                const reporterLabel = zone?.latest_reporter_name || (Array.isArray(zone?.reporter_names) ? zone.reporter_names[0] : null) || 'Unknown';
+                const clearTimeLabel = formatClearTimeSeconds(zone?.latest_clear_time_seconds ?? zone?.avg_clear_time_seconds);
+                const cardActionBusy = adminActionLoadingKey === 'delete:' + zoneKey || adminActionLoadingKey === 'edit:' + zoneKey;
                 
                 return (
                   <div
-                    key={zone.xor_slot_key}
+                    key={zoneKey}
                     className={`zone-card group relative p-5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.99] cursor-default ${
                       isGreat 
                       ? 'bg-indigo-900/20 border-indigo-500/30 hover:border-indigo-400/50 shadow-[0_4px_20px_rgba(79,70,229,0.1)]' 
@@ -2105,6 +2532,25 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                           </div>
                           <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${CONFIDENCE_STYLES[zone.confidence] || CONFIDENCE_STYLES.LOW}`}>
                             {zone.confidence}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {regionTags.map((region) => (
+                            <span key={`region-tag-${zoneKey}-${region}`} className="px-2 py-0.5 rounded border border-cyan-500/35 bg-cyan-500/10 text-[9px] font-black uppercase tracking-widest text-cyan-200">
+                              {String(region).toUpperCase()}
+                            </span>
+                          ))}
+                          {cavernTags.slice(0, 2).map((cavernId) => (
+                            <span key={`cavern-tag-${zoneKey}-${cavernId}`} className="px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-[9px] font-black uppercase tracking-widest text-indigo-200">
+                              {cavernId}
+                            </span>
+                          ))}
+                          <span className="px-2 py-0.5 rounded border border-slate-700 bg-slate-900 text-[9px] font-black uppercase tracking-widest text-slate-300">
+                            By {reporterLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-[9px] font-black uppercase tracking-widest text-emerald-200">
+                            Clear {clearTimeLabel}
                           </span>
                         </div>
 
@@ -2126,7 +2572,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                            <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
                              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Zone</span>
                              <span className="text-xs font-mono font-bold text-slate-300">{zone.char_xor}</span>
@@ -2142,6 +2588,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                            <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
                              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Reports</span>
                              <span className="text-xs font-mono font-bold text-slate-300">{zone.runs}</span>
+                           </div>
+                           <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
+                             <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Clear Time</span>
+                             <span className="text-xs font-mono font-bold text-slate-300">{clearTimeLabel}</span>
                            </div>
                            <div className="flex flex-col p-2 rounded-xl bg-slate-950/50 border border-slate-800/50">
                              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{isRelicTargetMode ? 'Target Match' : 'Drop Score'}</span>
@@ -2190,12 +2640,40 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
                         <button
                           type="button"
                           onClick={() => fetchVariantsForZone(zone)}
-                          disabled={variantLoadingZoneKey === zone.xor_slot_key}
+                          disabled={variantLoadingZoneKey === buildZoneVariantKey(zone)}
                           className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300 hover:bg-cyan-500/20 hover:text-white transition-all hover:border-cyan-500/50 shadow-lg shadow-cyan-500/5 active:scale-95 disabled:opacity-60"
                         >
                           <Dna className="w-3.5 h-3.5" />
-                          {variantLoadingZoneKey === zone.xor_slot_key ? 'Generating...' : 'Generate Variants'}
+                          {variantLoadingZoneKey === buildZoneVariantKey(zone) ? 'Generating...' : 'Generate Variants'}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReportZoneCard(zone)}
+                          className="w-full py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[10px] font-black uppercase tracking-[0.18em] text-amber-200 hover:bg-amber-500/20"
+                        >
+                          Report Card
+                        </button>
+
+                        {adminEligible && adminModeEnabled ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAdminEditZone(zone)}
+                              disabled={cardActionBusy}
+                              className="py-2 rounded-xl bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-[0.14em] text-slate-200 hover:border-slate-500 disabled:opacity-60"
+                            >
+                              {adminActionLoadingKey === 'edit:' + zoneKey ? 'Editing...' : 'Edit'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAdminDeleteZone(zone)}
+                              disabled={cardActionBusy}
+                              className="py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-[10px] font-black uppercase tracking-[0.14em] text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                            >
+                              {adminActionLoadingKey === 'delete:' + zoneKey ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -2282,6 +2760,27 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

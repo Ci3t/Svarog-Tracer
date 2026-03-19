@@ -12,6 +12,7 @@ const SUPABASE_ANON_KEY =
 export const ZONE_EPOCH_TABLE = env.SUPABASE_ZONE_EPOCH_TABLE || 'zone_epochs';
 export const ZONE_RUNS_TABLE = env.SUPABASE_ZONE_RUNS_TABLE || 'zone_runs';
 export const ZONE_FLAGS_TABLE = env.SUPABASE_ZONE_FLAGS_TABLE || 'zone_epoch_flags';
+export const ZONE_ROSTERS_TABLE = env.SUPABASE_ZONE_ROSTERS_TABLE || 'zone_user_rosters';
 
 export const VALID_OUTCOMES = new Set([
   'spd-double-crit',
@@ -34,6 +35,11 @@ export const JUNK_OUTCOMES = new Set(['effect-junk', 'flat-junk']);
 
 const CHARACTER_NAME_MAP = new Map(
   (Array.isArray(charactersData) ? charactersData : []).map((entry) => [Number(entry.numId), entry.name])
+);
+const CHARACTER_NUM_ID_SET = new Set(
+  (Array.isArray(charactersData) ? charactersData : [])
+    .map((entry) => Number(entry?.numId))
+    .filter((value) => Number.isInteger(value) && value > 0)
 );
 
 export class HttpError extends Error {
@@ -79,6 +85,297 @@ function parseJsonMaybe(rawValue) {
   } catch {
     return null;
   }
+}
+
+function normalizeDisplayNameValue(value, { maxLength = 80 } = {}) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
+function pickFirstNonEmpty(values) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = normalizeDisplayNameValue(value);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function splitEnvCsv(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+}
+
+const ZONE_ADMIN_USER_IDS = new Set([
+  ...splitEnvCsv(env.ZONE_ADMIN_USER_IDS),
+  ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_USER_IDS),
+  ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_IDS),
+]);
+
+const ZONE_ADMIN_DISCORD_IDS = new Set([
+  ...splitEnvCsv(env.ZONE_ADMIN_DISCORD_IDS),
+  ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_DISCORD_IDS),
+]);
+
+const ZONE_ADMIN_ROLE_LABELS = new Set(['admin', 'zone_admin', 'owner']);
+
+export function getDiscordProviderIds(user) {
+  if (!user || typeof user !== 'object') return [];
+
+  const fromMetadata = [
+    user?.user_metadata?.provider_id,
+    user?.user_metadata?.discord_id,
+    user?.app_metadata?.provider_id,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const fromIdentities = [];
+
+  for (const identity of identities) {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    if (provider !== 'discord') continue;
+
+    const identityData = identity?.identity_data && typeof identity.identity_data === 'object'
+      ? identity.identity_data
+      : {};
+
+    const candidates = [
+      identity?.id,
+      identity?.provider_id,
+      identityData?.user_id,
+      identityData?.id,
+      identityData?.sub,
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = String(candidate || '').trim();
+      if (normalized) {
+        fromIdentities.push(normalized);
+      }
+    }
+  }
+
+  return Array.from(new Set([...fromMetadata, ...fromIdentities]));
+}
+
+function collectRoleLabels(user) {
+  const labels = [];
+
+  const pushLabel = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized) labels.push(normalized);
+  };
+
+  pushLabel(user?.role);
+  pushLabel(user?.app_metadata?.role);
+  pushLabel(user?.user_metadata?.role);
+
+  for (const role of Array.isArray(user?.app_metadata?.roles) ? user.app_metadata.roles : []) {
+    pushLabel(role);
+  }
+
+  for (const role of Array.isArray(user?.user_metadata?.roles) ? user.user_metadata.roles : []) {
+    pushLabel(role);
+  }
+
+  return Array.from(new Set(labels));
+}
+
+export function isZoneAdminUser(user) {
+  if (!user || typeof user !== 'object') return false;
+
+  const userId = String(user.id || '').trim();
+  if (userId && ZONE_ADMIN_USER_IDS.has(userId)) {
+    return true;
+  }
+
+  const discordProviderIds = getDiscordProviderIds(user);
+  if (discordProviderIds.some((id) => ZONE_ADMIN_DISCORD_IDS.has(id))) {
+    return true;
+  }
+
+  const roleLabels = collectRoleLabels(user);
+  if (roleLabels.some((label) => ZONE_ADMIN_ROLE_LABELS.has(label))) {
+    return true;
+  }
+
+  return false;
+}
+
+export function extractDiscordDisplayName(user) {
+  if (!user || typeof user !== 'object') return null;
+
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const appMetadata = user.app_metadata && typeof user.app_metadata === 'object' ? user.app_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+
+  const discordIdentity = identities.find((identity) => {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    return provider === 'discord';
+  });
+
+  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+
+  const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers : [];
+  const isDiscordUser = Boolean(discordIdentity) || providers.some((provider) => String(provider).toLowerCase() === 'discord');
+
+  if (!isDiscordUser) {
+    return pickFirstNonEmpty([
+      metadata.full_name,
+      metadata.name,
+      metadata.user_name,
+    ]);
+  }
+
+  return pickFirstNonEmpty([
+    metadata.global_name,
+    metadata.full_name,
+    identityData.global_name,
+    metadata.user_name,
+    identityData.username,
+    metadata.preferred_username,
+    metadata.name,
+  ]);
+}
+
+export function normalizeIntegerQuery(value, { field = 'value', min = 0, max = Number.MAX_SAFE_INTEGER, fallback = null } = {}) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    throw new HttpError(400, `${field} must be an integer.`);
+  }
+
+  if (parsed < min || parsed > max) {
+    throw new HttpError(400, `${field} must be between ${min} and ${max}.`);
+  }
+
+  return parsed;
+}
+
+function normalizeClearTimeRawNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Number(parsed.toFixed(3));
+}
+
+export function normalizeClearTimeSeconds(value, { field = 'clear_time', required = false, maxSeconds = 14400 } = {}) {
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      throw new HttpError(400, `${field} is required.`);
+    }
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    const numeric = normalizeClearTimeRawNumber(value);
+    if (numeric === null) {
+      throw new HttpError(400, `${field} must be a positive number of seconds.`);
+    }
+    if (numeric > maxSeconds) {
+      throw new HttpError(400, `${field} exceeds max allowed seconds (${maxSeconds}).`);
+    }
+    return numeric;
+  }
+
+  const raw = String(value || '').trim();
+  if (!raw) {
+    if (required) {
+      throw new HttpError(400, `${field} is required.`);
+    }
+    return null;
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const numeric = normalizeClearTimeRawNumber(Number(raw));
+    if (numeric === null || numeric > maxSeconds) {
+      throw new HttpError(400, `${field} must be within (0, ${maxSeconds}] seconds.`);
+    }
+    return numeric;
+  }
+
+  const parts = raw.split(':').map((entry) => entry.trim());
+  if (parts.length === 2 || parts.length === 3) {
+    const numbers = parts.map((entry) => Number(entry));
+    if (numbers.some((num) => !Number.isFinite(num) || num < 0)) {
+      throw new HttpError(400, `${field} format is invalid.`);
+    }
+
+    let seconds = 0;
+    if (parts.length === 2) {
+      const [minutes, secs] = numbers;
+      if (secs >= 60) {
+        throw new HttpError(400, `${field} seconds component must be < 60.`);
+      }
+      seconds = minutes * 60 + secs;
+    } else {
+      const [hours, minutes, secs] = numbers;
+      if (minutes >= 60 || secs >= 60) {
+        throw new HttpError(400, `${field} minute/second components must be < 60.`);
+      }
+      seconds = hours * 3600 + minutes * 60 + secs;
+    }
+
+    const normalized = normalizeClearTimeRawNumber(seconds);
+    if (normalized === null || normalized > maxSeconds) {
+      throw new HttpError(400, `${field} must be within (0, ${maxSeconds}] seconds.`);
+    }
+
+    return normalized;
+  }
+
+  throw new HttpError(400, `${field} must be seconds, mm:ss, or hh:mm:ss.`);
+}
+
+const ZONE_NOTE_REPORTER_PATTERN = /\[zt_rp:([^\]]{1,80})\]/i;
+const ZONE_NOTE_CLEAR_PATTERN = /\[zt_ct:([0-9]+(?:\.[0-9]+)?)\]/i;
+
+export function parseZoneNoteMeta(notesValue) {
+  const notes = String(notesValue || '');
+  if (!notes) {
+    return { reporter_name: null, clear_time_seconds: null };
+  }
+
+  const reporterMatch = notes.match(ZONE_NOTE_REPORTER_PATTERN);
+  const clearMatch = notes.match(ZONE_NOTE_CLEAR_PATTERN);
+
+  const reporterName = normalizeDisplayNameValue(reporterMatch?.[1] || null);
+  const clearTime = clearMatch ? normalizeClearTimeRawNumber(Number(clearMatch[1])) : null;
+
+  return {
+    reporter_name: reporterName,
+    clear_time_seconds: clearTime,
+  };
+}
+
+export function embedZoneNoteMeta(notesValue, { reporterName = null, clearTimeSeconds = null, maxLength = 200 } = {}) {
+  const baseNotes = String(notesValue || '').trim();
+  const parts = [];
+
+  const normalizedReporter = normalizeDisplayNameValue(reporterName, { maxLength: 60 });
+  if (normalizedReporter) {
+    const safeReporter = normalizedReporter.replace(/\]/g, ')');
+    parts.push(`[zt_rp:${safeReporter}]`);
+  }
+
+  const normalizedClear = normalizeClearTimeRawNumber(clearTimeSeconds);
+  if (normalizedClear !== null) {
+    parts.push(`[zt_ct:${normalizedClear}]`);
+  }
+
+  const prefix = parts.join('');
+  const combined = `${prefix}${baseNotes ? ` ${baseNotes}` : ''}`.trim();
+  if (!combined) return null;
+  return combined.slice(0, maxLength);
 }
 
 export function readRequestBody(req) {
@@ -402,11 +699,73 @@ export function computeConfidenceLabel(runs) {
   return 'LOW';
 }
 
+export function computeOutcomeDropScore(outcome) {
+  if (CRIT_OUTCOMES.has(outcome)) return 1;
+  if (JUNK_OUTCOMES.has(outcome)) return 0;
+  if (VALID_OUTCOMES.has(outcome)) return 0.5;
+  return null;
+}
+
+export function buildEpochSummaryFromRuns(runs) {
+  const summary = {
+    total_runs: 0,
+    crit_count: 0,
+    junk_count: 0,
+    mixed_count: 0,
+    crit_rate: null,
+    avg_drop_score: null,
+    avg_clear_time_seconds: null,
+    clear_time_samples: 0,
+  };
+
+  let dropScoreTotal = 0;
+  let dropScoreCount = 0;
+  let clearTimeTotal = 0;
+  let clearTimeCount = 0;
+
+  for (const run of Array.isArray(runs) ? runs : []) {
+    summary.total_runs += 1;
+
+    if (CRIT_OUTCOMES.has(run.outcome)) {
+      summary.crit_count += 1;
+    } else if (JUNK_OUTCOMES.has(run.outcome)) {
+      summary.junk_count += 1;
+    } else {
+      summary.mixed_count += 1;
+    }
+
+    const dropScore = computeOutcomeDropScore(run.outcome);
+    if (dropScore !== null) {
+      dropScoreTotal += dropScore;
+      dropScoreCount += 1;
+    }
+
+    const noteMeta = parseZoneNoteMeta(run.notes);
+    const clearTime = normalizeClearTimeRawNumber(run.clear_time_seconds ?? noteMeta.clear_time_seconds);
+    if (clearTime !== null) {
+      clearTimeTotal += clearTime;
+      clearTimeCount += 1;
+    }
+  }
+
+  const critDenominator = summary.crit_count + summary.junk_count;
+  summary.crit_rate = critDenominator > 0 ? Number((summary.crit_count / critDenominator).toFixed(4)) : null;
+  summary.avg_drop_score = dropScoreCount > 0 ? Number((dropScoreTotal / dropScoreCount).toFixed(4)) : null;
+  summary.avg_clear_time_seconds = clearTimeCount > 0 ? Number((clearTimeTotal / clearTimeCount).toFixed(3)) : null;
+  summary.clear_time_samples = clearTimeCount;
+
+  return summary;
+}
+
 export function buildZoneMapFromRuns(runs) {
   const groups = new Map();
 
   for (const run of Array.isArray(runs) ? runs : []) {
     const key = run.xor_slot_key || `${run.char_xor}_${run.char_slot}`;
+    const noteMeta = parseZoneNoteMeta(run.notes);
+    const runReporterName = normalizeDisplayNameValue(run.reporter_name || noteMeta.reporter_name);
+    const runClearTime = normalizeClearTimeRawNumber(run.clear_time_seconds ?? noteMeta.clear_time_seconds);
+
     if (!groups.has(key)) {
       groups.set(key, {
         xor_slot_key: key,
@@ -420,14 +779,74 @@ export function buildZoneMapFromRuns(runs) {
         sample_slot_order: run.slot_order || [],
         sample_char_names: run.char_names || [],
         last_submitted_at: run.submitted_at || null,
+        latest_reporter_name: runReporterName,
+        latest_clear_time_seconds: runClearTime,
+        _seen_char_ids: new Set(),
+        _seen_char_names: new Set(),
+        _cavern_counts: new Map(),
+        _region_counts: new Map(),
+        _reporter_counts: new Map(),
+        _clear_time_total: 0,
+        _clear_time_count: 0,
+        _drop_score_total: 0,
+        _drop_score_count: 0,
       });
     }
 
     const group = groups.get(key);
     group.runs += 1;
+
     if (run.submitted_at && (!group.last_submitted_at || run.submitted_at > group.last_submitted_at)) {
       group.last_submitted_at = run.submitted_at;
+      if (runReporterName) {
+        group.latest_reporter_name = runReporterName;
+      }
+      if (runClearTime !== null) {
+        group.latest_clear_time_seconds = runClearTime;
+      }
     }
+
+    const slotOrder = Array.isArray(run.slot_order) ? run.slot_order : [];
+    for (const charId of slotOrder) {
+      const parsed = Number(charId);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        group._seen_char_ids.add(parsed);
+      }
+    }
+
+    const charNames = Array.isArray(run.char_names) ? run.char_names : [];
+    for (const charName of charNames) {
+      const normalized = String(charName || '').trim();
+      if (normalized) {
+        group._seen_char_names.add(normalized);
+      }
+    }
+
+    if (runReporterName) {
+      const currentReporterCount = group._reporter_counts.get(runReporterName) || 0;
+      group._reporter_counts.set(runReporterName, currentReporterCount + 1);
+
+      if (!group.latest_reporter_name && !run.submitted_at) {
+        group.latest_reporter_name = runReporterName;
+      }
+    }
+
+    if (runClearTime !== null) {
+      group._clear_time_total += runClearTime;
+      group._clear_time_count += 1;
+
+      if (group.latest_clear_time_seconds === null && !run.submitted_at) {
+        group.latest_clear_time_seconds = runClearTime;
+      }
+    }
+
+    const cavernId = String(run.cavern || '').trim() || 'unknown';
+    const currentCavernCount = group._cavern_counts.get(cavernId) || 0;
+    group._cavern_counts.set(cavernId, currentCavernCount + 1);
+
+    const regionId = String(run.server_region || '').trim().toLowerCase() || 'unknown';
+    const currentRegionCount = group._region_counts.get(regionId) || 0;
+    group._region_counts.set(regionId, currentRegionCount + 1);
 
     if (CRIT_OUTCOMES.has(run.outcome)) {
       group.crit_count += 1;
@@ -435,6 +854,12 @@ export function buildZoneMapFromRuns(runs) {
       group.junk_count += 1;
     } else {
       group.mixed_count += 1;
+    }
+
+    const runDropScore = computeOutcomeDropScore(run.outcome);
+    if (runDropScore !== null) {
+      group._drop_score_total += runDropScore;
+      group._drop_score_count += 1;
     }
   }
 
@@ -446,8 +871,60 @@ export function buildZoneMapFromRuns(runs) {
     const rateWeight = critRate === null ? 0 : critRate;
     const weightedConfidence = Number((rateWeight * 0.7 + sampleWeight * 0.3).toFixed(4));
 
+    const cavernEntries = Array.from(group._cavern_counts.entries()).sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    });
+    const caverns = cavernEntries.map(([id]) => id);
+
+    const regionEntries = Array.from(group._region_counts.entries()).sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    });
+    const regions = regionEntries.map(([id]) => id);
+
+    const reporterEntries = Array.from(group._reporter_counts.entries()).sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    });
+    const reporterNames = reporterEntries.map(([name]) => name);
+
+    const avgClearTime = group._clear_time_count > 0
+      ? Number((group._clear_time_total / group._clear_time_count).toFixed(3))
+      : null;
+
+    const avgDropScore = group._drop_score_count > 0
+      ? Number((group._drop_score_total / group._drop_score_count).toFixed(4))
+      : null;
+
     return {
-      ...group,
+      xor_slot_key: group.xor_slot_key,
+      char_xor: group.char_xor,
+      char_slot: group.char_slot,
+      char_sum: group.char_sum,
+      runs: group.runs,
+      crit_count: group.crit_count,
+      junk_count: group.junk_count,
+      mixed_count: group.mixed_count,
+      sample_slot_order: group.sample_slot_order,
+      sample_char_names: group.sample_char_names,
+      last_submitted_at: group.last_submitted_at,
+      seen_char_ids: Array.from(group._seen_char_ids).sort((a, b) => a - b),
+      seen_char_names: Array.from(group._seen_char_names).sort((a, b) => String(a).localeCompare(String(b))),
+      caverns,
+      dominant_cavern: caverns[0] || null,
+      cavern_counts: Object.fromEntries(cavernEntries),
+      regions,
+      dominant_region: regions[0] || null,
+      region_counts: Object.fromEntries(regionEntries),
+      latest_reporter_name: group.latest_reporter_name,
+      top_reporter_name: reporterEntries[0]?.[0] || null,
+      reporter_names: reporterNames,
+      reporter_counts: Object.fromEntries(reporterEntries),
+      latest_clear_time_seconds: group.latest_clear_time_seconds,
+      avg_clear_time_seconds: avgClearTime,
+      clear_time_samples: group._clear_time_count,
+      avg_drop_score: avgDropScore,
       crit_rate: critRate === null ? null : Number(critRate.toFixed(4)),
       weighted_confidence: weightedConfidence,
       confidence,
@@ -468,6 +945,87 @@ export function buildZoneMapFromRuns(runs) {
 
   return zones;
 }
+function parsePgArrayMaybe(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return [];
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    return [];
+  }
+
+  const body = trimmed.slice(1, -1).trim();
+  if (!body) {
+    return [];
+  }
+
+  return body.split(',').map((token) => Number(String(token).trim()));
+}
+
+function normalizeOwnedCharacterIds(values) {
+  return Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [])
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0 && CHARACTER_NUM_ID_SET.has(value))
+    )
+  ).sort((a, b) => a - b);
+}
+
+export async function readOwnedCharacterIds(userId) {
+  const rows = await supabaseAdminRequest(
+    buildTablePath(ZONE_ROSTERS_TABLE, {
+      select: 'owned_char_ids',
+      filters: {
+        user_id: `eq.${userId}`,
+        limit: '1',
+      },
+    })
+  );
+
+  const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+  if (!row) return [];
+
+  const rawOwned = Array.isArray(row.owned_char_ids) ? row.owned_char_ids : parsePgArrayMaybe(row.owned_char_ids);
+  return normalizeOwnedCharacterIds(rawOwned);
+}
+
+export async function upsertOwnedCharacterIds(userId, ownedCharIds) {
+  const normalizedOwned = normalizeOwnedCharacterIds(ownedCharIds);
+
+  const rows = await supabaseAdminRequest(
+    buildTablePath(ZONE_ROSTERS_TABLE, {
+      select: 'user_id,owned_char_ids',
+      filters: {
+        on_conflict: 'user_id',
+      },
+    }),
+    {
+      method: 'POST',
+      body: {
+        user_id: userId,
+        owned_char_ids: normalizedOwned,
+      },
+      prefer: 'resolution=merge-duplicates,return=representation',
+    }
+  );
+
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  const responseOwned = row?.owned_char_ids;
+  const storedOwned = Array.isArray(responseOwned)
+    ? responseOwned
+    : parsePgArrayMaybe(responseOwned);
+
+  return {
+    user_id: row?.user_id || userId,
+    owned_char_ids: normalizeOwnedCharacterIds(storedOwned),
+  };
+}
 
 export function handleApiError(res, error) {
   if (error instanceof HttpError) {
@@ -480,3 +1038,5 @@ export function handleApiError(res, error) {
   console.error('[Zone API] Unexpected error:', error);
   return res.status(500).json({ error: 'Unexpected zone API error.' });
 }
+
+
