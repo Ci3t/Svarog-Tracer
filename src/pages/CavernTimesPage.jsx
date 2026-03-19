@@ -367,6 +367,13 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     if (clearTime) setFormTime(clearTime);
     if (selectedRelicId) setFormItemId(selectedRelicId);
 
+    // Pre-select substats from the zone's batch average (top 4)
+    const substatsParam = String(params.get('substats') || '').trim();
+    if (substatsParam) {
+      const imported = substatsParam.split(',').map(s => s.trim()).filter(s => SUBSTATS_LIST.includes(s)).slice(0, 4);
+      if (imported.length > 0) setFormSubstats(imported);
+    }
+
     // Auto-fill discord from saved preset if available
     const savedDiscord = entryPreset?.discord || '';
     if (savedDiscord) setFormDiscord(savedDiscord);
@@ -381,12 +388,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     setSubmitStatus({
       type: 'info',
       msg: cavernEntry
-        ? `Imported from Zone Tracker: ${cavernEntry.name}. Team & time pre-filled — confirm relic set and submit.`
+        ? `Imported from Zone Tracker: ${cavernEntry.name}. Team, time & substats pre-filled — confirm relic set and submit.`
         : 'Imported from Zone Tracker. Confirm relic set and submit.',
     });
 
     const nextParams = new URLSearchParams(location.search || '');
-    ['source', 'chars', 'clear_seconds', 'clear_time', 'cavern', 'relic_id', 'from_epoch'].forEach((key) => nextParams.delete(key));
+    ['source', 'chars', 'clear_seconds', 'clear_time', 'cavern', 'relic_id', 'from_epoch', 'substats'].forEach((key) => nextParams.delete(key));
     const nextSearch = nextParams.toString();
     window.history.replaceState({}, '', location.pathname + (nextSearch ? '?' + nextSearch : ''));
   }, [charIdByNumId, location.pathname, location.search]);

@@ -910,13 +910,29 @@ export function useZoneTracker(sessionTheme = 'modern') {
     const zoneCavernIds = Array.isArray(zone?.caverns) ? zone.caverns : [];
     const preferredCavern = findCavernById(zoneCavernIds[0]) || findCavernById(cavern) || null;
     const relicId = preferredCavern?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
-    const sampleRelics = Array.isArray(zone?.sample_relic_data?.relics) ? zone.sample_relic_data.relics : [];
-    const substatStrings = sampleRelics.map(r => Array.isArray(r.substats) ? r.substats.join(',') : '').filter(Boolean);
+
+    // Compute top 4 substats from all aggregated relics across all grouped reports
+    const allRelics = Array.isArray(zone?.aggregated_relics)
+      ? zone.aggregated_relics
+      : (Array.isArray(zone?.sample_relic_data?.relics) ? zone.sample_relic_data.relics : []);
+    const substatFreq = {};
+    allRelics.forEach(r => {
+      if (Array.isArray(r.substats)) {
+        r.substats.forEach(s => {
+          if (s) substatFreq[s] = (substatFreq[s] || 0) + 1;
+        });
+      }
+    });
+    const top4Substats = Object.entries(substatFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([stat]) => stat);
+
     const params = new URLSearchParams({ source: 'zone', chars: slotOrder.join(','), clear_time: clearMmSs });
     if (preferredCavern?.id) params.set('cavern', preferredCavern.id);
     if (relicId) params.set('relic_id', relicId);
     if (mapData?.epoch?.id) params.set('from_epoch', String(mapData.epoch.id));
-    if (substatStrings.length > 0) params.set('substats', substatStrings.join('|'));
+    if (top4Substats.length > 0) params.set('substats', top4Substats.join(','));
     const base = String(import.meta.env.BASE_URL || '/');
     const basePath = base.endsWith('/') ? base.slice(0, -1) : base;
     window.location.assign(basePath + '/caverns?' + params.toString());
