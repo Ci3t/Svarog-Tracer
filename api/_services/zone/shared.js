@@ -790,6 +790,7 @@ export function buildZoneMapFromRuns(runs) {
         _clear_time_count: 0,
         _drop_score_total: 0,
         _drop_score_count: 0,
+        _relic_data_list: [],
       });
     }
 
@@ -861,6 +862,9 @@ export function buildZoneMapFromRuns(runs) {
       group._drop_score_total += runDropScore;
       group._drop_score_count += 1;
     }
+    if (run.relic_data) {
+      group._relic_data_list.push(run.relic_data);
+    }
   }
 
   const zones = Array.from(groups.values()).map((group) => {
@@ -928,6 +932,12 @@ export function buildZoneMapFromRuns(runs) {
       crit_rate: critRate === null ? null : Number(critRate.toFixed(4)),
       weighted_confidence: weightedConfidence,
       confidence,
+      sample_relic_data: {
+        relics: group._relic_data_list.reduce((acc, rd) => {
+          if (Array.isArray(rd?.relics)) acc.push(...rd.relics);
+          return acc;
+        }, [])
+      },
     };
   });
 

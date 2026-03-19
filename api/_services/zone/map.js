@@ -49,6 +49,7 @@ function buildSelectFields({ includeReporter = true, includeClearTime = true } =
     'xor_slot_key',
     'notes',
     'server_region',
+    'relic_data',
   ];
 
   if (includeReporter) fields.push('reporter_name');

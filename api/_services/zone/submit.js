@@ -109,6 +109,8 @@ export async function handler(req, res) {
       { field: 'clear_time', required: true }
     );
 
+    const rawRelicData = body.relic_data && typeof body.relic_data === 'object' ? body.relic_data : null;
+
     const currentEpoch = await ensureCurrentEpoch();
 
     const oneHourAgoIso = new Date(Date.now() - ONE_HOUR_MS).toISOString();
@@ -172,6 +174,7 @@ export async function handler(req, res) {
       server_region: serverRegion,
       clear_time_seconds: clearTimeSeconds,
       ...(reporterName ? { reporter_name: reporterName } : {}),
+      ...(rawRelicData ? { relic_data: rawRelicData } : {}),
     };
 
     let reporterColumnMissing = false;
