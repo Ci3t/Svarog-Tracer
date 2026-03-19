@@ -1,0 +1,92 @@
+.modern-theme .zone-glass { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(51, 65, 85, 0.6); }
+.svarog-theme .zone-glass { background: rgba(5, 10, 24, 0.75); border: 1px solid rgba(99, 102, 241, 0.2); box-shadow: 0 8px 32px rgba(9, 9, 11, 0.6), inset 0 0 32px rgba(67, 56, 202, 0.05); backdrop-filter: blur(16px); }
+.arctic-theme .zone-glass { background: rgba(248, 250, 252, 0.6); border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 8px 32px rgba(100, 116, 139, 0.1), inset 0 0 32px rgba(255, 255, 255, 0.5); backdrop-filter: blur(16px); }
+
+.modern-theme .zone-glass-panel { background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(51, 65, 85, 0.4); }
+.svarog-theme .zone-glass-panel { background: rgba(9, 14, 30, 0.6); border: 1px solid rgba(79, 70, 229, 0.15); box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5); }
+.arctic-theme .zone-glass-panel { background: rgba(241, 245, 249, 0.5); border: 1px solid rgba(203, 213, 225, 0.5); box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.8); }
+
+.svarog-theme .text-shadow-glow { text-shadow: 0 0 16px currentColor, 0 0 32px currentColor; }
+.arctic-theme .text-shadow-glow { text-shadow: 0 2px 10px rgba(14, 165, 233, 0.3); }
+
+.custom-zone-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-zone-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.svarog-theme .custom-zone-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
+.arctic-theme .custom-zone-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 10px; }
+
+.zone-slot-hover:hover {
+   transform: scale(1.02) translateY(-4px);
+   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+.svarog-theme .zone-slot-active { box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); border-color: rgba(129, 140, 248, 0.6); }
+.arctic-theme .zone-slot-active { box-shadow: 0 0 30px rgba(14, 165, 233, 0.2); border-color: rgba(56, 189, 248, 0.6); }
+
+.relic-button { background: rgba(2, 6, 23, 0.55); border-color: rgba(71, 85, 105, 0.8); color: #cbd5e1; cursor: pointer; }
+.relic-button:hover { border-color: rgba(99, 102, 241, 0.45); }
+.relic-button.active { background: rgba(79, 70, 229, 0.12); border-color: rgba(99, 102, 241, 0.55); color: #e0e7ff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.15); }
+
+.svarog-theme .relic-button { background: rgba(15, 23, 42, 0.7); border-color: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
+.svarog-theme .relic-button:hover { border-color: rgba(99, 102, 241, 0.5); background: rgba(30, 41, 59, 0.9); }
+.svarog-theme .relic-button.active { background: rgba(79, 70, 229, 0.15); border-color: rgba(99, 102, 241, 0.6); color: #e0e7ff; box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
+
+.arctic-theme .relic-button { background: rgba(255, 255, 255, 0.7); border-color: rgba(226, 232, 240, 0.8); color: #475569; }
+.arctic-theme .relic-button:hover { border-color: rgba(14, 165, 233, 0.5); background: rgba(248, 250, 252, 0.9); }
+.arctic-theme .relic-button.active { background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.5); color: #0284c7; box-shadow: 0 0 15px rgba(14, 165, 233, 0.15); }
+
+.zone-tracker-shell button:not(:disabled), .zone-tracker-shell [role="button"], .zone-tracker-shell select { cursor: pointer; }
+.zone-tracker-shell button:disabled { cursor: not-allowed; }
+
+.zone-tracker-shell .relic-card-surface {
+  background: rgba(2, 6, 23, 0.45);
+  border-color: rgba(71, 85, 105, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.zone-tracker-shell .relic-button { background: rgba(2, 6, 23, 0.55); border-color: rgba(71, 85, 105, 0.8); color: #cbd5e1; }
+.zone-tracker-shell .relic-button:hover { border-color: rgba(99, 102, 241, 0.45); background: rgba(15, 23, 42, 0.9); }
+.zone-tracker-shell .relic-button.active { background: rgba(79, 70, 229, 0.14); border-color: rgba(99, 102, 241, 0.6); color: #e0e7ff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.15); }
+
+.svarog-theme .zone-tracker-shell .relic-card-surface {
+  background: rgba(9, 14, 30, 0.72);
+  border-color: rgba(79, 70, 229, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px rgba(9, 9, 11, 0.22);
+}
+.svarog-theme .zone-tracker-shell .relic-button { background: rgba(15, 23, 42, 0.72); border-color: rgba(30, 41, 59, 0.85); color: #cbd5e1; }
+.svarog-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(99, 102, 241, 0.52); background: rgba(30, 41, 59, 0.92); }
+.svarog-theme .zone-tracker-shell .relic-button.active { background: rgba(79, 70, 229, 0.17); border-color: rgba(99, 102, 241, 0.66); color: #e0e7ff; box-shadow: 0 0 15px rgba(99, 102, 241, 0.24); }
+
+.arctic-theme .zone-tracker-shell .relic-card-surface {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(125, 211, 252, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+.arctic-theme .zone-tracker-shell .relic-button { background: rgba(255, 255, 255, 0.78); border-color: rgba(203, 213, 225, 0.9); color: #475569; }
+.arctic-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(14, 165, 233, 0.55); background: rgba(248, 250, 252, 0.95); }
+.arctic-theme .zone-tracker-shell .relic-button.active { background: rgba(14, 165, 233, 0.12); border-color: rgba(14, 165, 233, 0.56); color: #0369a1; box-shadow: 0 0 15px rgba(14, 165, 233, 0.18); }
+
+.astral-theme .zone-tracker-shell .relic-card-surface {
+  background: rgba(11, 14, 21, 0.85) !important;
+  border-color: rgba(227, 192, 114, 0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(246, 223, 155, 0.08);
+}
+.astral-theme .zone-tracker-shell .relic-button { background: rgba(15, 18, 27, 0.88) !important; border-color: rgba(227, 192, 114, 0.34) !important; color: #d7dde8 !important; }
+.astral-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(246, 223, 155, 0.5) !important; color: #f6df9b !important; }
+.astral-theme .zone-tracker-shell .relic-button.active { background: rgba(227, 192, 114, 0.14) !important; border-color: rgba(246, 223, 155, 0.6) !important; color: #f6df9b !important; box-shadow: 0 0 16px rgba(227, 192, 114, 0.24); }
+
+.crimson-theme .zone-tracker-shell .relic-card-surface {
+  background: rgba(12, 12, 13, 0.9) !important;
+  border-color: rgba(255, 0, 51, 0.24) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.crimson-theme .zone-tracker-shell .relic-button { background: rgba(16, 16, 17, 0.92) !important; border-color: rgba(255, 0, 51, 0.3) !important; color: #f4f4f5 !important; }
+.crimson-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(255, 77, 109, 0.52) !important; color: #ffe4eb !important; }
+.crimson-theme .zone-tracker-shell .relic-button.active { background: rgba(255, 0, 51, 0.18) !important; border-color: rgba(255, 77, 109, 0.62) !important; color: #ffe4eb !important; box-shadow: 0 0 15px rgba(255, 0, 51, 0.24); }
+
+.neon-theme .zone-tracker-shell .relic-card-surface {
+  background: rgba(13, 17, 22, 0.9) !important;
+  border-color: rgba(0, 243, 255, 0.26) !important;
+  box-shadow: inset 0 1px 0 rgba(188, 0, 255, 0.12);
+}
+.neon-theme .zone-tracker-shell .relic-button { background: rgba(14, 18, 22, 0.92) !important; border-color: rgba(0, 243, 255, 0.3) !important; color: #d5faff !important; }
+.neon-theme .zone-tracker-shell .relic-button:hover { border-color: rgba(188, 0, 255, 0.5) !important; color: #ffffff !important; box-shadow: 0 0 10px rgba(0, 243, 255, 0.22); }
+.neon-theme .zone-tracker-shell .relic-button.active { background: rgba(0, 243, 255, 0.16) !important; border-color: rgba(0, 243, 255, 0.58) !important; color: #ffffff !important; box-shadow: 0 0 16px rgba(0, 243, 255, 0.3), 0 0 22px rgba(188, 0, 255, 0.14); }
