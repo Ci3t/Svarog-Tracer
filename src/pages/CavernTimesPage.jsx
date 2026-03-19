@@ -5,7 +5,7 @@ import ArcticSnow from '../components/snow/ArcticSnow';
 import NeonGlitchButton from '../components/NeonGlitchButton';
 import { useLocation } from 'react-router-dom';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
-import { findCavernById } from '../constants/caverns';
+import { findCavernById, HSR_CAVERNS } from '../constants/caverns';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -178,6 +178,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const traceFormRef = useRef(null);
   const scrollRef = useRef(null);
   const submitModeRef = useRef('close');
+  // When true, zone import just populated the form — preset useEffect must skip.
+  const isZoneImportRef = useRef(false);
 
   // Modal State
   const [selectedDomain, setSelectedDomain] = useState(null);
@@ -292,14 +294,22 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const fallbackRelicId = cavernEntry?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
     const selectedRelicId = relicIdFromQuery || fallbackRelicId;
 
+    // Mark that we are doing a zone import so the preset useEffect doesn't
+    // overwrite what we set here when setIsFormOpen(true) fires.
+    if (isZoneImportRef) isZoneImportRef.current = true;
+
     setCategory('relics');
     setSelectedDomain(null);
     setIsFormOpen(true);
-    setShowItemSelector(true);
+    setShowItemSelector(false); // User wants a quick way, so auto-opening selector might be disruptive
 
     if (importedChars.length > 0) setFormChars(importedChars);
     if (clearTime) setFormTime(clearTime);
     if (selectedRelicId) setFormItemId(selectedRelicId);
+
+    // Auto-fill discord from saved preset if available
+    const savedDiscord = entryPreset?.discord || '';
+    if (savedDiscord) setFormDiscord(savedDiscord);
 
     const relatedRelicIds = Array.isArray(cavernEntry?.relicSetIds)
       ? cavernEntry.relicSetIds.filter((entry) => String(entry || '').trim())
@@ -311,7 +321,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     setSubmitStatus({
       type: 'info',
       msg: cavernEntry
-        ? 'Imported from Zone Tracker: ' + cavernEntry.name + '. Confirm relic set and submit.'
+        ? `Imported from Zone Tracker: ${cavernEntry.name}. Team & time pre-filled — confirm relic set and submit.`
         : 'Imported from Zone Tracker. Confirm relic set and submit.',
     });
 
@@ -385,6 +395,13 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (!isFormOpen) return;
+
+    // Guard: If we just imported from Zone Tracker, skip the preset override for this first run.
+    if (isZoneImportRef && isZoneImportRef.current) {
+      isZoneImportRef.current = false;
+      return;
+    }
+
     if (presetFlags.keepItem) {
       const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
       if (presetItemId) setFormItemId(presetItemId);
@@ -401,7 +418,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   }, [isFormOpen]);
 
   useEffect(() => {
-    if (!isFormOpen) return;
+    if (!isFormOpen || (isZoneImportRef && isZoneImportRef.current)) return;
     if (presetFlags.keepItem) {
       const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
       if (presetItemId) setFormItemId(presetItemId);
@@ -1603,32 +1620,75 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                   })}
                                 </div>
                               )}
-                              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-5 gap-4 p-6 pt-12 pb-8 w-full">
-                                {currentItemData.filter(item => !modalRarityFilter || item.rarity === modalRarityFilter).map(item => (
-                                  <div
-                                    key={item.id}
-                                    onClick={() => {
-                                      setFormItemId(item.id);
-                                      addRecentItem(category, item.id);
-                                      setShowItemSelector(false);
-                                    }}
-                                    className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
-                                      category === 'traces' ? (
-                                        item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
-                                        item.rarity === 3 ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' :
-                                        item.rarity === 2 ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' :
-                                        'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20'
-                                      ) : 'bg-blue-900/10 hover:bg-blue-400/10'
-                                    }`}
-                                  >
-                                    <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
-                                      {item.name}
-                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
-                                    </div>
-                                    {formItemId === item.id && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay rounded-2xl"></div>}
-                                    <VisualIcon src={item.image} name={item.name} className="w-full aspect-square relative z-10 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
+                              <div className="flex flex-col gap-10 p-6 pt-12 pb-8 w-full">
+                                {category === 'relics' ? (
+                                  HSR_CAVERNS.map(cavern => {
+                                    const matchingItems = currentItemData.filter(item =>
+                                      cavern.relicSetIds.includes(item.id) &&
+                                      (!modalRarityFilter || item.rarity === modalRarityFilter)
+                                    );
+                                    if (matchingItems.length === 0) return null;
+
+                                    return (
+                                      <div key={cavern.id} className="flex flex-col gap-4">
+                                        <div className="flex items-center gap-4 px-2">
+                                          <div className="h-px flex-1 bg-white/10"></div>
+                                          <div className="flex flex-col items-center">
+                                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 whitespace-nowrap">{cavern.name}</span>
+                                            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-1 italic">{cavern.location}</span>
+                                          </div>
+                                          <div className="h-px flex-1 bg-white/10"></div>
+                                        </div>
+                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-5 gap-4">
+                                          {matchingItems.map(item => (
+                                            <div
+                                              key={item.id}
+                                              onClick={() => {
+                                                setFormItemId(item.id);
+                                                addRecentItem(category, item.id);
+                                                setShowItemSelector(false);
+                                              }}
+                                              className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} bg-blue-900/10 hover:bg-blue-400/10`}
+                                            >
+                                              <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
+                                                {item.name}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
+                                              </div>
+                                              {formItemId === item.id && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay rounded-2xl"></div>}
+                                              <VisualIcon src={item.image} name={item.name} className="w-full aspect-square relative z-10 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-5 gap-4">
+                                    {currentItemData.filter(item => !modalRarityFilter || item.rarity === modalRarityFilter).map(item => (
+                                      <div
+                                        key={item.id}
+                                        onClick={() => {
+                                          setFormItemId(item.id);
+                                          addRecentItem(category, item.id);
+                                          setShowItemSelector(false);
+                                        }}
+                                        className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
+                                          item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
+                                          item.rarity === 3 ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' :
+                                          item.rarity === 2 ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' :
+                                          'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20'
+                                        }`}
+                                      >
+                                        <div className="absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 bg-blue-600 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap shadow-[0_4px_20px_rgba(37,99,235,0.4)] scale-75 group-hover:scale-100 origin-bottom border border-blue-400/30">
+                                          {item.name}
+                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-blue-600"></div>
+                                        </div>
+                                        {formItemId === item.id && <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay rounded-2xl"></div>}
+                                        <VisualIcon src={item.image} name={item.name} className="w-full aspect-square relative z-10 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
+                                )}
                               </div>
                             </div>
                           )}
@@ -2127,71 +2187,148 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         )}
 
         {/* Domain Grid */}
-        <div className={`cavern-domain-grid grid items-start grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-4 ${themeConfig.caverns.gridOffsetClass || ''}`}>
+        <div className={`cavern-domain-grid flex flex-col gap-10 py-4 ${themeConfig.caverns.gridOffsetClass || ''}`}>
           {loading ? (
-            <div className="col-span-full flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
+            <div className="flex justify-center py-20"><RefreshCw className="w-10 h-10 animate-spin text-slate-500" /></div>
           ) : filteredGridData.length === 0 ? (
-            <div className="col-span-full py-20 text-center flex flex-col items-center opacity-40">
+            <div className="py-20 text-center flex flex-col items-center opacity-40">
               <Binary className="w-16 h-16 mb-4" />
               <p className="font-black uppercase tracking-widest text-xs">No Results matching those filters</p>
             </div>
           ) : (
-            filteredGridData.map((item) => {
-              const itemClears = clears.filter(c => c.relicId === item.id);
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedDomain(item)}
-                  className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19.5rem] flex-col items-center self-start text-center gap-2 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
-                  style={{ '--card-radius': '1.5rem' }}
-                >
-                  <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
-                    category === 'traces'
-                      ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
-                      : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
-                  }`}>
-                    {item.name}
-                    <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
-                  </div>
-                  {itemClears.length > 0 && (
-                    <>
-                      <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none ${isCrimson ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}></div>
-                      <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${
-                        isCrimson
-                          ? 'border-red-500/25 text-red-300'
-                          : 'border-white/10 text-emerald-400'
-                      }`}>
-                        <Clock className="w-2.5 h-2.5" />
-                        <span className="font-mono">{resetTimer}</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="cavern-domain-media w-full flex-1 min-h-[8.75rem] sm:min-h-[9.5rem] flex flex-col items-center justify-center gap-3 pt-1 sm:pt-2">
-                    <div className="w-24 h-24 sm:w-28 sm:h-28 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
-                      <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
+            category === 'relics' ? (
+              HSR_CAVERNS.map(cavern => {
+                const domainItems = filteredGridData.filter(item => cavern.relicSetIds.includes(item.id));
+                if (domainItems.length === 0) return null;
+
+                return (
+                  <div key={cavern.id} className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                    <div className="flex items-center gap-6 px-4">
+                      <h4 className={`text-[11px] font-black uppercase tracking-[0.4em] ${isGlacial ? 'text-cyan-300' : 'text-indigo-400'}`}>{cavern.name}</h4>
+                      <div className="h-px flex-1 bg-white/5"></div>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest italic">{cavern.location}</span>
                     </div>
-                    <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-1 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
-                      {item.name}
-                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      {domainItems.map(item => {
+                        const itemClears = clears.filter(c => c.relicId === item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setSelectedDomain(item)}
+                            className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19.5rem] flex-col items-center self-start text-center gap-2 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
+                            style={{ '--card-radius': '1.5rem' }}
+                          >
+                            <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
+                              category === 'traces'
+                                ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                                : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                            }`}>
+                              {item.name}
+                              <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
+                            </div>
+                            {itemClears.length > 0 && (
+                              <>
+                                <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none ${isCrimson ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}></div>
+                                <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${
+                                  isCrimson
+                                    ? 'border-red-500/25 text-red-300'
+                                    : 'border-white/10 text-emerald-400'
+                                }`}>
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span className="font-mono">{resetTimer}</span>
+                                </div>
+                              </>
+                            )}
+                            <div className="cavern-domain-media w-full flex-1 min-h-[8.75rem] sm:min-h-[9.5rem] flex flex-col items-center justify-center gap-3 pt-1 sm:pt-2">
+                              <div className="w-24 h-24 sm:w-28 sm:h-28 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
+                                <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
+                              </div>
+                              <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-1 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
+                                {item.name}
+                              </h3>
+                            </div>
+                            <div className="mt-auto pt-1">
+                              {itemClears.length > 0 ? (
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
+                                    isCrimson
+                                      ? 'bg-red-500/15 border-red-500/35 text-red-300'
+                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                  }`}>
+                                  <CheckCircle2 className="w-3 h-3" /> {itemClears.reduce((sum, c) => sum + (c.verifiedCount || 1), 0)} Records
+                                </span>
+                              ) : (
+                                <span className="inline-block px-3 py-1 bg-white/5 border border-white/5 text-slate-300 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                  Empty
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="mt-auto pt-1">
-                    {itemClears.length > 0 ? (
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
-                          isCrimson
-                            ? 'bg-red-500/15 border-red-500/35 text-red-300'
-                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        }`}>
-                        <CheckCircle2 className="w-3 h-3" /> {itemClears.reduce((sum, c) => sum + (c.verifiedCount || 1), 0)} Records
-                      </span>
-                    ) : (
-                      <span className="inline-block px-3 py-1 bg-white/5 border border-white/5 text-slate-300 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                        Empty
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
+                );
+              })
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {filteredGridData.map((item) => {
+                  const itemClears = clears.filter(c => c.relicId === item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedDomain(item)}
+                      className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19.5rem] flex-col items-center self-start text-center gap-2 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
+                      style={{ '--card-radius': '1.5rem' }}
+                    >
+                      <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
+                        category === 'traces'
+                          ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                          : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                      }`}>
+                        {item.name}
+                        <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
+                      </div>
+                      {itemClears.length > 0 && (
+                        <>
+                          <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none ${isCrimson ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}></div>
+                          <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${
+                            isCrimson
+                              ? 'border-red-500/25 text-red-300'
+                              : 'border-white/10 text-emerald-400'
+                          }`}>
+                            <Clock className="w-2.5 h-2.5" />
+                            <span className="font-mono">{resetTimer}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="cavern-domain-media w-full flex-1 min-h-[8.75rem] sm:min-h-[9.5rem] flex flex-col items-center justify-center gap-3 pt-1 sm:pt-2">
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 bg-black/40 rounded-2xl border border-white/5 shadow-inner p-2.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 relative flex items-center justify-center overflow-hidden">
+                          <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-lg" />
+                        </div>
+                        <h3 className={`text-white font-black text-xs sm:text-sm uppercase tracking-tight leading-snug line-clamp-2 px-1 transition-colors ${category === 'traces' ? 'group-hover:text-emerald-300' : 'group-hover:text-indigo-300'}`}>
+                          {item.name}
+                        </h3>
+                      </div>
+                      <div className="mt-auto pt-1">
+                        {itemClears.length > 0 ? (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
+                              isCrimson
+                                ? 'bg-red-500/15 border-red-500/35 text-red-300'
+                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                            }`}>
+                            <CheckCircle2 className="w-3 h-3" /> {itemClears.reduce((sum, c) => sum + (c.verifiedCount || 1), 0)} Records
+                          </span>
+                        ) : (
+                          <span className="inline-block px-3 py-1 bg-white/5 border border-white/5 text-slate-300 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                            Empty
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
 
