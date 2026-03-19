@@ -27,6 +27,7 @@ import charactersData from '../data/characters.json';
 import { HSR_CAVERNS, findCavernById, getCavernDisplayName } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import ZoneHeader from '../components/zone/ZoneHeader';
 
 const OUTCOME_OPTIONS = [
   { value: 'spd-double-crit', label: 'SPD + CR + CD', color: 'indigo' },
@@ -1720,108 +1721,16 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
 
       `}} />
       
-      {/* Header & Epoch Status Bar */}
-      <section className="page-header relative overflow-hidden theme-glass-card p-6 border-indigo-500/20">
-        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-          <Dna className="w-40 h-40 text-indigo-400 rotate-12" />
-        </div>
-        
-        <div className="flex flex-wrap items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-lg shadow-indigo-500/10">
-              <Target className="w-8 h-8 text-indigo-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-widest text-white leading-tight">
-                Zone <span className="text-indigo-400">Tracker</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <User className="w-3 h-3 text-slate-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Logged in: <span className="text-indigo-300/80">{authDisplayName || user?.id}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setRequestedEpoch('current')}
-              disabled={loadingMap}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all ${
-                requestedEpoch === 'current' 
-                ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-100 shadow-lg shadow-indigo-500/20' 
-                : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-              }`}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingMap && requestedEpoch === 'current' ? 'animate-spin' : ''}`} />
-              Current Epoch
-            </button>
-            <button
-              onClick={() => setRequestedEpoch('previous')}
-              disabled={loadingMap}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all ${
-                requestedEpoch === 'previous' 
-                ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-100 shadow-lg shadow-indigo-500/20' 
-                : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-              }`}
-            >
-              <History className={`w-3.5 h-3.5 ${loadingMap && requestedEpoch === 'previous' ? 'animate-spin' : ''}`} />
-              Previous
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <div className="relative group p-4 rounded-2xl bg-slate-950/40 border border-slate-800/60 hover:border-indigo-500/30 transition-all">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Epoch</span>
-              <Activity className="w-3 h-3 text-indigo-400/50" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-white">#{currentEpoch?.id || '--'}</span>
-              <span className="text-xs font-bold text-slate-400 font-mono">{currentEpoch?.calendar_week || 'N/A'}</span>
-            </div>
-            <div className="mt-2 h-1 w-full bg-slate-800/50 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500/40 w-full animate-pulse" />
-            </div>
-          </div>
-
-          <div className="relative group p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/10 hover:border-indigo-500/30 transition-all">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Viewing Map</span>
-              <LayoutGrid className="w-3 h-3 text-indigo-400/50" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-indigo-100">#{epoch?.id || '--'}</span>
-              <span className="text-xs font-bold text-indigo-400/60 font-mono tracking-wider italic">
-                {requestedEpoch === 'previous' ? 'HISTORICAL' : 'CURRENT SESSION'}
-              </span>
-            </div>
-            <p className="mt-1 text-[10px] text-indigo-300/40 font-mono uppercase tracking-widest">{epoch?.calendar_week || 'MAP NOT LOADED'}</p>
-          </div>
-
-          <div className="relative group p-4 rounded-2xl bg-slate-950/40 border border-slate-800/60 hover:border-amber-500/30 transition-all">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Epoch Rotation</span>
-              <Flag className="w-3 h-3 text-amber-400/50" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-white">{mapData?.pending_flag_count ?? 0}</span>
-                <span className="text-xs font-bold text-slate-500 ml-2">Flags Reported</span>
-              </div>
-              <button 
-                onClick={() => setShowFlagModal(true)}
-                className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest text-amber-300 hover:bg-amber-500/20 transition-all"
-              >
-                FLAG DISCREPANCY
-              </button>
-            </div>
-            <p className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-tighter italic">2 distinct user flags required to shift</p>
-          </div>
-        </div>
-      </section>
+      <ZoneHeader
+        authDisplayName={authDisplayName}
+        userId={user?.id}
+        currentEpoch={currentEpoch}
+        epoch={epoch}
+        requestedEpoch={requestedEpoch}
+        loadingMap={loadingMap}
+        mapData={mapData}
+        onSetRequestedEpoch={setRequestedEpoch}
+      />
 
       <section className="theme-glass-card p-3 border-slate-800/70">
         <div className="grid grid-cols-2 gap-2">
