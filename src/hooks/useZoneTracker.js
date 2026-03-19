@@ -294,6 +294,11 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [manualVariantPayload, setManualVariantPayload] = useState(null);
   const [manualVariantLoading, setManualVariantLoading] = useState(false);
 
+  // Build Team workspace state
+  const [buildSlots, setBuildSlots] = useState([null, null, null, null]);
+  const [buildVariantPayload, setBuildVariantPayload] = useState(null);
+  const [buildVariantLoading, setBuildVariantLoading] = useState(false);
+
   const mapRef = useRef(null);
   const formRef = useRef(null);
   const tunerRef = useRef(null);
@@ -683,6 +688,18 @@ export function useZoneTracker(sessionTheme = 'modern') {
     if (numeric.length !== 4) return null;
     return numeric.reduce((total, value) => total + value, 0);
   }, [slots]);
+
+  const buildTeamSignature = useMemo(() => {
+    const numeric = buildSlots.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0);
+    if (numeric.length !== 4) return null;
+    const [a, b, c, d] = numeric;
+    return {
+      xor: a ^ b ^ c ^ d,
+      slot: (d * 3 + a + b + c) % 10000,
+      sum: a + b + c + d,
+      xorSlotKey: `${a ^ b ^ c ^ d}_${(d * 3 + a + b + c) % 10000}`,
+    };
+  }, [buildSlots]);
 
   useEffect(() => {
     const safeCount = Math.min(12, Math.max(1, Number(relicDropCount) || 1));
@@ -1170,6 +1187,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
 
   return {
     user,
+    getAuthHeader,
     roleMode,
     rootThemeClass,
     slots, setSlots,
@@ -1233,6 +1251,13 @@ export function useZoneTracker(sessionTheme = 'modern') {
     relicSubstatFrequency,
     suggestedOutcome,
     currentTeamSignature,
+    buildSlots,
+    setBuildSlots,
+    buildTeamSignature,
+    buildVariantPayload,
+    setBuildVariantPayload,
+    buildVariantLoading,
+    setBuildVariantLoading,
     epoch: mapData?.epoch,
     currentEpoch: mapData?.current_epoch,
     zones: Array.isArray(mapData?.zones) ? mapData.zones : [],

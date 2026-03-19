@@ -94,6 +94,12 @@ export default function ZoneHeader({
            >
              Zones
            </button>
+           <button 
+             onClick={() => setWorkspaceView('build')}
+             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${workspaceView === 'build' ? 'bg-violet-500/20 border-violet-500/40 text-violet-100' : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:border-slate-500'}`}
+           >
+             Build Team
+           </button>
         </div>
 
         {/* Right: Epoch toggle */}

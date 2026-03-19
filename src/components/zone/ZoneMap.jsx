@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   BarChart3, 
   RefreshCw, 
-  History 
+  History,
+  ChevronLeft,
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { 
   formatDropScore,
@@ -72,8 +75,12 @@ export default function ZoneMap({
   adminActionLoadingKey,
   variantsByZone,
   handleExportZoneToCaverns,
-  charactersByNumId
+  charactersByNumId,
+  setSlots,
+  setSuccess,
 }) {
+  const [variantPages, setVariantPages] = useState({});
+
   return (
     <div ref={mapRef} className={workspaceView === 'zones' ? 'space-y-8' : 'hidden'}>
       <div className="flex flex-wrap items-end justify-between gap-3 px-2">
@@ -570,18 +577,35 @@ export default function ZoneMap({
                   </div>
 
                   {/* Expandable Variants View */}
-                  {hasVariants && (
+                  {hasVariants && (() => {
+                    const varList = variantsByZone[zoneKey].variants || [];
+                    const VPAGE_SIZE = 5;
+                    const vTotalPages = Math.max(1, Math.ceil(varList.length / VPAGE_SIZE));
+                    const vPage = variantPages[zoneKey] || 0;
+                    const vPageSafe = Math.min(vPage, vTotalPages - 1);
+                    const pagedVars = varList.slice(vPageSafe * VPAGE_SIZE, (vPageSafe + 1) * VPAGE_SIZE);
+                    return (
                     <div className="p-4 bg-indigo-950/20 border-t border-indigo-500/20 animate-in slide-in-from-top-2 duration-300">
                        <div className="flex items-center justify-between mb-3 px-1">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Potential Variants ({variantsByZone[zoneKey].variants?.length || 0})</p>
-                          <button onClick={() => {
-                             const next = { ...variantsByZone };
-                             delete next[zoneKey];
-                             setVariantsByZone(next);
-                          }} className="text-indigo-500 hover:text-indigo-300 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Potential Variants ({varList.length})</p>
+                          <div className="flex items-center gap-2">
+                            {vTotalPages > 1 && (
+                              <>
+                                <button onClick={() => setVariantPages(p => ({ ...p, [zoneKey]: Math.max(0, vPageSafe - 1) }))} disabled={vPageSafe === 0} className="text-slate-500 hover:text-indigo-300 disabled:opacity-30 transition-colors cursor-pointer"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                <span className="text-[8px] font-black text-slate-400">{vPageSafe + 1}/{vTotalPages}</span>
+                                <button onClick={() => setVariantPages(p => ({ ...p, [zoneKey]: Math.min(vTotalPages - 1, vPageSafe + 1) }))} disabled={vPageSafe >= vTotalPages - 1} className="text-slate-500 hover:text-indigo-300 disabled:opacity-30 transition-colors cursor-pointer"><ChevronRight className="w-3.5 h-3.5" /></button>
+                              </>
+                            )}
+                            <button onClick={() => {
+                               const next = { ...variantsByZone };
+                               delete next[zoneKey];
+                               setVariantsByZone(next);
+                               setVariantPages(p => { const n = { ...p }; delete n[zoneKey]; return n; });
+                            }} className="text-indigo-500 hover:text-indigo-300 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                          </div>
                        </div>
-                       <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar px-1">
-                          {(variantsByZone[zoneKey].variants || []).map((v, vii) => (
+                       <div className="space-y-1.5 px-1">
+                          {pagedVars.map((v, vii) => (
                              <div key={vii} className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60 flex items-center justify-between group/v transition-all hover:bg-slate-900">
                                 <div>
                                    <p className="text-[10px] font-black text-indigo-200/80 leading-tight">{(v.char_names || []).join(' / ')}</p>
@@ -595,7 +619,8 @@ export default function ZoneMap({
                           ))}
                        </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })}

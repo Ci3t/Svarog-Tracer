@@ -2,6 +2,7 @@ import React from 'react';
 import ZoneHeader from '../components/zone/ZoneHeader';
 import ZoneLogger from '../components/zone/ZoneLogger';
 import ZoneMap from '../components/zone/ZoneMap';
+import ZoneBuildTeam from '../components/zone/ZoneBuildTeam';
 import { useZoneTracker } from '../hooks/useZoneTracker';
 import './ZoneTrackerPage.css';
 
@@ -119,6 +120,17 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     adminActionLoadingKey,
     variantsByZone,
     handleExportZoneToCaverns,
+
+    // Build Team
+    buildSlots,
+    setBuildSlots,
+    buildTeamSignature,
+    buildVariantPayload,
+    setBuildVariantPayload,
+    buildVariantLoading,
+    setBuildVariantLoading,
+    ownedSet,
+    getAuthHeader,
     
     // Helpers
     sanitizeClearTimeMmSsInput,
@@ -177,8 +189,26 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             fetchVariantsForZone, variantLoadingZoneKey, manualVariantPayload,
             zones, signalMetricLabel, requestedEpoch, handleReportZoneCard,
             handleAdminDeleteZone, handleAdminEditZone, adminActionLoadingKey,
-            variantsByZone, handleExportZoneToCaverns, charactersByNumId
+            variantsByZone, handleExportZoneToCaverns, charactersByNumId,
+            setSlots, setSuccess
           }}
+        />
+
+        <ZoneBuildTeam
+          workspaceView={workspaceView}
+          buildSlots={buildSlots}
+          setBuildSlots={setBuildSlots}
+          buildTeamSignature={buildTeamSignature}
+          buildVariantPayload={buildVariantPayload}
+          setBuildVariantPayload={setBuildVariantPayload}
+          buildVariantLoading={buildVariantLoading}
+          setBuildVariantLoading={setBuildVariantLoading}
+          charactersByNumId={charactersByNumId}
+          characterOptions={characterOptions}
+          ownedSet={ownedSet}
+          setSlots={setSlots}
+          setSuccess={setSuccess}
+          getAuthHeader={getAuthHeader}
         />
       </div>
     </div>
