@@ -98,9 +98,8 @@ export default function ModernDebugPanel({
           </span>
         </div>
         <svg
-          className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${
-            isExpanded ? "rotate-180" : ""
-          }`}
+          className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
+            }`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -140,11 +139,10 @@ export default function ModernDebugPanel({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  activeTab === tab.id
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${activeTab === tab.id
                     ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg'
                     : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
+                  }`}
               >
                 {tab.icon} {tab.label}
               </button>
@@ -161,7 +159,7 @@ export default function ModernDebugPanel({
                     const actual = String(log.actual || '—');
                     const confidence = Math.round((log.confidence || 0) * 100);
                     const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
-                    
+
                     return (
                       <div key={idx} className="py-1 border-b border-slate-800/30 last:border-0 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -195,7 +193,7 @@ export default function ModernDebugPanel({
                     const alt = log.alt || '';
                     const mode = log.mode || 'unknown';
                     const pattern = log.pattern?.name || log.pattern?.pattern || log.pattern || '';
-                    const dist = log.distribution ? 
+                    const dist = log.distribution ?
                       Object.entries(log.distribution)
                         .map(([key, data]) => {
                           const pct = typeof data === 'object' ? Math.round(data.pct || 0) : Math.round(data || 0);
@@ -207,7 +205,7 @@ export default function ModernDebugPanel({
                     const ctx = log.ctx ? (Array.isArray(log.ctx) ? log.ctx.join(', ') : log.ctx) : '';
                     const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
                     const status = isCorrect ? '✅' : `❌ ${log.status || 'MISS'}`;
-                    
+
                     return (
                       <div key={idx} className="py-2 px-3 bg-slate-900/50 rounded-lg border border-slate-800/30">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -303,317 +301,376 @@ export default function ModernDebugPanel({
                 </div>
                 <button
                   ref={kiyoExportButtonRef}
-                  onClick={() => { try {
-                    const kiyoLogs = debugLogs.filter((log) => log.kind === "3" && log.source === "kiyo");
-                    if (kiyoLogs.length === 0) {
-                      alert("No Kiyo logs to download");
-                      return;
-                    }
-                    
-                    // Create formatted export
-                    let lines = [];
-                    lines.push("═══════════════════════════════════════════════════════════");
-                    lines.push("         KIYO MODE DEBUG EXPORT");
-                    lines.push("═══════════════════════════════════════════════════════════");
-                    lines.push("");
-                    lines.push(`Generated: ${new Date().toLocaleString()}`);
-                    lines.push(`Total Predictions: ${kiyoLogs.length}`);
-                    lines.push("");
-                    
-                    // Timeline with wave predictions
-                    lines.push("┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐");
-                    lines.push("│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │");
-                    lines.push("└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘");
-                    lines.push("");
-                    lines.push("Legend:");
-                    lines.push("  Actual        = What you got in-game");
-                    lines.push("  Y-Grp         = Which side of active pairing (Outer/Inner/High/Low/Even/Odd)");
-                    lines.push("  Mode          = Session type: DOMINANT / RUN-N3 / ALTERNATING / AMBIGUOUS / CHAOTIC");
-                    lines.push("  Wave-Verdict  = DOM / HOLD / FLIP / WAIT signal from 2-str wave");
-                    lines.push("  Bet           = Rolls wave said to bet on");
-                    lines.push("  BetHit        = ✓ if betting those rolls would have won, ✗ = miss, - = no bet yet");
-                    lines.push("");
+                  onClick={() => {
+                    try {
+                      const kiyoLogs = debugLogs.filter((log) => log.kind === "3" && log.source === "kiyo");
+                      if (kiyoLogs.length === 0) {
+                        alert("No Kiyo logs to download");
+                        return;
+                      }
 
-                    // Pre-compute 2str wave pairing from session rolls
-                    const sessionRollsAll = kiyoLogs.map(l => l.actual).filter(Boolean);
-                    const finalW2 = analyze2strWave(sessionRollsAll);
-                    const getYGroup = (roll) => {
-                      if (!finalW2?.pairing || !roll) return '-';
-                      const y = String(roll)[1];
-                      if (finalW2.pairing.pairA.includes(y)) return finalW2.pairing.pairALabel;
-                      if (finalW2.pairing.pairB.includes(y)) return finalW2.pairing.pairBLabel;
-                      return '-';
-                    };
-                    if (finalW2) {
-                      lines.push(`Session pairing: ${finalW2.pairingName} — A:${finalW2.pairing.pairALabel}[4${finalW2.pairing.pairA.join('/4')}] vs B:${finalW2.pairing.pairBLabel}[4${finalW2.pairing.pairB.join('/4')}]`);
+                      // Create formatted export
+                      let lines = [];
+                      lines.push("═══════════════════════════════════════════════════════════");
+                      lines.push("         KIYO MODE DEBUG EXPORT");
+                      lines.push("═══════════════════════════════════════════════════════════");
                       lines.push("");
-                    }
+                      lines.push(`Generated: ${new Date().toLocaleString()}`);
+                      lines.push(`Total Predictions: ${kiyoLogs.length}`);
+                      lines.push("");
 
-                    const header = [
-                      "#".padEnd(3),
-                      "Time".padEnd(12),
-                      "Actual".padEnd(8),
-                      "Y-Grp".padEnd(8),
-                      "Mode".padEnd(13),
-                      "Wave-Verdict".padEnd(26),
-                      "Bet".padEnd(10),
-                      "BetHit".padEnd(7),
-                    ].join(" ");
+                      // Timeline with wave predictions
+                      lines.push("┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐");
+                      lines.push("│  📊 COMPREHENSIVE TRACKING TABLE                                                                                              │");
+                      lines.push("└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘");
+                      lines.push("");
+                      lines.push("Legend:");
+                      lines.push("  Actual        = What you got in-game");
+                      lines.push("  Y-Grp         = Which side of active pairing (Outer/Inner/High/Low/Even/Odd)");
+                      lines.push("  Mode          = Session type: DOMINANT / RUN-N3 / ALTERNATING / AMBIGUOUS / CHAOTIC");
+                      lines.push("  Wave-Verdict  = DOM / HOLD / FLIP / WAIT signal from 2-str wave");
+                      lines.push("  WaveBet       = Rolls the WAVE card said to bet on");
+                      lines.push("  WaveHit       = ✓ if WaveBet won, ✗ = miss, - = no bet");
+                      lines.push("  TableBet      = Rolls the TABLE (dominant pairing streak) said to bet on");
+                      lines.push("  TableHit      = ✓ if TableBet won, ✗ = miss, - = no bet");
+                      lines.push("");
 
-                    lines.push(header);
-                    lines.push("─".repeat(90));
-
-                    // Pre-compute wave snapshot at each roll (oldest → newest)
-                    // Thread hysteresis lock through each step to match live behaviour
-                    const chronoRolls = [...kiyoLogs].reverse().map(l => l.actual).filter(Boolean);
-                    const w2Snapshots = [];
-                    let _lockedPairing = null;
-                    for (let i = 0; i < chronoRolls.length; i++) {
-                      if (i < 2) { w2Snapshots.push(null); continue; }
-                      const snap = analyze2strWave(chronoRolls.slice(0, i + 1), _lockedPairing);
-                      if (snap && snap.pairingConfidence >= 0.55 && !snap.isAmbiguous) {
-                        _lockedPairing = snap.pairing.name;
-                      }
-                      w2Snapshots.push(snap);
-                    }
-
-
-                    let betHitTotal = 0, betHitHits = 0;
-
-                    kiyoLogs.forEach((log, idx) => {
-                      const actual = log.actual || "---";
-                      const rawActual = log.rawActual || actual;
-                      const actualD2 = actual[1] || "-";
-
-                      // Wave snapshot for this roll (newest first → index in chrono is reversed)
-                      const chronoIdx = chronoRolls.length - 1 - idx;
-                      const snap = w2Snapshots[chronoIdx];
-                      let waveVerdict = "—";
-                      let betRollsStr = "—";
-                      let betHit = "-";
-                      if (snap) {
-                        const a = snap.action;
-                        if (a === 'DOMINANT')
-                          waveVerdict = `DOM ${snap.dominantLabel}(${snap.dominantPct}%)`;
-                        else if (a === 'FLIP')
-                          waveVerdict = `FLIP→${snap.flipLabel} (${snap.runLength}/${snap.dominantN})`;
-                        else if (a === 'HOLD')
-                          waveVerdict = `HOLD ${snap.currentLabel} (${snap.runLength}/${snap.dominantN})`;
-                        else
-                          waveVerdict = a || "—";
-                        if (snap.betRolls) {
-                          betRollsStr = snap.betRolls.join("/");
-                          const hit = snap.betRolls.some(b => actual.startsWith(b));
-                          betHit = hit ? "✓" : "✗";
-                          if (betRollsStr !== "—") { betHitTotal++; if (hit) betHitHits++; }
-                        }
+                      // Pre-compute 2str wave pairing from session rolls
+                      const sessionRollsAll = kiyoLogs.map(l => l.actual).filter(Boolean);
+                      const finalW2 = analyze2strWave(sessionRollsAll);
+                      const getYGroup = (roll) => {
+                        if (!finalW2?.pairing || !roll) return '-';
+                        const y = String(roll)[1];
+                        if (finalW2.pairing.pairA.includes(y)) return finalW2.pairing.pairALabel;
+                        if (finalW2.pairing.pairB.includes(y)) return finalW2.pairing.pairBLabel;
+                        return '-';
+                      };
+                      if (finalW2) {
+                        lines.push(`Session pairing: ${finalW2.pairingName} — A:${finalW2.pairing.pairALabel}[4${finalW2.pairing.pairA.join('/4')}] vs B:${finalW2.pairing.pairBLabel}[4${finalW2.pairing.pairB.join('/4')}]`);
+                        lines.push("");
                       }
 
-                      const row = [
-                        String(idx + 1).padEnd(3),
-                        (log.time || "—").padEnd(12),
-                        actual.padEnd(8),
-                        getYGroup(actual).padEnd(8),
-                        (snap?.sessionMode || "—").padEnd(13),
-                        waveVerdict.padEnd(26),
-                        betRollsStr.padEnd(10),
-                        betHit.padEnd(7),
+                      const header = [
+                        "#".padEnd(3),
+                        "Time".padEnd(12),
+                        "Actual".padEnd(8),
+                        "Y-Grp".padEnd(8),
+                        "Mode".padEnd(13),
+                        "Wave-Verdict".padEnd(26),
+                        "WaveBet".padEnd(10),
+                        "WaveHit".padEnd(9),
+                        "TableBet".padEnd(10),
+                        "TableHit".padEnd(9),
                       ].join(" ");
 
-                      lines.push(row);
+                      lines.push(header);
+                      lines.push("─".repeat(108));
 
-                      if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
-                        lines.push("─".repeat(90) + " ◄ 5-min window");
-                      }
-                    });
-
-                    const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
-
-                    // ── Accuracy summary ──────────────────────────────────────────────────
-
-                    lines.push("┌─────────────────────────────────────────────────────────┐");
-                    lines.push("│  📈 ACCURACY SUMMARY                                     │");
-                    lines.push("└─────────────────────────────────────────────────────────┘");
-                    lines.push("");
-                    lines.push("WAVE BET PERFORMANCE:");
-                    lines.push(`  🎯 Wave Bet (2-str):   ${betHitHits} / ${betHitTotal} (${pct(betHitHits, betHitTotal)}%)  ← follow this`);
-                    lines.push("");
-
-                    // ── Verdict type breakdown ────────────────────────────────────────────
-                    lines.push("VERDICT TYPE BREAKDOWN:");
-                    const verdictStats = {};
-                    chronoRolls.forEach((actual, i) => {
-                      const snap = w2Snapshots[i];
-                      if (!snap || !snap.betRolls) return;
-                      const a = snap.action || 'OTHER';
-                      if (!verdictStats[a]) verdictStats[a] = { total: 0, hits: 0 };
-                      verdictStats[a].total++;
-                      if (snap.betRolls.some(b => actual.startsWith(b))) verdictStats[a].hits++;
-                    });
-                    const verdictOrder = ['DOMINANT','LEAN','HOLD','FLIP'];
-                    verdictOrder.forEach(v => {
-                      if (verdictStats[v]) {
-                        const s = verdictStats[v];
-                        const bar = '█'.repeat(Math.round(s.hits / s.total * 10)) + '░'.repeat(10 - Math.round(s.hits / s.total * 10));
-                        lines.push(`  ${v.padEnd(9)}: ${String(s.hits).padStart(2)}/${s.total} (${pct(s.hits, s.total)}%) [${bar}]`);
-                      }
-                    });
-                    lines.push("");
-
-                    // ── Confidence-tier accuracy ──────────────────────────────────────────
-                    lines.push("CONFIDENCE TIER ACCURACY:");
-                    lines.push("  (How often wave bet wins when confidence is high vs low)");
-                    const tier = { high: { h:0, t:0 }, mid: { h:0, t:0 }, low: { h:0, t:0 } };
-                    chronoRolls.forEach((actual, i) => {
-                      const snap = w2Snapshots[i];
-                      if (!snap || !snap.betRolls) return;
-                      const confPct = snap.action === 'DOMINANT'
-                        ? snap.dominantPct
-                        : Math.round((snap.confidence || 0.5) * 100);
-                      const hit = snap.betRolls.some(b => actual.startsWith(b));
-                      if (confPct >= 70)      { tier.high.t++; if (hit) tier.high.h++; }
-                      else if (confPct >= 60) { tier.mid.t++;  if (hit) tier.mid.h++;  }
-                      else                    { tier.low.t++;  if (hit) tier.low.h++;  }
-                    });
-                    if (tier.high.t > 0) lines.push(`  ≥ 70% conf : ${tier.high.h}/${tier.high.t} (${pct(tier.high.h, tier.high.t)}%) ← strong signal`);
-                    if (tier.mid.t  > 0) lines.push(`  60–69% conf: ${tier.mid.h}/${tier.mid.t}  (${pct(tier.mid.h, tier.mid.t)}%)`);
-                    if (tier.low.t  > 0) lines.push(`  < 60% conf : ${tier.low.h}/${tier.low.t}  (${pct(tier.low.h, tier.low.t)}%) ← weak, skip bet`);
-                    lines.push(`  Recommendation: only bet when conf ≥ ${tier.high.t > 0 && pct(tier.high.h, tier.high.t) >= 70 ? 70 : 65}%`);
-
-
-                    // ── Baseline: always bet dominant side ───────────────────────────────
-                    lines.push("BASELINE COMPARISON:");
-                    const finalW2full = analyze2strWave(chronoRolls);
-                    if (finalW2full?.dominantPrefixes) {
-                      const domPfx = finalW2full.dominantPrefixes;
-                      const naiveHits = chronoRolls.filter(r => domPfx.some(b => r.startsWith(b))).length;
-                      const naivePct = pct(naiveHits, chronoRolls.length);
-                      lines.push(`  Always bet dominant (${finalW2full.dominantLabel}): ${naiveHits}/${chronoRolls.length} (${naivePct}%)`);
-                      lines.push(`  Wave Bet:                                          ${betHitHits}/${betHitTotal} (${pct(betHitHits, betHitTotal)}%)`);
-                      const gain = ((betHitHits / betHitTotal) - (naiveHits / chronoRolls.length)) * 100;
-                      lines.push(`  Delta vs naive:  ${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%`);
-                    }
-                    lines.push("");
-
-                    // ── Run streak visualization ──────────────────────────────────────────
-                    lines.push("Y-SEQUENCE RUNS (oldest→newest):");
-                    if (finalW2full?.states && finalW2full?.pairing) {
-                      const states = finalW2full.states;
-                      const pa = finalW2full.pairing;
-                      let runStr = "";
-                      let prev = states[0]; let len = 1;
-                      const labelOf = s => s === 'A' ? pa.pairALabel[0] : pa.pairBLabel[0];
-                      for (let i = 1; i < states.length; i++) {
-                        if (states[i] === prev) { len++; }
-                        else { runStr += `${labelOf(prev)}(${len}) → `; prev = states[i]; len = 1; }
-                      }
-                      runStr += `${labelOf(prev)}(${len})`;
-                      lines.push("  " + runStr);
-                      // N analysis
-                      const runLens = [];
-                      let prev2 = states[0]; let len2 = 1;
-                      for (let i = 1; i < states.length; i++) {
-                        if (states[i] === prev2) len2++;
-                        else { runLens.push(len2); prev2 = states[i]; len2 = 1; }
-                      }
-                      runLens.push(len2);
-                      const avgRun = (runLens.reduce((a,b)=>a+b,0)/runLens.length).toFixed(1);
-                      const maxRun = Math.max(...runLens);
-                      lines.push(`  Avg run length: ${avgRun} · Max run: ${maxRun} · N (mode): ${finalW2full.dominantN}`);
-                    }
-                    lines.push("");
-
-                    // ── Early vs late accuracy ────────────────────────────────────────────
-                    lines.push("EARLY vs LATE ACCURACY:");
-                    const half = Math.floor(chronoRolls.length / 2);
-                    let earlyHits = 0, earlyTotal = 0, lateHits = 0, lateTotal = 0;
-                    chronoRolls.forEach((actual, i) => {
-                      const snap = w2Snapshots[i];
-                      if (!snap?.betRolls) return;
-                      const hit = snap.betRolls.some(b => actual.startsWith(b));
-                      if (i < half) { earlyTotal++; if (hit) earlyHits++; }
-                      else { lateTotal++; if (hit) lateHits++; }
-                    });
-                    lines.push(`  First half (${half} rolls): ${earlyHits}/${earlyTotal} (${pct(earlyHits, earlyTotal)}%) — pairing still learning`);
-                    lines.push(`  Second half (${chronoRolls.length - half} rolls): ${lateHits}/${lateTotal} (${pct(lateHits, lateTotal)}%) — pairing stable`);
-                    lines.push("");
-
-
-
-                    // Translated Rolls Section (4xx format)
-                    lines.push("┌─────────────────────────────────────────────────────────┐");
-                    lines.push("│  🎲 ALL ROLLS (Translated 4xx)                           │");
-                    lines.push("└─────────────────────────────────────────────────────────┘");
-                    lines.push("");
-                    const allRolls = kiyoLogs.map(log => log.actual || "---").join(", ");
-                    lines.push(allRolls);
-                    lines.push("");
-
-                    // Raw Rolls Section (original input)
-                    lines.push("┌─────────────────────────────────────────────────────────┐");
-                    lines.push("│  🎰 ALL ROLLS (Raw Input)                                │");
-                    lines.push("└─────────────────────────────────────────────────────────┘");
-                    lines.push("");
-                    const allRawRolls = kiyoLogs.map(log => log.rawActual || log.actual || "---").join(", ");
-                    lines.push(allRawRolls);
-                    lines.push("");
-
-                    // 2-String Wave Analysis — computed from session rolls
-                    lines.push("┌─────────────────────────────────────────────────────────┐");
-                    lines.push("│  🌊 2-STRING WAVE ANALYSIS                               │");
-                    lines.push("└─────────────────────────────────────────────────────────┘");
-                    lines.push("");
-                    const sessionRollsFor2str = kiyoLogs.map(l => l.actual).filter(Boolean);
-                    const is2strOnly = sessionRollsFor2str.every(r => String(r).length <= 2);
-                    const w2 = analyze2strWave(sessionRollsFor2str);
-                    if (is2strOnly) lines.push("⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A");
-                    lines.push("");
-                    if (w2) {
-                      lines.push(`Pairing Detected : ${w2.pairingName}${w2.pairingConfidence >= 0.6 ? ' ★' : ' (low confidence)'}`);
-                      lines.push(`Session Mode     : ${w2.sessionMode || '—'}`);
-                      lines.push(`Confidence Score : ${Math.round(w2.pairingConfidence * 100)}%`);
-                      lines.push(`Dominant Side    : ${w2.dominantLabel} [${(w2.dominantPrefixes||[]).join(' / ')}] — ${w2.dominantPct}% of rolls${w2.isDominant ? ' 🏆 DOMINANT' : ''}`);
-                      if (!w2.isDominant) {
-                        lines.push(`Flip N           : ${w2.dominantN} (rolls before side flip)`);
-                        lines.push(`Current Run      : ${w2.currentLabel} [${(w2.currentPrefixes||[]).join(' / ')}] — ${w2.runLength} consecutive`);
-                      }
-                      lines.push(`VERDICT          : ${w2.message}`);
-                      lines.push(`Next Bet         : ${w2.betRolls ? w2.betRolls.join(' or ') : '—'}`);
-                      lines.push("");
-                      lines.push("Y-Sequence (all rolls, oldest first):");
-                      if (w2.pairing && w2.states) {
-                        const labels = w2.states.map(s => s === 'A' ? w2.pairing.pairALabel[0] : w2.pairing.pairBLabel[0]);
-                        for (let i = 0; i < labels.length; i += 20) {
-                          lines.push("  " + labels.slice(i, i + 20).join(" "));
+                      // Pre-compute wave snapshot at each roll (oldest → newest)
+                      // Thread hysteresis lock through each step to match live behaviour
+                      const chronoRolls = [...kiyoLogs].reverse().map(l => l.actual).filter(Boolean);
+                      const w2Snapshots = [];
+                      let _lockedPairing = null;
+                      for (let i = 0; i < chronoRolls.length; i++) {
+                        if (i < 2) { w2Snapshots.push(null); continue; }
+                        const snap = analyze2strWave(chronoRolls.slice(0, i + 1), _lockedPairing);
+                        if (snap && snap.pairingConfidence >= 0.55 && !snap.isAmbiguous) {
+                          _lockedPairing = snap.pairing.name;
                         }
+                        w2Snapshots.push(snap);
+                      }
+
+
+                      let betHitTotal = 0, betHitHits = 0;
+                      let tableHitTotal = 0, tableHitHits = 0;
+
+                      // TABLE pairing definitions (mirrors WavePairingTable.jsx)
+                      const TABLE_PAIRINGS = [
+                        { key: "41/44", sideA: ["41", "44"], sideB: ["42", "43"], sideAName: "Outer", sideBName: "Inner" },
+                        { key: "42/44", sideA: ["42", "44"], sideB: ["41", "43"], sideAName: "Even", sideBName: "Odd" },
+                        { key: "43/44", sideA: ["43", "44"], sideB: ["41", "42"], sideAName: "High", sideBName: "Low" },
+                      ];
+
+                      // Compute TABLE bet at each roll (snapshot of last N rolls up to this point)
+                      const getTableBet = (rollsUpTo) => {
+                        if (!rollsUpTo || rollsUpTo.length < 3) return "—";
+                        const recent = rollsUpTo.slice(-12).map(r => String(r).slice(0, 2)).filter(r => ["41", "42", "43", "44"].includes(r));
+                        if (recent.length < 3) return "—";
+
+                        const colStats = TABLE_PAIRINGS.map(p => {
+                          const aCount = recent.filter(r => p.sideA.includes(r)).length;
+                          const bCount = recent.filter(r => p.sideB.includes(r)).length;
+                          const total = aCount + bCount;
+                          const domPct = total > 0 ? Math.round(Math.max(aCount, bCount) / total * 100) : 0;
+                          const sides = recent.map(r => p.sideA.includes(r) ? 'A' : p.sideB.includes(r) ? 'B' : null);
+                          const firstValid = sides.find(s => s !== null);
+                          let streakLen = 0;
+                          if (firstValid) {
+                            for (const s of sides) {
+                              if (s === firstValid) streakLen++;
+                              else if (s !== null) break;
+                            }
+                          }
+                          const streakSide = firstValid;
+                          const streakRolls = streakSide === 'A' ? p.sideA : p.sideB;
+                          return { key: p.key, domPct, streakLen, streakSide, streakRolls, total };
+                        });
+
+                        const withStreak = colStats.filter(s => s.streakLen >= 4).sort((a, b) => b.streakLen - a.streakLen || b.domPct - a.domPct);
+                        const bestByDom = [...colStats].sort((a, b) => b.domPct - a.domPct)[0];
+                        const chosen = withStreak[0] ?? bestByDom;
+                        if (!chosen || !chosen.streakRolls) return "—";
+                        return chosen.streakRolls.join("/");
+                      };
+
+                      kiyoLogs.forEach((log, idx) => {
+                        const actual = log.actual || "---";
+                        const rawActual = log.rawActual || actual;
+                        const actualD2 = actual[1] || "-";
+
+                        // Wave snapshot for this roll (newest first → index in chrono is reversed)
+                        const chronoIdx = chronoRolls.length - 1 - idx;
+                        const snap = w2Snapshots[chronoIdx];
+                        let waveVerdict = "—";
+                        let betRollsStr = "—";
+                        let waveHit = "-";
+                        if (snap) {
+                          const a = snap.action;
+                          if (a === 'DOMINANT')
+                            waveVerdict = `DOM ${snap.dominantLabel}(${snap.dominantPct}%)`;
+                          else if (a === 'FLIP')
+                            waveVerdict = `FLIP→${snap.flipLabel} (${snap.runLength}/${snap.dominantN})`;
+                          else if (a === 'HOLD')
+                            waveVerdict = `HOLD ${snap.currentLabel} (${snap.runLength}/${snap.dominantN})`;
+                          else
+                            waveVerdict = a || "—";
+                          if (snap.betRolls) {
+                            betRollsStr = snap.betRolls.join("/");
+                            const hit = snap.betRolls.some(b => actual.startsWith(b));
+                            waveHit = hit ? "✓" : "✗";
+                            if (betRollsStr !== "—") { betHitTotal++; if (hit) betHitHits++; }
+                          }
+                        }
+
+                        const tableBetStr = getTableBet(chronoRolls.slice(0, chronoIdx + 1));
+                        let tableHit = "-";
+                        if (tableBetStr !== "—") {
+                          const tRolls = tableBetStr.split("/");
+                          const hit = tRolls.some(b => actual.startsWith(b));
+                          tableHit = hit ? "✓" : "✗";
+                          tableHitTotal++;
+                          if (hit) tableHitHits++;
+                        }
+
+                        const row = [
+                          String(idx + 1).padEnd(3),
+                          (log.time || "—").padEnd(12),
+                          actual.padEnd(8),
+                          getYGroup(actual).padEnd(8),
+                          (snap?.sessionMode || "—").padEnd(13),
+                          waveVerdict.padEnd(26),
+                          betRollsStr.padEnd(10),
+                          waveHit.padEnd(9),
+                          tableBetStr.padEnd(10),
+                          tableHit.padEnd(9),
+                        ].join(" ");
+
+                        lines.push(row);
+
+                        if ((idx + 1) % 11 === 0 && idx + 1 < kiyoLogs.length) {
+                          lines.push("─".repeat(108) + " ◄ 5-min window");
+                        }
+                      });
+
+                      const pct = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
+
+                      // ── Accuracy summary ──────────────────────────────────────────────────
+
+                      lines.push("┌─────────────────────────────────────────────────────────┐");
+                      lines.push("│  📈 ACCURACY SUMMARY                                     │");
+                      lines.push("└─────────────────────────────────────────────────────────┘");
+                      lines.push("");
+                      lines.push("WAVE BET PERFORMANCE:");
+                      lines.push(`  🌊 WaveBet  : ${betHitHits} / ${betHitTotal} (${pct(betHitHits, betHitTotal)}%)`);
+                      lines.push(`  📊 TableBet : ${tableHitHits} / ${tableHitTotal} (${pct(tableHitHits, tableHitTotal)}%)`);
+                      lines.push("");
+
+                      // ── Verdict type breakdown ────────────────────────────────────────────
+                      lines.push("VERDICT TYPE BREAKDOWN:");
+                      const verdictStats = {};
+                      chronoRolls.forEach((actual, i) => {
+                        const snap = w2Snapshots[i];
+                        if (!snap || !snap.betRolls) return;
+                        const a = snap.action || 'OTHER';
+                        if (!verdictStats[a]) verdictStats[a] = { total: 0, hits: 0 };
+                        verdictStats[a].total++;
+                        if (snap.betRolls.some(b => actual.startsWith(b))) verdictStats[a].hits++;
+                      });
+                      const verdictOrder = ['DOMINANT', 'LEAN', 'HOLD', 'FLIP'];
+                      verdictOrder.forEach(v => {
+                        if (verdictStats[v]) {
+                          const s = verdictStats[v];
+                          const bar = '█'.repeat(Math.round(s.hits / s.total * 10)) + '░'.repeat(10 - Math.round(s.hits / s.total * 10));
+                          lines.push(`  ${v.padEnd(9)}: ${String(s.hits).padStart(2)}/${s.total} (${pct(s.hits, s.total)}%) [${bar}]`);
+                        }
+                      });
+                      lines.push("");
+
+                      // ── Confidence-tier accuracy ──────────────────────────────────────────
+                      lines.push("CONFIDENCE TIER ACCURACY:");
+                      lines.push("  (How often wave bet wins when confidence is high vs low)");
+                      const tier = { high: { h: 0, t: 0 }, mid: { h: 0, t: 0 }, low: { h: 0, t: 0 } };
+                      chronoRolls.forEach((actual, i) => {
+                        const snap = w2Snapshots[i];
+                        if (!snap || !snap.betRolls) return;
+                        const confPct = snap.action === 'DOMINANT'
+                          ? snap.dominantPct
+                          : Math.round((snap.confidence || 0.5) * 100);
+                        const hit = snap.betRolls.some(b => actual.startsWith(b));
+                        if (confPct >= 70) { tier.high.t++; if (hit) tier.high.h++; }
+                        else if (confPct >= 60) { tier.mid.t++; if (hit) tier.mid.h++; }
+                        else { tier.low.t++; if (hit) tier.low.h++; }
+                      });
+                      if (tier.high.t > 0) lines.push(`  ≥ 70% conf : ${tier.high.h}/${tier.high.t} (${pct(tier.high.h, tier.high.t)}%) ← strong signal`);
+                      if (tier.mid.t > 0) lines.push(`  60–69% conf: ${tier.mid.h}/${tier.mid.t}  (${pct(tier.mid.h, tier.mid.t)}%)`);
+                      if (tier.low.t > 0) lines.push(`  < 60% conf : ${tier.low.h}/${tier.low.t}  (${pct(tier.low.h, tier.low.t)}%) ← weak, skip bet`);
+                      lines.push(`  Recommendation: only bet when conf ≥ ${tier.high.t > 0 && pct(tier.high.h, tier.high.t) >= 70 ? 70 : 65}%`);
+
+
+                      // ── Baseline: always bet dominant side ───────────────────────────────
+                      lines.push("BASELINE COMPARISON:");
+                      const finalW2full = analyze2strWave(chronoRolls);
+                      if (finalW2full?.dominantPrefixes) {
+                        const domPfx = finalW2full.dominantPrefixes;
+                        const naiveHits = chronoRolls.filter(r => domPfx.some(b => r.startsWith(b))).length;
+                        const naivePct = pct(naiveHits, chronoRolls.length);
+                        lines.push(`  Always bet dominant (${finalW2full.dominantLabel}): ${naiveHits}/${chronoRolls.length} (${naivePct}%)`);
+                        lines.push(`  Wave Bet:                                          ${betHitHits}/${betHitTotal} (${pct(betHitHits, betHitTotal)}%)`);
+                        const gain = ((betHitHits / betHitTotal) - (naiveHits / chronoRolls.length)) * 100;
+                        lines.push(`  Delta vs naive:  ${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%`);
                       }
                       lines.push("");
-                      lines.push(`Pairing scores   : ${w2.allPairings.map(p => `${p.pairing.name}:${Math.round(p.score * 100)}%`).join(' | ')}`);
-                    } else {
-                      lines.push("Not enough rolls yet (need 3+).");
-                    }
-                    lines.push("");
 
-                    lines.push("═══════════════════════════════════════════════════════════");
-                    lines.push("Generated by Modern Kiyo Debug System");
-                    lines.push("═══════════════════════════════════════════════════════════");
-                    
-                    const text = lines.join("\n");
-                    
-                    const blob = new Blob([text], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `kiyo-debug-${new Date().toISOString().slice(0, 10)}.txt`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } catch (err) { alert('Download error: ' + err?.message); }}}
+                      // ── Run streak visualization ──────────────────────────────────────────
+                      lines.push("Y-SEQUENCE RUNS (oldest→newest):");
+                      if (finalW2full?.states && finalW2full?.pairing) {
+                        const states = finalW2full.states;
+                        const pa = finalW2full.pairing;
+                        let runStr = "";
+                        let prev = states[0]; let len = 1;
+                        const labelOf = s => s === 'A' ? pa.pairALabel[0] : pa.pairBLabel[0];
+                        for (let i = 1; i < states.length; i++) {
+                          if (states[i] === prev) { len++; }
+                          else { runStr += `${labelOf(prev)}(${len}) → `; prev = states[i]; len = 1; }
+                        }
+                        runStr += `${labelOf(prev)}(${len})`;
+                        lines.push("  " + runStr);
+                        // N analysis
+                        const runLens = [];
+                        let prev2 = states[0]; let len2 = 1;
+                        for (let i = 1; i < states.length; i++) {
+                          if (states[i] === prev2) len2++;
+                          else { runLens.push(len2); prev2 = states[i]; len2 = 1; }
+                        }
+                        runLens.push(len2);
+                        const avgRun = (runLens.reduce((a, b) => a + b, 0) / runLens.length).toFixed(1);
+                        const maxRun = Math.max(...runLens);
+                        lines.push(`  Avg run length: ${avgRun} · Max run: ${maxRun} · N (mode): ${finalW2full.dominantN}`);
+                      }
+                      lines.push("");
+
+                      // ── Early vs late accuracy ────────────────────────────────────────────
+                      lines.push("EARLY vs LATE ACCURACY:");
+                      const half = Math.floor(chronoRolls.length / 2);
+                      let earlyHits = 0, earlyTotal = 0, lateHits = 0, lateTotal = 0;
+                      chronoRolls.forEach((actual, i) => {
+                        const snap = w2Snapshots[i];
+                        if (!snap?.betRolls) return;
+                        const hit = snap.betRolls.some(b => actual.startsWith(b));
+                        if (i < half) { earlyTotal++; if (hit) earlyHits++; }
+                        else { lateTotal++; if (hit) lateHits++; }
+                      });
+                      lines.push(`  First half (${half} rolls): ${earlyHits}/${earlyTotal} (${pct(earlyHits, earlyTotal)}%) — pairing still learning`);
+                      lines.push(`  Second half (${chronoRolls.length - half} rolls): ${lateHits}/${lateTotal} (${pct(lateHits, lateTotal)}%) — pairing stable`);
+                      lines.push("");
+
+
+
+                      // Translated Rolls Section (4xx format)
+                      lines.push("┌─────────────────────────────────────────────────────────┐");
+                      lines.push("│  🎲 ALL ROLLS (Translated 4xx)                           │");
+                      lines.push("└─────────────────────────────────────────────────────────┘");
+                      lines.push("");
+                      const allRolls = kiyoLogs.map(log => log.actual || "---").join(", ");
+                      lines.push(allRolls);
+                      lines.push("");
+
+                      // Raw Rolls Section (original input)
+                      lines.push("┌─────────────────────────────────────────────────────────┐");
+                      lines.push("│  🎰 ALL ROLLS (Raw Input)                                │");
+                      lines.push("└─────────────────────────────────────────────────────────┘");
+                      lines.push("");
+                      const allRawRolls = kiyoLogs.map(log => log.rawActual || log.actual || "---").join(", ");
+                      lines.push(allRawRolls);
+                      lines.push("");
+
+                      // 2-String Wave Analysis — computed from session rolls
+                      lines.push("┌─────────────────────────────────────────────────────────┐");
+                      lines.push("│  🌊 2-STRING WAVE ANALYSIS                               │");
+                      lines.push("└─────────────────────────────────────────────────────────┘");
+                      lines.push("");
+                      const sessionRollsFor2str = kiyoLogs.map(l => l.actual).filter(Boolean);
+                      const is2strOnly = sessionRollsFor2str.every(r => String(r).length <= 2);
+                      const w2 = analyze2strWave(sessionRollsFor2str);
+                      if (is2strOnly) lines.push("⚠️  2-str only session — C2/C3 (Z-digit) columns are N/A");
+                      lines.push("");
+                      if (w2) {
+                        lines.push(`Pairing Detected : ${w2.pairingName}${w2.pairingConfidence >= 0.6 ? ' ★' : ' (low confidence)'}`);
+                        lines.push(`Session Mode     : ${w2.sessionMode || '—'}`);
+                        lines.push(`Confidence Score : ${Math.round(w2.pairingConfidence * 100)}%`);
+                        lines.push(`Dominant Side    : ${w2.dominantLabel} [${(w2.dominantPrefixes || []).join(' / ')}] — ${w2.dominantPct}% of rolls${w2.isDominant ? ' 🏆 DOMINANT' : ''}`);
+                        if (!w2.isDominant) {
+                          lines.push(`Flip N           : ${w2.dominantN} (rolls before side flip)`);
+                          lines.push(`Current Run      : ${w2.currentLabel} [${(w2.currentPrefixes || []).join(' / ')}] — ${w2.runLength} consecutive`);
+                        }
+                        lines.push(`VERDICT          : ${w2.message}`);
+                        lines.push(`Next Bet         : ${w2.betRolls ? w2.betRolls.join(' or ') : '—'}`);
+                        lines.push("");
+                        lines.push("Y-Sequence (all rolls, oldest first):");
+                        if (w2.pairing && w2.states) {
+                          const labels = w2.states.map(s => s === 'A' ? w2.pairing.pairALabel[0] : w2.pairing.pairBLabel[0]);
+                          for (let i = 0; i < labels.length; i += 20) {
+                            lines.push("  " + labels.slice(i, i + 20).join(" "));
+                          }
+                        }
+                        lines.push("");
+                        lines.push(`Pairing scores   : ${w2.allPairings.map(p => `${p.pairing.name}:${Math.round(p.score * 100)}%`).join(' | ')}`);
+                      } else {
+                        lines.push("Not enough rolls yet (need 3+).");
+                      }
+                      lines.push("");
+
+                      lines.push("═══════════════════════════════════════════════════════════");
+                      lines.push("Generated by Modern Kiyo Debug System");
+                      lines.push("═══════════════════════════════════════════════════════════");
+
+                      const text = lines.join("\n");
+
+                      const blob = new Blob([text], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `kiyo-debug-${new Date().toISOString().slice(0, 10)}.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (err) { alert('Download error: ' + err?.message); }
+                  }}
                   className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-semibold rounded-lg transition-all"
                 >
                   🎯 Export Kiyo TXT
                 </button>
               </div>
-              
+
               {kiyoLogsForDisplay.length > 0 ? (
                 kiyoLogsForDisplay.slice(0, 50).map((log, idx) => (
                   <div
@@ -631,9 +688,8 @@ export default function ModernDebugPanel({
                         const g = getGroupBadge2str(log.actual);
                         if (!g) return null;
                         return (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            g.isA ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          }`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.isA ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
                             {g.pairingName}: {g.label}
                           </span>
                         );
@@ -733,7 +789,7 @@ export default function ModernDebugPanel({
                   <br />
                   <span className="text-slate-600">Format: Same as 2-str Export (Svarog Tracer Debug Export)</span>
                 </p>
-                
+
                 <label className="block w-full px-6 py-4 rounded-xl bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-bold text-sm text-center cursor-pointer transition-all transform hover:scale-[1.02]">
                   📁 Import File
                   <input
@@ -749,17 +805,17 @@ export default function ModernDebugPanel({
                             const text = String(reader.result || '');
                             // Parse the Svarog debug export format
                             const parsedLogs = parseSvarogExport(text);
-                            
+
                             if (parsedLogs.length === 0) {
                               alert('No valid 2-str logs found in file');
                               return;
                             }
-                            
+
                             // Import the logs first
                             if (onImportLogs) {
                               onImportLogs(parsedLogs);
                             }
-                            
+
                             // Run backtest with the imported logs
                             const results = runBacktest(parsedLogs);
                             setBacktestResults(results);
@@ -804,7 +860,7 @@ export default function ModernDebugPanel({
                   <br />
                   <span className="text-slate-600">The string will be decoded to 4xxx format and analyzed.</span>
                 </p>
-                
+
                 <label className="block w-full px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-bold text-sm text-center cursor-pointer transition-all transform hover:scale-[1.02]">
                   📁 Import String
                   <input
@@ -818,20 +874,20 @@ export default function ModernDebugPanel({
                         reader.onload = () => {
                           try {
                             const text = String(reader.result || '').trim();
-                            
+
                             if (!text) {
                               alert('File is empty');
                               return;
                             }
-                            
+
                             // Run long string backtest
                             const results = runLongStringBacktest(text);
-                            
+
                             if (results.error) {
                               alert(results.error);
                               return;
                             }
-                            
+
                             setLongStringBacktestResults(results);
                           } catch (err) {
                             console.error('Long string backtest failed:', err);
@@ -874,7 +930,7 @@ export default function ModernDebugPanel({
                   <br />
                   <span className="text-slate-600">Shows Column 2 (Outer/Inner) and Column 3 (Low/High) accuracy.</span>
                 </p>
-                
+
                 <label className="block w-full px-6 py-4 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-bold text-sm text-center cursor-pointer transition-all transform hover:scale-[1.02]">
                   📁 Import Kiyo Debug Export
                   <input
@@ -888,20 +944,20 @@ export default function ModernDebugPanel({
                         reader.onload = () => {
                           try {
                             const text = String(reader.result || '');
-                            
+
                             if (!text) {
                               alert('File is empty');
                               return;
                             }
-                            
+
                             // Run Kiyo backtest
                             const results = runKiyoBacktest(text);
-                            
+
                             if (results.error) {
                               alert(results.error);
                               return;
                             }
-                            
+
                             setKiyoBacktestResults(results);
                           } catch (err) {
                             console.error('Kiyo backtest failed:', err);
@@ -937,7 +993,7 @@ export default function ModernDebugPanel({
                   const actual = String(log.actual || '—');
                   const confidence = Math.round((log.confidence || 0) * 100);
                   const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
-                  
+
                   return (
                     <div key={idx} className="py-1 border-b border-slate-800/30 last:border-0 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -971,7 +1027,7 @@ function BacktestResultsDisplay({ results, debugLogs }) {
 
   const latestSession = results.sessions[results.sessions.length - 1];
   const detailRows = (latestSession.details || []).filter(d => !d.skip && d.pred);
-  
+
   const mainHits = detailRows.filter(d => d.hitMain).length;
   const altHits = detailRows.filter(d => !d.hitMain && d.hitAlt).length;
   const misses = detailRows.length - mainHits - altHits;
@@ -988,7 +1044,7 @@ function BacktestResultsDisplay({ results, debugLogs }) {
           ✨ Predictor re-analyzed each roll with current algorithm
         </div>
       </div>
-      
+
       {/* Main Stats Grid */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
@@ -1036,14 +1092,14 @@ function BacktestResultsDisplay({ results, debugLogs }) {
 // Parse Svarog Tracer Debug Export format
 function parseSvarogExport(text) {
   const rawLines = text.split(/\r?\n/);
-  
+
   // Find the 2-str section
   let start = rawLines.findIndex(l => l.trim().startsWith('--- 2-str'));
   if (start === -1) return [];
-  
+
   start += 1; // Skip the section header
   let end = rawLines.length;
-  
+
   // Find where 2-str section ends
   for (let i = start; i < rawLines.length; i++) {
     const t = rawLines[i].trim();
@@ -1052,22 +1108,22 @@ function parseSvarogExport(text) {
       break;
     }
   }
-  
+
   const sectionLines = rawLines
     .slice(start, end)
     .map(l => l.trim())
     .filter(Boolean);
-  
+
   const logs = [];
-  
+
   for (const line of sectionLines) {
     if (!line.includes('2-str')) continue;
-    
+
     const parts = line.split('|').map(p => p.trim());
     if (parts.length < 3) continue;
-    
+
     const first = parts[0];
-    
+
     // Parse timestamp
     let ts = Date.now();
     const timeMatch = first.match(/\[(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\]/);
@@ -1076,35 +1132,35 @@ function parseSvarogExport(text) {
       let h = parseInt(hh, 10);
       const m = parseInt(mm, 10);
       const s = parseInt(ss, 10);
-      
+
       if (ampm === 'PM' && h !== 12) h += 12;
       if (ampm === 'AM' && h === 12) h = 0;
-      
+
       const d = new Date();
       d.setHours(h, m, s, 0);
       ts = d.getTime();
     }
-    
+
     // Parse prediction
     const predMatch = first.match(/pred:\s*(\d{2}|—)\s*\((\d+)%\)/);
     if (!predMatch) continue;
     const predRaw = predMatch[1];
     const confPct = parseInt(predMatch[2], 10) || 0;
     const pred = predRaw === '—' ? '—' : predRaw;
-    
+
     // Parse alt
     const altPart = parts.find(p => p.startsWith('alt:'));
     const altMatch = altPart ? altPart.match(/alt:\s*(\d{2})/) : null;
     const alt = altMatch ? altMatch[1] : null;
-    
+
     // Parse mode
     const modePart = parts.find(p => p.startsWith('mode:'));
     const mode = modePart ? modePart.replace(/^mode:\s*/, '').trim() : 'imported';
-    
+
     // Parse pattern
     const patternPart = parts.find(p => p.startsWith('Pattern:'));
     const pattern = patternPart ? patternPart.replace(/^Pattern:\s*/, '').trim() : '';
-    
+
     // Parse distribution
     const distPart = parts.find(p => p.startsWith('Dist:'));
     let distribution = null;
@@ -1119,13 +1175,13 @@ function parseSvarogExport(text) {
         }
       });
     }
-    
+
     // Parse actual
     const actualPart = parts.find(p => p.startsWith('actual:'));
     const actualMatch = actualPart ? actualPart.match(/actual:\s*(\d{2})/) : null;
     const actual = actualMatch ? actualMatch[1] : null;
     if (!actual) continue;
-    
+
     // Parse context
     const ctxPart = parts.find(p => p.startsWith('ctx:'));
     let ctx = [];
@@ -1136,7 +1192,7 @@ function parseSvarogExport(text) {
         .map(x => x.trim())
         .filter(Boolean);
     }
-    
+
     logs.push({
       ts,
       kind: '2',
@@ -1152,6 +1208,6 @@ function parseSvarogExport(text) {
       source: 'imported',
     });
   }
-  
+
   return logs;
 }
