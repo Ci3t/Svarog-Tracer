@@ -2,6 +2,7 @@
   "name": "hsr",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "npm@11.6.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +15,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "update-banners": "python scripts/update_banners.py",
-    "build:gh": "cross-env VITE_BASE_PATH=/Svarog-Tracer/ vite build"
+    "build:gh": "npm run build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -43,6 +44,6 @@
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
-    "vite": "^7.2.2"
+    "vite": "^6.2.5"
   }
 }
