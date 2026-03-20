@@ -3,15 +3,19 @@ import {
   buildDiscordOAuthUrl,
   clearStoredSession,
   fetchSupabaseUser,
+  getSessionStorageKey,
   hasSupabaseClientConfig,
+  isSessionExpired,
   parseAuthTokensFromUrl,
   readStoredSession,
+  refreshSupabaseSession,
   revokeSupabaseSession,
   storeSession,
 } from '../lib/supabaseClient';
 import { AuthContext } from './auth-context';
 
 const ROLE_MODE_STORAGE_KEY = 'hsr_role_mode';
+const SESSION_REFRESH_BUFFER_MS = 60 * 1000;
 
 function readRoleMode() {
   try {
@@ -29,11 +33,58 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState('');
   const [roleMode, setRoleModeState] = useState(() => (typeof window === 'undefined' ? 'user' : readRoleMode()));
 
+  const applySession = useCallback((nextSession, nextUser) => {
+    if (!nextSession?.access_token || !nextSession?.expires_at) {
+      setSession(null);
+      setUser(null);
+      clearStoredSession();
+      return;
+    }
+
+    storeSession(nextSession);
+    setSession(nextSession);
+    setUser(nextUser || nextSession.user || null);
+    setAuthError('');
+  }, []);
+
   const resetAuth = useCallback(() => {
     setSession(null);
     setUser(null);
     clearStoredSession();
   }, []);
+
+  const refreshSession = useCallback(
+    async (currentSession, { force = false } = {}) => {
+      if (!currentSession?.refresh_token) {
+        if (force && isSessionExpired(currentSession)) {
+          resetAuth();
+        }
+        return currentSession;
+      }
+
+      if (!force && !isSessionExpired(currentSession, SESSION_REFRESH_BUFFER_MS)) {
+        return currentSession;
+      }
+
+      const refreshed = await refreshSupabaseSession(currentSession.refresh_token);
+      const nextUser = refreshed.user || (await fetchSupabaseUser(refreshed.access_token));
+      const nextSession = {
+        access_token: refreshed.access_token,
+        refresh_token: refreshed.refresh_token || currentSession.refresh_token,
+        token_type: refreshed.token_type || currentSession.token_type || 'bearer',
+        expires_at: Date.now() + Number(refreshed.expires_in || 3600) * 1000,
+        user: {
+          id: nextUser.id,
+          email: nextUser.email || null,
+          user_metadata: nextUser.user_metadata || {},
+        },
+      };
+
+      applySession(nextSession, nextUser);
+      return nextSession;
+    },
+    [applySession, resetAuth]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -52,11 +103,10 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const nextUser = await fetchSupabaseUser(stored.access_token);
+        const hydratedSession = await refreshSession(stored);
+        const nextUser = await fetchSupabaseUser(hydratedSession.access_token);
         if (!cancelled) {
-          setSession(stored);
-          setUser(nextUser);
-          setAuthError('');
+          applySession(hydratedSession, nextUser);
         }
       } catch {
         if (!cancelled) {
@@ -74,7 +124,7 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [resetAuth]);
+  }, [applySession, refreshSession, resetAuth]);
 
   const signInWithDiscord = useCallback(() => {
     const url = buildDiscordOAuthUrl();
@@ -102,13 +152,10 @@ export function AuthProvider({ children }) {
       },
     };
 
-    storeSession(nextSession);
-    setSession(nextSession);
-    setUser(nextUser);
-    setAuthError('');
+    applySession(nextSession, nextUser);
 
     return nextSession;
-  }, []);
+  }, [applySession]);
 
   const signOut = useCallback(async () => {
     const accessToken = session?.access_token;
@@ -134,13 +181,45 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const onStorage = (event) => {
-      if (event.key !== ROLE_MODE_STORAGE_KEY) return;
-      setRoleModeState(readRoleMode());
+      if (event.key === ROLE_MODE_STORAGE_KEY) {
+        setRoleModeState(readRoleMode());
+        return;
+      }
+
+      if (event.key !== getSessionStorageKey()) return;
+
+      const nextStored = readStoredSession();
+      if (!nextStored?.access_token) {
+        setSession(null);
+        setUser(null);
+        return;
+      }
+
+      setSession(nextStored);
+      setUser(nextStored.user || null);
+      setAuthError('');
     };
 
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  useEffect(() => {
+    if (!session?.access_token || !session?.expires_at || !session?.refresh_token) {
+      return undefined;
+    }
+
+    const delay = Math.max(5 * 1000, Number(session.expires_at) - Date.now() - SESSION_REFRESH_BUFFER_MS);
+    const refreshTimer = window.setTimeout(async () => {
+      try {
+        await refreshSession(session, { force: true });
+      } catch {
+        resetAuth();
+      }
+    }, delay);
+
+    return () => window.clearTimeout(refreshTimer);
+  }, [refreshSession, resetAuth, session]);
 
   const value = useMemo(
     () => ({

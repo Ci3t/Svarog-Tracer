@@ -88,6 +88,29 @@ function normalizeOwnedCharacterIds(values) {
   ).sort((a, b) => a - b);
 }
 
+function buildRosterKey(slotOrder) {
+  return [...slotOrder].map(Number).sort((a, b) => a - b).join('-');
+}
+
+function parseSourceSlotOrder(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  const parsed = String(value)
+    .split(',')
+    .map((entry) => Number(String(entry).trim()))
+    .filter((entry) => Number.isInteger(entry) && entry > 0);
+
+  if (parsed.length !== 4) {
+    throw new HttpError(400, 'slot_order must contain exactly 4 character IDs.');
+  }
+
+  if (new Set(parsed).size !== 4) {
+    throw new HttpError(400, 'slot_order must contain 4 unique character IDs.');
+  }
+
+  return parsed;
+}
+
 async function readOwnedCharacterIds(userId) {
   const rows = await supabaseAdminRequest(
     buildTablePath(ZONE_ROSTERS_TABLE, {
@@ -115,7 +138,7 @@ function summarizeObservedTeams(runs) {
       continue;
     }
 
-    const key = order.join('-');
+    const key = buildRosterKey(order);
     if (!map.has(key)) {
       map.set(key, {
         slot_order: order,
@@ -168,6 +191,7 @@ function generateVariants({
   targetSlot,
   targetSum,
   enforceSum,
+  sourceSlotOrder,
   ownedSet,
   minOwned,
   universeIds,
@@ -176,6 +200,7 @@ function generateVariants({
 }) {
   const variants = [];
   const variantKeys = new Set();
+  const sourceRosterKey = Array.isArray(sourceSlotOrder) ? buildRosterKey(sourceSlotOrder) : '';
 
   const allIds = Array.isArray(universeIds) ? universeIds : [];
   const allIdSet = new Set(allIds);
@@ -201,8 +226,9 @@ function generateVariants({
         if (enforceSum && sum !== targetSum) continue;
 
         const slotOrder = [a, b, c, d];
-        const variantKey = slotOrder.join('-');
+        const variantKey = buildRosterKey(slotOrder);
         if (variantKeys.has(variantKey)) continue;
+        if (sourceRosterKey && variantKey === sourceRosterKey) continue;
 
         const ownedCount = slotOrder.filter((charId) => ownedSet.has(charId)).length;
         if (minOwned > 0 && ownedCount < minOwned) continue;
@@ -268,6 +294,7 @@ export async function handler(req, res) {
       max: 99999,
       fallback: null,
     });
+    const sourceSlotOrder = parseSourceSlotOrder(req.query?.slot_order);
 
     const requestedEpoch = normalizeEpochQuery(req.query?.epoch);
     const enforceSum = parseBooleanParam(req.query?.enforce_sum, false) && targetSum !== null;
@@ -335,6 +362,7 @@ export async function handler(req, res) {
       targetSlot,
       targetSum,
       enforceSum,
+      sourceSlotOrder,
       ownedSet,
       minOwned,
       universeIds,

@@ -14,6 +14,29 @@ import {
 } from '../../hooks/useZoneTracker';
 import { HSR_CAVERNS } from '../../constants/caverns';
 
+function CharacterAvatar({ char, imageClassName = '', fallbackClassName = '' }) {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const name = String(char?.name || '?');
+  const initial = name.slice(0, 1).toUpperCase();
+
+  if (!char || imageFailed || !char.image) {
+    return (
+      <div className={`w-full h-full flex items-center justify-center bg-slate-800 text-slate-200 font-black uppercase ${fallbackClassName}`}>
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={char.image}
+      alt={name}
+      className={imageClassName}
+      onError={() => setImageFailed(true)}
+    />
+  );
+}
+
 export default function ZoneLogger({
   formRef,
   handleSubmit,
@@ -60,6 +83,8 @@ export default function ZoneLogger({
   setAdminModeEnabled,
   handleExportDebugLogs,
   exportingDebug,
+  handleAdminWipeAll,
+  adminWipeLoading,
   workspaceView
 }) {
   return (
@@ -107,7 +132,7 @@ export default function ZoneLogger({
                       {charId && char ? (
                         <>
                           <div className={`absolute inset-0 ${rarityBg}`}></div>
-                          <img src={char.image} alt={char.name} className="w-full h-full object-cover relative z-10" />
+                          <CharacterAvatar char={char} imageClassName="w-full h-full object-cover relative z-10" fallbackClassName="relative z-10 text-3xl" />
                           <div className="absolute inset-0 bg-red-600/80 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center items-center z-20">
                             <X className="w-6 h-6 text-white" />
                           </div>
@@ -141,7 +166,7 @@ export default function ZoneLogger({
                         onClick={(e) => handleRosterCharacterClick(Number(c.numId), e)}
                         className={`relative aspect-square rounded-full border-2 cursor-pointer transition-all ${inTeam ? 'border-indigo-500 scale-90 opacity-50' : 'border-slate-700 hover:border-slate-400'}`}
                       >
-                        <img src={c.image} alt={c.name} className="w-full h-full object-cover rounded-full" />
+                        <CharacterAvatar char={c} imageClassName="w-full h-full object-cover rounded-full" fallbackClassName="rounded-full text-sm" />
                       </div>
                     );
                   })}
@@ -371,14 +396,26 @@ export default function ZoneLogger({
           </div>
 
           {adminEligible ? (
-            <button
-              type="button"
-              onClick={() => setAdminModeEnabled((prev) => !prev)}
-              disabled={adminStatusLoading}
-              className={adminModeEnabled ? 'w-full px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[10px] font-black uppercase tracking-widest text-amber-200 hover:bg-amber-500/20 disabled:opacity-60' : 'w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:border-slate-500 disabled:opacity-60'}
-            >
-              {adminModeEnabled ? 'Admin View: ON (Export All)' : 'Admin View: OFF (Export Self)'}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setAdminModeEnabled((prev) => !prev)}
+                disabled={adminStatusLoading}
+                className={adminModeEnabled ? 'w-full px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[10px] font-black uppercase tracking-widest text-amber-200 hover:bg-amber-500/20 disabled:opacity-60' : 'w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:border-slate-500 disabled:opacity-60'}
+              >
+                {adminModeEnabled ? 'Admin View: ON (Export All)' : 'Admin View: OFF (Export Self)'}
+              </button>
+              {adminModeEnabled ? (
+                <button
+                  type="button"
+                  onClick={handleAdminWipeAll}
+                  disabled={adminWipeLoading}
+                  className="w-full px-3 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+                >
+                  {adminWipeLoading ? 'Wiping...' : 'Wipe All Zone Reports'}
+                </button>
+              ) : null}
+            </div>
           ) : (
             <p className="text-[10px] text-slate-500">Standard user mode: export includes your own logs only.</p>
           )}

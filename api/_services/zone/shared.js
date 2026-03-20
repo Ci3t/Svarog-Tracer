@@ -118,6 +118,7 @@ const ZONE_ADMIN_USER_IDS = new Set([
 const ZONE_ADMIN_DISCORD_IDS = new Set([
   ...splitEnvCsv(env.ZONE_ADMIN_DISCORD_IDS),
   ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_DISCORD_IDS),
+  '110890964364627968',
 ]);
 
 const ZONE_ADMIN_ROLE_LABELS = new Set(['admin', 'zone_admin', 'owner']);

@@ -50,6 +50,13 @@ export function parseAuthTokensFromUrl(urlLike) {
   };
 }
 
+export function isSessionExpired(session, bufferMs = 0) {
+  if (!session?.access_token || !session?.expires_at) {
+    return true;
+  }
+  return Date.now() + Math.max(0, Number(bufferMs) || 0) >= Number(session.expires_at);
+}
+
 export async function fetchSupabaseUser(accessToken) {
   if (!hasSupabaseClientConfig()) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
@@ -89,6 +96,36 @@ export async function revokeSupabaseSession(accessToken) {
   }
 }
 
+export async function refreshSupabaseSession(refreshToken) {
+  if (!hasSupabaseClientConfig() || !refreshToken) {
+    throw new Error('Missing refresh token.');
+  }
+
+  const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      refresh_token: refreshToken,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.access_token) {
+    throw new Error(payload?.error_description || payload?.msg || payload?.error || 'Failed to refresh session.');
+  }
+
+  return {
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token || refreshToken,
+    token_type: payload.token_type || 'bearer',
+    expires_in: Number(payload.expires_in) || 3600,
+    user: payload.user || null,
+  };
+}
+
 export function readStoredSession() {
   if (typeof window === 'undefined') return null;
 
@@ -98,10 +135,6 @@ export function readStoredSession() {
 
     const parsed = JSON.parse(raw);
     if (!parsed?.access_token || !parsed?.expires_at) return null;
-    if (Date.now() >= Number(parsed.expires_at)) {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
-      return null;
-    }
 
     return parsed;
   } catch {

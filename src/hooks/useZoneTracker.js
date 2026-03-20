@@ -286,6 +286,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [adminStatusLoading, setAdminStatusLoading] = useState(false);
   const [adminActionLoadingKey, setAdminActionLoadingKey] = useState('');
   const [adminWipeLoading, setAdminWipeLoading] = useState(false);
+  const [adminEditModalZone, setAdminEditModalZone] = useState(null);
+  const [adminEditDraft, setAdminEditDraft] = useState({ xor: '', slot: '', sum: '', slotOrder: ['', '', '', ''] });
 
   const [tuneXorInput, setTuneXorInput] = useState('');
   const [tuneSlotInput, setTuneSlotInput] = useState('');
@@ -1080,30 +1082,86 @@ export function useZoneTracker(sessionTheme = 'modern') {
     }
   }, [adminEligible, adminModeEnabled, fetchMap, mapRegion, requestedEpoch, runAdminZoneAction]);
 
-  const handleAdminEditZone = useCallback(async (zone) => {
+  const handleAdminEditZone = useCallback((zone) => {
     if (!adminEligible || !adminModeEnabled || !zone) return;
-    const draft = window.prompt('Enter new Zone, Slot, Sig (comma separated):', `${zone?.char_xor ?? ''},${zone?.char_slot ?? ''},${zone?.char_sum ?? ''}`);
-    if (!draft) return;
-    const parts = String(draft).split(',').map(e => e.trim()).filter(Boolean);
-    if (parts.length < 2) { setError('Edit requires at least Zone and Slot (comma separated).'); return; }
-    const nextXor = parseNonNegativeInteger(parts[0], { max: 99999 });
-    const nextSlot = parseNonNegativeInteger(parts[1], { max: 99999 });
-    const nextSum = parts[2] !== undefined ? parseNonNegativeInteger(parts[2], { max: 99999 }) : null;
-    if (nextXor === null || nextSlot === null) { setError('Invalid Zone/Slot values.'); return; }
+    setAdminEditModalZone(zone);
+    setAdminEditDraft({
+      xor: String(zone?.char_xor ?? ''),
+      slot: String(zone?.char_slot ?? ''),
+      sum: String(zone?.char_sum ?? ''),
+      slotOrder: Array.isArray(zone?.sample_slot_order) && zone.sample_slot_order.length === 4
+        ? zone.sample_slot_order.map((value) => String(value ?? ''))
+        : ['', '', '', ''],
+    });
+    setError('');
+  }, [adminEligible, adminModeEnabled]);
+
+  const handleAdminEditDraftChange = useCallback((field, value) => {
+    setAdminEditDraft((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleAdminEditCancel = useCallback(() => {
+    setAdminEditModalZone(null);
+    setAdminEditDraft({ xor: '', slot: '', sum: '', slotOrder: ['', '', '', ''] });
+  }, []);
+
+  const handleAdminEditSlotOrderChange = useCallback((index, value) => {
+    setAdminEditDraft((prev) => {
+      const next = Array.isArray(prev.slotOrder) ? [...prev.slotOrder] : ['', '', '', ''];
+      next[index] = String(value ?? '');
+      const numeric = next.map((entry) => parseNonNegativeInteger(entry, { max: 99999 }));
+      if (numeric.length === 4 && numeric.every((entry) => entry !== null) && new Set(numeric).size === 4) {
+        const [a, b, c, d] = numeric;
+        return {
+          ...prev,
+          slotOrder: next,
+          xor: String(a ^ b ^ c ^ d),
+          slot: String((d * 3 + a + b + c) % 10000),
+          sum: String(a + b + c + d),
+        };
+      }
+      return { ...prev, slotOrder: next };
+    });
+  }, []);
+
+  const handleAdminEditSubmit = useCallback(async () => {
+    const zone = adminEditModalZone;
+    if (!adminEligible || !adminModeEnabled || !zone) return;
+    const nextSlotOrder = Array.isArray(adminEditDraft.slotOrder)
+      ? adminEditDraft.slotOrder.map((value) => parseNonNegativeInteger(value, { max: 99999 }))
+      : [];
+    if (nextSlotOrder.length !== 4 || nextSlotOrder.some((value) => value === null)) {
+      setError('Pick 4 valid characters for the squad.');
+      return;
+    }
+    if (new Set(nextSlotOrder).size !== 4) {
+      setError('Squad must contain 4 unique characters.');
+      return;
+    }
     const zoneKey = buildZoneVariantKey(zone);
     setAdminActionLoadingKey('edit:' + zoneKey);
     setError('');
     setSuccess('');
     try {
-      const result = await runAdminZoneAction({ action: 'edit_zone', epoch: requestedEpoch, region: mapRegion, xor_slot_key: zone?.xor_slot_key || '', char_xor: zone?.char_xor, char_slot: zone?.char_slot, new_char_xor: nextXor, new_char_slot: nextSlot, ...(nextSum !== null ? { new_char_sum: nextSum } : {}) });
-      setSuccess(`Updated ${result.updated_count || 0} run(s) to Zone ${nextXor} / Slot ${nextSlot}.`);
+      const result = await runAdminZoneAction({
+        action: 'edit_zone',
+        epoch: requestedEpoch,
+        region: mapRegion,
+        xor_slot_key: zone?.xor_slot_key || '',
+        char_xor: zone?.char_xor,
+        char_slot: zone?.char_slot,
+        new_slot_order: nextSlotOrder,
+      });
+      setSuccess(`Updated ${result.updated_count || 0} run(s) from the edited squad.`);
+      setAdminEditModalZone(null);
+      setAdminEditDraft({ xor: '', slot: '', sum: '', slotOrder: ['', '', '', ''] });
       await fetchMap(requestedEpoch);
     } catch (editError) {
       setError(mapAuthError(editError));
     } finally {
       setAdminActionLoadingKey('');
     }
-  }, [adminEligible, adminModeEnabled, fetchMap, mapRegion, requestedEpoch, runAdminZoneAction]);
+  }, [adminEditDraft.slotOrder, adminEditModalZone, adminEligible, adminModeEnabled, fetchMap, mapRegion, requestedEpoch, runAdminZoneAction]);
 
   const handleAdminWipeEpoch = useCallback(async () => {
     if (!adminEligible || !adminModeEnabled) return;
@@ -1227,6 +1285,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     variantOwnershipFilter, setVariantOwnershipFilter,
     variantEnforceSum, setVariantEnforceSum,
     variantsByZone,
+    setVariantsByZone,
     variantLoadingZoneKey,
     exportingDebug,
     adminEligible,
@@ -1234,6 +1293,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
     adminStatusLoading,
     adminActionLoadingKey,
     adminWipeLoading,
+    adminEditModalZone,
+    adminEditDraft,
     tuneXorInput, setTuneXorInput,
     tuneSlotInput, setTuneSlotInput,
     tuneSumInput, setTuneSumInput,
@@ -1293,6 +1354,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
     handleReportZoneCard,
     handleAdminDeleteZone,
     handleAdminEditZone,
+    handleAdminEditDraftChange,
+    handleAdminEditSlotOrderChange,
+    handleAdminEditCancel,
+    handleAdminEditSubmit,
     handleAdminWipeEpoch,
     handleAdminWipeAll,
     handleExportDebugLogs,

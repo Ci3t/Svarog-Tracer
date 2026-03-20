@@ -1,4 +1,5 @@
 import {
+  computeHash,
   HttpError,
   ZONE_RUNS_TABLE,
   buildTablePath,
@@ -7,8 +8,10 @@ import {
   fetchPreviousEpoch,
   handleApiError,
   isZoneAdminUser,
+  normalizeSlotOrder,
   readRequestBody,
   requireAuthenticatedUser,
+  resolveCharacterNames,
   supabaseAdminRequest,
 } from './shared.js';
 
@@ -209,22 +212,40 @@ export async function handler(req, res) {
     }
 
     if (action === 'edit_zone') {
+      const requestedSlotOrder = body.new_slot_order;
+      let patchPayload = null;
+
+      if (Array.isArray(requestedSlotOrder) && requestedSlotOrder.length > 0) {
+        const slotOrder = normalizeSlotOrder(requestedSlotOrder);
+        const hash = computeHash(slotOrder);
+        patchPayload = {
+          slot_order: slotOrder,
+          char_names: resolveCharacterNames(slotOrder),
+          char_xor: hash.charXor,
+          char_slot: hash.charSlot,
+          char_sum: hash.charSum,
+          xor_slot_key: hash.xorSlotKey,
+        };
+      }
+
       const targetXor = parseOptionalInt(body.new_char_xor, { min: 0, max: 99999, field: 'new_char_xor' });
       const targetSlot = parseOptionalInt(body.new_char_slot, { min: 0, max: 99999, field: 'new_char_slot' });
       const targetSum = parseOptionalInt(body.new_char_sum, { min: 0, max: 99999, field: 'new_char_sum' });
 
-      if (targetXor === null || targetSlot === null) {
-        throw new HttpError(400, 'new_char_xor and new_char_slot are required for edit_zone.');
-      }
+      if (!patchPayload) {
+        if (targetXor === null || targetSlot === null) {
+          throw new HttpError(400, 'Provide new_slot_order or new_char_xor + new_char_slot for edit_zone.');
+        }
 
-      const patchPayload = {
-        char_xor: targetXor,
-        char_slot: targetSlot,
-        xor_slot_key: `${targetXor}_${targetSlot}`,
-      };
+        patchPayload = {
+          char_xor: targetXor,
+          char_slot: targetSlot,
+          xor_slot_key: `${targetXor}_${targetSlot}`,
+        };
 
-      if (targetSum !== null) {
-        patchPayload.char_sum = targetSum;
+        if (targetSum !== null) {
+          patchPayload.char_sum = targetSum;
+        }
       }
 
       const totalBefore = await countMatchingRuns(filters);

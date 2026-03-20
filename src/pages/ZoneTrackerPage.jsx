@@ -29,6 +29,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     formRef,
     handleSubmit,
     slots,
+    setSlots,
     activeSlotIndex,
     setActiveSlotIndex,
     handleTeamSlotDragStart,
@@ -62,7 +63,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     setNotes,
     submitting,
     error,
+    setError,
     success,
+    setSuccess,
     adminEligible,
     adminStatusLoading,
     adminModeEnabled,
@@ -118,8 +121,14 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     handleAdminDeleteZone,
     handleAdminEditZone,
     adminActionLoadingKey,
+    adminEditModalZone,
+    adminEditDraft,
     variantsByZone,
     handleExportZoneToCaverns,
+    handleAdminEditDraftChange,
+    handleAdminEditSlotOrderChange,
+    handleAdminEditCancel,
+    handleAdminEditSubmit,
 
     // Build Team
     buildSlots,
@@ -130,6 +139,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     buildVariantLoading,
     setBuildVariantLoading,
     ownedSet,
+    setVariantsByZone,
     getAuthHeader,
     
     // Helpers
@@ -167,7 +177,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             clearTimeInput, setClearTimeInput, sanitizeClearTimeMmSsInput,
             normalizeClearTimeMmSsInput, notes, setNotes, submitting, error,
             success, adminEligible, adminStatusLoading, adminModeEnabled,
-            setAdminModeEnabled, handleExportDebugLogs, exportingDebug,
+            setAdminModeEnabled, handleExportDebugLogs, exportingDebug, handleAdminWipeAll, adminWipeLoading,
             workspaceView
           }}
         />
@@ -189,13 +199,15 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             fetchVariantsForZone, variantLoadingZoneKey, manualVariantPayload,
             zones, signalMetricLabel, requestedEpoch, handleReportZoneCard,
             handleAdminDeleteZone, handleAdminEditZone, adminActionLoadingKey,
-            variantsByZone, handleExportZoneToCaverns, charactersByNumId,
+            adminEditModalZone, adminEditDraft, handleAdminEditDraftChange,
+            handleAdminEditSlotOrderChange, handleAdminEditCancel, handleAdminEditSubmit, variantsByZone, setVariantsByZone, handleExportZoneToCaverns, charactersByNumId,
             setSlots, setSuccess
           }}
         />
 
         <ZoneBuildTeam
           workspaceView={workspaceView}
+          setWorkspaceView={setWorkspaceView}
           buildSlots={buildSlots}
           setBuildSlots={setBuildSlots}
           buildTeamSignature={buildTeamSignature}
