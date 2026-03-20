@@ -13,6 +13,8 @@ export const ZONE_EPOCH_TABLE = env.SUPABASE_ZONE_EPOCH_TABLE || 'zone_epochs';
 export const ZONE_RUNS_TABLE = env.SUPABASE_ZONE_RUNS_TABLE || 'zone_runs';
 export const ZONE_FLAGS_TABLE = env.SUPABASE_ZONE_FLAGS_TABLE || 'zone_epoch_flags';
 export const ZONE_ROSTERS_TABLE = env.SUPABASE_ZONE_ROSTERS_TABLE || 'zone_user_rosters';
+const ZONE_EPOCH_TIMEZONE = env.ZONE_EPOCH_TIMEZONE || 'Asia/Jerusalem';
+const ZONE_EPOCH_ROLLOVER_HOUR = Math.max(0, Math.min(23, Number(env.ZONE_EPOCH_ROLLOVER_HOUR || 5) || 5));
 
 export const VALID_OUTCOMES = new Set([
   'spd-double-crit',
@@ -548,6 +550,37 @@ function formatIsoWeek(date = new Date()) {
   return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+function getTimeZoneWallClockDate(date = new Date(), timeZone = ZONE_EPOCH_TIMEZONE) {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+
+  return new Date(Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  ));
+}
+
+function getScheduledEpochWeekKey(date = new Date()) {
+  const wallClockDate = getTimeZoneWallClockDate(date);
+  wallClockDate.setUTCHours(wallClockDate.getUTCHours() - ZONE_EPOCH_ROLLOVER_HOUR);
+  return formatIsoWeek(wallClockDate);
+}
+
 export function startOfUtcDay(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -566,6 +599,87 @@ export async function fetchCurrentEpoch() {
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+async function createEpochRecord({ previousEpochId = null, createdByFlag = false } = {}) {
+  const rows = await supabaseAdminRequest(ZONE_EPOCH_TABLE, {
+    method: 'POST',
+    body: {
+      calendar_week: getScheduledEpochWeekKey(),
+      created_by_flag: createdByFlag,
+      previous_epoch_id: previousEpochId,
+      is_current: true,
+    },
+  });
+
+  const created = Array.isArray(rows) ? rows[0] : rows;
+  if (!created?.id) {
+    throw new HttpError(500, 'Failed to initialize current zone epoch.');
+  }
+
+  return created;
+}
+
+async function pruneEpochHistory(currentEpoch) {
+  const keepIds = new Set([currentEpoch?.id, currentEpoch?.previous_epoch_id].filter(Boolean).map((value) => Number(value)));
+  if (keepIds.size === 0) return;
+
+  const epochRows = await supabaseAdminRequest(
+    buildTablePath(ZONE_EPOCH_TABLE, {
+      select: 'id',
+      filters: {
+        order: 'created_at.desc',
+        limit: '100',
+      },
+    })
+  );
+
+  const staleEpochIds = (Array.isArray(epochRows) ? epochRows : [])
+    .map((row) => Number(row?.id))
+    .filter((id) => Number.isInteger(id) && id > 0 && !keepIds.has(id));
+
+  if (staleEpochIds.length === 0) return;
+
+  const inFilter = `in.(${staleEpochIds.join(',')})`;
+
+  await supabaseAdminRequest(
+    buildTablePath(ZONE_FLAGS_TABLE, {
+      select: false,
+      filters: {
+        epoch_id: inFilter,
+      },
+    }),
+    {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }
+  );
+
+  await supabaseAdminRequest(
+    buildTablePath(ZONE_RUNS_TABLE, {
+      select: false,
+      filters: {
+        epoch_id: inFilter,
+      },
+    }),
+    {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }
+  );
+
+  await supabaseAdminRequest(
+    buildTablePath(ZONE_EPOCH_TABLE, {
+      select: false,
+      filters: {
+        id: inFilter,
+      },
+    }),
+    {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }
+  );
+}
+
 export async function fetchEpochById(epochId) {
   const rows = await supabaseAdminRequest(
     buildTablePath(ZONE_EPOCH_TABLE, {
@@ -580,25 +694,18 @@ export async function fetchEpochById(epochId) {
 }
 
 export async function ensureCurrentEpoch() {
+  const targetWeekKey = getScheduledEpochWeekKey();
   const existing = await fetchCurrentEpoch();
-  if (existing) return existing;
+  if (existing?.id && existing.calendar_week === targetWeekKey) {
+    await pruneEpochHistory(existing);
+    return existing;
+  }
 
   try {
-    const rows = await supabaseAdminRequest(ZONE_EPOCH_TABLE, {
-      method: 'POST',
-      body: {
-        calendar_week: formatIsoWeek(),
-        created_by_flag: false,
-        previous_epoch_id: null,
-        is_current: true,
-      },
-    });
-
-    const created = Array.isArray(rows) ? rows[0] : rows;
-    if (!created?.id) {
-      throw new HttpError(500, 'Failed to initialize current zone epoch.');
-    }
-
+    const created = existing?.id
+      ? await rotateEpochFromFlag(existing, { createdByFlag: false })
+      : await createEpochRecord({ previousEpochId: null, createdByFlag: false });
+    await pruneEpochHistory(created);
     return created;
   } catch (error) {
     if (!isUniqueViolationError(error)) {
@@ -606,7 +713,10 @@ export async function ensureCurrentEpoch() {
     }
 
     const fallbackCurrent = await fetchCurrentEpoch();
-    if (fallbackCurrent) return fallbackCurrent;
+    if (fallbackCurrent) {
+      await pruneEpochHistory(fallbackCurrent);
+      return fallbackCurrent;
+    }
     throw new HttpError(500, 'Failed to initialize current zone epoch after retry.');
   }
 }
@@ -647,7 +757,7 @@ export async function countDistinctRecentFlags(epochId, sinceIso) {
   return uniqueUsers.size;
 }
 
-export async function rotateEpochFromFlag(currentEpoch) {
+export async function rotateEpochFromFlag(currentEpoch, { createdByFlag = true } = {}) {
   if (!currentEpoch?.id) {
     throw new HttpError(500, 'Cannot rotate epoch without a valid current epoch.');
   }
@@ -667,21 +777,8 @@ export async function rotateEpochFromFlag(currentEpoch) {
   );
 
   try {
-    const rows = await supabaseAdminRequest(ZONE_EPOCH_TABLE, {
-      method: 'POST',
-      body: {
-        calendar_week: formatIsoWeek(),
-        created_by_flag: true,
-        previous_epoch_id: currentEpoch.id,
-        is_current: true,
-      },
-    });
-
-    const created = Array.isArray(rows) ? rows[0] : rows;
-    if (!created?.id) {
-      throw new HttpError(500, 'Failed to rotate zone epoch.');
-    }
-
+    const created = await createEpochRecord({ previousEpochId: currentEpoch.id, createdByFlag });
+    await pruneEpochHistory(created);
     return created;
   } catch (error) {
     if (!isUniqueViolationError(error)) {
@@ -689,7 +786,10 @@ export async function rotateEpochFromFlag(currentEpoch) {
     }
 
     const fallbackCurrent = await fetchCurrentEpoch();
-    if (fallbackCurrent?.id) return fallbackCurrent;
+    if (fallbackCurrent?.id) {
+      await pruneEpochHistory(fallbackCurrent);
+      return fallbackCurrent;
+    }
     throw new HttpError(500, 'Failed to rotate zone epoch after retry.');
   }
 }

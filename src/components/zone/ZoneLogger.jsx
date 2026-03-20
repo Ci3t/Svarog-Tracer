@@ -3,7 +3,10 @@ import {
   PlusCircle, 
   X, 
   Search, 
-  Info 
+  Info,
+  Upload,
+  Save,
+  RefreshCw
 } from 'lucide-react';
 import { 
   RELIC_FIXED_MAIN_STATS, 
@@ -38,6 +41,7 @@ function CharacterAvatar({ char, imageClassName = '', fallbackClassName = '' }) 
 }
 
 export default function ZoneLogger({
+  user,
   formRef,
   handleSubmit,
   slots,
@@ -53,6 +57,19 @@ export default function ZoneLogger({
   charSearchTerm,
   setCharSearchTerm,
   characterOptions,
+  ownedOptions,
+  ownedSet,
+  ownedSearchTerm,
+  setOwnedSearchTerm,
+  ownedLoading,
+  ownedSaving,
+  ownedImporting,
+  rosterMode,
+  setRosterMode,
+  saveOwnedRoster,
+  loadOwnedRoster,
+  toggleOwnedCharacter,
+  importOwnedRosterFile,
   handleRosterCharacterClick,
   relicGridCompact,
   setRelicGridCompact,
@@ -87,6 +104,33 @@ export default function ZoneLogger({
   adminWipeLoading,
   workspaceView
 }) {
+  const fileInputRef = React.useRef(null);
+  const visibleCharacters = rosterMode === 'owned' ? ownedOptions : characterOptions;
+  const visibleSearchTerm = rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm;
+
+  const handleRosterSearchChange = (value) => {
+    if (rosterMode === 'owned') {
+      setOwnedSearchTerm(value);
+      return;
+    }
+    setCharSearchTerm(value);
+  };
+
+  const handleRosterGridClick = async (charId, event) => {
+    if (rosterMode === 'owned') {
+      toggleOwnedCharacter(charId);
+      return;
+    }
+    handleRosterCharacterClick(charId, event);
+  };
+
+  const handleOwnedImportChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    await importOwnedRosterFile(file);
+  };
+
   return (
     <div className={workspaceView === 'logger' ? 'space-y-8' : 'hidden'}>
       <section ref={formRef} className="theme-glass-card p-8 border-indigo-500/10 shadow-2xl overflow-visible">
@@ -146,27 +190,106 @@ export default function ZoneLogger({
               </div>
 
               <div className="mt-8">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleOwnedImportChange}
+                  className="hidden"
+                />
+
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-950/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRosterMode('team')}
+                      className={rosterMode === 'team' ? 'rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-cyan-100' : 'rounded-lg border border-transparent px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-200'}
+                    >
+                      Team
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRosterMode('owned')}
+                      className={rosterMode === 'owned' ? 'rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-cyan-100' : 'rounded-lg border border-transparent px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-200'}
+                    >
+                      Owned
+                    </button>
+                  </div>
+
+                  {rosterMode === 'owned' ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
+                        {ownedSet.size} Owned
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!user?.id || ownedImporting}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/35 bg-indigo-500/10 px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-indigo-100 hover:bg-indigo-500/20 disabled:opacity-50"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        {ownedImporting ? 'Importing...' : 'Import JSON'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveOwnedRoster}
+                        disabled={!user?.id || ownedSaving}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {ownedSaving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={loadOwnedRoster}
+                        disabled={!user?.id || ownedLoading}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:border-slate-500 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${ownedLoading ? 'animate-spin' : ''}`} />
+                        Reload
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Search for a character to add..."
-                    value={charSearchTerm}
-                    onChange={(e) => setCharSearchTerm(e.target.value)}
+                    placeholder={rosterMode === 'owned' ? 'Search owned characters...' : 'Search for a character to add...'}
+                    value={visibleSearchTerm}
+                    onChange={(e) => handleRosterSearchChange(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-all"
                   />
                 </div>
 
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2 mt-4 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                  {characterOptions.map((c) => {
-                    const inTeam = slots.includes(Number(c.numId));
+                  {visibleCharacters.map((c) => {
+                    const numId = Number(c.numId);
+                    const inTeam = slots.includes(numId);
+                    const isOwned = ownedSet.has(numId);
                     return (
                       <div
                         key={c.id}
-                        onClick={(e) => handleRosterCharacterClick(Number(c.numId), e)}
-                        className={`relative aspect-square rounded-full border-2 cursor-pointer transition-all ${inTeam ? 'border-indigo-500 scale-90 opacity-50' : 'border-slate-700 hover:border-slate-400'}`}
+                        onClick={(e) => handleRosterGridClick(numId, e)}
+                        title={c.name}
+                        className={`relative aspect-square rounded-full border-2 cursor-pointer transition-all ${
+                          rosterMode === 'owned'
+                            ? isOwned
+                              ? 'border-cyan-400/70 ring-2 ring-cyan-400/20'
+                              : 'border-slate-800 grayscale opacity-45 hover:opacity-70'
+                            : inTeam
+                              ? 'border-indigo-500 scale-90 opacity-50'
+                              : 'border-slate-700 hover:border-slate-400'
+                        }`}
                       >
                         <CharacterAvatar char={c} imageClassName="w-full h-full object-cover rounded-full" fallbackClassName="rounded-full text-sm" />
+                        {rosterMode === 'owned' && isOwned ? (
+                          <div className="absolute right-0 top-0 h-3.5 w-3.5 rounded-full border border-white/40 bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.6)]" />
+                        ) : null}
+                        {rosterMode === 'owned' && !isOwned ? (
+                          <div className="pointer-events-none absolute inset-0 rounded-full bg-slate-950/20" />
+                        ) : null}
                       </div>
                     );
                   })}

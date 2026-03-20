@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { gsap } from 'gsap';
 import { Users, Plus, X, ChevronLeft, ChevronRight, Shuffle, Target } from 'lucide-react';
 import { formatRate } from '../../hooks/useZoneTracker';
 
@@ -58,6 +59,30 @@ function CharacterAvatar({ char, charId, className = '', fallbackClassName = '' 
   );
 }
 
+function CharacterBubble({ char, charId, tooltip, selected = false, disabled = false, onClick, ...rest }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={tooltip}
+      {...rest}
+      className={`group relative h-16 w-16 cursor-pointer transition-all ${disabled ? 'cursor-default opacity-40' : 'hover:scale-105'} ${selected ? 'opacity-55' : ''}`}
+    >
+      <div className={`w-full h-full rounded-full overflow-hidden bg-slate-800 ${selected ? 'ring-2 ring-violet-400/70 ring-offset-2 ring-offset-slate-950' : 'ring-1 ring-slate-700/70 hover:ring-violet-400/50'}`}>
+        <CharacterAvatar char={char} charId={charId} className="w-full h-full object-cover object-top rounded-full" fallbackClassName="rounded-full text-sm" />
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-[calc(100%+8px)] rounded-lg border border-slate-700 bg-slate-950/95 px-2.5 py-1 text-[10px] font-bold text-slate-100 opacity-0 shadow-xl transition-all duration-150 group-hover:opacity-100 whitespace-nowrap">
+        {tooltip}
+        <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-950" />
+      </div>
+      {selected ? (
+        <div className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-white/50 bg-violet-500" />
+      ) : null}
+    </button>
+  );
+}
+
 export default function ZoneBuildTeam({
   workspaceView,
   buildSlots,
@@ -70,14 +95,26 @@ export default function ZoneBuildTeam({
   charactersByNumId,
   characterOptions,
   ownedSet,
+  variantOwnershipFilter,
+  setVariantOwnershipFilter,
+  variantMinOwned,
+  setVariantMinOwned,
   setSlots,
   setSuccess,
   getAuthHeader,
 }) {
+  const shellRef = useRef(null);
+  const slotsGridRef = useRef(null);
+  const rosterGridRef = useRef(null);
+  const generateButtonRef = useRef(null);
+  const resultsPanelRef = useRef(null);
+  const previousBuildSlotsRef = useRef('');
   const [charSearch, setCharSearch] = useState('');
   const [variantPage, setVariantPage] = useState(0);
   const [resultsView, setResultsView] = useState('list');
   const [enforceTeamSum, setEnforceTeamSum] = useState(false);
+  const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
   const lastSyncedSignatureRef = useRef('');
 
   const [manualXor, setManualXor] = useState('');
@@ -103,6 +140,33 @@ export default function ZoneBuildTeam({
     }
   }, [buildTeamSignature]);
 
+  useEffect(() => {
+    if (!shellRef.current) return;
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline();
+      tl.fromTo(
+        '[data-build-animate="hero"]',
+        { opacity: 0, y: 36, scale: 0.96, filter: 'blur(10px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.8, ease: 'power4.out' }
+      ).fromTo(
+        '[data-build-animate="panel"]',
+        { opacity: 0, y: 44, rotateX: -10, transformOrigin: 'top center', filter: 'blur(8px)' },
+        { opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)', duration: 0.72, ease: 'power3.out', stagger: 0.1 },
+        '-=0.45'
+      );
+
+      gsap.to('[data-build-float="hero-icon"]', {
+        y: -5,
+        duration: 2.2,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true,
+      });
+    }, shellRef);
+
+    return () => ctx.revert();
+  }, []);
+
   const filledCount = buildSlots.filter(Boolean).length;
   const isReady = filledCount === 4;
 
@@ -112,6 +176,47 @@ export default function ZoneBuildTeam({
       !q || c.name?.toLowerCase().includes(q) || String(c.numId || '').includes(q)
     );
   }, [characterOptions, charSearch]);
+
+  useEffect(() => {
+    if (!rosterGridRef.current) return;
+    const nodes = rosterGridRef.current.querySelectorAll('[data-build-char]');
+    gsap.fromTo(
+      nodes,
+      { scale: 0.65, opacity: 0, y: 14, rotate: -10, filter: 'blur(8px)' },
+      {
+        scale: 1,
+        opacity: 1,
+        y: 0,
+        rotate: 0,
+        filter: 'blur(0px)',
+        duration: 0.5,
+        ease: 'back.out(1.6)',
+        stagger: {
+          each: 0.012,
+          from: 'random',
+        },
+        clearProps: 'opacity,transform,filter',
+      }
+    );
+  }, [charSearch, filteredChars.length]);
+
+  useEffect(() => {
+    if (!generateButtonRef.current) return;
+    if (!isReady && !(manualXor && manualSlot)) {
+      gsap.killTweensOf(generateButtonRef.current);
+      gsap.set(generateButtonRef.current, { clearProps: 'boxShadow,scale' });
+      return;
+    }
+
+    gsap.to(generateButtonRef.current, {
+      boxShadow: '0 0 0 0 rgba(139, 92, 246, 0.0), 0 0 28px rgba(139, 92, 246, 0.28)',
+      scale: 1.01,
+      duration: 1.15,
+      ease: 'sine.inOut',
+      repeat: -1,
+      yoyo: true,
+    });
+  }, [isReady, manualSlot, manualXor]);
 
   const originalBuildSlots = useMemo(() => (
     buildSlots.map((value) => {
@@ -220,6 +325,37 @@ export default function ZoneBuildTeam({
     setVariantPage(0);
   };
 
+  const handleSlotDragStart = (index) => {
+    if (!buildSlots[index]) return;
+    setDraggedSlotIndex(index);
+  };
+
+  const handleSlotDragEnd = () => {
+    setDraggedSlotIndex(null);
+    setDragOverSlotIndex(null);
+  };
+
+  const handleSlotDrop = (targetIndex) => {
+    if (draggedSlotIndex === null || draggedSlotIndex === targetIndex) {
+      setDragOverSlotIndex(null);
+      return;
+    }
+
+    setBuildSlots((prev) => {
+      const next = [...prev];
+      const draggedValue = next[draggedSlotIndex];
+      const targetValue = next[targetIndex];
+      next[targetIndex] = draggedValue;
+      next[draggedSlotIndex] = targetValue;
+      return next;
+    });
+
+    setDraggedSlotIndex(null);
+    setDragOverSlotIndex(null);
+    setBuildVariantPayload(null);
+    setVariantPage(0);
+  };
+
   const clearAll = () => {
     setBuildSlots([null, null, null, null]);
     setBuildVariantPayload(null);
@@ -266,8 +402,9 @@ export default function ZoneBuildTeam({
         params.append('enforce_sum', 'true');
       }
 
-      params.append('use_owned', 'false');
-      params.append('min_owned', '0');
+      const useOwned = variantOwnershipFilter === 'owned';
+      params.append('use_owned', useOwned ? 'true' : 'false');
+      params.append('min_owned', useOwned ? String(variantMinOwned) : '0');
       params.append('limit', '24');
 
       const res = await fetch(`/api/zone/variants?${params.toString()}`, {
@@ -314,13 +451,57 @@ export default function ZoneBuildTeam({
   const totalPages = Math.max(1, Math.ceil(sortedVariants.length / VARIANTS_PER_PAGE));
   const pagedVariants = sortedVariants.slice(variantPage * VARIANTS_PER_PAGE, (variantPage + 1) * VARIANTS_PER_PAGE);
 
+  useEffect(() => {
+    if (!slotsGridRef.current) return;
+    const slotNodes = slotsGridRef.current.querySelectorAll('[data-build-slot]');
+    const nextSignature = buildSlots.map((value) => (value ? String(value) : '0')).join(',');
+    const changed = previousBuildSlotsRef.current !== nextSignature;
+    previousBuildSlotsRef.current = nextSignature;
+
+    if (!changed) return;
+
+    gsap.fromTo(
+      slotNodes,
+      { scale: 0.84, opacity: 0.45, y: 18, rotateY: 18, filter: 'brightness(1.25)' },
+      {
+        scale: 1,
+        opacity: 1,
+        y: 0,
+        rotateY: 0,
+        filter: 'brightness(1)',
+        duration: 0.55,
+        ease: 'back.out(1.45)',
+        stagger: 0.05,
+        clearProps: 'opacity,transform,filter',
+      }
+    );
+  }, [buildSlots]);
+
+  useEffect(() => {
+    if (!resultsPanelRef.current || !buildVariantPayload) return;
+    const cards = resultsPanelRef.current.querySelectorAll('[data-build-result-card]');
+    if (!cards.length) return;
+
+    const tl = gsap.timeline();
+    tl.fromTo(
+      resultsPanelRef.current,
+      { opacity: 0, y: 30, scale: 0.985, filter: 'blur(10px)' },
+      { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.5, ease: 'power3.out' }
+    ).fromTo(
+      cards,
+      { opacity: 0, y: 36, rotateX: -12, scale: 0.94, transformOrigin: 'top center' },
+      { opacity: 1, y: 0, rotateX: 0, scale: 1, duration: 0.6, ease: 'back.out(1.3)', stagger: 0.06 },
+      '-=0.2'
+    );
+  }, [buildVariantPayload, resultsView, variantPage]);
+
   if (workspaceView !== 'build') return null;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="theme-glass-card p-5 border-violet-500/20">
+    <div ref={shellRef} className="space-y-6 animate-in fade-in duration-500">
+      <div data-build-animate="hero" className="theme-glass-card p-5 border-violet-500/20">
         <div className="flex items-center gap-3 mb-1">
-          <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
+          <div data-build-float="hero-icon" className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
             <Users className="w-5 h-5 text-violet-400" />
           </div>
           <div>
@@ -332,7 +513,7 @@ export default function ZoneBuildTeam({
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div className="theme-glass-card p-4 border-violet-500/15">
+          <div data-build-animate="panel" className="theme-glass-card p-4 border-violet-500/15">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-violet-300">Team Slots</p>
               {filledCount > 0 && (
@@ -345,15 +526,29 @@ export default function ZoneBuildTeam({
               )}
             </div>
 
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div ref={slotsGridRef} className="grid grid-cols-4 gap-2 mb-4">
               {buildSlots.map((charId, idx) => {
                 const char = charId ? charactersByNumId?.get(Number(charId)) : null;
                 return (
                   <div
                     key={idx}
-                    className={`relative aspect-square rounded-xl border-2 flex items-center justify-center overflow-hidden transition-all ${
-                      char ? 'border-violet-500/40 bg-violet-950/20' : 'border-dashed border-slate-700 bg-slate-900/40'
-                    }`}
+                    data-build-slot
+                    draggable={Boolean(charId)}
+                    onDragStart={() => handleSlotDragStart(idx)}
+                    onDragEnd={handleSlotDragEnd}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (draggedSlotIndex !== null) setDragOverSlotIndex(idx);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverSlotIndex === idx) setDragOverSlotIndex(null);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      handleSlotDrop(idx);
+                    }}
+                    className={`relative aspect-square rounded-xl border-2 flex items-center justify-center overflow-hidden transition-all ${char ? 'border-violet-500/40 bg-violet-950/20 cursor-grab active:cursor-grabbing' : 'border-dashed border-slate-700 bg-slate-900/40'
+                      } ${dragOverSlotIndex === idx ? 'scale-[1.03] border-cyan-300/70 shadow-[0_0_22px_rgba(34,211,238,0.18)]' : ''} ${draggedSlotIndex === idx ? 'opacity-70 scale-[0.98]' : ''}`}
                   >
                     {char ? (
                       <>
@@ -361,10 +556,11 @@ export default function ZoneBuildTeam({
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                         <p className="absolute bottom-1 left-0 right-0 text-center text-[7px] font-black text-white leading-none px-1 truncate">{char.name}</p>
                         <button
+                          type="button"
                           onClick={() => removeSlot(idx)}
-                          className="absolute top-1 right-1 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center hover:bg-red-500/60 transition-colors cursor-pointer"
+                          className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full border border-white/10 bg-black/70 flex items-center justify-center hover:bg-red-500/70 transition-colors cursor-pointer z-10 shadow-lg"
                         >
-                          <X className="w-2.5 h-2.5 text-white" />
+                          <X className="w-3.5 h-3.5 text-white" />
                         </button>
                       </>
                     ) : (
@@ -431,9 +627,46 @@ export default function ZoneBuildTeam({
               />
               Lock Team Sum
             </label>
+
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Owned Filter</span>
+              <button
+                type="button"
+                onClick={() => setVariantOwnershipFilter?.('all')}
+                className={variantOwnershipFilter === 'all' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+              >
+                Ignore Owned
+              </button>
+              <button
+                type="button"
+                onClick={() => setVariantOwnershipFilter?.('owned')}
+                className={variantOwnershipFilter === 'owned' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+              >
+                Use Owned Roster
+              </button>
+              {variantOwnershipFilter === 'owned' ? (
+                <>
+                  <input
+                    type="range"
+                    min={3}
+                    max={4}
+                    step={1}
+                    value={variantMinOwned}
+                    onChange={(event) => setVariantMinOwned?.(Number(event.target.value) === 4 ? 4 : 3)}
+                    className="w-28 accent-cyan-400 cursor-pointer"
+                    aria-label="Minimum owned characters"
+                  />
+                  <span className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-black text-slate-300">
+                    Min {variantMinOwned} Owned
+                  </span>
+                  <span className="text-[9px] text-slate-500">3 = friend support allowed</span>
+                </>
+              ) : null}
+            </div>
           </div>
 
           <button
+            ref={generateButtonRef}
             onClick={handleGenerateVariants}
             disabled={(!isReady && !manualXor && !manualSlot) || buildVariantLoading}
             className="w-full px-4 py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-[11px] font-black uppercase tracking-widest text-violet-100 hover:bg-violet-500/25 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
@@ -443,7 +676,7 @@ export default function ZoneBuildTeam({
           </button>
         </div>
 
-        <div className="theme-glass-card p-4 border-slate-800/60">
+        <div data-build-animate="panel" className="theme-glass-card p-4 border-slate-800/60">
           <div className="flex items-center gap-2 mb-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex-1">Characters</p>
             <span className="text-[9px] text-slate-500">{filledCount}/4 selected</span>
@@ -455,35 +688,20 @@ export default function ZoneBuildTeam({
             onChange={(e) => setCharSearch(e.target.value)}
             className="w-full mb-3 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-[10px] text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-600"
           />
-          <div className="grid grid-cols-5 gap-1.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+          <div ref={rosterGridRef} className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-2 max-h-72 overflow-y-auto custom-scrollbar pr-2 justify-items-center">
             {filteredChars.map((char) => {
               const isSelected = buildSlots.includes(char.numId);
-              const isOwned = ownedSet?.has?.(Number(char.numId));
               return (
-                <button
+                <CharacterBubble
                   key={char.numId}
-                  onClick={() => (isSelected ? null : addToSlot(char.numId))}
+                  data-build-char
+                  char={char}
+                  charId={char.numId}
+                  tooltip={char.name}
+                  selected={isSelected}
                   disabled={isSelected || filledCount === 4}
-                  className={`relative flex flex-col items-center gap-1 p-1 rounded-lg border transition-all cursor-pointer text-center ${
-                    isSelected
-                      ? 'border-violet-500/50 bg-violet-950/30 opacity-60 cursor-default'
-                      : filledCount === 4
-                        ? 'border-slate-800 opacity-40 cursor-default'
-                        : isOwned
-                          ? 'border-slate-700 bg-slate-900/40 hover:border-violet-500/40 hover:bg-violet-950/20'
-                          : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-800 flex items-center justify-center">
-                    <CharacterAvatar char={char} charId={char.numId} className="w-full h-full object-cover object-top" fallbackClassName="text-sm rounded-lg" />
-                  </div>
-                  <p className="text-[7px] font-bold text-slate-300 leading-none truncate w-full px-0.5">{char.name}</p>
-                  {isSelected && (
-                    <div className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-violet-500 flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                    </div>
-                  )}
-                </button>
+                  onClick={() => (isSelected ? null : addToSlot(char.numId))}
+                />
               );
             })}
           </div>
@@ -491,7 +709,7 @@ export default function ZoneBuildTeam({
       </div>
 
       {buildVariantPayload && (
-        <div className="theme-glass-card p-5 border-indigo-500/20 animate-in slide-in-from-bottom-2 duration-300">
+        <div ref={resultsPanelRef} className="theme-glass-card p-5 border-indigo-500/20 animate-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-indigo-400" />
@@ -505,22 +723,20 @@ export default function ZoneBuildTeam({
                 <button
                   type="button"
                   onClick={() => setResultsView('list')}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                    resultsView === 'list'
-                      ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-200'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${resultsView === 'list'
+                    ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-200'
+                    : 'text-slate-500 hover:text-slate-300'
+                    }`}
                 >
                   List
                 </button>
                 <button
                   type="button"
                   onClick={() => setResultsView('grid')}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                    resultsView === 'grid'
-                      ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-200'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${resultsView === 'grid'
+                    ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-200'
+                    : 'text-slate-500 hover:text-slate-300'
+                    }`}
                 >
                   Grid
                 </button>
@@ -592,9 +808,9 @@ export default function ZoneBuildTeam({
                 return (
                   <div
                     key={`bv-${i}`}
-                    className={`rounded-xl border border-slate-800 bg-slate-950/50 p-3 hover:border-indigo-500/30 hover:bg-indigo-950/10 transition-all ${
-                      resultsView === 'grid' ? 'flex flex-col gap-3' : 'flex items-center justify-between gap-3'
-                    }`}
+                    data-build-result-card
+                    className={`rounded-xl border border-slate-800 bg-slate-950/50 p-3 hover:border-indigo-500/30 hover:bg-indigo-950/10 transition-all ${resultsView === 'grid' ? 'flex flex-col gap-3' : 'flex items-center justify-between gap-3'
+                      }`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="flex -space-x-2 shrink-0">
@@ -657,9 +873,8 @@ export default function ZoneBuildTeam({
                           setBuildSlots?.(nextTeam);
                           setSuccess?.('Team loaded into Build Team.');
                         }}
-                        className={`px-5 py-2.5 rounded-xl bg-violet-500/20 border border-violet-500/30 text-[10px] font-black uppercase tracking-wide text-violet-200 hover:bg-violet-500/40 transition-all cursor-pointer ${
-                          resultsView === 'grid' ? 'self-start' : ''
-                        }`}
+                        className={`px-5 py-2.5 rounded-xl bg-violet-500/20 border border-violet-500/30 text-[10px] font-black uppercase tracking-wide text-violet-200 hover:bg-violet-500/40 transition-all cursor-pointer ${resultsView === 'grid' ? 'self-start' : ''
+                          }`}
                       >
                         Load Team
                       </button>

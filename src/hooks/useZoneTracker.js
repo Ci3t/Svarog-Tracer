@@ -230,6 +230,38 @@ export function buildZoneVariantKey(zone) {
   return String(xor) + ':' + String(slot) + ':' + String(sum === null ? 'na' : sum);
 }
 
+function extractOwnedCharacterIdsFromImport(payload) {
+  const sources = [];
+  if (Array.isArray(payload?.characters)) {
+    sources.push(payload.characters);
+  }
+  if (Array.isArray(payload?.avatars)) {
+    sources.push(payload.avatars);
+  }
+  if (Array.isArray(payload?.roster)) {
+    sources.push(payload.roster);
+  }
+
+  const ids = [];
+  for (const source of sources) {
+    for (const entry of source) {
+      const candidate = Number(
+        entry?.id ??
+        entry?.character_id ??
+        entry?.characterId ??
+        entry?.avatar_id ??
+        entry?.avatarId ??
+        entry?.numId
+      );
+      if (Number.isInteger(candidate) && candidate > 0 && charactersData.some((character) => Number(character?.numId) === candidate)) {
+        ids.push(candidate);
+      }
+    }
+  }
+
+  return Array.from(new Set(ids)).sort((a, b) => a - b);
+}
+
 // --- Hook Component ---
 export function useZoneTracker(sessionTheme = 'modern') {
   const { user, getAuthHeader, roleMode } = useAuth();
@@ -274,9 +306,11 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [ownedSearchTerm, setOwnedSearchTerm] = useState('');
   const [ownedLoading, setOwnedLoading] = useState(false);
   const [ownedSaving, setOwnedSaving] = useState(false);
+  const [ownedImporting, setOwnedImporting] = useState(false);
   const [rosterMode, setRosterMode] = useState('team');
 
   const [variantOwnershipFilter, setVariantOwnershipFilter] = useState('all');
+  const [variantMinOwned, setVariantMinOwned] = useState(3);
   const [variantEnforceSum, setVariantEnforceSum] = useState(true);
   const [variantsByZone, setVariantsByZone] = useState({});
   const [variantLoadingZoneKey, setVariantLoadingZoneKey] = useState('');
@@ -400,6 +434,11 @@ export function useZoneTracker(sessionTheme = 'modern') {
   );
 
   const loadOwnedRoster = useCallback(async () => {
+    if (!user?.id) {
+      setOwnedCharIds([]);
+      setOwnedLoading(false);
+      return;
+    }
     setOwnedLoading(true);
     try {
       const response = await fetch('/api/zone/owned', {
@@ -420,34 +459,72 @@ export function useZoneTracker(sessionTheme = 'modern') {
     } finally {
       setOwnedLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, user?.id]);
+
+  const persistOwnedRoster = useCallback(async (nextOwnedCharIds, successMessage = 'Owned roster saved.') => {
+    if (!user?.id) {
+      throw new Error('Sign in to save your owned roster.');
+    }
+
+    const normalizedOwned = Array.from(
+      new Set(
+        (Array.isArray(nextOwnedCharIds) ? nextOwnedCharIds : [])
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && charactersByNumId.has(value))
+      )
+    ).sort((a, b) => a - b);
+
+    const response = await fetch('/api/zone/owned', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ owned_char_ids: normalizedOwned }),
+    });
+    if (response.status === 404) {
+      throw new Error('Owned roster API is not available. Run backend API (npx vercel dev).');
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+    const persisted = Array.isArray(payload.owned_char_ids) ? payload.owned_char_ids.map(Number) : normalizedOwned;
+    setOwnedCharIds(persisted);
+    setSuccess(successMessage);
+    return persisted;
+  }, [charactersByNumId, getAuthHeader, user?.id]);
 
   const saveOwnedRoster = useCallback(async () => {
     setOwnedSaving(true);
     try {
-      const response = await fetch('/api/zone/owned', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ owned_char_ids: ownedCharIds }),
-      });
-      if (response.status === 404) {
-        throw new Error('Owned roster API is not available. Run backend API (npx vercel dev).');
-      }
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || `HTTP ${response.status}`);
-      }
-      setOwnedCharIds(Array.isArray(payload.owned_char_ids) ? payload.owned_char_ids.map(Number) : []);
-      setSuccess('Owned roster saved.');
+      await persistOwnedRoster(ownedCharIds, 'Owned roster saved.');
     } catch (ownedError) {
       setError(mapAuthError(ownedError));
     } finally {
       setOwnedSaving(false);
     }
-  }, [getAuthHeader, ownedCharIds]);
+  }, [ownedCharIds, persistOwnedRoster]);
+
+  const importOwnedRosterFile = useCallback(async (file) => {
+    if (!file) return;
+    setOwnedImporting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const rawText = await file.text();
+      const payload = JSON.parse(rawText);
+      const importedIds = extractOwnedCharacterIdsFromImport(payload).filter((value) => charactersByNumId.has(value));
+      if (importedIds.length === 0) {
+        throw new Error('No supported characters were found in that Reliquary export.');
+      }
+      await persistOwnedRoster(importedIds, `Imported ${importedIds.length} owned characters from ${file.name}.`);
+    } catch (importError) {
+      setError(mapAuthError(importError));
+    } finally {
+      setOwnedImporting(false);
+    }
+  }, [charactersByNumId, persistOwnedRoster]);
 
   const toggleOwnedCharacter = useCallback((charId) => {
     const normalized = Number(charId);
@@ -477,7 +554,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     if (!zoneKey) return;
     setVariantLoadingZoneKey(zoneKey);
     const useOwnedFilter = variantOwnershipFilter === 'owned';
-    const minOwned = useOwnedFilter ? 3 : 0;
+    const minOwned = useOwnedFilter ? variantMinOwned : 0;
     try {
       const params = new URLSearchParams({
         xor: String(zone.char_xor),
@@ -512,7 +589,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     } finally {
       setVariantLoadingZoneKey('');
     }
-  }, [getAuthHeader, requestedEpoch, variantOwnershipFilter, variantEnforceSum]);
+  }, [getAuthHeader, requestedEpoch, variantMinOwned, variantOwnershipFilter, variantEnforceSum]);
 
   const handleTuneFromZone = useCallback((zone) => {
     if (!zone) return;
@@ -593,7 +670,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       return;
     }
     const useOwnedFilter = variantOwnershipFilter === 'owned';
-    const minOwned = useOwnedFilter ? 3 : 0;
+    const minOwned = useOwnedFilter ? variantMinOwned : 0;
     setManualVariantLoading(true);
     try {
       const params = new URLSearchParams({
@@ -625,7 +702,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     } finally {
       setManualVariantLoading(false);
     }
-  }, [getAuthHeader, requestedEpoch, tuneSlotInput, tuneSumInput, tuneXorInput, variantEnforceSum, variantOwnershipFilter]);
+  }, [getAuthHeader, requestedEpoch, tuneSlotInput, tuneSumInput, tuneXorInput, variantEnforceSum, variantMinOwned, variantOwnershipFilter]);
 
   useEffect(() => {
     fetchMap(requestedEpoch);
@@ -1281,8 +1358,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
     ownedSearchTerm, setOwnedSearchTerm,
     ownedLoading,
     ownedSaving,
+    ownedImporting,
     rosterMode, setRosterMode,
     variantOwnershipFilter, setVariantOwnershipFilter,
+    variantMinOwned, setVariantMinOwned,
     variantEnforceSum, setVariantEnforceSum,
     variantsByZone,
     setVariantsByZone,
@@ -1329,6 +1408,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     fetchMap,
     loadOwnedRoster,
     saveOwnedRoster,
+    importOwnedRosterFile,
     toggleOwnedCharacter,
     toggleMapTargetCustomStat,
     fetchVariantsForZone,

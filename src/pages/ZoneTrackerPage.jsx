@@ -42,6 +42,19 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     charSearchTerm,
     setCharSearchTerm,
     characterOptions,
+    ownedOptions,
+    ownedSet,
+    ownedSearchTerm,
+    setOwnedSearchTerm,
+    ownedLoading,
+    ownedSaving,
+    ownedImporting,
+    rosterMode,
+    setRosterMode,
+    loadOwnedRoster,
+    saveOwnedRoster,
+    importOwnedRosterFile,
+    toggleOwnedCharacter,
     handleRosterCharacterClick,
     relicGridCompact,
     setRelicGridCompact,
@@ -91,6 +104,8 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     mapTargetCustomStats,
     variantOwnershipFilter,
     setVariantOwnershipFilter,
+    variantMinOwned,
+    setVariantMinOwned,
     variantEnforceSum,
     setVariantEnforceSum,
     handleAdminWipeEpoch,
@@ -138,7 +153,6 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     setBuildVariantPayload,
     buildVariantLoading,
     setBuildVariantLoading,
-    ownedSet,
     setVariantsByZone,
     getAuthHeader,
     
@@ -166,7 +180,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
       <div className="grid gap-8 grid-cols-1">
         <ZoneLogger
           {...{
-            formRef, handleSubmit, slots, activeSlotIndex, setActiveSlotIndex,
+            user, formRef, handleSubmit, slots, activeSlotIndex, setActiveSlotIndex,
             handleTeamSlotDragStart, handleTeamSlotDragEnd, handleSlotDragOver,
             handleSlotDragLeave, handleSlotDrop, clearSlot, charactersByNumId,
             charSearchTerm, setCharSearchTerm, characterOptions, handleRosterCharacterClick,
@@ -178,6 +192,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             normalizeClearTimeMmSsInput, notes, setNotes, submitting, error,
             success, adminEligible, adminStatusLoading, adminModeEnabled,
             setAdminModeEnabled, handleExportDebugLogs, exportingDebug, handleAdminWipeAll, adminWipeLoading,
+            ownedOptions, ownedSet, ownedSearchTerm, setOwnedSearchTerm,
+            toggleOwnedCharacter, saveOwnedRoster, loadOwnedRoster, importOwnedRosterFile,
+            ownedLoading, ownedSaving, ownedImporting, rosterMode, setRosterMode,
             workspaceView
           }}
         />
@@ -189,6 +206,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             mapRegion, setMapRegion, mapTargetPreset, setMapTargetPreset,
             mapTargetMode, setMapTargetMode, toggleMapTargetCustomStat,
             mapTargetCustomStats, variantOwnershipFilter, setVariantOwnershipFilter,
+            variantMinOwned, setVariantMinOwned,
             variantEnforceSum, setVariantEnforceSum, adminEligible,
             adminStatusLoading, adminModeEnabled, setAdminModeEnabled,
             handleAdminWipeEpoch, adminWipeLoading, handleAdminWipeAll,
@@ -218,6 +236,10 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
           charactersByNumId={charactersByNumId}
           characterOptions={characterOptions}
           ownedSet={ownedSet}
+          variantOwnershipFilter={variantOwnershipFilter}
+          setVariantOwnershipFilter={setVariantOwnershipFilter}
+          variantMinOwned={variantMinOwned}
+          setVariantMinOwned={setVariantMinOwned}
           setSlots={setSlots}
           setSuccess={setSuccess}
           getAuthHeader={getAuthHeader}

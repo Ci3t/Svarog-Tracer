@@ -25,7 +25,7 @@ function CharacterAvatar({ character, fallbackLabel, sizeClass = 'w-11 h-11', la
 
   return (
     <div
-      className={`${sizeClass} rounded-xl border-2 ${rarityClass} bg-slate-900 overflow-hidden ring-2 ring-slate-950 shadow-lg`}
+      className={`${sizeClass} rounded-full border-2 ${rarityClass} bg-slate-900 overflow-hidden ring-2 ring-slate-950 shadow-lg`}
       title={character?.name || fallbackLabel}
     >
       {character?.image ? (
@@ -60,6 +60,8 @@ export default function ZoneMap({
   mapTargetCustomStats,
   variantOwnershipFilter,
   setVariantOwnershipFilter,
+  variantMinOwned,
+  setVariantMinOwned,
   variantEnforceSum,
   setVariantEnforceSum,
   adminEligible,
@@ -256,23 +258,43 @@ export default function ZoneMap({
         </div>
 
         <div className="pt-2 border-t border-slate-800/60 space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Variant Filter</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Owned Team Filter</p>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setVariantOwnershipFilter('all')}
               className={variantOwnershipFilter === 'all' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
             >
-              All
+              Ignore Owned
             </button>
             <button
               type="button"
               onClick={() => setVariantOwnershipFilter('owned')}
               className={variantOwnershipFilter === 'owned' ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
             >
-              Owned
+              Use Owned Roster
             </button>
           </div>
+          {variantOwnershipFilter === 'owned' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Owned Count</span>
+              <button
+                type="button"
+                onClick={() => setVariantMinOwned(3)}
+                className={variantMinOwned === 3 ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+              >
+                Min 3
+              </button>
+              <button
+                type="button"
+                onClick={() => setVariantMinOwned(4)}
+                className={variantMinOwned === 4 ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100 cursor-pointer' : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500 cursor-pointer'}
+              >
+                Min 4
+              </button>
+              <span className="text-[9px] text-slate-500">Use `3` if one slot can be a friend support.</span>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setVariantEnforceSum((current) => !current)}
@@ -281,6 +303,10 @@ export default function ZoneMap({
             {variantEnforceSum ? 'Sum Lock On' : 'Sum Lock Off'}
           </button>
         </div>
+
+        <p className="text-[10px] text-slate-500">
+          Edit your saved owned roster from Relic Log inside the Team Assembly picker, then use it here with `Use Owned Roster`.
+        </p>
 
         <div className="pt-2 border-t border-slate-800/60 space-y-2">
           <div className="flex items-center justify-between gap-2">

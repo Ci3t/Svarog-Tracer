@@ -1,5 +1,6 @@
 import { del as blobDel, list as blobList, put as blobPut } from '@vercel/blob';
 import crypto from 'node:crypto';
+import { isZoneAdminUser, requireAuthenticatedUser } from '../zone/shared.js';
 
 const BLOB_PREFIX = 'hsr-cavern-clears-';
 const INITIAL_DATA = [];
@@ -304,17 +305,20 @@ export async function saveCavernData(newData, allBlobs) {
   return saveBlobCavernData(newData, allBlobs);
 }
 
-function isUnauthorizedAdminAttempt({ key, apiKey }) {
-  const targetAdmin = normalizeKey(process.env.HSR_ADMIN_PASS || process.env.HSR_ADMIN_PAS);
-  const targetSuper = normalizeKey(process.env.ADMIN_API_KEY);
-  const receivedKey = normalizeKey(key);
-  const receivedApiKey = normalizeKey(apiKey);
-
-  const isAdmin =
-    targetAdmin !== '' && (receivedKey === targetAdmin || receivedApiKey === targetAdmin);
-  const isSuperAdmin = targetSuper !== '' && receivedApiKey === targetSuper;
-
-  return { isAdmin, isSuperAdmin };
+async function resolveAdminAccess(req, { key, apiKey }) {
+  try {
+    const auth = await requireAuthenticatedUser(req);
+    const isAdmin = isZoneAdminUser(auth.user);
+    return {
+      isAdmin,
+      isSuperAdmin: isAdmin,
+    };
+  } catch {
+    return {
+      isAdmin: false,
+      isSuperAdmin: false,
+    };
+  }
 }
 
 export async function handler(req, res) {
@@ -544,9 +548,10 @@ export async function handler(req, res) {
   if (req.method === 'DELETE') {
     const { reportId, relicId, clearTime, characters, key } = req.query;
     const apiKey = req.headers['x-api-key'];
-    const { isAdmin, isSuperAdmin } = isUnauthorizedAdminAttempt({ key, apiKey });
 
     try {
+      const { isAdmin, isSuperAdmin } = await resolveAdminAccess(req, { key, apiKey });
+
       if (!reportId && !relicId) {
         if (!isAdmin && !isSuperAdmin) {
           return res.status(401).json({ error: 'Unauthorized: Admin access required for full purge.' });

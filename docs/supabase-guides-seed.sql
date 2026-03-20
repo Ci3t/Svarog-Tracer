@@ -1,5 +1,7 @@
-{
-  "creators": [
+insert into public.guides_library (id, creators, updated_at, updated_by)
+values (
+  'main',
+  '[
     {
       "id": "bbp",
       "name": "BigBoiPinoy",
@@ -68,5 +70,11 @@
         }
       ]
     }
-  ]
-}
+  ]'::jsonb,
+  now(),
+  null
+)
+on conflict (id) do update
+set creators = excluded.creators,
+    updated_at = now(),
+    updated_by = excluded.updated_by;

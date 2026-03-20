@@ -6,6 +6,7 @@ import NeonGlitchButton from '../components/NeonGlitchButton';
 import { useLocation } from 'react-router-dom';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { findCavernById, HSR_CAVERNS, HSR_DOMAINS } from '../constants/caverns';
+import { useAuth } from '../hooks/useAuth';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -38,7 +39,6 @@ const VisualIcon = ({ src, name, className = "" }) => {
 
 // API Configuration
 const API_URL = '/api/hsr/cavern-clears';
-const GUIDES_API_URL = '/api/guides';
 
 const CAVERN_PRESET_FLAGS_KEY = 'hsr_cavern_preset_flags_v1';
 const CAVERN_PRESET_DATA_KEY = 'hsr_cavern_preset_data_v1';
@@ -136,6 +136,7 @@ const readStorageJson = (key, fallback) => {
 };
 
 export default function CavernTimesPage({ sessionTheme = 'modern' }) {
+  const { isAuthenticated, getAuthHeader, roleMode } = useAuth();
   const baseUrl = import.meta.env.BASE_URL;
   const location = useLocation();
   const themeConfig = getSessionThemeConfig(sessionTheme);
@@ -227,8 +228,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   // Deletion & Admin
   const [userKeys, setUserKeys] = useState(() => JSON.parse(localStorage.getItem('hsr_user_keys') || '{}'));
-  const [adminPass, setAdminPass] = useState(() => localStorage.getItem('hsr_admin_pass') || '');
-  const [titleClicks, setTitleClicks] = useState(0);
+  const [adminEligible, setAdminEligible] = useState(false);
 
   // Notifications
   const [notifications, setNotifications] = useState([]);
@@ -580,29 +580,35 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     fetchClears();
-    
-    // Auto-verify saved password on mount
-    if (adminPass) {
-      console.log('[Cavern Admin] Verifying saved access code (POST)...');
-      fetch(GUIDES_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verify: adminPass })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (!data.valid) {
-            console.warn('[Cavern Admin] Saved access code no longer valid. Clearing session.');
-            setAdminPass('');
-            localStorage.removeItem('hsr_admin_pass');
-            notify('Admin Session Expired', 'error');
-          } else {
-            console.log('[Cavern Admin] Admin session verified.');
-          }
-        })
-        .catch(() => console.error('[Cavern Admin] Security check failed during mount.'));
-    }
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchAdminStatus() {
+      if (!isAuthenticated) {
+        if (mounted) setAdminEligible(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/zone/export?status=true', {
+          method: 'GET',
+          headers: { ...getAuthHeader() },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!mounted) return;
+        setAdminEligible(Boolean(payload?.is_admin));
+      } catch {
+        if (mounted) setAdminEligible(false);
+      }
+    }
+
+    fetchAdminStatus();
+    return () => {
+      mounted = false;
+    };
+  }, [getAuthHeader, isAuthenticated]);
 
   // Animations when changing categories or filter
   useEffect(() => {
@@ -940,7 +946,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const searchParams = new URLSearchParams(cleanParams);
 
       const res = await fetch(`${API_URL}?${searchParams.toString()}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Delete failed');
@@ -984,44 +991,15 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           }
           return false;
         }));
-      } else if (params.key && !params.relicId) {
+      } else if (params.admin === 'true' && !params.relicId) {
         // Wipe All
         setClears([]);
         setSelectedDomain(null);
       }
 
-      notify(params.key && !params.relicId ? 'Archive completely purged' : 'Archive record expunged', 'success');
+      notify(params.admin === 'true' && !params.relicId ? 'Archive completely purged' : 'Archive record expunged', 'success');
     } catch (err) {
       notify(err.message, 'error');
-    }
-  };
-
-  const handleTitleClick = () => {
-    const newCount = titleClicks + 1;
-    setTitleClicks(newCount);
-    if (newCount === 5) {
-      const pass = prompt('Enter Admin Access Code:');
-      if (pass) {
-        const trimmedPass = pass.trim();
-        // Secure server-side verification via POST
-        fetch(GUIDES_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ verify: trimmedPass })
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.valid) {
-              setAdminPass(trimmedPass);
-              localStorage.setItem('hsr_admin_pass', trimmedPass);
-              notify('Admin Access Granted', 'success');
-            } else {
-              notify('Invalid Access Code', 'error');
-            }
-          })
-          .catch(() => notify('Security Check Failed', 'error'));
-      }
-      setTitleClicks(0);
     }
   };
 
@@ -1329,28 +1307,21 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[400px] bg-gradient-to-b from-purple-600/10 via-transparent to-transparent blur-[100px] pointer-events-none -z-10"></div>
           <div className="flex flex-col items-center text-center gap-2">
             <h1
-              onClick={handleTitleClick}
-              className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none italic uppercase cursor-pointer select-none"
+              className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none italic uppercase select-none"
             >
               The Drop <span className={`text-transparent bg-clip-text ${isGlacial ? 'bg-gradient-to-br from-cyan-400 to-blue-500' : 'bg-gradient-to-br from-indigo-400 to-emerald-400'} pr-3`}>Archives</span>
             </h1>
-            {adminPass && (
+            {adminEligible && roleMode === 'admin' && (
               <div className="flex items-center gap-3">
                 <div
-                  onClick={() => {
-                    if (window.confirm('Exit Admin Mode?')) {
-                      setAdminPass('');
-                      localStorage.removeItem('hsr_admin_pass');
-                    }
-                  }}
-                  className="flex items-center gap-2 px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse cursor-pointer hover:bg-amber-400 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse"
                 >
                   <Trophy className="w-3 h-3" /> Admin Mode Active
                 </div>
                 <button
                   onClick={() => {
                     if (window.confirm('🚨 WARNING: This will permanently EXTERMINATE ALL ARCHIVE RECORDS. Proceed?')) {
-                      handleDelete({ key: adminPass }, true);
+                      handleDelete({ admin: 'true' }, true);
                     }
                   }}
                   className="px-3 py-1 bg-red-600/20 hover:bg-red-600 border border-red-500/30 text-red-500 hover:text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
@@ -2648,7 +2619,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 isGlacial={isGlacial}
                                 getCharData={getCharData}
                                 handleDelete={handleDelete}
-                                adminPass={adminPass}
+                                adminEnabled={adminEligible && roleMode === 'admin'}
                                 userKeys={userKeys}
                                 VisualIcon={VisualIcon}
                                 notify={notify}
@@ -2876,7 +2847,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 isGlacial={isGlacial}
                                 getCharData={getCharData}
                                 handleDelete={handleDelete}
-                                adminPass={adminPass}
+                                adminEnabled={adminEligible && roleMode === 'admin'}
                                 userKeys={userKeys}
                                 VisualIcon={VisualIcon}
                                 notify={notify}
@@ -3074,7 +3045,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 }
 
 // --- SUB-COMPONENT FOR TEAM CAROUSEL ---
-const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, handleDelete, adminPass, userKeys, notify }) => {
+const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, handleDelete, adminEnabled, userKeys, notify }) => {
   const [idx, setIdx] = useState(0);
   const team = card.variants[idx];
   const totalTeams = card.variants.length;
@@ -3226,17 +3197,17 @@ const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, han
         </div>
 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          {(adminPass || team.reports?.some(r => userKeys[r.id])) && (
+          {(adminEnabled || team.reports?.some(r => userKeys[r.id])) && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (adminPass) {
+                if (adminEnabled) {
                   handleDelete({
                     relicId: team.relicId,
                     clearTime: team.clearTime,
                     characters: [...team.characters].sort().join(','),
                     substats: team.substats ? [...team.substats].sort().join(',') : undefined,
-                    key: adminPass
+                    admin: 'true'
                   });
                 } else {
                   const myReport = team.reports.find(r => userKeys[r.id]);

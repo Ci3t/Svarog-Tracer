@@ -1,6 +1,13 @@
 import React from 'react';
 import { Target, User, Activity, LayoutGrid, RefreshCw, History, Dna } from 'lucide-react';
 
+function formatCalendarWeek(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{4})-W(\d{2})$/i);
+  if (!match) return raw || '--';
+  return `Week ${Number(match[2])}, ${match[1]}`;
+}
+
 /**
  * ZoneHeader
  * Compact header bar showing:
@@ -55,12 +62,12 @@ export default function ZoneHeader({
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-950/40 border border-slate-800/60">
             <Activity className="w-3.5 h-3.5 text-indigo-400/70" />
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Active Cycle</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none">Active Week</p>
               <p className="text-sm font-black text-white leading-tight mt-0.5">
-                #{currentEpoch?.id || '--'}
-                <span className="text-[10px] font-bold text-slate-400 font-mono ml-1.5">
-                  {currentEpoch?.calendar_week || ''}
-                </span>
+                {formatCalendarWeek(currentEpoch?.calendar_week)}
+              </p>
+              <p className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">
+                Epoch #{currentEpoch?.id || '--'}
               </p>
             </div>
           </div>
@@ -69,12 +76,12 @@ export default function ZoneHeader({
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950/20 border border-indigo-500/10">
             <LayoutGrid className="w-3.5 h-3.5 text-indigo-400/70" />
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 leading-none">Viewing Map</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 leading-none">Viewing</p>
               <p className="text-sm font-black text-indigo-100 leading-tight mt-0.5">
-                #{epoch?.id || '--'}
-                <span className="text-[10px] font-bold text-indigo-400/60 font-mono ml-1.5 italic">
-                  {requestedEpoch === 'previous' ? 'PREV' : 'LIVE'}
-                </span>
+                {requestedEpoch === 'previous' ? 'Previous Week' : 'Current Week'}
+              </p>
+              <p className="text-[10px] font-bold text-indigo-300/70 font-mono mt-0.5">
+                Epoch #{epoch?.id || '--'}{epoch?.calendar_week ? ` • ${formatCalendarWeek(epoch.calendar_week)}` : ''}
               </p>
             </div>
           </div>
