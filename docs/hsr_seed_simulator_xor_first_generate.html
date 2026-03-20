@@ -1,0 +1,4397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HSR Relic Seed Simulator v3</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
+
+    :root {
+      --bg: #0a0c10;
+      --surface: #111418;
+      --surface2: #181c22;
+      --border: #252a32;
+      --border2: #2e3540;
+      --accent: #4fc3f7;
+      --gold: #ffd54f;
+      --green: #69f0ae;
+      --red: #ff6b6b;
+      --purple: #ce93d8;
+      --orange: #ffb74d;
+      --text: #e8eaf0;
+      --text2: #8a96a8;
+      --text3: #505866;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Exo 2', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .scanline {
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.03) 2px, rgba(0, 0, 0, 0.03) 4px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 920px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* HEADER */
+    .header {
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .header h1 span {
+      color: var(--gold);
+    }
+
+    .header p {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 4px;
+      font-family: var(--mono);
+    }
+
+    /* STATUS */
+    .status-bar {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      margin-bottom: 14px;
+    }
+
+    .sg {
+      color: var(--green);
+    }
+
+    .sc {
+      color: var(--accent);
+    }
+
+    /* PANEL */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin-bottom: 14px;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* FORMS */
+    select,
+    input[type=text],
+    input[type=number] {
+      padding: 7px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+    }
+
+    select {
+      width: 100%;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+      width: 80px;
+    }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .notes-input {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    /* CAVERN */
+    .cavern-sets {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 6px;
+      min-height: 14px;
+    }
+
+    /* TEAM SLOTS */
+    .slots {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .slot {
+      border: 1.5px dashed var(--border2);
+      border-radius: 6px;
+      padding: 10px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, transform .1s;
+      min-height: 82px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    .slot:hover {
+      border-color: var(--accent);
+    }
+
+    .slot.active {
+      border: 1.5px solid var(--accent);
+      background: rgba(79, 195, 247, .06);
+    }
+
+    .slot.filled {
+      border-style: solid;
+      border-color: var(--border2);
+      background: var(--surface2);
+    }
+
+    .slot.drag-over {
+      border-color: var(--gold) !important;
+      background: rgba(255, 213, 79, .08);
+      transform: scale(1.04);
+    }
+
+    .slot-num {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+    }
+
+    .slot-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .slot-meta {
+      font-size: 9px;
+      color: var(--accent);
+      font-family: var(--mono);
+      line-height: 1.4;
+    }
+
+    .slot-empty {
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    .slot-remove {
+      font-size: 10px;
+      color: var(--red);
+      margin-top: 3px;
+      cursor: pointer;
+    }
+
+    .slot-hint {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-bottom: 10px;
+    }
+
+    /* CHAR GRID */
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .search-row input {
+      flex: 1;
+    }
+
+    .team-summary {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-bottom: 8px;
+      min-height: 14px;
+    }
+
+    .char-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+      gap: 5px;
+    }
+
+    .char-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      cursor: grab;
+      transition: border-color .12s, background .12s;
+      user-select: none;
+    }
+
+    .char-card:hover {
+      border-color: var(--border2);
+      background: #1e232b;
+    }
+
+    .char-card.in-team {
+      border-color: var(--accent);
+      background: rgba(79, 195, 247, .05);
+    }
+
+    .own-btn {
+      font-size: 9px;
+      padding: 1px 6px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--surface);
+      color: var(--text3);
+      cursor: pointer;
+      font-family: var(--mono);
+      transition: all .1s;
+      margin-left: auto;
+    }
+
+    .own-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .own-btn.is-owned {
+      border-color: var(--gold);
+      background: rgba(255, 213, 79, .15);
+      color: var(--gold);
+    }
+
+    .cc-tags {
+      display: flex;
+      gap: 3px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .preset-zones {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .preset-zone-btn {
+      padding: 5px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: var(--mono);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border: 1px solid;
+      transition: all .12s;
+    }
+
+    .pz-gold {
+      border-color: var(--gold);
+      color: var(--gold);
+      background: rgba(255, 213, 79, .08);
+    }
+
+    .pz-gold:hover {
+      background: rgba(255, 213, 79, .18);
+    }
+
+    .pz-purple {
+      border-color: var(--purple);
+      color: var(--purple);
+      background: rgba(206, 147, 216, .08);
+    }
+
+    .pz-purple:hover {
+      background: rgba(206, 147, 216, .18);
+    }
+
+    .pz-green {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(105, 240, 174, .08);
+    }
+
+    .pz-green:hover {
+      background: rgba(105, 240, 174, .18);
+    }
+
+    .char-card.dragging {
+      opacity: .4;
+    }
+
+    .cc-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .cc-id {
+      font-size: 9px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 1px;
+    }
+
+
+
+    .tag {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: var(--mono);
+    }
+
+    .r-healer {
+      background: rgba(105, 240, 174, .12);
+      color: var(--green);
+    }
+
+    .r-dps {
+      background: rgba(255, 107, 107, .12);
+      color: var(--red);
+    }
+
+    .r-support {
+      background: rgba(206, 147, 216, .12);
+      color: var(--purple);
+    }
+
+    .r-sustain {
+      background: rgba(255, 183, 77, .12);
+      color: var(--orange);
+    }
+
+    .t-path {
+      background: rgba(79, 195, 247, .1);
+      color: var(--accent);
+    }
+
+    .t-elem {
+      background: rgba(255, 255, 255, .05);
+      color: var(--text3);
+    }
+
+    /* TIME */
+    .time-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .time-row label {
+      font-size: 12px;
+      color: var(--text2);
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
+    .time-row input[type=number] {
+      font-size: 16px;
+      width: 90px;
+    }
+
+    /* HASH */
+    .hash-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .hash-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .hc-label {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .hc-val {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+      font-family: var(--mono);
+      margin: 3px 0;
+    }
+
+    .hc-desc {
+      font-size: 9px;
+      color: var(--text3);
+    }
+
+    .seed-row {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 12px;
+      color: var(--text2);
+    }
+
+    .seed-row span {
+      color: var(--gold);
+    }
+
+    /* RELIC CARDS */
+    .relic-count-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .relic-count-row label {
+      font-size: 12px;
+      color: var(--text2);
+      font-family: var(--mono);
+    }
+
+    .relic-count-row span {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: var(--mono);
+    }
+
+    .relic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .relic-card {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .rc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .rc-num {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+    }
+
+    .rc-piece {
+      font-size: 10px;
+      color: var(--accent);
+      font-family: var(--mono);
+      cursor: pointer;
+      padding: 2px 8px;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      background: var(--surface);
+      transition: border-color .1s;
+    }
+
+    .rc-piece:hover {
+      border-color: var(--accent);
+    }
+
+    .rc-subs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+    .rsub {
+      padding: 3px 7px;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text2);
+      background: var(--surface);
+      transition: all .1s;
+      user-select: none;
+    }
+
+    .rsub:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .rsub.on {
+      border-color: var(--green);
+      background: rgba(105, 240, 174, .12);
+      color: var(--green);
+    }
+
+    .rsub.max {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .rc-count {
+      font-size: 9px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 5px;
+    }
+
+    /* AVG RESULT */
+    .avg-box {
+      background: rgba(105, 240, 174, .04);
+      border: 1px solid rgba(105, 240, 174, .25);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+
+    .avg-box .ab-label {
+      font-size: 10px;
+      color: var(--green);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+
+    .avg-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .avg-bar-label {
+      font-size: 10px;
+      color: var(--text2);
+      font-family: var(--mono);
+      width: 76px;
+      flex-shrink: 0;
+    }
+
+    .avg-bar-track {
+      flex: 1;
+      height: 9px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .avg-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .3s;
+    }
+
+    .avg-bar-ct {
+      font-size: 10px;
+      font-family: var(--mono);
+      width: 56px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .avg-top4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      font-family: var(--mono);
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(105, 240, 174, .15);
+    }
+
+    /* OUTCOME */
+    .section-label {
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 6px;
+      font-family: var(--mono);
+    }
+
+    .outcome-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .outcome-btn {
+      padding: 5px 10px;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text2);
+      background: var(--surface2);
+      transition: all .12s;
+    }
+
+    .outcome-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .outcome-btn.active {
+      border-color: var(--green);
+      background: rgba(105, 240, 174, .1);
+      color: var(--green);
+    }
+
+    /* FREQ BOX */
+    .freq-box {
+      background: rgba(79, 195, 247, .04);
+      border: 1px solid rgba(79, 195, 247, .2);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+
+    .freq-box .fb-label {
+      font-size: 10px;
+      color: var(--accent);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+
+    .freq-box .fb-sub {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-bottom: 6px;
+    }
+
+    .freq-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .freq-bar-label {
+      font-size: 10px;
+      color: var(--text2);
+      font-family: var(--mono);
+      width: 76px;
+      flex-shrink: 0;
+    }
+
+    .freq-bar-track {
+      flex: 1;
+      height: 7px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .freq-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width .3s;
+    }
+
+    .freq-bar-pct {
+      font-size: 10px;
+      color: var(--accent);
+      font-family: var(--mono);
+      width: 32px;
+      text-align: right;
+    }
+
+    /* PRED */
+    .substat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .sb-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .sb-name {
+      font-size: 11px;
+      color: var(--text2);
+      width: 76px;
+      flex-shrink: 0;
+      font-family: var(--mono);
+    }
+
+    .sb-track {
+      flex: 1;
+      height: 10px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .sb-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .4s;
+    }
+
+    .sb-pct {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      width: 32px;
+      text-align: right;
+    }
+
+    .sb-tick {
+      font-size: 10px;
+      width: 12px;
+      color: var(--green);
+    }
+
+    .pred-box {
+      background: rgba(79, 195, 247, .05);
+      border: 1px solid rgba(79, 195, 247, .2);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+
+    .pred-box .pb-label {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+
+    .pred-box .pb-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      font-family: var(--mono);
+    }
+
+    /* BUTTONS */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--mono);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      transition: all .12s;
+      border: 1px solid;
+    }
+
+    .btn-primary {
+      background: rgba(79, 195, 247, .1);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: rgba(79, 195, 247, .2);
+    }
+
+    .btn-danger {
+      background: rgba(255, 107, 107, .08);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 107, 107, .15);
+    }
+
+    .btn-gold {
+      background: rgba(255, 213, 79, .08);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .btn-gold:hover {
+      background: rgba(255, 213, 79, .15);
+    }
+
+    .btn-green {
+      background: rgba(105, 240, 174, .08);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .btn-green:hover {
+      background: rgba(105, 240, 174, .15);
+    }
+
+    .btn:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    /* SCOUT MODE */
+    .scout-target-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .scout-target-row label {
+      font-size: 12px;
+      color: var(--text2);
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
+    .scout-target-row select {
+      width: auto;
+      min-width: 160px;
+    }
+
+    .scout-empty {
+      text-align: center;
+      padding: 20px;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+    }
+
+    .scout-results {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .scout-entry {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: border-color .15s;
+    }
+
+    .scout-entry.best {
+      border-color: var(--gold);
+      background: rgba(255, 213, 79, .05);
+    }
+
+    .scout-entry.good {
+      border-color: var(--green);
+      background: rgba(105, 240, 174, .04);
+    }
+
+    .scout-rank {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--mono);
+      width: 24px;
+      flex-shrink: 0;
+    }
+
+    .scout-rank.r1 {
+      color: var(--gold);
+    }
+
+    .scout-rank.r2 {
+      color: var(--accent);
+    }
+
+    .scout-rank.r3 {
+      color: var(--text2);
+    }
+
+    .scout-rank.rn {
+      color: var(--text3);
+    }
+
+    .scout-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .scout-array {
+      font-size: 11px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .scout-order {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 2px;
+    }
+
+    .scout-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 180px;
+      flex-shrink: 0;
+    }
+
+    .scout-bar-track {
+      flex: 1;
+      height: 12px;
+      background: var(--surface);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .scout-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .4s;
+    }
+
+    .scout-pct {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--mono);
+      width: 40px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .scout-runs {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      width: 48px;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    .scout-winner {
+      background: rgba(255, 213, 79, .08);
+      border: 1px solid rgba(255, 213, 79, .3);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .sw-label {
+      font-size: 10px;
+      color: var(--gold);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: 4px;
+    }
+
+    .sw-val {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      font-family: var(--mono);
+    }
+
+    .sw-sub {
+      font-size: 11px;
+      color: var(--text2);
+      font-family: var(--mono);
+      margin-top: 3px;
+    }
+
+    /* LOG TABLE */
+    .log-table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    th {
+      text-align: left;
+      padding: 6px 8px;
+      color: var(--text3);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .empty-log {
+      text-align: center;
+      padding: 24px;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+
+    /* CORE / VARIATION */
+    .core-box {
+      background: rgba(255, 213, 79, .05);
+      border: 1px solid rgba(255, 213, 79, .18);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+
+    .core-meta {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .core-team-name {
+      font-size: 13px;
+      color: var(--gold);
+      font-family: var(--mono);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+      margin-bottom: 8px;
+    }
+
+    .sim-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 11px;
+    }
+
+    .sim-label {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .sim-val {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gold);
+      font-family: var(--mono);
+      margin-top: 3px;
+    }
+
+    .sim-sub {
+      font-size: 9px;
+      color: var(--text3);
+      margin-top: 2px;
+      font-family: var(--mono);
+    }
+
+    .sim-summary {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text2);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .helper-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .helper-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: border-color .12s, background .12s;
+    }
+
+    .helper-item:hover {
+      border-color: var(--gold);
+      background: #1e232b;
+    }
+
+    .helper-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+
+    .helper-name {
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .helper-score {
+      font-size: 11px;
+      color: var(--gold);
+      font-family: var(--mono);
+    }
+
+    .helper-meta {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="scanline"></div>
+  <div class="container">
+
+    <div class="header">
+      <h1>HSR <span>Relic Seed</span> Simulator</h1>
+      <p>// cavern of corrosion  substat research tool v3.0</p>
+    </div>
+
+    <div class="status-bar">
+      STATUS: <span class="sg">READY</span> &nbsp;|&nbsp; RUNS LOGGED: <span class="sc" id="run-count">0</span>
+      &nbsp;|&nbsp; TEAM: <span id="status-team"></span>
+    </div>
+
+    <!-- CAVERN -->
+    <div class="panel">
+      <div class="panel-title">Cavern &nbsp;<span style="font-size:9px;color:var(--text3);font-family:var(--mono)">which
+          relic SET drops  does NOT change substats</span></div>
+      <select id="cavern-select" onchange="compute()">
+        <option value=""> select cavern </option>
+      </select>
+      <div class="cavern-sets" id="cavern-sets"></div>
+      <div
+        style="margin-top:10px;font-size:10px;color:var(--text3);font-family:var(--mono);line-height:1.7;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;">
+        <span style="color:var(--accent);">What cavern controls:</span> which relic <strong>set theme</strong> drops
+        (e.g. Hunter of Glacial Forest vs Musketeer).<br>
+        <span style="color:var(--accent);">What cavern does NOT control:</span> which substats roll. Substats appear
+        seeded by your <strong>team ID array</strong> (XOR / SUM / SLOT).<br>
+        <span style="color:var(--text2);">There is no "high" or "low" cavern. Pick whichever set you need  the substat
+          zone stays the same.</span>
+      </div>
+    </div>
+
+    <!-- TEAM -->
+    <div class="panel">
+      <div class="panel-title">Team Builder &nbsp;<span id="lock-indicator"
+          style="font-size:10px;color:var(--gold);font-family:var(--mono)"></span></div>
+      <div class="slots" id="slots"></div>
+      <div class="slot-hint">click slot to select  click char to fill &nbsp;|&nbsp; drag char card onto slot
+        &nbsp;|&nbsp; drag filled slot onto another to swap</div>
+      <div class="search-row">
+        <input type="text" id="char-search"
+          placeholder="Search name  path (Remem/Harm/Hunt...)  element (Ice/Wind/Quantum...)..."
+          oninput="currentPage=1; renderChars()">
+        <button class="btn btn-green" id="lock-btn" onclick="toggleLock()">Lock team</button>
+      </div>
+      <div class="team-summary" id="team-summary"></div>
+      <div class="char-grid" id="char-grid"></div>
+
+      <!-- PAGINATION CONTROLS -->
+      <div id="char-pagination"
+        style="margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--mono); font-size: 11px;">
+        <button class="btn" id="prev-page" onclick="changePage(-1)" style="padding: 4px 10px; font-size: 10px;">&lt;
+          PREV</button>
+        <span style="color: var(--text3)">PAGE <span id="current-page-val" style="color: var(--accent)">1</span> / <span
+            id="total-pages-val">1</span></span>
+        <button class="btn" id="next-page" onclick="changePage(1)" style="padding: 4px 10px; font-size: 10px;">NEXT
+          &gt;</button>
+      </div>
+    </div>
+
+    <!-- LIGHT CONE ASSIGNMENT -->
+    <div class="panel" id="lc-panel">
+      <div class="panel-title">Light Cone Assignment &nbsp;<span
+          style="font-size:9px;color:var(--orange);font-family:var(--mono)">experimental  LC IDs may or may not affect
+          drops</span></div>
+      <div
+        style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-bottom:10px;padding:7px 10px;background:rgba(255,183,77,.05);border:1px solid rgba(255,183,77,.15);border-radius:5px;line-height:1.6;">
+        Assign LCs to test whether LC IDs influence the drop zone. All LC math is shown separately  character-only
+        formulas are unchanged.
+      </div>
+      <!-- Slot LC rows -->
+      <div id="lc-slot-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
+      <!-- LC picker -->
+      <div id="lc-picker"
+        style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;margin-top:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:11px;color:var(--orange);font-family:var(--mono);">Assign LC to <strong
+              id="lc-picker-slot-label">S?</strong></span>
+          <input type="text" id="lc-search" placeholder="search LC name or path..." style="flex:1;font-size:11px;"
+            oninput="onLCPickerSearchInput()">
+          <button class="btn" style="font-size:10px;padding:4px 8px;border-color:var(--orange);color:var(--orange);"
+            onclick="clearSlotLC()">Clear LC</button>
+          <button class="btn" style="font-size:10px;padding:4px 8px;" onclick="closeLCPicker()">Close</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <label style="font-size:10px;color:var(--text3);font-family:var(--mono);">
+            <input type="checkbox" id="lc-same-path-first" checked onchange="renderLCPicker()"> Same path first
+          </label>
+          <label style="font-size:10px;color:var(--text3);font-family:var(--mono);">
+            <input type="checkbox" id="lc-5star-only" onchange="renderLCPicker()"> 5-star only
+          </label>
+        </div>
+        <div id="lc-grid"
+          style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:5px;max-height:280px;overflow-y:auto;">
+        </div>
+        <div id="lc-picker-pagination" style="display:none;align-items:center;justify-content:center;gap:8px;margin-top:8px;">
+          <button class="btn" id="lc-prev-page" onclick="changeLCPickerPage(-1)" style="padding:4px 10px;font-size:10px;">&lt;</button>
+          <span style="color:var(--text3)">PAGE <span id="lc-current-page-val" style="color:var(--orange)">1</span> / <span id="lc-total-pages-val">1</span></span>
+          <span style="color:var(--text3);font-size:10px;font-family:var(--mono);" id="lc-result-count">0 results</span>
+          <button class="btn" id="lc-next-page" onclick="changeLCPickerPage(1)" style="padding:4px 10px;font-size:10px;">NEXT</button>
+        </div>
+      </div>
+      <!-- LC ownership manager -->
+      <details style="margin-top:10px;">
+        <summary style="font-size:10px;color:var(--text3);font-family:var(--mono);cursor:pointer;user-select:none;">LC
+          copy count (for duplicate restrictions)</summary>
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px;margin-bottom:8px;">Leave
+          at 0 = unlimited. Set to 1 = only one slot may use it. Set to 2 = two slots, etc.</div>
+        <div id="lc-ownership-list"
+          style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;max-height:200px;overflow-y:auto;">
+        </div>
+      </details>
+    </div>
+
+    <!-- TIME -->
+    <div class="panel">
+      <div class="panel-title">Clear Time &amp; Notes</div>
+      <div class="time-row" style="margin-bottom: 12px; gap: 20px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label>SECONDS</label>
+          <input type="number" id="clear-time" min="1" max="999" step="1" value="90"
+            oninput="syncToMinSec(); compute()">
+        </div>
+        <div
+          style="display: flex; align-items: center; gap: 8px; padding-left: 20px; border-left: 1px solid var(--border2);">
+          <span style="font-size: 11px; color: var(--text3); font-family: var(--mono); white-space: nowrap;">
+            TRANSLATOR:</span>
+          <input type="number" id="t-min" placeholder="min" min="0" max="15" style="width: 55px;"
+            oninput="translateTime()">
+          <span style="font-size: 12px; color: var(--text3); font-family: var(--mono);">m</span>
+          <input type="number" id="t-sec" placeholder="sec" min="0" max="59" style="width: 55px;"
+            oninput="translateTime()">
+          <span style="font-size: 12px; color: var(--text3); font-family: var(--mono);">s</span>
+        </div>
+      </div>
+      <div class="slot-hint" style="margin-bottom: 10px;">Type exact seconds shown in game OR use the translator for [m
+        + s] conversion</div>
+      <input type="text" class="notes-input" id="run-notes"
+        placeholder="notes: weakness broke turn2  5* boots  double sustain...">
+    </div>
+
+    <!-- HASH -->\n <div class="panel">
+      <div class="panel-title">Hash Analysis &nbsp;<span
+          style="font-size:9px;color:var(--text3);font-family:var(--mono)">experimental  real server seed
+          unknown</span></div>
+
+      <!-- Character-only hashes (original, unchanged) -->
+      <div
+        style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
+        Character-only (original formula)</div>
+      <div class="hash-grid">
+        <div class="hash-card">
+          <div class="hc-label">Sum mod</div>
+          <div class="hc-val" id="h-sum"></div>
+          <div class="hc-desc">(sum IDs + time) mod 10000</div>
+        </div>
+        <div class="hash-card">
+          <div class="hc-label">XOR</div>
+          <div class="hc-val" id="h-xor"></div>
+          <div class="hc-desc">XOR all IDs ^ (time7)</div>
+        </div>
+        <div class="hash-card">
+          <div class="hc-label">Slot-weighted</div>
+          <div class="hc-val" id="h-slot"></div>
+          <div class="hc-desc">slot43 + slot1+2+3 + time</div>
+        </div>
+      </div>
+      <div class="seed-row" style="margin-bottom:10px;">SEED: <span id="full-seed">fill team to generate</span></div>
+
+      <!-- LC experimental hashes -->
+      <div
+        style="font-size:10px;color:var(--orange);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;margin-top:4px;">
+        Experimental: LC IDs may or may not matter in the real game.
+      </div>
+      <div id="lc-hash-section" style="display:none;">
+        <div class="hash-grid" style="grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px;">
+          <div class="hash-card" style="border-color:rgba(255,183,77,.25);">
+            <div class="hc-label" style="color:var(--orange)">LC SUM</div>
+            <div class="hc-val" id="h-lc-sum" style="color:var(--orange)"></div>
+            <div class="hc-desc">sum of 4 LC IDs</div>
+          </div>
+          <div class="hash-card" style="border-color:rgba(255,183,77,.25);">
+            <div class="hc-label" style="color:var(--orange)">LC XOR</div>
+            <div class="hc-val" id="h-lc-xor" style="color:var(--orange)"></div>
+            <div class="hc-desc">XOR of 4 LC IDs</div>
+          </div>
+          <div class="hash-card" style="border-color:rgba(255,183,77,.25);">
+            <div class="hc-label" style="color:var(--orange)">LC SLOT</div>
+            <div class="hc-val" id="h-lc-slot" style="color:var(--orange)"></div>
+            <div class="hc-desc">lc43 + lc1+lc2+lc3</div>
+          </div>
+        </div>
+        <div class="hash-grid" style="grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px;">
+          <div class="hash-card" style="border-color:rgba(206,147,216,.25);">
+            <div class="hc-label" style="color:var(--purple)">COMBO SUM</div>
+            <div class="hc-val" id="h-combo-sum" style="color:var(--purple)"></div>
+            <div class="hc-desc">charSum + lcSum</div>
+          </div>
+          <div class="hash-card" style="border-color:rgba(206,147,216,.25);">
+            <div class="hc-label" style="color:var(--purple)">COMBO XOR</div>
+            <div class="hc-val" id="h-combo-xor" style="color:var(--purple)"></div>
+            <div class="hc-desc">charXOR ^ lcXOR</div>
+          </div>
+          <div class="hash-card" style="border-color:rgba(206,147,216,.25);">
+            <div class="hc-label" style="color:var(--purple)">COMBO SLOT</div>
+            <div class="hc-val" id="h-combo-slot" style="color:var(--purple)"></div>
+            <div class="hc-desc">charSlot + lcSlot</div>
+          </div>
+        </div>
+        <div class="seed-row">LC SEED: <span id="lc-seed-row" style="color:var(--orange)">assign LCs to all slots</span>
+        </div>
+      </div>
+      <div id="lc-hash-hint"
+        style="font-size:10px;color:var(--text3);font-family:var(--mono);padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;">
+        Assign LCs to all 4 slots (via LC panel above) to see experimental LC hash values.
+      </div>
+    </div>
+
+    <!-- NEIGHBORHOOD EXPLORER -->
+    <div class="panel">
+      <div class="panel-title">Neighborhood Explorer &nbsp;<span
+          style="font-size:9px;color:var(--text3);font-family:var(--mono)">XOR-first  SUM / SLOT auto-resolve</span>
+      </div>
+
+      <!-- ZONE PRESETS -->
+      <div
+        style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
+        Quick zone presets  verified from logs</div>
+      <div class="preset-zones">
+        <button class="preset-zone-btn pz-gold" onclick="loadPreset(192,5630,8458,'crit-only')">
+           My Crit Zone  XOR 192  SUM 5630  SLOT ~8458
+        </button>
+        <button class="preset-zone-btn pz-green" onclick="loadPreset(192,5630,8634,'crit-spd')">
+           My SPD Zone  XOR 192  SUM 5630  SLOT 8634
+        </button>
+        <button class="preset-zone-btn pz-purple" onclick="loadPreset(418,5520,7942,'crit-only')">
+           Partner Crit Zone  XOR 418  SUM 5520  SLOT 7942
+        </button>
+      </div>
+
+      <div style="font-size:11px;color:var(--text2);font-family:var(--mono);margin-bottom:10px;line-height:1.6;">
+        <span style="color:var(--gold)">XOR is the main control.</span> Type the XOR you want, then the app will
+        auto-resolve the best <span style="color:var(--gold)">SUM</span> family and <span
+          style="color:var(--gold)">SLOT</span> flavor from your imported/logged data.<br>
+        SUM and SLOT are advanced helper values. You should usually let the app fill them for you, then hit <span
+          style="color:var(--gold)">Generate teams</span>.
+      </div>
+      <div class="time-row" style="gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+        <div>
+          <label style="display:block;margin-bottom:6px;font-size:11px;color:var(--text2)">PROFILE</label>
+          <select id="nb-profile" onchange="renderNeighborhoodExplorer()" style="width:240px;">
+            <option value="crit-hp">Crit + HP%</option>
+            <option value="crit-only">Crit only</option>
+            <option value="crit-spd">Crit + SPD</option>
+            <option value="hp-only">HP% zone</option>
+            <option value="break">Break Eff zone</option>
+            <option value="effect">Effect Hit / RES zone</option>
+            <option value="atk">ATK% zone</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;font-size:11px;color:var(--text2)">TARGET SUM</label>
+          <input type="number" id="nb-sum" style="width:110px" oninput="syncNeighborhoodInputs('sum')">
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;font-size:11px;color:var(--text2)">TARGET XOR</label>
+          <input type="number" id="nb-xor" style="width:110px" oninput="syncNeighborhoodInputs('xor')">
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;font-size:11px;color:var(--text2)">TARGET SLOT</label>
+          <input type="number" id="nb-slot" style="width:110px" oninput="syncNeighborhoodInputs('slot')">
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;font-size:11px;color:var(--text2)">AUTO</label>
+          <div style="display:flex;align-items:center;gap:8px;height:32px;font-family:var(--mono);font-size:11px;">
+            <input type="checkbox" id="nb-auto" checked onchange="renderNeighborhoodExplorer()">
+            <span style="color:var(--text2)">sync other fields</span>
+          </div>
+        </div>
+      </div>
+      <!-- SLOT window targeting -->
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);">SLOT window (optional):</div>
+        <input type="number" id="nb-slot-min" placeholder="min e.g. 8450" style="width:120px;font-size:12px;"
+          oninput="">
+        <span style="color:var(--text3);font-family:var(--mono);font-size:11px;"></span>
+        <input type="number" id="nb-slot-max" placeholder="max e.g. 8470" style="width:120px;font-size:12px;"
+          oninput="">
+        <button class="btn" style="font-size:10px;padding:4px 10px;"
+          onclick="document.getElementById('nb-slot-min').value='';document.getElementById('nb-slot-max').value=''">Clear
+          window</button>
+        <label
+          style="font-size:10px;color:var(--text2);font-family:var(--mono);display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:8px;">
+          <input type="checkbox" id="nb-owned-only" onchange="">
+          Owned chars only
+        </label>
+      </div>
+
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="btn btn-gold" onclick="generateNeighborhoodTeams()">Generate teams</button>
+        <button class="btn btn-primary" onclick="loadNeighborhoodFromCurrent()">Load from current team</button>
+        <button class="btn btn-primary" onclick="loadNeighborhoodFromCore()">Load from core</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin:-2px 0 10px;">Normal use: pick a
+        preset or enter XOR  let SUM/SLOT auto-fill  optionally set SLOT window  click Generate.</div>
+      <div id="nb-summary"
+        style="font-size:11px;color:var(--text2);font-family:var(--mono);margin-bottom:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">
+        No target loaded yet. Use a preset above or load from your current team.</div>
+      <div class="section-label">Best logged neighborhood matches</div>
+      <div class="helper-list" id="nb-results">
+        <div class="empty-log" style="padding:14px;">Import debug .txt or log runs to see your best logged neighborhoods
+          here.</div>
+      </div>
+      <div class="section-label" style="margin-top:14px;">Generated teams for target XOR</div>
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;">Exact XOR match, ranked
+        by SUM proximity then SLOT proximity. Gold border = inside SLOT window.</div>
+      <div id="nb-gen-count" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:6px;"></div>
+      <div class="helper-list" id="nb-generated">
+        <div class="empty-log" style="padding:14px;">Pick a preset or type a target XOR, then click Generate teams.
+        </div>
+      </div>
+    </div>
+
+    <!-- SCOUT MODE -->
+    <div class="panel">
+      <div class="panel-title">Scout Mode  Find This Week's Zone &nbsp;<span
+          style="font-size:9px;color:var(--text3);font-family:var(--mono)">data-driven  ranks logged arrays by your
+          target stat</span></div>
+      <div class="scout-target-row">
+        <label>TARGET STAT</label>
+        <select id="scout-target" onchange="renderScout()">
+          <option value="Crit Rate">Crit Rate</option>
+          <option value="Crit DMG">Crit DMG</option>
+          <option value="Crit Rate+Crit DMG">Crit Rate + Crit DMG (combined)</option>
+          <option value="SPD">SPD</option>
+          <option value="Break Eff">Break Eff</option>
+          <option value="Effect Hit">Effect Hit</option>
+          <option value="Effect RES">Effect RES</option>
+        </select>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">ranks your logged runs  best zone this
+          week for your goal</span>
+      </div>
+      <div class="scout-winner" id="scout-winner">
+        <div class="sw-label"> Best array this week for <span id="sw-stat-name"></span></div>
+        <div class="sw-val" id="sw-array"></div>
+        <div class="sw-sub" id="sw-order"></div>
+      </div>
+      <div id="scout-results-wrap">
+        <div class="scout-empty">Log at least 1 run above to see data-driven rankings here.</div>
+      </div>
+    </div>
+
+    <!-- ZONE ANALYZER -->
+    <div class="panel">
+      <div class="panel-title">Zone Analyzer &nbsp;<span
+          style="font-size:9px;color:var(--text3);font-family:var(--mono)">why is a team good  compare all logged
+          zones</span></div>
+      <div
+        style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-bottom:12px;padding:8px 12px;background:rgba(105,240,174,.04);border:1px solid rgba(105,240,174,.15);border-radius:5px;line-height:1.6;">
+        Select any logged team to see a full breakdown of why it performs the way it does 
+        hash values, substat profile, zone flavor, and comparison against all other logged teams.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <select id="za-team-select" style="flex:1;min-width:200px;" onchange="renderZoneAnalyzer()">
+          <option value=""> select a logged team to analyze </option>
+        </select>
+        <button class="btn btn-primary" onclick="zaLoadCurrent()">Analyze current team</button>
+        <button class="btn btn-gold" onclick="zaLoadBest()">Analyze best logged</button>
+      </div>
+      <div id="za-content">
+        <div class="scout-empty">Log runs first, then select a team above to analyze its zone.</div>
+      </div>
+    </div>
+
+    <!-- CORE HELPER -->
+    <div class="panel">
+      <div class="panel-title">Saved Reference Team &nbsp;<span
+          style="font-size:9px;color:var(--text3);font-family:var(--mono)">save a team  see its real outcome history 
+          explore slot swaps</span></div>
+
+      <div
+        style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-bottom:12px;padding:8px 12px;background:rgba(79,195,247,.05);border:1px solid rgba(79,195,247,.15);border-radius:5px;line-height:1.6;">
+        Save the team you're currently testing as a reference. Then you can see how it actually performed from your
+        logs, and which characters in each slot gave the best results.
+      </div>
+
+      <!-- save/load buttons -->
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="btn btn-gold" onclick="saveCurrentAsCore()">Save current team as core</button>
+        <button class="btn btn-primary" onclick="loadCoreIntoTeam()">Load core into builder</button>
+        <button class="btn btn-danger" onclick="clearCore()">Clear core</button>
+      </div>
+      <div class="core-team-name" id="core-team-name">No saved core yet.</div>
+      <div class="core-meta" id="core-meta">Save the current team above. Then see what substats it actually dropped
+        across all your logged runs.</div>
+
+      <!-- DATA outcomes -->
+      <div id="core-data-outcomes" style="margin-bottom:10px;margin-top:10px;"></div>
+      <div class="section-label" style="margin-top:10px;">Slot swap suggestions  from real runs</div>
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;">Which character in each
+        slot position gave the best CR+CD across all your logged runs? Click a slot above first.</div>
+      <div class="helper-list" id="slot-helper-data">
+        <div class="empty-log" style="padding:14px;">Log runs first, then select a slot to see data-driven suggestions.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- LC VARY MODE -->
+    <div class="panel">
+      <div class="panel-title">LC Vary Mode &nbsp;<span
+          style="font-size:9px;color:var(--orange);font-family:var(--mono)">experimental  keep 4 chars fixed, rank LC
+          swaps by combo XOR</span></div>
+      <div
+        style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-bottom:10px;padding:7px 10px;background:rgba(255,183,77,.05);border:1px solid rgba(255,183,77,.15);border-radius:5px;">
+        Characters locked. Shows which LC per slot produces the lowest COMBO XOR  closest to your target zone. Click
+        any LC to assign it.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+        <button class="btn btn-primary" onclick="renderLCVaryPanel()">Generate / Refresh</button>
+        <button class="btn" style="border-color:var(--orange);color:var(--orange);"
+          onclick="teamLCs=[null,null,null,null];renderLCSlotRows();renderLCVaryPanel();compute();">Clear all LCs</button>
+        <input type="text" id="lc-vary-search" placeholder="Search LC name..." style="flex:1;font-size:11px;" oninput="renderLCVaryPanel()">
+        <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;cursor:pointer;gap:4px;">
+          <input type="checkbox" id="lc-vary-show-all" onchange="renderLCVaryPanel()"> show all
+        </label>
+      </div>
+      <div id="lc-vary-list">
+        <div class="scout-empty">Fill all 4 character slots and click Generate.</div>
+      </div>
+    </div>
+
+    <!-- RELIC DROP LOGGER -->
+    <div class="panel">
+      <div class="panel-title">Relic Drop Logger</div>
+      <div class="relic-count-row">
+        <label>RELICS DROPPED</label>
+        <input type="number" id="relic-count" min="1" max="12" step="1" value="7" oninput="buildRelicCards()">
+        <span>fill each card with substats only  skip main stat</span>
+      </div>
+      <div class="relic-grid" id="relic-grid"></div>
+      <div class="avg-box" id="avg-box" style="display:none">
+        <div class="ab-label">Substat frequency across all <span id="avg-total">0</span> relics this run</div>
+        <div id="avg-bars"></div>
+        <div class="avg-top4" id="avg-top4"></div>
+      </div>
+      <div class="section-label">// run outcome  auto-detected from relics, tap to override:</div>
+      <div class="outcome-row" id="outcome-row">
+        <button class="outcome-btn" data-val="spd-double-crit" onclick="setOutcome(this)">SPD + CR + CD</button>
+        <button class="outcome-btn" data-val="double-crit" onclick="setOutcome(this)">CR + CD only</button>
+        <button class="outcome-btn" data-val="spd-one-crit" onclick="setOutcome(this)">SPD + one crit</button>
+        <button class="outcome-btn" data-val="one-crit" onclick="setOutcome(this)">one crit only</button>
+        <button class="outcome-btn" data-val="effect-junk" onclick="setOutcome(this)">Effect junk</button>
+        <button class="outcome-btn" data-val="flat-junk" onclick="setOutcome(this)">Flat junk</button>
+        <button class="outcome-btn" data-val="mixed" onclick="setOutcome(this)">Mixed</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="log-btn"
+          onclick="logRun();setTimeout(()=>{renderScout();renderCoreDataPanel();renderSlotHelperData();rerenderAllAnalysisPanels();populateZoneSelect();},80);"
+          disabled>Log this run</button>
+        <button class="btn btn-green" onclick="document.getElementById('import-debug-input').click()">Import debug
+          .txt</button>
+        <input type="file" id="import-debug-input" accept=".txt,text/plain" multiple style="display:none"
+          onchange="importDebugFiles(event)">
+        <button class="btn btn-danger"
+          onclick="clearAll();renderScout();renderCoreDataPanel();renderSlotHelperData();renderTeamSuggestPanels();populateZoneSelect();">Clear
+          all runs</button>
+        <button class="btn btn-gold" id="export-btn" onclick="exportLog()" disabled>Export debug .txt</button>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text3);font-family:var(--mono)">Import one or multiple
+        exported debug files from this tool. Imported runs merge into your current log.</div>
+    </div>
+
+
+
+    <!-- RUN LOG -->
+    <div class="panel">
+      <div class="panel-title">Run Log</div>
+      <div class="log-table-wrap">
+        <div class="empty-log" id="empty-log">No runs logged yet.</div>
+        <table id="log-table" style="display:none">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Slot order</th>
+              <th>ID array</th>
+              <th>Time</th>
+              <th>Cavern</th>
+              <th>Relics</th>
+              <th>Outcome</th>
+              <th>Avg top 4</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="log-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+  <script>
+    //  DATA 
+    const CHARS = [
+      { id: 1001, name: 'March 7th', role: 'sustain', path: 'Pres', elem: 'Ice' },
+      { id: 1002, name: 'Dan Heng', role: 'dps', path: 'Hunt', elem: 'Wind' },
+      { id: 1003, name: 'Himeko', role: 'dps', path: 'Erad', elem: 'Fire' },
+      { id: 1004, name: 'Welt', role: 'support', path: 'Nihil', elem: 'Imaginary' },
+      { id: 1005, name: 'Kafka', role: 'dps', path: 'Nihil', elem: 'Lightning' },
+      { id: 1006, name: 'Silver Wolf', role: 'support', path: 'Nihil', elem: 'Quantum' },
+      { id: 1008, name: 'Arlan', role: 'dps', path: 'Dest', elem: 'Lightning' },
+      { id: 1009, name: 'Asta', role: 'support', path: 'Harm', elem: 'Fire' },
+      { id: 1013, name: 'Herta', role: 'dps', path: 'Erad', elem: 'Ice' },
+      { id: 1014, name: 'Saber', role: 'dps', path: 'Dest', elem: 'Wind' },
+      { id: 1015, name: 'Archer', role: 'dps', path: 'Hunt', elem: 'Quantum' },
+      { id: 1101, name: 'Bronya', role: 'support', path: 'Harm', elem: 'Wind' },
+      { id: 1102, name: 'Seele', role: 'dps', path: 'Hunt', elem: 'Quantum' },
+      { id: 1103, name: 'Serval', role: 'dps', path: 'Erad', elem: 'Lightning' },
+      { id: 1104, name: 'Gepard', role: 'sustain', path: 'Pres', elem: 'Ice' },
+      { id: 1105, name: 'Natasha', role: 'healer', path: 'Abund', elem: 'Physical' },
+      { id: 1106, name: 'Pela', role: 'support', path: 'Nihil', elem: 'Ice' },
+      { id: 1107, name: 'Clara', role: 'dps', path: 'Dest', elem: 'Physical' },
+      { id: 1108, name: 'Sampo', role: 'support', path: 'Nihil', elem: 'Wind' },
+      { id: 1109, name: 'Hook', role: 'dps', path: 'Dest', elem: 'Fire' },
+      { id: 1110, name: 'Lynx', role: 'healer', path: 'Abund', elem: 'Quantum' },
+      { id: 1111, name: 'Luka', role: 'support', path: 'Nihil', elem: 'Physical' },
+      { id: 1112, name: 'Topaz & Numby', role: 'dps', path: 'Hunt', elem: 'Fire' },
+      { id: 1201, name: 'Qingque', role: 'dps', path: 'Erad', elem: 'Quantum' },
+      { id: 1202, name: 'Tingyun', role: 'support', path: 'Harm', elem: 'Lightning' },
+      { id: 1203, name: 'Luocha', role: 'sustain', path: 'Abund', elem: 'Imaginary' },
+      { id: 1204, name: 'Jing Yuan', role: 'dps', path: 'Erad', elem: 'Lightning' },
+      { id: 1205, name: 'Blade', role: 'dps', path: 'Dest', elem: 'Wind' },
+      { id: 1206, name: 'Sushang', role: 'dps', path: 'Hunt', elem: 'Physical' },
+      { id: 1207, name: 'Yukong', role: 'support', path: 'Harm', elem: 'Imaginary' },
+      { id: 1208, name: 'Fu Xuan', role: 'sustain', path: 'Pres', elem: 'Quantum' },
+      { id: 1209, name: 'Yanqing', role: 'dps', path: 'Hunt', elem: 'Ice' },
+      { id: 1210, name: 'Guinaifen', role: 'support', path: 'Nihil', elem: 'Fire' },
+      { id: 1211, name: 'Bailu', role: 'healer', path: 'Abund', elem: 'Lightning' },
+      { id: 1212, name: 'Jingliu', role: 'dps', path: 'Dest', elem: 'Ice' },
+      { id: 1213, name: 'Dan Heng  Imbibitor Lunae', role: 'dps', path: 'Dest', elem: 'Imaginary' },
+      { id: 1214, name: 'Xueyi', role: 'dps', path: 'Dest', elem: 'Quantum' },
+      { id: 1215, name: 'Hanya', role: 'support', path: 'Harm', elem: 'Physical' },
+      { id: 1217, name: 'Huohuo', role: 'sustain', path: 'Abund', elem: 'Wind' },
+      { id: 1218, name: 'Jiaoqiu', role: 'support', path: 'Nihil', elem: 'Fire' },
+      { id: 1220, name: 'Feixiao', role: 'dps', path: 'Hunt', elem: 'Wind' },
+      { id: 1221, name: 'Yunli', role: 'dps', path: 'Dest', elem: 'Physical' },
+      { id: 1222, name: 'Lingsha', role: 'healer', path: 'Abund', elem: 'Fire' },
+      { id: 1223, name: 'Moze', role: 'dps', path: 'Hunt', elem: 'Lightning' },
+      { id: 1224, name: 'March 7th', role: 'sustain', path: 'Hunt', elem: 'Imaginary' },
+      { id: 1225, name: 'Fugue', role: 'support', path: 'Nihil', elem: 'Fire' },
+      { id: 1301, name: 'Gallagher', role: 'sustain', path: 'Abund', elem: 'Fire' },
+      { id: 1302, name: 'Argenti', role: 'dps', path: 'Erad', elem: 'Physical' },
+      { id: 1303, name: 'Ruan Mei', role: 'support', path: 'Harm', elem: 'Ice' },
+      { id: 1304, name: 'Aventurine', role: 'sustain', path: 'Pres', elem: 'Imaginary' },
+      { id: 1305, name: 'Dr. Ratio', role: 'dps', path: 'Hunt', elem: 'Imaginary' },
+      { id: 1306, name: 'Sparkle', role: 'support', path: 'Harm', elem: 'Quantum' },
+      { id: 1307, name: 'Black Swan', role: 'dps', path: 'Nihil', elem: 'Wind' },
+      { id: 1308, name: 'Acheron', role: 'dps', path: 'Nihil', elem: 'Lightning' },
+      { id: 1309, name: 'Robin', role: 'support', path: 'Harm', elem: 'Physical' },
+      { id: 1310, name: 'Firefly', role: 'dps', path: 'Dest', elem: 'Fire' },
+      { id: 1312, name: 'Misha', role: 'dps', path: 'Dest', elem: 'Ice' },
+      { id: 1313, name: 'Sunday', role: 'support', path: 'Harm', elem: 'Imaginary' },
+      { id: 1314, name: 'Jade', role: 'dps', path: 'Erad', elem: 'Quantum' },
+      { id: 1315, name: 'Boothill', role: 'dps', path: 'Hunt', elem: 'Physical' },
+      { id: 1317, name: 'Rappa', role: 'dps', path: 'Erad', elem: 'Imaginary' },
+      { id: 1321, name: 'The Dahlia', role: 'support', path: 'Nihil', elem: 'Fire' },
+      { id: 1401, name: 'The Herta', role: 'dps', path: 'Erad', elem: 'Ice' },
+      { id: 1402, name: 'Aglaea', role: 'support', path: 'Remem', elem: 'Lightning' },
+      { id: 1403, name: 'Tribbie', role: 'support', path: 'Harm', elem: 'Quantum' },
+      { id: 1404, name: 'Mydei', role: 'dps', path: 'Dest', elem: 'Imaginary' },
+      { id: 1405, name: 'Anaxa', role: 'dps', path: 'Erad', elem: 'Wind' },
+      { id: 1406, name: 'Cipher', role: 'support', path: 'Nihil', elem: 'Quantum' },
+      { id: 1407, name: 'Castorice', role: 'support', path: 'Remem', elem: 'Quantum' },
+      { id: 1408, name: 'Phainon', role: 'dps', path: 'Dest', elem: 'Physical' },
+      { id: 1409, name: 'Hyacine', role: 'support', path: 'Remem', elem: 'Wind' },
+      { id: 1410, name: 'Hysilens', role: 'support', path: 'Nihil', elem: 'Physical' },
+      { id: 1412, name: 'Cerydra', role: 'support', path: 'Harm', elem: 'Wind' },
+      { id: 1413, name: 'Evernight', role: 'dps', path: 'Remem', elem: 'Ice' },
+      { id: 1414, name: 'Dan Heng  Permansor Terrae', role: 'sustain', path: 'Pres', elem: 'Physical' },
+      { id: 1415, name: 'Cyrene', role: 'support', path: 'Remem', elem: 'Ice' },
+      { id: 1501, name: 'Sparxie', role: 'support', path: 'Elat', elem: 'Fire' },
+      { id: 1502, name: 'Yao Guang', role: 'support', path: 'Elat', elem: 'Physical' },
+      { id: 8001, name: 'TB (Dest/M)', role: 'dps', path: 'Dest', elem: 'Physical' },
+      { id: 8002, name: 'TB (Dest/F)', role: 'dps', path: 'Dest', elem: 'Physical' },
+      { id: 8003, name: 'TB (Pres/M)', role: 'sustain', path: 'Pres', elem: 'Fire' },
+      { id: 8004, name: 'TB (Pres/F)', role: 'sustain', path: 'Pres', elem: 'Fire' },
+      { id: 8005, name: 'TB (Harm/M)', role: 'support', path: 'Harm', elem: 'Imaginary' },
+      { id: 8006, name: 'TB (Harm/F)', role: 'support', path: 'Harm', elem: 'Imaginary' },
+      { id: 8007, name: 'TB (Rem/M)', role: 'support', path: 'Remem', elem: 'Ice' },
+      { id: 8008, name: 'TB (Rem/F)', role: 'support', path: 'Remem', elem: 'Ice' },
+    ];
+
+    const CAVERNS = [
+      { id: 'c01', name: 'Path of Jabbing Punch', sets: 'Champion of Streetwise Boxing / Thief of Shooting Meteor' },
+      { id: 'c02', name: 'Path of Gelid Wind', sets: 'Hunter of Glacial Forest / Eagle of Twilight Line' },
+      { id: 'c03', name: 'Path of Drifting', sets: 'Passerby of Wandering Cloud / Musketeer of Wild Wheat' },
+      { id: 'c04', name: 'Path of Providence', sets: 'Guard of Wuthering Snow / Genius of Brilliant Stars' },
+      { id: 'c05', name: 'Path of Holy Hymn', sets: 'Knight of Purity Palace / Band of Sizzling Thunder' },
+      { id: 'c06', name: 'Path of Conflagration', sets: 'Firesmith of Lava-Forging / Wastelander of Banditry Desert' },
+      { id: 'c07', name: 'Path of Elixir Seekers', sets: 'Longevous Disciple / Messenger Traversing Hackerspace' },
+      { id: 'c08', name: 'Path of Darkness', sets: 'The Ashblazing Grand Duke / Prisoner in Deep Confinement' },
+      { id: 'c09', name: 'Path of Dreamdive', sets: 'Pioneer Diver of Dead Waters / Watchmaker, Master of Dream Machinations' },
+      { id: 'c10', name: 'Path of Cavalier', sets: 'Iron Cavalry Against the Scourge / The Wind-Soaring Valorous' },
+      { id: 'c11', name: 'Path of Uncertainty', sets: "Sacerdos' Relived Ordeal / Scholar Lost in Erudition" },
+      { id: 'c12', name: 'Path of Aria', sets: 'Hero of Triumphant Song / Poet of Mourning Collapse' },
+      { id: 'c13', name: 'Path of Hidden Salvation', sets: 'World-Remaking Deliverer / Self-Enshrouded Recluse' },
+      { id: 'c14', name: 'Path of Possession', sets: 'Ever-Glorious Magical Girl / Diviner of Distant Reach' },
+    ];
+
+    const SUBSTATS = [
+      { name: 'HP flat', w: 10, color: '#4db6ac' },
+      { name: 'ATK flat', w: 10, color: '#4db6ac' },
+      { name: 'DEF flat', w: 10, color: '#4db6ac' },
+      { name: 'HP%', w: 10, color: '#4fc3f7' },
+      { name: 'ATK%', w: 10, color: '#4fc3f7' },
+      { name: 'DEF%', w: 10, color: '#4fc3f7' },
+      { name: 'SPD', w: 4, color: '#ffd54f' },
+      { name: 'Crit Rate', w: 6, color: '#ff8a65' },
+      { name: 'Crit DMG', w: 6, color: '#ff8a65' },
+      { name: 'Effect Hit', w: 8, color: '#ce93d8' },
+      { name: 'Effect RES', w: 8, color: '#90a4ae' },
+      { name: 'Break Eff', w: 8, color: '#90a4ae' },
+    ];
+    const TOTAL_W = SUBSTATS.reduce((s, x) => s + x.w, 0);
+
+    //  LIGHT CONES 
+    const LIGHT_CONES = [
+      { id: 20000, name: 'Arrows', path: 'Hunt', rarity: 3 },
+      { id: 20001, name: 'Cornucopia', path: 'Abund', rarity: 3 },
+      { id: 20002, name: 'Collapsing Sky', path: 'Dest', rarity: 3 },
+      { id: 20003, name: 'Amber', path: 'Pres', rarity: 3 },
+      { id: 20004, name: 'Void', path: 'Nihil', rarity: 3 },
+      { id: 20005, name: 'Chorus', path: 'Harm', rarity: 3 },
+      { id: 20006, name: 'Data Bank', path: 'Erad', rarity: 3 },
+      { id: 20007, name: 'Darting Arrow', path: 'Hunt', rarity: 3 },
+      { id: 20008, name: 'Fine Fruit', path: 'Abund', rarity: 3 },
+      { id: 20009, name: 'Shattered Home', path: 'Dest', rarity: 3 },
+      { id: 20010, name: 'Defense', path: 'Pres', rarity: 3 },
+      { id: 20011, name: 'Loop', path: 'Nihil', rarity: 3 },
+      { id: 20012, name: 'Meshing Cogs', path: 'Harm', rarity: 3 },
+      { id: 20013, name: 'Passkey', path: 'Erad', rarity: 3 },
+      { id: 20014, name: 'Adversarial', path: 'Hunt', rarity: 3 },
+      { id: 20015, name: 'Multiplication', path: 'Abund', rarity: 3 },
+      { id: 20016, name: 'Mutual Demise', path: 'Dest', rarity: 3 },
+      { id: 20017, name: 'Pioneering', path: 'Pres', rarity: 3 },
+      { id: 20018, name: 'Hidden Shadow', path: 'Nihil', rarity: 3 },
+      { id: 20019, name: 'Mediation', path: 'Harm', rarity: 3 },
+      { id: 20020, name: 'Sagacity', path: 'Erad', rarity: 3 },
+      { id: 20021, name: 'Shadowburn', path: 'Remem', rarity: 3 },
+      { id: 20022, name: 'Reminiscence', path: 'Remem', rarity: 3 },
+      { id: 20023, name: 'Sneering', path: 'Elat', rarity: 3 },
+      { id: 20024, name: 'Lingering Tear', path: 'Elat', rarity: 3 },
+      { id: 21000, name: 'Post-Op Conversation', path: 'Abund', rarity: 4 },
+      { id: 21001, name: 'Good Night and Sleep Well', path: 'Nihil', rarity: 4 },
+      { id: 21002, name: 'Day One of My New Life', path: 'Pres', rarity: 4 },
+      { id: 21003, name: 'Only Silence Remains', path: 'Hunt', rarity: 4 },
+      { id: 21004, name: 'Memories of the Past', path: 'Harm', rarity: 4 },
+      { id: 21005, name: 'The Moles Welcome You', path: 'Dest', rarity: 4 },
+      { id: 21006, name: 'The Birth of the Self', path: 'Erad', rarity: 4 },
+      { id: 21007, name: 'Shared Feeling', path: 'Abund', rarity: 4 },
+      { id: 21008, name: 'Eyes of the Prey', path: 'Nihil', rarity: 4 },
+      { id: 21009, name: "Landau's Choice", path: 'Pres', rarity: 4 },
+      { id: 21010, name: 'Swordplay', path: 'Hunt', rarity: 4 },
+      { id: 21011, name: 'Planetary Rendezvous', path: 'Harm', rarity: 4 },
+      { id: 21012, name: 'A Secret Vow', path: 'Dest', rarity: 4 },
+      { id: 21013, name: 'Make the World Clamor', path: 'Erad', rarity: 4 },
+      { id: 21014, name: 'Perfect Timing', path: 'Abund', rarity: 4 },
+      { id: 21015, name: 'Resolution Shines As Pearls of Sweat', path: 'Nihil', rarity: 4 },
+      { id: 21016, name: 'Trend of the Universal Market', path: 'Pres', rarity: 4 },
+      { id: 21017, name: 'Subscribe for More!', path: 'Hunt', rarity: 4 },
+      { id: 21018, name: 'Dance! Dance! Dance!', path: 'Harm', rarity: 4 },
+      { id: 21019, name: 'Under the Blue Sky', path: 'Dest', rarity: 4 },
+      { id: 21020, name: "Geniuses' Repose", path: 'Erad', rarity: 4 },
+      { id: 21021, name: 'Quid Pro Quo', path: 'Abund', rarity: 4 },
+      { id: 21022, name: 'Fermata', path: 'Nihil', rarity: 4 },
+      { id: 21023, name: 'We Are Wildfire', path: 'Pres', rarity: 4 },
+      { id: 21024, name: 'River Flows in Spring', path: 'Hunt', rarity: 4 },
+      { id: 21025, name: 'Past and Future', path: 'Harm', rarity: 4 },
+      { id: 21026, name: 'Woof! Walk Time!', path: 'Dest', rarity: 4 },
+      { id: 21027, name: 'The Seriousness of Breakfast', path: 'Erad', rarity: 4 },
+      { id: 21028, name: 'Warmth Shortens Cold Nights', path: 'Abund', rarity: 4 },
+      { id: 21029, name: 'We Will Meet Again', path: 'Nihil', rarity: 4 },
+      { id: 21030, name: 'This Is Me!', path: 'Pres', rarity: 4 },
+      { id: 21031, name: 'Return to Darkness', path: 'Hunt', rarity: 4 },
+      { id: 21032, name: 'Carve the Moon, Weave the Clouds', path: 'Harm', rarity: 4 },
+      { id: 21033, name: 'Nowhere to Run', path: 'Dest', rarity: 4 },
+      { id: 21034, name: 'Today Is Another Peaceful Day', path: 'Erad', rarity: 4 },
+      { id: 21035, name: 'What Is Real?', path: 'Abund', rarity: 4 },
+      { id: 21036, name: 'Dreamville Adventure', path: 'Harm', rarity: 4 },
+      { id: 21037, name: 'Final Victor', path: 'Hunt', rarity: 4 },
+      { id: 21038, name: 'Flames Afar', path: 'Dest', rarity: 4 },
+      { id: 21039, name: "Destiny's Threads Forewoven", path: 'Pres', rarity: 4 },
+      { id: 21040, name: 'The Day The Cosmos Fell', path: 'Erad', rarity: 4 },
+      { id: 21041, name: "It's Showtime", path: 'Nihil', rarity: 4 },
+      { id: 21042, name: 'Indelible Promise', path: 'Dest', rarity: 4 },
+      { id: 21043, name: 'Concert for Two', path: 'Pres', rarity: 4 },
+      { id: 21044, name: 'Boundless Choreo', path: 'Nihil', rarity: 4 },
+      { id: 21045, name: 'After the Charmony Fall', path: 'Erad', rarity: 4 },
+      { id: 21046, name: 'Poised to Bloom', path: 'Harm', rarity: 4 },
+      { id: 21047, name: 'Shadowed by Night', path: 'Hunt', rarity: 4 },
+      { id: 21048, name: "Dream's Montage", path: 'Abund', rarity: 4 },
+      { id: 21050, name: 'Victory In a Blink', path: 'Remem', rarity: 4 },
+      { id: 21051, name: "Geniuses' Greetings", path: 'Remem', rarity: 4 },
+      { id: 21052, name: 'Sweat Now, Cry Less', path: 'Remem', rarity: 4 },
+      { id: 21053, name: 'Journey, Forever Peaceful', path: 'Pres', rarity: 4 },
+      { id: 21054, name: "The Story's Next Page", path: 'Remem', rarity: 4 },
+      { id: 21055, name: "Unto Tomorrow's Morrow", path: 'Abund', rarity: 4 },
+      { id: 21056, name: 'In Pursuit of the Wind', path: 'Harm', rarity: 4 },
+      { id: 21057, name: 'The Flower Remembers', path: 'Remem', rarity: 4 },
+      { id: 21058, name: 'A Trail of Bygone Blood', path: 'Dest', rarity: 4 },
+      { id: 21060, name: 'A Dream Scented in Wheat', path: 'Erad', rarity: 4 },
+      { id: 21061, name: 'Holiday Thermae Escapade', path: 'Nihil', rarity: 4 },
+      { id: 21062, name: 'See You at the End', path: 'Hunt', rarity: 4 },
+      { id: 21064, name: "Mushy Shroomy's Adventures", path: 'Elat', rarity: 4 },
+      { id: 21065, name: "Today's Good Luck", path: 'Elat', rarity: 4 },
+      { id: 22000, name: 'Before the Tutorial Mission Starts', path: 'Nihil', rarity: 4 },
+      { id: 22001, name: 'Hey, Over Here', path: 'Abund', rarity: 4 },
+      { id: 22002, name: "For Tomorrow's Journey", path: 'Harm', rarity: 4 },
+      { id: 22003, name: 'Ninja Record: Sound Hunt', path: 'Dest', rarity: 4 },
+      { id: 22004, name: 'The Great Cosmic Enterprise', path: 'Erad', rarity: 4 },
+      { id: 22005, name: 'The Forever Victual', path: 'Harm', rarity: 4 },
+      { id: 22006, name: 'Fly Into a Pink Tomorrow', path: 'Remem', rarity: 4 },
+      { id: 23000, name: 'Night on the Milky Way', path: 'Erad', rarity: 5 },
+      { id: 23001, name: 'In the Night', path: 'Hunt', rarity: 5 },
+      { id: 23002, name: 'Something Irreplaceable', path: 'Dest', rarity: 5 },
+      { id: 23003, name: "But the Battle Isn't Over", path: 'Harm', rarity: 5 },
+      { id: 23004, name: 'In the Name of the World', path: 'Nihil', rarity: 5 },
+      { id: 23005, name: 'Moment of Victory', path: 'Pres', rarity: 5 },
+      { id: 23006, name: 'Patience Is All You Need', path: 'Nihil', rarity: 5 },
+      { id: 23007, name: 'Incessant Rain', path: 'Nihil', rarity: 5 },
+      { id: 23008, name: 'Echoes of the Coffin', path: 'Abund', rarity: 5 },
+      { id: 23009, name: 'The Unreachable Side', path: 'Dest', rarity: 5 },
+      { id: 23010, name: 'Before Dawn', path: 'Erad', rarity: 5 },
+      { id: 23011, name: 'She Already Shut Her Eyes', path: 'Pres', rarity: 5 },
+      { id: 23012, name: 'Sleep Like the Dead', path: 'Hunt', rarity: 5 },
+      { id: 23013, name: 'Time Waits for No One', path: 'Abund', rarity: 5 },
+      { id: 23014, name: 'I Shall Be My Own Sword', path: 'Dest', rarity: 5 },
+      { id: 23015, name: 'Brighter Than the Sun', path: 'Dest', rarity: 5 },
+      { id: 23016, name: 'Worrisome, Blissful', path: 'Hunt', rarity: 5 },
+      { id: 23017, name: 'Night of Fright', path: 'Abund', rarity: 5 },
+      { id: 23018, name: 'An Instant Before A Gaze', path: 'Erad', rarity: 5 },
+      { id: 23019, name: 'Past Self in Mirror', path: 'Harm', rarity: 5 },
+      { id: 23020, name: 'Baptism of Pure Thought', path: 'Hunt', rarity: 5 },
+      { id: 23021, name: 'Earthly Escapade', path: 'Harm', rarity: 5 },
+      { id: 23022, name: 'Reforged Remembrance', path: 'Nihil', rarity: 5 },
+      { id: 23023, name: 'Inherently Unjust Destiny', path: 'Pres', rarity: 5 },
+      { id: 23024, name: 'Along the Passing Shore', path: 'Nihil', rarity: 5 },
+      { id: 23025, name: 'Whereabouts Should Dreams Rest', path: 'Dest', rarity: 5 },
+      { id: 23026, name: 'Flowing Nightglow', path: 'Harm', rarity: 5 },
+      { id: 23027, name: 'Sailing Towards a Second Life', path: 'Hunt', rarity: 5 },
+      { id: 23028, name: 'Yet Hope Is Priceless', path: 'Erad', rarity: 5 },
+      { id: 23029, name: 'Those Many Springs', path: 'Nihil', rarity: 5 },
+      { id: 23030, name: 'Dance at Sunset', path: 'Dest', rarity: 5 },
+      { id: 23031, name: 'I Venture Forth to Hunt', path: 'Hunt', rarity: 5 },
+      { id: 23032, name: 'Scent Alone Stays True', path: 'Abund', rarity: 5 },
+      { id: 23033, name: 'Ninjutsu Inscription: Dazzling Evilbreaker', path: 'Erad', rarity: 5 },
+      { id: 23034, name: 'A Grounded Ascent', path: 'Harm', rarity: 5 },
+      { id: 23035, name: 'Long Road Leads Home', path: 'Nihil', rarity: 5 },
+      { id: 23036, name: 'Time Woven Into Gold', path: 'Remem', rarity: 5 },
+      { id: 23037, name: 'Into the Unreachable Veil', path: 'Erad', rarity: 5 },
+      { id: 23038, name: 'If Time Were a Flower', path: 'Harm', rarity: 5 },
+      { id: 23039, name: 'Flame of Blood, Blaze My Path', path: 'Dest', rarity: 5 },
+      { id: 23040, name: 'Make Farewells More Beautiful', path: 'Remem', rarity: 5 },
+      { id: 23041, name: 'Life Should Be Cast to Flames', path: 'Erad', rarity: 5 },
+      { id: 23042, name: 'Long May Rainbows Adorn the Sky', path: 'Remem', rarity: 5 },
+      { id: 23043, name: 'Lies Dance on the Breeze', path: 'Nihil', rarity: 5 },
+      { id: 23044, name: 'Thus Burns the Dawn', path: 'Dest', rarity: 5 },
+      { id: 23045, name: 'A Thankless Coronation', path: 'Dest', rarity: 5 },
+      { id: 23046, name: 'The Hell Where Ideals Burn', path: 'Hunt', rarity: 5 },
+      { id: 23047, name: 'Why Does the Ocean Sing', path: 'Nihil', rarity: 5 },
+      { id: 23048, name: 'Epoch Etched in Golden Blood', path: 'Harm', rarity: 5 },
+      { id: 23049, name: "To Evernight's Stars", path: 'Remem', rarity: 5 },
+      { id: 23050, name: 'Never Forget Her Flame', path: 'Nihil', rarity: 5 },
+      { id: 23051, name: 'Though Worlds Apart', path: 'Pres', rarity: 5 },
+      { id: 23052, name: 'This Love, Forever', path: 'Remem', rarity: 5 },
+      { id: 23053, name: 'Dazzled by a Flowery World', path: 'Elat', rarity: 5 },
+      { id: 23054, name: 'When She Decided to See', path: 'Elat', rarity: 5 },
+      { id: 24000, name: 'On the Fall of an Aeon', path: 'Dest', rarity: 5 },
+      { id: 24001, name: 'Cruising in the Stellar Sea', path: 'Hunt', rarity: 5 },
+      { id: 24002, name: 'Texture of Memories', path: 'Pres', rarity: 5 },
+      { id: 24003, name: 'Solitary Healing', path: 'Nihil', rarity: 5 },
+      { id: 24004, name: 'Eternal Calculus', path: 'Erad', rarity: 5 },
+      { id: 24005, name: "Memory's Curtain Never Falls", path: 'Remem', rarity: 5 },
+    ];
+    const PIECE_TYPES = ['Head', 'Hands', 'Chest', 'Boots', 'Orb', 'Rope'];
+
+    //  STATE 
+    let ownedChars = new Set();
+    let ownedLCs = {};   // { lcId: copyCount }  0 = not owned, N = N copies
+    let team = [null, null, null, null];
+    let teamLCs = [null, null, null, null];   // LC per slot
+    let activeSlot = 0;
+    let teamLocked = false;
+    let selectedOutcome = '';
+    let relicData = [];  // [{piece, subs:Set}]
+    let avgTop4 = [];    // computed from relicData
+    let logs = [];
+    let dragSrc = null;
+    let savedCore = null;
+
+    // pagination
+    let currentPage = 1;
+    const ITEMS_PER_PAGE = 36; // Approx 6 rows x 6 columns
+    let lcPickerPage = 1;
+    let lcPickerLastFilterKey = '';
+    const LC_PICKER_ITEMS_PER_PAGE = 30;
+
+    //  INIT 
+    function init() {
+      const sel = document.getElementById('cavern-select');
+      CAVERNS.forEach(cv => {
+        const o = document.createElement('option');
+        o.value = cv.id;
+        o.textContent = cv.name;
+        sel.appendChild(o);
+      });
+      loadOwnedChars();
+      loadOwnedLCs();
+      buildRelicCards();
+      renderSlots();
+      renderChars();
+      renderCoreHelper();
+      compute();
+      setCoreMode('data');
+      renderScout();
+      renderTeamSuggestPanels();
+      renderNeighborhoodExplorer();
+      renderLCSlotRows();
+      renderLCOwnershipList();
+    }
+
+    //  OWNED CHARS 
+    function toggleOwned(event, charId) {
+      event.stopPropagation();
+      if (ownedChars.has(charId)) ownedChars.delete(charId); else ownedChars.add(charId);
+      saveOwnedChars();
+      renderChars();
+    }
+
+    function saveOwnedChars() {
+      localStorage.setItem('hsr_owned_chars', JSON.stringify(Array.from(ownedChars)));
+    }
+
+    function loadOwnedChars() {
+      try {
+        const saved = localStorage.getItem('hsr_owned_chars');
+        if (saved) ownedChars = new Set(JSON.parse(saved));
+      } catch (e) { console.error('loadOwnedChars', e); }
+    }
+
+    function saveOwnedLCs() {
+      try { localStorage.setItem('hsr_owned_lcs', JSON.stringify(ownedLCs)); } catch (e) { }
+    }
+    function loadOwnedLCs() {
+      try {
+        const saved = localStorage.getItem('hsr_owned_lcs');
+        if (saved) ownedLCs = JSON.parse(saved);
+      } catch (e) { }
+    }
+    function getLCCopiesOwned(lcId) { return ownedLCs[lcId] || 0; }
+    function getLCCopiesUsed(lcId, exceptSlot = -1) {
+      return teamLCs.filter((lc, i) => lc && lc.id === lcId && i !== exceptSlot).length;
+    }
+    function canAssignLC(lcId, slot) {
+      const owned = getLCCopiesOwned(lcId);
+      if (owned === 0) return true; // untracked = allow
+      const used = getLCCopiesUsed(lcId, slot);
+      return used < owned;
+    }
+
+    //  HELPERS 
+    function roleClass(r) { return { healer: 'r-healer', dps: 'r-dps', support: 'r-support', sustain: 'r-sustain' }[r] || 'r-support'; }
+    function getTeamSummary() {
+      const f = team.filter(Boolean);
+      if (f.length < 4) return '';
+      const pc = {}; f.forEach(c => { pc[c.path] = (pc[c.path] || 0) + 1; });
+      const ps = Object.entries(pc).map(([p, n]) => n > 1 ? p + 'x' + n : p).join('  ');
+      return 'paths: ' + ps + '   elems: ' + [...new Set(f.map(c => c.elem))].join('  ');
+    }
+
+    //  LOCK 
+    function toggleLock() {
+      teamLocked = !teamLocked;
+      const btn = document.getElementById('lock-btn');
+      btn.textContent = teamLocked ? 'Unlock team' : 'Lock team';
+      btn.style.cssText = teamLocked ? 'border-color:var(--gold);color:var(--gold)' : '';
+      document.getElementById('lock-indicator').textContent = teamLocked ? '[ LOCKED ]' : '';
+      renderChars();
+    }
+
+    //  OUTCOME 
+    function setOutcome(btn) {
+      selectedOutcome = btn.dataset.val === selectedOutcome ? '' : btn.dataset.val;
+      document.querySelectorAll('.outcome-btn').forEach(b => b.classList.toggle('active', b.dataset.val === selectedOutcome));
+    }
+
+    //  TEAM SLOTS 
+    function renderSlots() {
+      const el = document.getElementById('slots');
+      el.innerHTML = '';
+      for (let i = 0; i < 4; i++) {
+        const t = team[i];
+        const d = document.createElement('div');
+        d.className = 'slot' + (i === activeSlot ? ' active' : '') + (t ? ' filled' : '');
+        if (t) {
+          const lc = teamLCs[i];
+          const linkStatus = lc
+            ? (lc.path === t.path ? '<span style="color:var(--green);font-size:9px;">same-path</span>' : '<span style="color:var(--orange);font-size:9px;">path mismatch</span>')
+            : '';
+          const lcLine = lc
+            ? `<div style="font-size:9px;color:var(--purple);font-family:var(--mono);margin-top:2px;">${lc.name}  ${lc.id} ${linkStatus}</div>`
+            : `<div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px;cursor:pointer;" data-lc-slot="${i}">[ + assign LC ]</div>`;
+          d.draggable = true;
+          d.innerHTML = `<div class="slot-num">SLOT ${i + 1}</div><div class="slot-name">${t.name}</div><div class="slot-meta">${t.id}  ${t.path}  ${t.elem}</div>${lcLine}<div class="slot-remove" data-slot="${i}">[ remove ]</div>`;
+          d.addEventListener('dragstart', e => { if (!teamLocked) { dragSrc = { type: 'slot', idx: i }; e.dataTransfer.effectAllowed = 'move'; } });
+        } else {
+          d.innerHTML = `<div class="slot-num">SLOT ${i + 1}</div><div class="slot-empty"> drop here </div>`;
+        }
+        d.addEventListener('click', e => {
+          if (e.target.classList.contains('slot-remove')) {
+            if (!teamLocked) { team[parseInt(e.target.dataset.slot)] = null; teamLCs[parseInt(e.target.dataset.slot)] = null; refresh(); }
+            return;
+          }
+          if (e.target.dataset.lcSlot !== undefined) {
+            activeSlot = parseInt(e.target.dataset.lcSlot);
+            openLCPicker(activeSlot);
+            return;
+          }
+          if (!teamLocked) { activeSlot = i; renderSlots(); renderChars(); renderSlotHelperData(); renderSlotHelperHeuristic(); renderTeamSuggestPanels(); }
+        });
+        d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drag-over'); });
+        d.addEventListener('dragleave', () => d.classList.remove('drag-over'));
+        d.addEventListener('drop', e => {
+          e.preventDefault(); d.classList.remove('drag-over');
+          if (teamLocked || !dragSrc) return;
+          if (dragSrc.type === 'slot') {
+            if (dragSrc.idx !== i) { const tmp = team[dragSrc.idx]; team[dragSrc.idx] = team[i]; team[i] = tmp; }
+          } else {
+            const c = CHARS.find(x => x.id === dragSrc.charId);
+            if (c && !team.some(x => x && x.id === c.id)) {
+              team[i] = c;
+              const nxt = team.findIndex((x, j) => j > i && !x);
+              activeSlot = nxt >= 0 ? nxt : (team.findIndex(x => !x) >= 0 ? team.findIndex(x => !x) : i);
+            }
+          }
+          dragSrc = null; refresh();
+        });
+        el.appendChild(d);
+      }
+      document.getElementById('team-summary').textContent = getTeamSummary();
+    }
+
+    function renderChars() {
+      const grid = document.getElementById('char-grid');
+      const q = (document.getElementById('char-search')?.value || '').toLowerCase();
+      grid.innerHTML = '';
+      if (teamLocked) {
+        grid.innerHTML = '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:6px 0">Team locked  only change time/notes. Unlock to swap characters.</div>';
+        document.getElementById('char-pagination').style.display = 'none';
+        return;
+      }
+
+      const filtered = CHARS.filter(c => !q || c.name.toLowerCase().includes(q) || c.path.toLowerCase().includes(q) || c.elem.toLowerCase().includes(q));
+
+      // Pagination logic
+      const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const paginated = filtered.slice(start, start + ITEMS_PER_PAGE);
+
+      document.getElementById('char-pagination').style.display = filtered.length > ITEMS_PER_PAGE ? 'flex' : 'none';
+      document.getElementById('current-page-val').textContent = currentPage;
+      document.getElementById('total-pages-val').textContent = totalPages;
+      document.getElementById('prev-page').disabled = currentPage === 1;
+      document.getElementById('next-page').disabled = currentPage === totalPages;
+
+      paginated.forEach(c => {
+        const inTeam = team.some(t => t && t.id === c.id);
+        const isOwned = ownedChars.has(c.id);
+        const d = document.createElement('div');
+        d.className = 'char-card' + (inTeam ? ' in-team' : '');
+        d.draggable = !inTeam && !teamLocked;
+        d.style.cursor = teamLocked ? 'default' : (inTeam ? 'not-allowed' : 'grab');
+        d.innerHTML = `
+          <div class="cc-name">${c.name}</div>
+          <div class="cc-id">${c.id}</div>
+          <div class="cc-tags">
+            <span class="tag ${roleClass(c.role)}">${c.role}</span>
+            <span class="tag t-path">${c.path}</span>
+            <div class="own-btn ${isOwned ? 'is-owned' : ''}" onclick="toggleOwned(event, ${c.id})">${isOwned ? ' OWNED' : 'OWN'}</div>
+          </div>`;
+        if (!inTeam && !teamLocked) {
+          d.addEventListener('dragstart', e => { dragSrc = { type: 'card', charId: c.id }; e.dataTransfer.effectAllowed = 'move'; d.classList.add('dragging'); });
+          d.addEventListener('dragend', () => d.classList.remove('dragging'));
+          d.addEventListener('click', () => {
+            team[activeSlot] = c;
+            const nxt = team.findIndex((t, i) => i > activeSlot && !t);
+            if (nxt >= 0) activeSlot = nxt; else { const a = team.findIndex(t => !t); if (a >= 0) activeSlot = a; }
+            refresh();
+          });
+        }
+        grid.appendChild(d);
+      });
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      renderChars();
+    }
+
+    //  RELIC CARDS 
+    function buildRelicCards() {
+      const n = Math.max(1, Math.min(12, parseInt(document.getElementById('relic-count').value) || 7));
+      while (relicData.length < n) relicData.push({ piece: 'Head', subs: new Set() });
+      relicData = relicData.slice(0, n);
+      renderRelicCards();
+    }
+
+    function renderRelicCards() {
+      const grid = document.getElementById('relic-grid');
+      grid.innerHTML = '';
+      relicData.forEach((r, idx) => {
+        const card = document.createElement('div');
+        card.className = 'relic-card';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'rc-header';
+        const numEl = document.createElement('span'); numEl.className = 'rc-num'; numEl.textContent = 'RELIC ' + (idx + 1);
+        const pieceEl = document.createElement('span'); pieceEl.className = 'rc-piece';
+        pieceEl.textContent = r.piece; pieceEl.title = 'Click to cycle piece type';
+        pieceEl.addEventListener('click', () => {
+          r.piece = PIECE_TYPES[(PIECE_TYPES.indexOf(r.piece) + 1) % PIECE_TYPES.length];
+          renderRelicCards();
+        });
+        hdr.appendChild(numEl); hdr.appendChild(pieceEl);
+        card.appendChild(hdr);
+
+        const subsEl = document.createElement('div'); subsEl.className = 'rc-subs';
+        SUBSTATS.forEach(s => {
+          const btn = document.createElement('div');
+          const isPicked = r.subs.has(s.name);
+          const isFull = r.subs.size >= 4 && !isPicked;
+          btn.className = 'rsub' + (isPicked ? ' on' : isFull ? ' max' : '');
+          btn.textContent = s.name;
+          btn.addEventListener('click', () => {
+            if (r.subs.has(s.name)) { r.subs.delete(s.name); }
+            else if (r.subs.size < 4) { r.subs.add(s.name); }
+            renderRelicCards();
+            updateAvg();
+          });
+          subsEl.appendChild(btn);
+        });
+        card.appendChild(subsEl);
+
+        const ctEl = document.createElement('div'); ctEl.className = 'rc-count';
+        ctEl.textContent = r.subs.size + '/4 substats selected';
+        card.appendChild(ctEl);
+
+        grid.appendChild(card);
+      });
+      updateAvg();
+    }
+
+    function updateAvg() {
+      const freq = {}; SUBSTATS.forEach(s => { freq[s.name] = 0; });
+      let total = 0;
+      relicData.forEach(r => r.subs.forEach(s => { if (freq[s] !== undefined) { freq[s]++; total++; } }));
+
+      const box = document.getElementById('avg-box');
+      box.style.display = total > 0 ? 'block' : 'none';
+      if (!total) { avgTop4 = []; updateLogBtn(); return; }
+
+      document.getElementById('avg-total').textContent = relicData.length;
+      const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0);
+      const maxN = sorted[0][1];
+
+      const barsEl = document.getElementById('avg-bars');
+      barsEl.innerHTML = '';
+      sorted.forEach(([name, n]) => {
+        const pct = Math.round((n / relicData.length) * 100);
+        const sub = SUBSTATS.find(s => s.name === name);
+        const isCrit = name.includes('Crit') || name === 'SPD';
+        const isEff = name.includes('Effect');
+        const col = isCrit ? '#69f0ae' : isEff ? '#ff6b6b' : sub.color;
+        const row = document.createElement('div'); row.className = 'avg-bar-row';
+        row.innerHTML = `<div class="avg-bar-label">${name}</div><div class="avg-bar-track"><div class="avg-bar-fill" style="width:${Math.round(n / maxN * 100)}%;background:${col}"></div></div><div class="avg-bar-ct" style="color:${col}">${n}/${relicData.length}  ${pct}%</div>`;
+        barsEl.appendChild(row);
+      });
+
+      avgTop4 = sorted.slice(0, 4).map(([name]) => name);
+      document.getElementById('avg-top4').textContent = 'Run avg  ' + avgTop4.join(' + ');
+
+      // auto outcome
+      const hasCR = avgTop4.includes('Crit Rate');
+      const hasCD = avgTop4.includes('Crit DMG');
+      const hasSPD = avgTop4.includes('SPD');
+      const hasEff = avgTop4.some(s => s.includes('Effect'));
+      let ao = 'mixed';
+      if (hasCR && hasCD && hasSPD) ao = 'spd-double-crit';
+      else if (hasCR && hasCD) ao = 'double-crit';
+      else if (hasSPD && (hasCR || hasCD)) ao = 'spd-one-crit';
+      else if (hasCR || hasCD) ao = 'one-crit';
+      else if (hasEff) ao = 'effect-junk';
+      else if (!hasCR && !hasCD && !hasSPD) ao = 'flat-junk';
+      selectedOutcome = ao;
+      document.querySelectorAll('.outcome-btn').forEach(b => b.classList.toggle('active', b.dataset.val === ao));
+      updateLogBtn();
+    }
+
+    //  LOG BUTTON STATE 
+    function updateLogBtn() {
+      // enabled when team is full  relics optional but encouraged
+      document.getElementById('log-btn').disabled = !team.every(Boolean);
+    }
+
+    //  HASH + COMPUTE 
+    function hashSum(ids, t) { return (ids.reduce((s, x) => s + x, 0) + t) % 10000; }
+    function hashXOR(ids, t) { return ids.reduce((s, x) => s ^ x, 0) ^ (t * 7); }
+    function hashSlot(ids, t) { return (ids[3] * 3 + ids[0] + ids[1] + ids[2] + t) % 10000; }
+    function seededRand(seed) { let s = Math.abs(seed) | 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 0x100000000; }; }
+    function pickSubstats(seed) {
+      const rand = seededRand(seed);
+      let pool = SUBSTATS.map(s => ({ ...s })); const picked = [];
+      for (let p = 0; p < 4; p++) {
+        const tw = pool.reduce((s, x) => s + x.w, 0); let roll = rand() * tw;
+        for (let i = 0; i < pool.length; i++) { roll -= pool[i].w; if (roll <= 0) { picked.push(pool[i]); pool.splice(i, 1); break; } }
+      }
+      return picked;
+    }
+
+    function getLearnedFreq() {
+      if (!team.every(Boolean)) return null;
+      const key = team.map(t => t.id).join('-');
+      const matching = logs.filter(e => e.idArray === key && e.avgTop4.length > 0);
+      if (matching.length < 2) return null;
+      const freq = {}; SUBSTATS.forEach(s => { freq[s.name] = 0; });
+      matching.forEach(e => e.avgTop4.forEach(s => { if (freq[s] !== undefined) freq[s]++; }));
+      return { runs: matching.length, freq };
+    }
+
+
+    function bitDifference(a, b) {
+      let x = (a ^ b) >>> 0;
+      let n = 0;
+      while (x) { n += x & 1; x >>>= 1; }
+      return n;
+    }
+
+    function idBlock(id) { return Math.floor(id / 100); }
+
+    function calcShapePenalty(ids, coreIds) {
+      let penalty = 0;
+      for (let i = 0; i < 4; i++) {
+        if (idBlock(ids[i]) !== idBlock(coreIds[i])) penalty += 20;
+      }
+      const coreBackGap = Math.abs(coreIds[2] - coreIds[3]);
+      const candBackGap = Math.abs(ids[2] - ids[3]);
+      penalty += Math.min(25, Math.abs(candBackGap - coreBackGap) * 2);
+      if (idBlock(ids[2]) !== idBlock(ids[3])) penalty += 10;
+      if (Math.abs(ids[2] - ids[3]) > 25) penalty += 10;
+      return penalty;
+    }
+
+    function scoreAgainstCore(ids, candidateTime, core) {
+      if (!core || ids.length !== 4) return null;
+      const coreSum = hashSum(core.ids, core.time);
+      const coreXor = Math.abs(hashXOR(core.ids, core.time));
+      const coreSlot = hashSlot(core.ids, core.time);
+      const candSum = hashSum(ids, candidateTime);
+      const candXor = Math.abs(hashXOR(ids, candidateTime));
+      const candSlot = hashSlot(ids, candidateTime);
+      const sumDiff = Math.abs(candSum - coreSum);
+      const xorBits = bitDifference(candXor, coreXor);
+      const slotDiff = Math.abs(candSlot - coreSlot);
+      const shapePenalty = calcShapePenalty(ids, core.ids);
+      const total = (3 * sumDiff) + (12 * xorBits) + (2 * slotDiff) + shapePenalty;
+      const shapeMatch = Math.max(0, 100 - shapePenalty);
+      return { coreSum, coreXor, coreSlot, candSum, candXor, candSlot, sumDiff, xorBits, slotDiff, shapePenalty, total, shapeMatch };
+    }
+
+    function gradeScore(score) {
+      if (score <= 120) return 'S';
+      if (score <= 260) return 'A';
+      if (score <= 450) return 'B';
+      if (score <= 700) return 'C';
+      return 'D';
+    }
+
+    function bucketVibeFromTeam(ids, t) {
+      const seed = (hashSum(ids, t) + Math.abs(hashXOR(ids, t)) + hashSlot(ids, t)) % 0xFFFFFF;
+      const predicted = pickSubstats(seed).map(s => s.name);
+      const hasSPD = predicted.includes('SPD');
+      const hasCR = predicted.includes('Crit Rate');
+      const hasCD = predicted.includes('Crit DMG');
+      if (hasSPD && hasCR && hasCD) return '7+8+9';
+      if (hasSPD && (hasCR || hasCD)) return '7 + crit';
+      if (hasCR && hasCD) return '8+9';
+      if (hasSPD || hasCR || hasCD) return 'partial';
+      return 'cold';
+    }
+
+    function saveCurrentAsCore() {
+      if (!team.every(Boolean)) { alert('Fill all 4 slots first.'); return; }
+      const time = parseInt(document.getElementById('clear-time').value) || 90;
+      const cavId = document.getElementById('cavern-select').value || '';
+      savedCore = { ids: team.map(t => t.id), names: team.map(t => t.name), time, cavId };
+      renderCoreHelper();
+      renderCoreDataPanel();
+      renderSlotHelperData();
+      renderSlotHelperHeuristic();
+      compute();
+      rerenderAllAnalysisPanels();
+    }
+
+    function loadCoreIntoTeam() {
+      if (!savedCore) return;
+      team = savedCore.ids.map(id => CHARS.find(c => c.id === id) || null);
+      activeSlot = team.findIndex(x => !x);
+      if (activeSlot < 0) activeSlot = 0;
+      document.getElementById('clear-time').value = savedCore.time;
+      syncToMinSec();
+      if (savedCore.cavId) document.getElementById('cavern-select').value = savedCore.cavId;
+      refresh();
+    }
+
+    function clearCore() {
+      savedCore = null;
+      renderCoreHelper();
+      renderCoreDataPanel();
+      renderSlotHelperData();
+      renderSlotHelperHeuristic();
+      compute();
+    }
+
+    let coreMode = 'data';
+    function setCoreMode(mode) {
+      coreMode = mode;
+      document.getElementById('core-data-panel').style.display = mode === 'data' ? '' : 'none';
+      document.getElementById('core-heuristic-panel').style.display = mode === 'heuristic' ? '' : 'none';
+      const tabData = document.getElementById('mode-tab-data');
+      const tabH = document.getElementById('mode-tab-heuristic');
+      tabData.style.background = mode === 'data' ? 'rgba(105,240,174,.12)' : 'var(--surface2)';
+      tabData.style.color = mode === 'data' ? 'var(--green)' : 'var(--text3)';
+      tabH.style.background = mode === 'heuristic' ? 'rgba(255,213,79,.1)' : 'var(--surface2)';
+      tabH.style.color = mode === 'heuristic' ? 'var(--gold)' : 'var(--text3)';
+    }
+
+    function renderCoreHelper() {
+      const nameEl = document.getElementById('core-team-name');
+      const metaEl = document.getElementById('core-meta');
+      if (!savedCore) {
+        nameEl.textContent = 'No saved core yet.';
+        metaEl.textContent = 'Save your best known crit/SPD team. Then swap one slot at a time and compare.';
+        return;
+      }
+      const cavName = savedCore.cavId ? (CAVERNS.find(c => c.id === savedCore.cavId)?.name || savedCore.cavId) : 'no cavern';
+      nameEl.textContent = savedCore.names.join('  ');
+      metaEl.textContent = `IDs: [${savedCore.ids.join('-')}]    time: ${savedCore.time}s    cavern: ${cavName}`;
+    }
+
+    // DATA MODE: show real outcome history for saved core
+    function renderCoreDataPanel() {
+      const el = document.getElementById('core-data-outcomes');
+      if (!savedCore) {
+        el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;">Save a core team first.</div>';
+        return;
+      }
+      const coreKey = savedCore.ids.join('-');
+      const coreRuns = logs.filter(e => e.idArray === coreKey);
+      if (!coreRuns.length) {
+        el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;">No logged runs match this core team yet. Log runs with it first.</div>';
+        return;
+      }
+      // Outcome tally
+      const outcomes = {};
+      let totalRelics = 0, crCount = 0, cdCount = 0, spdCount = 0;
+      coreRuns.forEach(e => {
+        const oc = e.outcome || 'not-selected';
+        outcomes[oc] = (outcomes[oc] || 0) + 1;
+        e.relics.forEach(r => {
+          totalRelics++;
+          r.subs.forEach(s => {
+            if (s === 'Crit Rate') crCount++;
+            if (s === 'Crit DMG') cdCount++;
+            if (s === 'SPD') spdCount++;
+          });
+        });
+      });
+      const crPct = totalRelics ? Math.round(crCount / totalRelics * 100) : 0;
+      const cdPct = totalRelics ? Math.round(cdCount / totalRelics * 100) : 0;
+      const spdPct = totalRelics ? Math.round(spdCount / totalRelics * 100) : 0;
+      const outcomeStr = Object.entries(outcomes).map(([k, v]) => `${k.replace(/-/g, ' ')}: ${v}`).join('  ');
+      const crColor = crPct >= 35 ? 'var(--gold)' : crPct >= 20 ? 'var(--green)' : 'var(--text2)';
+      const cdColor = cdPct >= 35 ? 'var(--gold)' : cdPct >= 20 ? 'var(--green)' : 'var(--text2)';
+      const spdColor = spdPct >= 25 ? 'var(--accent)' : 'var(--text2)';
+      el.innerHTML = `
+        <div style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+          <div style="color:var(--text2);margin-bottom:8px;">${coreRuns.length} run(s)  ${totalRelics} relics logged</div>
+          <div style="color:var(--text3);margin-bottom:8px;">${outcomeStr}</div>
+          <div style="display:flex;gap:20px;">
+            <span>Crit Rate: <strong style="color:${crColor}">${crPct}%</strong></span>
+            <span>Crit DMG: <strong style="color:${cdColor}">${cdPct}%</strong></span>
+            <span>SPD: <strong style="color:${spdColor}">${spdPct}%</strong></span>
+          </div>
+        </div>`;
+    }
+
+    // DATA MODE: slot swaps ranked by real logged CR+CD hit rate
+    function renderSlotHelperData() {
+      const wrap = document.getElementById('slot-helper-data');
+      if (!logs.length) {
+        wrap.innerHTML = '<div class="empty-log" style="padding:14px;">Log runs first, then select a slot to see data-driven suggestions.</div>';
+        return;
+      }
+      const slotData = {};
+      logs.forEach(e => {
+        const charId = e.ids[activeSlot];
+        const charName = e.team[activeSlot];
+        if (!charId) return;
+        if (!slotData[charId]) slotData[charId] = { name: charName, id: charId, relics: 0, cr: 0, cd: 0, spd: 0, runs: 0 };
+        slotData[charId].runs++;
+        e.relics.forEach(r => {
+          slotData[charId].relics++;
+          r.subs.forEach(s => {
+            if (s === 'Crit Rate') slotData[charId].cr++;
+            if (s === 'Crit DMG') slotData[charId].cd++;
+            if (s === 'SPD') slotData[charId].spd++;
+          });
+        });
+      });
+      const entries = Object.values(slotData);
+      if (!entries.length) {
+        wrap.innerHTML = `<div class="empty-log" style="padding:14px;">No runs logged with any character in slot ${activeSlot + 1} yet.</div>`;
+        return;
+      }
+      entries.sort((a, b) => ((b.cr + b.cd) / Math.max(b.relics, 1)) - ((a.cr + a.cd) / Math.max(a.relics, 1)));
+      wrap.innerHTML = '';
+      entries.forEach((e, i) => {
+        const crPct = e.relics ? Math.round(e.cr / e.relics * 100) : 0;
+        const cdPct = e.relics ? Math.round(e.cd / e.relics * 100) : 0;
+        const spdPct = e.relics ? Math.round(e.spd / e.relics * 100) : 0;
+        const combined = crPct + cdPct;
+        const barColor = combined >= 80 ? 'var(--gold)' : combined >= 50 ? 'var(--green)' : combined >= 30 ? 'var(--accent)' : 'var(--text3)';
+        const rankLabel = i === 0 ? ' ' : '';
+        const d = document.createElement('div');
+        d.className = 'helper-item';
+        d.style.borderColor = i === 0 ? 'var(--gold)' : '';
+        d.innerHTML = `<div class="helper-top">
+          <div class="helper-name">${rankLabel}S${activeSlot + 1}: ${e.name}</div>
+          <div class="helper-score" style="color:${barColor}">CR ${crPct}%  CD ${cdPct}%  SPD ${spdPct}%</div>
+        </div>
+        <div class="helper-meta">ID: ${e.id}  ${e.runs} run(s)  ${e.relics} relics  combined crit hit rate: ${combined}%</div>`;
+        wrap.appendChild(d);
+      });
+      if (entries.length === 1) {
+        const note = document.createElement('div');
+        note.style.cssText = 'font-size:10px;color:var(--text3);font-family:var(--mono);padding:8px;margin-top:4px;';
+        note.textContent = 'Only 1 character logged in this slot. Swap different characters in slot ' + (activeSlot + 1) + ' and log runs to compare.';
+        wrap.appendChild(note);
+      }
+    }
+
+    // HEURISTIC MODE: slot swaps ranked by ID pattern similarity to core
+    function renderSlotHelperHeuristic() {
+      const wrap = document.getElementById('slot-helper-heuristic');
+      if (!savedCore || !team.every(Boolean)) {
+        wrap.innerHTML = '<div class="empty-log" style="padding:14px;">Save a core and fill all 4 slots to see pattern-based suggestions.</div>';
+        return;
+      }
+      const ct = parseInt(document.getElementById('clear-time').value) || 90;
+      const usedIds = new Set(team.filter(Boolean).map(t => t.id));
+      const suggestions = CHARS
+        .filter(c => !usedIds.has(c.id) || team[activeSlot]?.id === c.id)
+        .map(c => {
+          const ids = team.map((t, i) => i === activeSlot ? c.id : t.id);
+          const score = scoreAgainstCore(ids, ct, savedCore);
+          return { c, ids, score, vibe: bucketVibeFromTeam(ids, ct) };
+        })
+        .sort((a, b) => a.score.total - b.score.total)
+        .slice(0, 12);
+      wrap.innerHTML = '';
+      suggestions.forEach((s, i) => {
+        const gradeColor = s.score.total <= 120 ? 'var(--gold)' : s.score.total <= 260 ? 'var(--green)' : s.score.total <= 450 ? 'var(--accent)' : 'var(--text3)';
+        const d = document.createElement('div');
+        d.className = 'helper-item';
+        d.style.borderColor = i === 0 ? 'var(--gold)' : '';
+        d.innerHTML = `<div class="helper-top">
+          <div class="helper-name">${i === 0 ? ' ' : ''}S${activeSlot + 1}: ${s.c.name}</div>
+          <div class="helper-score" style="color:${gradeColor}">score ${s.score.total}  ${gradeScore(s.score.total)}</div>
+        </div>
+        <div class="helper-meta">${s.c.id}  ${s.c.path}  ${s.c.elem}  shape ${s.score.shapeMatch}%  simulated tendency: ${s.vibe}<br>Array would be: [${s.ids.join('-')}]</div>`;
+        d.addEventListener('click', () => { team[activeSlot] = s.c; refresh(); });
+        wrap.appendChild(d);
+      });
+    }
+
+    function renderSlotHelper() { renderSlotHelperData(); renderSlotHelperHeuristic(); }
+    function renderSlotHelperImproved() { renderSlotHelperData(); renderSlotHelperHeuristic(); }
+
+    function compute() {
+      const filled = team.every(Boolean);
+      updateLogBtn();
+      document.getElementById('status-team').textContent = filled ? team.map(t => t.name).join(' / ') : '';
+      if (!filled) {
+        ['h-sum', 'h-xor', 'h-slot'].forEach(id => document.getElementById(id).textContent = '');
+        document.getElementById('full-seed').textContent = 'fill team to generate';
+        document.getElementById('pred-val').textContent = '';
+        document.getElementById('bars').innerHTML = '';
+        document.getElementById('freq-box').style.display = 'none';
+        document.getElementById('sim-score').textContent = '';
+        document.getElementById('shape-score').textContent = '';
+        document.getElementById('bucket-vibe').textContent = '';
+        document.getElementById('sim-grade').textContent = '';
+        document.getElementById('sim-summary').textContent = savedCore ? 'Fill all 4 slots to compare against the saved core.' : 'Save a core first, then build a full team to compare against it.';
+        renderSlotHelperData(); renderSlotHelperHeuristic();
+        return;
+      }
+      const ids = team.map(t => t.id);
+      const ct = parseInt(document.getElementById('clear-time').value) || 90;
+      const cavSel = document.getElementById('cavern-select');
+      const cavId = cavSel.value || '';
+
+      const hsum = hashSum(ids, ct);
+      const hxor = Math.abs(hashXOR(ids, ct));
+      const hslot = hashSlot(ids, ct);
+      document.getElementById('h-sum').textContent = hsum;
+      document.getElementById('h-xor').textContent = hxor;
+      document.getElementById('h-slot').textContent = hslot;
+      document.getElementById('full-seed').textContent = ids.join('-') + ' @ ' + ct + 's' + (cavId ? ' (' + cavId + ')' : '');
+
+      // LC experimental hashes
+      const lcHashSection = document.getElementById('lc-hash-section');
+      const lcHashHint = document.getElementById('lc-hash-hint');
+      const allLCsAssigned = teamLCs.every(Boolean);
+      if (lcHashSection) lcHashSection.style.display = allLCsAssigned ? '' : 'none';
+      if (lcHashHint) lcHashHint.style.display = allLCsAssigned ? 'none' : '';
+      if (allLCsAssigned) {
+        const lcIds = teamLCs.map(lc => lc.id);
+        const lcSum = lcIds.reduce((a, b) => a + b, 0);
+        const lcXor = Math.abs(lcIds.reduce((a, b) => a ^ b, 0));
+        const lcSlot = lcIds[3] * 3 + lcIds[0] + lcIds[1] + lcIds[2];
+        const charSum = rawSum(ids);
+        const charXor = rawXor(ids);
+        const charSlot = rawSlot(ids);
+        document.getElementById('h-lc-sum').textContent = lcSum;
+        document.getElementById('h-lc-xor').textContent = lcXor;
+        document.getElementById('h-lc-slot').textContent = lcSlot % 10000;
+        document.getElementById('h-combo-sum').textContent = charSum + lcSum;
+        document.getElementById('h-combo-xor').textContent = charXor ^ lcXor;
+        document.getElementById('h-combo-slot').textContent = (charSlot + lcSlot) % 10000;
+        document.getElementById('lc-seed-row').textContent = lcIds.join('-') + ' | combo XOR ' + (charXor ^ lcXor);
+      }
+
+      // Auto-sync neighborhood explorer when team is full and auto is on
+      const autoSync = document.getElementById('nb-auto');
+      if (autoSync?.checked) {
+        const rids = ids; // raw IDs (no time)
+        const rSum = rawSum(rids);
+        const rXor = rawXor(rids);
+        const rSlot = rawSlot(rids);
+        const sumEl = document.getElementById('nb-sum');
+        const xorEl = document.getElementById('nb-xor');
+        const slotEl = document.getElementById('nb-slot');
+        if (sumEl) sumEl.value = rSum;
+        if (xorEl) xorEl.value = rXor;
+        if (slotEl) slotEl.value = rSlot;
+      }
+
+      const cv = CAVERNS.find(x => x.id === cavId);
+      document.getElementById('cavern-sets').textContent = cv ? cv.sets : '';
+
+      const avgSeed = (hsum + hxor + hslot) % 0xFFFFFF;
+      const predicted = pickSubstats(avgSeed);
+      const barsEl = document.getElementById('bars'); barsEl.innerHTML = '';
+      const pNames = new Set(predicted.map(s => s.name));
+      SUBSTATS.forEach(s => {
+        const pct = ((s.w / TOTAL_W) * 100).toFixed(1); const hit = pNames.has(s.name);
+        const row = document.createElement('div'); row.className = 'sb-row';
+        row.innerHTML = `<span class="sb-name">${s.name}</span><div class="sb-track"><div class="sb-fill" style="width:${Math.min(parseFloat(pct) * 5, 100)}%;background:${hit ? '#69f0ae' : s.color}"></div></div><span class="sb-pct">${pct}%</span><span class="sb-tick">${hit ? '' : ''}</span>`;
+        barsEl.appendChild(row);
+      });
+      document.getElementById('pred-val').textContent = predicted.map(s => s.name).join(' + ');
+
+      const learned = getLearnedFreq();
+      const fbox = document.getElementById('freq-box');
+      if (learned) {
+        fbox.style.display = 'block';
+        document.getElementById('freq-sub').textContent = learned.runs + ' logged run(s) with this slot order:';
+        const fb = document.getElementById('freq-bars'); fb.innerHTML = '';
+        Object.entries(learned.freq).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).forEach(([name, n]) => {
+          const pct = Math.round(n / learned.runs * 100);
+          const row = document.createElement('div'); row.className = 'freq-bar-row';
+          row.innerHTML = `<div class="freq-bar-label">${name}</div><div class="freq-bar-track"><div class="freq-bar-fill" style="width:${pct}%"></div></div><div class="freq-bar-pct">${pct}%</div>`;
+          fb.appendChild(row);
+        });
+      } else { fbox.style.display = 'none'; }
+
+      if (savedCore) {
+        const similarity = scoreAgainstCore(ids, ct, savedCore);
+        const vibe = bucketVibeFromTeam(ids, ct);
+        document.getElementById('sim-score').textContent = similarity.total;
+        document.getElementById('shape-score').textContent = similarity.shapeMatch + '%';
+        document.getElementById('bucket-vibe').textContent = vibe;
+        document.getElementById('sim-grade').textContent = gradeScore(similarity.total);
+        document.getElementById('sim-summary').textContent = `sum ${similarity.sumDiff}  xor bits ${similarity.xorBits}  slot ${similarity.slotDiff}  shape penalty ${similarity.shapePenalty}. Lower total score usually means a closer same neighborhood variant.`;
+      } else {
+        document.getElementById('sim-score').textContent = '';
+        document.getElementById('shape-score').textContent = '';
+        document.getElementById('bucket-vibe').textContent = bucketVibeFromTeam(ids, ct);
+        document.getElementById('sim-grade').textContent = '';
+        document.getElementById('sim-summary').textContent = 'Save the current team as your core to compare future variants.';
+      }
+      renderSlotHelperData(); renderSlotHelperHeuristic();
+    }
+
+    function refresh() { renderSlots(); renderChars(); renderCoreHelper(); renderCoreDataPanel(); renderSlotHelperData(); renderSlotHelperHeuristic(); renderTeamSuggestPanels(); compute(); renderNeighborhoodExplorer(); renderLCSlotRows(); }
+
+    //  TIME TRANSLATOR 
+    function translateTime() {
+      const m = parseInt(document.getElementById('t-min').value) || 0;
+      const s = parseInt(document.getElementById('t-sec').value) || 0;
+      const total = (m * 60) + s;
+      if (total > 0) {
+        document.getElementById('clear-time').value = total;
+        compute();
+      }
+    }
+
+    function syncToMinSec() {
+      const total = parseInt(document.getElementById('clear-time').value) || 0;
+      if (total > 0) {
+        document.getElementById('t-min').value = Math.floor(total / 60);
+        document.getElementById('t-sec').value = total % 60;
+      }
+    }
+
+    //  LOG RUN 
+    function logRun() {
+      if (!team.every(Boolean)) return;
+      const ids = team.map(t => t.id);
+      const ct = parseInt(document.getElementById('clear-time').value) || 90;
+      const cavSel = document.getElementById('cavern-select');
+      const cavId = cavSel.value || '';
+      const cavName = cavId ? (CAVERNS.find(x => x.id === cavId)?.name || cavId) : 'not selected';
+      const notes = document.getElementById('run-notes').value.trim();
+
+      // snapshot relic data
+      const relicSnapshot = relicData.map((r, i) => ({
+        n: i + 1,
+        piece: r.piece,
+        subs: [...r.subs]
+      }));
+
+      // frequency map for this run
+      const runFreq = {}; SUBSTATS.forEach(s => { runFreq[s.name] = 0; });
+      relicSnapshot.forEach(r => r.subs.forEach(s => { if (runFreq[s] !== undefined) runFreq[s]++; }));
+
+      const entry = {
+        n: logs.length + 1,
+        team: team.map(t => t.name),
+        idArray: ids.join('-'),
+        ids: [...ids],
+        slotOrder: team.map((t, i) => 'S' + (i + 1) + ':' + t.name),
+        pathSummary: getTeamSummary(),
+        ct, cavId, cavName,
+        outcome: selectedOutcome,
+        relics: relicSnapshot,
+        relicCount: relicSnapshot.length,
+        runFreq,
+        avgTop4: [...avgTop4],
+        notes,
+        ts: new Date().toISOString(),
+        // LC data (experimental)
+        lcNames: teamLCs.map(lc => lc ? lc.name : null),
+        lcIds: teamLCs.map(lc => lc ? lc.id : null),
+        lcAssigned: teamLCs.every(Boolean),
+        lcSum: teamLCs.every(Boolean) ? teamLCs.reduce((a, lc) => a + lc.id, 0) : null,
+        lcXor: teamLCs.every(Boolean) ? Math.abs(teamLCs.reduce((a, lc) => a ^ lc.id, 0)) : null,
+        lcSlot: teamLCs.every(Boolean) ? ((teamLCs[3].id * 3 + teamLCs[0].id + teamLCs[1].id + teamLCs[2].id) % 10000) : null,
+        comboXor: teamLCs.every(Boolean) ? (rawXor(ids) ^ Math.abs(teamLCs.reduce((a, lc) => a ^ lc.id, 0))) : null,
+      };
+      logs.push(entry);
+
+      // reset
+      selectedOutcome = ''; avgTop4 = [];
+      document.querySelectorAll('.outcome-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('run-notes').value = '';
+      relicData = []; buildRelicCards();
+      renderLogTable();
+      document.getElementById('run-count').textContent = logs.length;
+      document.getElementById('export-btn').disabled = false;
+      compute();
+      rerenderAllAnalysisPanels();
+    }
+
+    //  LOG TABLE 
+    function renderLogTable() {
+      const tbody = document.getElementById('log-body');
+      const empty = document.getElementById('empty-log');
+      const table = document.getElementById('log-table');
+      if (!logs.length) { empty.style.display = 'block'; table.style.display = 'none'; return; }
+      empty.style.display = 'none'; table.style.display = 'table';
+      tbody.innerHTML = '';
+      logs.slice().reverse().forEach(e => {
+        const oc = e.outcome || '';
+        const col = oc.includes('crit') || oc.includes('spd') ? 'var(--green)' : oc.includes('junk') ? 'var(--red)' : 'var(--text2)';
+        const relicSummary = e.relicCount > 0 ? e.relicCount + ' pieces' : '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+      <td>${e.n}</td>
+      <td style="font-size:10px">${e.slotOrder.join('  ')}</td>
+      <td style="font-size:10px;font-family:var(--mono)">[${e.idArray}]</td>
+      <td>${e.ct}s</td>
+      <td style="font-size:10px">${e.cavName}</td>
+      <td style="font-size:10px">${relicSummary}</td>
+      <td style="font-size:11px;font-weight:500;color:${col}">${oc.replace(/-/g, ' ') || ''}</td>
+      <td style="font-size:10px;color:var(--green)">${e.avgTop4.join(' + ') || ''}</td>
+      <td style="font-size:10px;color:var(--text3)">${e.notes || ''}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function clearAll() {
+      if (!confirm('Clear ALL logged runs?')) return;
+      logs = []; relicData = []; avgTop4 = []; selectedOutcome = '';
+      buildRelicCards(); renderLogTable();
+      document.getElementById('run-count').textContent = 0;
+      document.getElementById('export-btn').disabled = true;
+      rerenderAllAnalysisPanels();
+    }
+
+
+    function rerenderAllAnalysisPanels() {
+      renderScout();
+      renderCoreDataPanel();
+      renderSlotHelperData();
+      renderNeighborhoodExplorer();
+    }
+
+    function rawSum(ids) { return ids.reduce((s, x) => s + x, 0); }
+    function rawXor(ids) { return Math.abs(ids.reduce((s, x) => s ^ x, 0)); }
+    function rawSlot(ids) { return ((ids[3] * 3) + ids[0] + ids[1] + ids[2]) % 10000; }
+
+    function getNeighborhoodFamilies() {
+      const grouped = {};
+      logs.forEach(e => {
+        if (!e?.ids || e.ids.length !== 4) return;
+        const sum = rawSum(e.ids);
+        const xor = rawXor(e.ids);
+        const slot = rawSlot(e.ids);
+        const key = `${sum}|${xor}|${slot}`;
+        if (!grouped[key]) grouped[key] = {
+          key, sum, xor, slot,
+          ids: [...e.ids],
+          names: [...(e.team || e.ids.map(id => CHARS.find(c => c.id === id)?.name || String(id)))],
+          runs: 0, relics: 0,
+          CR: 0, CD: 0, SPD: 0, HPP: 0, ATPP: 0, DEFPP: 0, BRK: 0, EFFH: 0, EFFR: 0,
+          outcomes: {}
+        };
+        const g = grouped[key];
+        g.runs++;
+        g.outcomes[e.outcome || 'unknown'] = (g.outcomes[e.outcome || 'unknown'] || 0) + 1;
+        (e.relics || []).forEach(r => {
+          g.relics++;
+          (r.subs || []).forEach(s => {
+            if (s === 'Crit Rate') g.CR++;
+            if (s === 'Crit DMG') g.CD++;
+            if (s === 'SPD') g.SPD++;
+            if (s === 'HP%') g.HPP++;
+            if (s === 'ATK%') g.ATPP++;
+            if (s === 'DEF%') g.DEFPP++;
+            if (s === 'Break Eff') g.BRK++;
+            if (s === 'Effect Hit') g.EFFH++;
+            if (s === 'Effect RES') g.EFFR++;
+          });
+        });
+      });
+      return Object.values(grouped).map(g => {
+        const r = g.relics || 1;
+        g.crPct = Math.round((g.CR / r) * 100);
+        g.cdPct = Math.round((g.CD / r) * 100);
+        g.spdPct = Math.round((g.SPD / r) * 100);
+        g.hpPct = Math.round((g.HPP / r) * 100);
+        g.atkPct = Math.round((g.ATPP / r) * 100);
+        g.defPct = Math.round((g.DEFPP / r) * 100);
+        g.brkPct = Math.round((g.BRK / r) * 100);
+        g.effhPct = Math.round((g.EFFH / r) * 100);
+        g.effrPct = Math.round((g.EFFR / r) * 100);
+        g.critPct = g.crPct + g.cdPct;
+        g.zoneFlavor = detectZoneFlavor(g);
+        return g;
+      });
+    }
+
+    function detectZoneFlavor(g) {
+      // Returns a short human-readable label for the dominant stat profile of a family.
+      const stats = [
+        { label: 'Crit zone', score: g.critPct * 1.6 + g.spdPct * 0.5 },
+        { label: 'SPD zone', score: g.spdPct * 3.0 + g.critPct * 0.3 },
+        { label: 'HP% zone', score: g.hpPct * 2.5 },
+        { label: 'Break zone', score: g.brkPct * 2.5 },
+        { label: 'Effect zone', score: (g.effhPct + g.effrPct) * 1.4 },
+        { label: 'ATK% zone', score: g.atkPct * 2.2 },
+        { label: 'Crit+SPD zone', score: g.critPct * 1.2 + g.spdPct * 1.8 },
+        { label: 'Crit+HP zone', score: g.critPct * 1.3 + g.hpPct * 1.5 },
+        { label: 'Break+Effect zone', score: (g.brkPct + g.effhPct + g.effrPct) * 1.2 },
+      ];
+      return stats.sort((a, b) => b.score - a.score)[0].label;
+    }
+
+    function neighborhoodProfileScore(fam, profile) {
+      const r = fam.runs * 4;
+      switch (profile) {
+        case 'crit-only': return fam.critPct * 2.0 - fam.spdPct * 0.35 + r;
+        case 'crit-spd': return fam.critPct * 1.7 + fam.spdPct * 1.4 + r;
+        case 'hp-only': return (fam.hpPct || 0) * 2.5 + r;
+        case 'break': return (fam.brkPct || 0) * 2.5 + r;
+        case 'effect': return ((fam.effhPct || 0) + (fam.effrPct || 0)) * 1.4 + r;
+        case 'atk': return (fam.atkPct || 0) * 2.2 + r;
+        case 'crit-hp':
+        default: return fam.critPct * 1.8 + (fam.hpPct || 0) * 1.35 - fam.spdPct * 0.55 + r;
+      }
+    }
+
+    function getFallbackNeighborhoodFamilies() {
+      const arr = [];
+      const ct = parseInt(document.getElementById('clear-time').value) || 90;
+      if (team.every(Boolean)) {
+        const ids = team.map(t => t.id);
+        arr.push({
+          key: 'current', sum: rawSum(ids), xor: rawXor(ids), slot: rawSlot(ids), ids, names: team.map(t => t.name),
+          runs: 0, relics: 0, crPct: 0, cdPct: 0, spdPct: 0, hpPct: 0, critPct: 0,
+          fallback: true, label: 'current team', vibe: bucketVibeFromTeam(ids, ct)
+        });
+      }
+      if (savedCore?.ids?.length === 4) {
+        arr.push({
+          key: 'core', sum: rawSum(savedCore.ids), xor: rawXor(savedCore.ids), slot: rawSlot(savedCore.ids), ids: [...savedCore.ids], names: [...savedCore.names],
+          runs: 0, relics: 0, crPct: 0, cdPct: 0, spdPct: 0, hpPct: 0, critPct: 0,
+          fallback: true, label: 'saved core', vibe: bucketVibeFromTeam(savedCore.ids, savedCore.time || ct)
+        });
+      }
+      return arr;
+    }
+
+    function getBestNeighborhoodMatch(changedKey, targetValue, profile) {
+      const families = getNeighborhoodFamilies();
+      const source = families.length ? families : getFallbackNeighborhoodFamilies();
+      if (!source.length || !Number.isFinite(targetValue)) return null;
+      const keyed = source
+        .map(fam => {
+          const delta = Math.abs((fam[changedKey] || 0) - targetValue);
+          const quality = fam.fallback ? 0 : neighborhoodProfileScore(fam, profile);
+          return { fam, delta, quality, tie: fam.runs || 0 };
+        })
+        .sort((a, b) => a.delta - b.delta || b.quality - a.quality || b.tie - a.tie);
+      return keyed[0]?.fam || null;
+    }
+
+    function syncNeighborhoodInputs(changedKey) {
+      const auto = document.getElementById('nb-auto');
+      const sumEl = document.getElementById('nb-sum');
+      const xorEl = document.getElementById('nb-xor');
+      const slotEl = document.getElementById('nb-slot');
+      const profile = document.getElementById('nb-profile')?.value || 'crit-hp';
+      const targetValue = parseInt(document.getElementById(`nb-${changedKey}`).value, 10);
+      if (!Number.isFinite(targetValue)) { renderNeighborhoodExplorer(); return; }
+      if (auto?.checked) {
+        const best = getBestNeighborhoodMatch(changedKey, targetValue, profile);
+        if (best) {
+          if (changedKey !== 'sum') sumEl.value = best.sum;
+          if (changedKey !== 'xor') xorEl.value = best.xor;
+          if (changedKey !== 'slot') slotEl.value = best.slot;
+        }
+      }
+      renderNeighborhoodExplorer(changedKey);
+      if (changedKey === 'xor') generateNeighborhoodTeams();
+    }
+
+    function loadNeighborhoodFromCurrent() {
+      if (!team.every(Boolean)) { alert('Fill all 4 slots first.'); return; }
+      const ids = team.map(t => t.id);
+      document.getElementById('nb-sum').value = rawSum(ids);
+      document.getElementById('nb-xor').value = rawXor(ids);
+      document.getElementById('nb-slot').value = rawSlot(ids);
+      renderNeighborhoodExplorer('current'); generateNeighborhoodTeams();
+    }
+
+    function loadNeighborhoodFromCore() {
+      if (!savedCore?.ids?.length) { alert('Save a core first.'); return; }
+      document.getElementById('nb-sum').value = rawSum(savedCore.ids);
+      document.getElementById('nb-xor').value = rawXor(savedCore.ids);
+      document.getElementById('nb-slot').value = rawSlot(savedCore.ids);
+      renderNeighborhoodExplorer('core'); generateNeighborhoodTeams();
+    }
+
+    function renderNeighborhoodExplorer(changedKey = '') {
+      const wrap = document.getElementById('nb-results');
+      const summary = document.getElementById('nb-summary');
+      if (!wrap || !summary) return;
+      const profile = document.getElementById('nb-profile')?.value || 'crit-hp';
+      const sum = parseInt(document.getElementById('nb-sum')?.value, 10);
+      const xor = parseInt(document.getElementById('nb-xor')?.value, 10);
+      const slot = parseInt(document.getElementById('nb-slot')?.value, 10);
+      const families = getNeighborhoodFamilies();
+      const usingLogs = families.length > 0;
+      const source = usingLogs ? families : getFallbackNeighborhoodFamilies();
+      if (!source.length) {
+        summary.textContent = 'Type a target XOR first, or load from the current team/core. SUM and SLOT will auto-resolve.';
+        wrap.innerHTML = '<div class="empty-log" style="padding:14px;">Import debug .txt or log runs to let SUM/XOR/SLOT auto-pair from real data.</div>';
+        return;
+      }
+      const scoreFamily = fam => {
+        let score = 0;
+        if (Number.isFinite(sum)) score += Math.abs(fam.sum - sum) * 1.0;
+        if (Number.isFinite(xor)) score += Math.abs(fam.xor - xor) * 4.0;
+        if (Number.isFinite(slot)) score += Math.abs(fam.slot - slot) * 1.2;
+        score -= (fam.fallback ? 0 : neighborhoodProfileScore(fam, profile));
+        return score;
+      };
+      const ranked = source.map(fam => ({ fam, score: scoreFamily(fam), quality: fam.fallback ? 0 : neighborhoodProfileScore(fam, profile) }))
+        .sort((a, b) => a.score - b.score || b.quality - a.quality || (b.fam.runs || 0) - (a.fam.runs || 0));
+      const best = ranked[0]?.fam || null;
+      if (best) {
+        const sourceLabel = best.fallback ? `fallback from ${best.label}` : `${best.runs} logged run(s)`;
+        const flav = !best.fallback && best.zoneFlavor ? `  <em style="color:var(--gold)">${best.zoneFlavor}</em>` : (best.fallback ? `  ${best.vibe || 'heuristic only'}` : '');
+        const extra = best.fallback ? '' : `  CR ${best.crPct}% CD ${best.cdPct}% HP% ${best.hpPct}% Brk ${best.brkPct || 0}% SPD ${best.spdPct}%`;
+        summary.innerHTML = `<span style="color:var(--gold)">Auto pair</span> ${changedKey ? `(changed ${changedKey.toUpperCase()})` : ''}: SUM <span style="color:var(--accent)">${best.sum}</span>  XOR <span style="color:var(--accent)">${best.xor}</span>  SLOT <span style="color:var(--accent)">${best.slot}</span><br><span style="color:var(--text3)">${sourceLabel}${flav}${extra}</span>`;
+      } else {
+        summary.textContent = 'No matching neighborhood found yet.';
+      }
+      wrap.innerHTML = '';
+      ranked.slice(0, 8).forEach((row, idx) => {
+        const fam = row.fam;
+        const d = document.createElement('div');
+        d.className = 'helper-item';
+        d.style.borderColor = idx === 0 ? 'var(--gold)' : '';
+        const metaStats = fam.fallback
+          ? `${fam.label || 'fallback'}  ${fam.vibe || 'heuristic only'}`
+          : buildFamMetaLine(fam);
+        d.innerHTML = `<div class="helper-top"><div class="helper-name">${idx === 0 ? ' ' : ''}${fam.names.join(' / ')}</div><div class="helper-score">match ${Math.round(row.score)}</div></div><div class="helper-meta">SUM ${fam.sum}  XOR ${fam.xor}  SLOT ${fam.slot}  [${fam.ids.join('-')}]<br>${metaStats}</div>`;
+        d.addEventListener('click', () => {
+          document.getElementById('nb-sum').value = fam.sum;
+          document.getElementById('nb-xor').value = fam.xor;
+          document.getElementById('nb-slot').value = fam.slot;
+          team = fam.ids.map(id => CHARS.find(c => c.id === id) || null);
+          activeSlot = 0;
+          refresh();
+          renderNeighborhoodExplorer('picked');
+        });
+        wrap.appendChild(d);
+      });
+    }
+
+
+    function getNeighborhoodFamilyMap() {
+      const map = new Map();
+      getNeighborhoodFamilies().forEach(f => map.set(`${f.sum}|${f.xor}|${f.slot}`, f));
+      return map;
+    }
+
+    function permuteIds4(ids) {
+      const out = [];
+      const a = [...ids];
+      const used = Array(a.length).fill(false);
+      const cur = [];
+      function go() {
+        if (cur.length === a.length) { out.push([...cur]); return; }
+        for (let i = 0; i < a.length; i++) {
+          if (used[i]) continue;
+          used[i] = true;
+          cur.push(a[i]);
+          go();
+          cur.pop();
+          used[i] = false;
+        }
+      }
+      go();
+      return out;
+    }
+
+    let _pairIndexCache = null;
+    function getPairIndex() {
+      if (_pairIndexCache) return _pairIndexCache;
+      const pairsByXor = new Map();
+      for (let i = 0; i < CHARS.length; i++) {
+        for (let j = i + 1; j < CHARS.length; j++) {
+          const pair = { i, j, xor: CHARS[i].id ^ CHARS[j].id, sum: CHARS[i].id + CHARS[j].id };
+          if (!pairsByXor.has(pair.xor)) pairsByXor.set(pair.xor, []);
+          pairsByXor.get(pair.xor).push(pair);
+        }
+      }
+      _pairIndexCache = { pairsByXor };
+      return _pairIndexCache;
+    }
+
+    function resolveNeighborhoodTarget(preferKey = 'xor') {
+      const profile = document.getElementById('nb-profile')?.value || 'crit-hp';
+      const auto = document.getElementById('nb-auto')?.checked;
+      let sum = parseInt(document.getElementById('nb-sum')?.value, 10);
+      let xor = parseInt(document.getElementById('nb-xor')?.value, 10);
+      let slot = parseInt(document.getElementById('nb-slot')?.value, 10);
+      if (auto) {
+        if (preferKey === 'xor' && Number.isFinite(xor)) {
+          const best = getBestNeighborhoodMatch('xor', xor, profile);
+          if (best) {
+            if (!Number.isFinite(sum)) sum = best.sum;
+            if (!Number.isFinite(slot)) slot = best.slot;
+            document.getElementById('nb-sum').value = best.sum;
+            document.getElementById('nb-slot').value = best.slot;
+          }
+        } else if (preferKey === 'sum' && Number.isFinite(sum)) {
+          const best = getBestNeighborhoodMatch('sum', sum, profile);
+          if (best) {
+            if (!Number.isFinite(xor)) xor = best.xor;
+            if (!Number.isFinite(slot)) slot = best.slot;
+            document.getElementById('nb-xor').value = best.xor;
+            document.getElementById('nb-slot').value = best.slot;
+          }
+        } else if (preferKey === 'slot' && Number.isFinite(slot)) {
+          const best = getBestNeighborhoodMatch('slot', slot, profile);
+          if (best) {
+            if (!Number.isFinite(sum)) sum = best.sum;
+            if (!Number.isFinite(xor)) xor = best.xor;
+            document.getElementById('nb-sum').value = best.sum;
+            document.getElementById('nb-xor').value = best.xor;
+          }
+        }
+      }
+      return { profile, sum, xor, slot, auto };
+    }
+
+    function loadPreset(xor, sum, slot, profile) {
+      document.getElementById('nb-xor').value = xor;
+      document.getElementById('nb-sum').value = sum;
+      document.getElementById('nb-slot').value = slot;
+      if (document.getElementById('nb-profile')) document.getElementById('nb-profile').value = profile;
+      // Set SLOT window to 20 around preset slot
+      document.getElementById('nb-slot-min').value = slot - 20;
+      document.getElementById('nb-slot-max').value = slot + 20;
+      renderNeighborhoodExplorer('preset');
+      generateNeighborhoodTeams();
+    }
+
+    function generateNeighborhoodTeams() {
+      const wrap = document.getElementById('nb-generated');
+      const countEl = document.getElementById('nb-gen-count');
+      if (!wrap) return;
+      const target = resolveNeighborhoodTarget('xor');
+      if (!Number.isFinite(target.xor)) {
+        wrap.innerHTML = '<div class="empty-log" style="padding:14px;">Pick a preset or type a target XOR, then click Generate teams.</div>';
+        return;
+      }
+      // Read SLOT window
+      const slotMin = parseInt(document.getElementById('nb-slot-min')?.value, 10);
+      const slotMax = parseInt(document.getElementById('nb-slot-max')?.value, 10);
+      const hasSlotWindow = Number.isFinite(slotMin) && Number.isFinite(slotMax) && slotMax >= slotMin;
+      // Read owned-only toggle
+      const ownedOnly = document.getElementById('nb-owned-only')?.checked && ownedChars.size > 0;
+
+      const famMap = getNeighborhoodFamilyMap();
+      const { pairsByXor } = getPairIndex();
+      const seen = new Map();
+      const allPairs = [];
+      pairsByXor.forEach(list => allPairs.push(...list));
+      for (const p1 of allPairs) {
+        // Owned-only: skip pairs that include a non-owned char
+        if (ownedOnly && (!ownedChars.has(CHARS[p1.i].id) || !ownedChars.has(CHARS[p1.j].id))) continue;
+        const need = target.xor ^ p1.xor;
+        const matches = pairsByXor.get(need);
+        if (!matches) continue;
+        for (const p2 of matches) {
+          if (p1.i === p2.i || p1.i === p2.j || p1.j === p2.i || p1.j === p2.j) continue;
+          if (ownedOnly && (!ownedChars.has(CHARS[p2.i].id) || !ownedChars.has(CHARS[p2.j].id))) continue;
+          const ids = [CHARS[p1.i].id, CHARS[p1.j].id, CHARS[p2.i].id, CHARS[p2.j].id].sort((a, b) => a - b);
+          const key = ids.join('-');
+          if (seen.has(key)) continue;
+          const sum = ids[0] + ids[1] + ids[2] + ids[3];
+          let bestOrder = null;
+          for (const ord of permuteIds4(ids)) {
+            const slot = rawSlot(ord);
+            const fam = famMap.get(`${sum}|${target.xor}|${slot}`) || null;
+            const quality = fam ? neighborhoodProfileScore(fam, target.profile) : 0;
+            const slotPenalty = Number.isFinite(target.slot) ? Math.abs(slot - target.slot) : 0;
+            const score = slotPenalty * 1.2 - quality * 0.65;
+            if (!bestOrder || score < bestOrder.score) {
+              bestOrder = { ids: ord, slot, score, fam, quality };
+            }
+          }
+          const sumDelta = Number.isFinite(target.sum) ? Math.abs(sum - target.sum) : 0;
+          const finalScore = sumDelta * 0.9 + (bestOrder?.score || 0);
+          const inSlotWindow = hasSlotWindow && bestOrder.slot >= slotMin && bestOrder.slot <= slotMax;
+          seen.set(key, {
+            ids: bestOrder.ids,
+            names: bestOrder.ids.map(id => CHARS.find(c => c.id === id)?.name || String(id)),
+            sum, xor: target.xor, slot: bestOrder.slot,
+            sumDelta, slotDelta: Number.isFinite(target.slot) ? Math.abs(bestOrder.slot - target.slot) : 0,
+            fam: bestOrder.fam, quality: bestOrder.quality || 0,
+            finalScore, inSlotWindow
+          });
+        }
+      }
+      let results = Array.from(seen.values())
+        .sort((a, b) => {
+          // Prioritize in-window teams first, then finalScore
+          if (a.inSlotWindow !== b.inSlotWindow) return a.inSlotWindow ? -1 : 1;
+          return a.finalScore - b.finalScore || b.quality - a.quality || a.slotDelta - b.slotDelta;
+        })
+        .slice(0, 20);
+      const inWindowCount = results.filter(r => r.inSlotWindow).length;
+      const totalBefore = seen.size;
+      if (countEl) {
+        if (hasSlotWindow) {
+          countEl.innerHTML = `<span style="color:var(--gold)">${inWindowCount}</span> in SLOT window ${slotMin}${slotMax}  ${results.length} total shown  ${totalBefore} found`;
+        } else {
+          countEl.textContent = `${results.length} teams shown  ${totalBefore} found with XOR ${target.xor}`;
+        }
+      }
+      if (!results.length) {
+        wrap.innerHTML = `<div class="empty-log" style="padding:14px;">No full teams found for XOR ${target.xor}${ownedOnly ? ' (owned-only filter active  mark more chars as owned or disable the filter)' : ''}. Try another XOR or import more logs.</div>`;
+        return;
+      }
+      wrap.innerHTML = '';
+      results.forEach((row, idx) => {
+        const d = document.createElement('div');
+        d.className = 'helper-item';
+        const isFirst = idx === 0;
+        // Gold border for top result, accent border for in-window teams
+        d.style.borderColor = isFirst ? 'var(--gold)' : (row.inSlotWindow ? 'var(--accent)' : '');
+        const ct = parseInt(document.getElementById('clear-time')?.value, 10) || 90;
+        const famMeta = row.fam
+          ? buildFamMetaLine(row.fam)
+          : `${bucketVibeFromTeam(row.ids, ct)}  no exact logged family yet`;
+        const windowBadge = row.inSlotWindow ? '<span style="color:var(--accent);font-size:9px;margin-left:5px;border:1px solid var(--accent);padding:1px 4px;border-radius:3px;">IN WINDOW</span>' : '';
+        d.innerHTML = `
+          <div class="helper-top">
+            <div class="helper-name">${isFirst ? ' ' : ''}${row.names.join(' / ')}${windowBadge}</div>
+            <div class="helper-score">gen ${Math.round(row.finalScore)}</div>
+          </div>
+          <div class="helper-meta">
+            SUM ${row.sum} ${Number.isFinite(target.sum) ? ` SUM ${row.sumDelta}` : ''}  XOR ${row.xor}  SLOT ${row.slot} ${Number.isFinite(target.slot) ? ` SLOT ${row.slotDelta}` : ''}  [${row.ids.join('-')}]<br>
+            ${famMeta}
+          </div>`;
+        d.addEventListener('click', () => {
+          team = row.ids.map(id => CHARS.find(c => c.id === id) || null);
+          activeSlot = 0;
+          refresh();
+        });
+        wrap.appendChild(d);
+      });
+    }
+
+    function buildFamMetaLine(fam) {
+      // Build a rich multi-stat line, highlighting dominant stats
+      const pairs = [
+        ['CR', fam.crPct],
+        ['CD', fam.cdPct],
+        ['SPD', fam.spdPct],
+        ['HP%', fam.hpPct],
+        ['ATK%', fam.atkPct || 0],
+        ['DEF%', fam.defPct || 0],
+        ['Brk', fam.brkPct || 0],
+        ['EffH', fam.effhPct || 0],
+        ['EffR', fam.effrPct || 0],
+      ].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+      const top4 = pairs.slice(0, 4).map(([k, v]) => `<strong>${k} ${v}%</strong>`).join('  ');
+      const rest = pairs.slice(4, 7).map(([k, v]) => `${k} ${v}%`).join('  ');
+      const zone = fam.zoneFlavor ? `<em style="color:var(--gold)">${fam.zoneFlavor}</em>  ` : '';
+      return `${fam.runs} run(s)  ${zone}${top4}${rest ? '  ' + rest : ''}`;
+    }
+
+    function renumberLogs() {
+      logs.forEach((e, idx) => { e.n = idx + 1; });
+    }
+
+    function buildRunFreqFromRelics(relics) {
+      const freq = Object.fromEntries(SUBSTATS.map(s => [s.name, 0]));
+      (relics || []).forEach(r => (r.subs || []).forEach(s => { if (freq[s] !== undefined) freq[s]++; }));
+      return freq;
+    }
+
+    function parseImportedRunBlock(block, fallbackTs, runIndex) {
+      const lines = block.split(/\r?\n/).map(x => x.replace(/\t/g, '    ').trimEnd());
+      const entry = {
+        n: logs.length + runIndex + 1,
+        team: [],
+        idArray: '',
+        ids: [],
+        slotOrder: [],
+        pathSummary: '',
+        ct: 90,
+        cavId: '',
+        cavName: 'not selected',
+        outcome: '',
+        relics: [],
+        relicCount: 0,
+        runFreq: Object.fromEntries(SUBSTATS.map(s => [s.name, 0])),
+        avgTop4: [],
+        notes: '',
+        ts: fallbackTs || new Date().toISOString()
+      };
+
+      let inRelics = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        let m;
+        if ((m = line.match(/^RUN\s*#?\s*\d+\s+(.*)$/i))) {
+          const dt = new Date(m[1].trim());
+          if (!isNaN(dt.getTime())) entry.ts = dt.toISOString();
+          continue;
+        }
+        if ((m = line.match(/^CAVERN\s*:\s*(.*)$/i))) { entry.cavName = m[1].trim() || 'not selected'; continue; }
+        if ((m = line.match(/^SLOT ORDER\s*:\s*(.*)$/i))) {
+          entry.slotOrder = m[1].split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
+          entry.team = entry.slotOrder.map(x => x.replace(/^S\d+:/, '').trim());
+          continue;
+        }
+        if ((m = line.match(/^ID ARRAY\s*:\s*\[(.*)\]$/i))) {
+          entry.ids = m[1].split('-').map(x => parseInt(x.trim(), 10)).filter(Number.isFinite);
+          entry.idArray = entry.ids.join('-');
+          if (!entry.team.length && entry.ids.length) {
+            entry.team = entry.ids.map(id => CHARS.find(c => c.id === id)?.name || String(id));
+            entry.slotOrder = entry.team.map((name, idx) => `S${idx + 1}:${name}`);
+          }
+          continue;
+        }
+        if ((m = line.match(/^PATHS\s*:\s*(.*)$/i))) { entry.pathSummary = m[1].trim(); continue; }
+        if ((m = line.match(/^TIME\s*:\s*(\d+)s$/i))) { entry.ct = parseInt(m[1], 10) || 90; continue; }
+        if ((m = line.match(/^OUTCOME\s*:\s*(.*)$/i))) {
+          const out = m[1].trim();
+          entry.outcome = /not selected/i.test(out) ? '' : out.toLowerCase().replace(/\s+/g, '-');
+          continue;
+        }
+        if ((m = line.match(/^AVG TOP 4\s*:\s*(.*)$/i))) {
+          const val = m[1].trim();
+          entry.avgTop4 = /not recorded/i.test(val) || !val ? [] : val.split(/\s*\+\s*/).map(x => x.trim()).filter(Boolean);
+          continue;
+        }
+        if ((m = line.match(/^NOTES\s*:\s*(.*)$/i))) { entry.notes = m[1].trim(); continue; }
+        // LC fields  optional, old files won't have these, that's fine
+        if ((m = line.match(/^LC ARRAY\s*:\s*\[(.+)\]$/i))) {
+          entry.lcIds = m[1].split('-').map(x => parseInt(x.trim(), 10)).filter(Number.isFinite);
+          entry.lcAssigned = entry.lcIds.length === 4;
+          continue;
+        }
+        if ((m = line.match(/^LC NAMES\s*:\s*(.+)$/i))) {
+          entry.lcNames = m[1].split(/\s{2,}/).map(x => x.replace(/^S\d+:/, '').trim());
+          continue;
+        }
+        if ((m = line.match(/^LC SUM\s*:\s*(\d+)\s+LC XOR:\s*(\d+)\s+LC SLOT:\s*(\d+)/i))) {
+          entry.lcSum = parseInt(m[1]); entry.lcXor = parseInt(m[2]); entry.lcSlot = parseInt(m[3]);
+          continue;
+        }
+        if ((m = line.match(/^COMBO XOR\s*:\s*(\d+)/i))) { entry.comboXor = parseInt(m[1]); continue; }
+        if (/^RELICS\s*\(/i.test(line)) { inRelics = true; continue; }
+        if (/^SUBSTAT FREQUENCY THIS RUN:/i.test(line)) { inRelics = false; continue; }
+        if (inRelics && (m = line.match(/^Relic\s+(\d+)\s+\[([^\]]+)\]:\s*(.*)$/i))) {
+          const n = parseInt(m[1], 10) || (entry.relics.length + 1);
+          const piece = (m[2] || '').trim();
+          const subsStr = (m[3] || '').trim();
+          const subs = /no substats logged/i.test(subsStr) || !subsStr ? [] : subsStr.split(/\s*\s*/).map(x => x.trim()).filter(Boolean);
+          entry.relics.push({ n, piece, subs });
+          continue;
+        }
+      }
+
+      if (!entry.ids.length && entry.team.length) {
+        entry.ids = entry.team.map(name => CHARS.find(c => c.name === name)?.id).filter(Number.isFinite);
+        entry.idArray = entry.ids.join('-');
+      }
+      if (!entry.slotOrder.length && entry.team.length) {
+        entry.slotOrder = entry.team.map((name, idx) => `S${idx + 1}:${name}`);
+      }
+      entry.relicCount = entry.relics.length;
+      entry.runFreq = buildRunFreqFromRelics(entry.relics);
+      if (!entry.avgTop4.length && entry.relics.length) {
+        entry.avgTop4 = Object.entries(entry.runFreq).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).slice(0, 4).map(([s]) => s);
+      }
+      return entry.ids.length === 4 ? entry : null;
+    }
+
+    function parseDebugText(text, fallbackTs) {
+      const sectionMatch = text.match(/\[ SECTION 7  ALL RUNS FULL DETAIL \][\s\S]*$/);
+      const zone = sectionMatch ? sectionMatch[0] : text;
+      const parts = zone.split(/\n\s*RUN\s*#\d+/i);
+      const runs = [];
+      if (parts.length > 1) {
+        const matches = zone.match(/RUN\s*#\d+[\s\S]*?(?=\n\s*RUN\s*#\d+|\n=+|$)/gi) || [];
+        matches.forEach((block, idx) => {
+          const parsed = parseImportedRunBlock(block, fallbackTs, idx);
+          if (parsed) runs.push(parsed);
+        });
+      } else {
+        const parsed = parseImportedRunBlock(zone, fallbackTs, 0);
+        if (parsed) runs.push(parsed);
+      }
+      return runs;
+    }
+
+    async function importDebugFiles(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      let imported = 0, skipped = 0;
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const parsed = parseDebugText(text, new Date(file.lastModified || Date.now()).toISOString());
+          if (parsed.length) {
+            parsed.forEach(p => logs.push(p));
+            imported += parsed.length;
+          } else {
+            skipped++;
+          }
+        } catch (err) {
+          skipped++;
+          console.error('Import failed for', file.name, err);
+        }
+      }
+      renumberLogs();
+      renderLogTable();
+      document.getElementById('run-count').textContent = logs.length;
+      document.getElementById('export-btn').disabled = !logs.length;
+      compute();
+      rerenderAllAnalysisPanels();
+      event.target.value = '';
+      alert(`Imported ${imported} run(s)` + (skipped ? `  skipped ${skipped} file(s)` : ''));
+    }
+
+
+    function renderTeamSuggestPanels() {
+      const wrap = document.getElementById('team-suggest-list');
+      if (!wrap) return;
+      const items = [];
+      const pushUnique = (() => {
+        const seen = new Set();
+        return (item) => {
+          const key = item.key || item.title;
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push(item);
+        };
+      })();
+
+      // 1) Logged exact teams ranked by observed outcome quality.
+      if (logs.length) {
+        const grouped = {};
+        logs.forEach(e => {
+          if (!e.idArray) return;
+          if (!grouped[e.idArray]) grouped[e.idArray] = { ids: e.ids, names: e.team, runs: 0, relics: 0, cr: 0, cd: 0, spd: 0, hp: 0 };
+          const g = grouped[e.idArray];
+          g.runs++;
+          (e.relics || []).forEach(r => {
+            g.relics++;
+            (r.subs || []).forEach(s => {
+              if (s === 'Crit Rate') g.cr++;
+              if (s === 'Crit DMG') g.cd++;
+              if (s === 'SPD') g.spd++;
+              if (s === 'HP%') g.hp++;
+            });
+          });
+        });
+        Object.values(grouped).forEach(g => {
+          const relics = g.relics || 1;
+          const crPct = Math.round(g.cr / relics * 100);
+          const cdPct = Math.round(g.cd / relics * 100);
+          const spdPct = Math.round(g.spd / relics * 100);
+          const hpPct = Math.round(g.hp / relics * 100);
+          pushUnique({
+            key: 'log|' + g.ids.join('-'),
+            label: ' logged',
+            title: g.names.join(' / '),
+            meta: `[${g.ids.join('-')}]  ${g.runs} run(s)  CR ${crPct}%  CD ${cdPct}%  HP% ${hpPct}%  SPD ${spdPct}%`,
+            score: (crPct + cdPct) * 2 + hpPct - spdPct * 0.2 + g.runs * 4,
+            apply: () => { team = g.ids.map(id => CHARS.find(c => c.id === id) || null); activeSlot = 0; refresh(); },
+          });
+        });
+      }
+
+      // shared target for neighborhood-based ranking
+      const profile = document.getElementById('nb-profile')?.value || 'crit-hp';
+      const currentIds = team.every(Boolean) ? team.map(t => t.id) : null;
+      const targetSum = Number.isFinite(parseInt(document.getElementById('nb-sum')?.value, 10)) ? parseInt(document.getElementById('nb-sum')?.value, 10) : (currentIds ? rawSum(currentIds) : (savedCore?.ids?.length === 4 ? rawSum(savedCore.ids) : NaN));
+      const targetXor = Number.isFinite(parseInt(document.getElementById('nb-xor')?.value, 10)) ? parseInt(document.getElementById('nb-xor')?.value, 10) : (currentIds ? rawXor(currentIds) : (savedCore?.ids?.length === 4 ? rawXor(savedCore.ids) : NaN));
+      const targetSlot = Number.isFinite(parseInt(document.getElementById('nb-slot')?.value, 10)) ? parseInt(document.getElementById('nb-slot')?.value, 10) : (currentIds ? rawSlot(currentIds) : (savedCore?.ids?.length === 4 ? rawSlot(savedCore.ids) : NaN));
+      const scoreFamily = fam => {
+        let score = 0;
+        if (Number.isFinite(targetSum)) score += Math.abs(fam.sum - targetSum) * 1.0;
+        if (Number.isFinite(targetXor)) score += Math.abs(fam.xor - targetXor) * 4.0;
+        if (Number.isFinite(targetSlot)) score += Math.abs(fam.slot - targetSlot) * 1.2;
+        score -= (fam.fallback ? 0 : neighborhoodProfileScore(fam, profile));
+        return score;
+      };
+
+      // 2) Whole-team suggestions from neighborhood families/logged families.
+      const neighborhoodSource = (getNeighborhoodFamilies().length ? getNeighborhoodFamilies() : getFallbackNeighborhoodFamilies())
+        .map(fam => ({ fam, score: scoreFamily(fam), quality: fam.fallback ? 0 : neighborhoodProfileScore(fam, profile) }))
+        .sort((a, b) => a.score - b.score || b.quality - a.quality || (b.fam.runs || 0) - (a.fam.runs || 0));
+      neighborhoodSource.slice(0, 8).forEach((row, idx) => {
+        const fam = row.fam;
+        const metaStats = fam.fallback
+          ? `${fam.label || 'fallback'}  ${fam.vibe || 'heuristic only'}`
+          : `${fam.runs} run(s)  CR ${fam.crPct}%  CD ${fam.cdPct}%  HP% ${fam.hpPct}%  SPD ${fam.spdPct}%`;
+        pushUnique({
+          key: 'nb|' + fam.ids.join('-'),
+          label: fam.fallback ? ' neighborhood' : ' target-zone',
+          title: fam.names.join(' / '),
+          meta: `SUM ${fam.sum}  XOR ${fam.xor}  SLOT ${fam.slot}  [${fam.ids.join('-')}]  match ${Math.round(row.score)}<br>${metaStats}`,
+          score: 300000 - row.score,
+          apply: () => {
+            document.getElementById('nb-sum').value = fam.sum;
+            document.getElementById('nb-xor').value = fam.xor;
+            document.getElementById('nb-slot').value = fam.slot;
+            team = fam.ids.map(id => CHARS.find(c => c.id === id) || null);
+            activeSlot = 0;
+            refresh();
+            renderNeighborhoodExplorer('picked');
+          }
+        });
+      });
+
+      // 3) Core-near full team variants using all slots, not only one single suggestion.
+      if (savedCore?.ids?.length === 4) {
+        const ct = parseInt(document.getElementById('clear-time').value) || 90;
+        const coreIds = savedCore.ids;
+        const candidates = [];
+        for (let slot = 0; slot < 4; slot++) {
+          CHARS.forEach(c => {
+            if (coreIds.includes(c.id) && coreIds[slot] !== c.id) return;
+            const ids = coreIds.map((id, i) => i === slot ? c.id : id);
+            if (new Set(ids).size < 4) return;
+            const score = scoreAgainstCore(ids, ct, savedCore);
+            const near = (Number.isFinite(targetSum) ? Math.abs(rawSum(ids) - targetSum) : 0)
+              + (Number.isFinite(targetXor) ? Math.abs(rawXor(ids) - targetXor) * 4 : 0)
+              + (Number.isFinite(targetSlot) ? Math.abs(rawSlot(ids) - targetSlot) * 1.2 : 0);
+            candidates.push({ slot, ids, score, vibe: bucketVibeFromTeam(ids, ct), near });
+          });
+        }
+        candidates.sort((a, b) => (a.score.total + a.near) - (b.score.total + b.near));
+        candidates.slice(0, 10).forEach(c => {
+          pushUnique({
+            key: 'core|' + c.ids.join('-'),
+            label: ' core-near',
+            title: c.ids.map(id => CHARS.find(x => x.id === id)?.name || id).join(' / '),
+            meta: `replace S${c.slot + 1}  [${c.ids.join('-')}]  core ${c.score.total}  near ${Math.round(c.near)}  shape ${c.score.shapeMatch}%  ${c.vibe}`,
+            score: 200000 - (c.score.total + c.near),
+            apply: () => { team = c.ids.map(id => CHARS.find(x => x.id === id) || null); activeSlot = c.slot; refresh(); }
+          });
+        });
+      }
+
+      // 4) Fallback exploration from the current team / target neighborhood.
+      if (currentIds) {
+        const explore = [];
+        for (let slot = 0; slot < 4; slot++) {
+          CHARS.forEach(c => {
+            if (currentIds.includes(c.id) && currentIds[slot] !== c.id) return;
+            const ids = currentIds.map((id, i) => i === slot ? c.id : id);
+            if (new Set(ids).size < 4) return;
+            let near = 0;
+            if (Number.isFinite(targetSum)) near += Math.abs(rawSum(ids) - targetSum) * 1.0;
+            if (Number.isFinite(targetXor)) near += Math.abs(rawXor(ids) - targetXor) * 4.0;
+            if (Number.isFinite(targetSlot)) near += Math.abs(rawSlot(ids) - targetSlot) * 1.2;
+            const ct = parseInt(document.getElementById('clear-time').value) || 90;
+            const vibe = bucketVibeFromTeam(ids, ct);
+            const vibeBonus = vibe === '7+8+9' ? -40 : vibe === '7 + crit' ? -24 : vibe === '8+9' ? -20 : vibe === 'partial' ? -8 : 0;
+            explore.push({ slot, ids, near: near + vibeBonus, vibe });
+          });
+        }
+        explore.sort((a, b) => a.near - b.near);
+        explore.slice(0, 10).forEach(c => {
+          pushUnique({
+            key: 'exp|' + c.ids.join('-'),
+            label: ' explore',
+            title: c.ids.map(id => CHARS.find(x => x.id === id)?.name || id).join(' / '),
+            meta: `replace S${c.slot + 1}  SUM ${rawSum(c.ids)}  XOR ${rawXor(c.ids)}  SLOT ${rawSlot(c.ids)}  near ${Math.round(c.near)}  ${c.vibe}`,
+            score: 100000 - c.near,
+            apply: () => { team = c.ids.map(id => CHARS.find(x => x.id === id) || null); activeSlot = c.slot; refresh(); }
+          });
+        });
+      }
+
+      if (!items.length) {
+        wrap.innerHTML = '<div class="empty-log" style="padding:14px;">Fill a team or import logs, then the app will suggest whole teams here.</div>';
+        return;
+      }
+      items.sort((a, b) => b.score - a.score);
+      wrap.innerHTML = '';
+      items.slice(0, 12).forEach((item, idx) => {
+        const d = document.createElement('div');
+        d.className = 'helper-item';
+        d.style.borderColor = idx === 0 ? 'var(--gold)' : '';
+        d.innerHTML = `<div class="helper-top"><div class="helper-name">${item.label} ${item.title}</div><div class="helper-score">apply</div></div><div class="helper-meta">${item.meta}</div>`;
+        d.addEventListener('click', item.apply);
+        wrap.appendChild(d);
+      });
+    }
+
+
+    //  EXPORT 
+    function exportLog() {
+      if (!logs.length) return;
+      const W = 68, hr = '='.repeat(W), hr2 = '-'.repeat(W), hr3 = '.'.repeat(W);
+      const pad = (s, l) => String(s).padEnd(l);
+      const lines = [];
+
+      lines.push(hr);
+      lines.push('  HSR RELIC SEED SIMULATOR  DEBUG LOG v3.0');
+      lines.push('  Svarog Tracer Research Tool');
+      lines.push(hr);
+      lines.push('  Exported : ' + new Date().toLocaleString());
+      lines.push('  Total runs: ' + logs.length);
+      lines.push(hr); lines.push('');
+
+      //  S1 OUTCOME DISTRIBUTION
+      lines.push('[ SECTION 1  OUTCOME DISTRIBUTION ]'); lines.push(hr2);
+      const oc = {};
+      logs.forEach(e => { const o = e.outcome || 'not_selected'; oc[o] = (oc[o] || 0) + 1; });
+      Object.entries(oc).sort((a, b) => b[1] - a[1]).forEach(([o, n]) => {
+        lines.push('  ' + pad(o.replace(/-/g, ' '), 28) + ': ' + n + ' (' + Math.round(n / logs.length * 100) + '%)');
+      });
+      lines.push('');
+
+      //  S2 GLOBAL SUBSTAT FREQUENCY (averaged across all relics all runs)
+      lines.push('[ SECTION 2  GLOBAL SUBSTAT FREQUENCY (all relics, all runs) ]'); lines.push(hr2);
+      const gfreq = {}; SUBSTATS.forEach(s => { gfreq[s.name] = 0; });
+      let gTotalRelics = 0;
+      logs.forEach(e => {
+        e.relics.forEach(r => {
+          gTotalRelics++;
+          r.subs.forEach(s => { if (gfreq[s] !== undefined) gfreq[s]++; });
+        });
+      });
+      lines.push('  Total relics logged: ' + gTotalRelics + ' across ' + logs.length + ' runs'); lines.push('');
+      Object.entries(gfreq).sort((a, b) => b[1] - a[1]).forEach(([s, n]) => {
+        if (!n) return;
+        const pct = Math.round((n / gTotalRelics) * 100);
+        const bar = '#'.repeat(n) + '-'.repeat(Math.max(0, gTotalRelics - n));
+        lines.push('  ' + pad(s, 12) + ' : ' + bar.slice(0, 20) + '  (' + n + '/' + gTotalRelics + ' = ' + pct + '%)');
+      });
+      lines.push('');
+
+      //  S3 SLOT ORDER ANALYSIS
+      lines.push('[ SECTION 3  SLOT ORDER ANALYSIS ]'); lines.push(hr2);
+      lines.push('  Same 4 chars, different slot order = different ID array = different seed'); lines.push('');
+      const slotGroups = {};
+      logs.forEach(e => {
+        if (!slotGroups[e.idArray]) slotGroups[e.idArray] = { order: e.slotOrder.join(' | '), runs: [] };
+        slotGroups[e.idArray].runs.push(e);
+      });
+      Object.entries(slotGroups).forEach(([key, data]) => {
+        lines.push('  Array: [' + key + ']  (' + data.runs.length + ' run(s))');
+        lines.push('  Order: ' + data.order);
+        const af = {}; SUBSTATS.forEach(s => { af[s.name] = 0; });
+        let aRelics = 0;
+        data.runs.forEach(e => { e.relics.forEach(r => { aRelics++; r.subs.forEach(s => { if (af[s] !== undefined) af[s]++; }); }); });
+        const top = Object.entries(af).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).slice(0, 6);
+        if (top.length) lines.push('  Substat rates: ' + top.map(([s, n]) => s + ' ' + Math.round(n / aRelics * 100) + '%').join('  '));
+        const ocList = data.runs.map(e => e.outcome || '?').join(', ');
+        lines.push('  Outcomes: ' + ocList);
+        lines.push('');
+      });
+
+      //  S4 CHARACTER CRIT CORRELATION
+      lines.push('[ SECTION 4  CHARACTER CRIT CORRELATION ]'); lines.push(hr2);
+      lines.push('  Which character IDs in the team correlate with crit/SPD drops?'); lines.push('');
+      const cf = {};
+      logs.forEach(e => {
+        e.ids.forEach((id, slot) => {
+          if (!cf[id]) cf[id] = { name: e.team[slot], runs: 0, CR: 0, CD: 0, SPD: 0, relics: 0 };
+          cf[id].runs++;
+          e.relics.forEach(r => {
+            cf[id].relics++;
+            r.subs.forEach(s => {
+              if (s === 'Crit Rate') cf[id].CR++;
+              if (s === 'Crit DMG') cf[id].CD++;
+              if (s === 'SPD') cf[id].SPD++;
+            });
+          });
+        });
+      });
+      Object.entries(cf).sort((a, b) => b[1].runs - a[1].runs).forEach(([id, d]) => {
+        if (!d.relics) return;
+        const crPct = Math.round(d.CR / d.relics * 100);
+        const cdPct = Math.round(d.CD / d.relics * 100);
+        const spdPct = Math.round(d.SPD / d.relics * 100);
+        lines.push('  ' + pad(d.name, 16) + ' ID:' + pad(id, 6) + ' CR:' + pad(crPct + '%', 5) + ' CD:' + pad(cdPct + '%', 5) + ' SPD:' + pad(spdPct + '%', 5) + '  (' + d.runs + ' runs / ' + d.relics + ' relics)');
+      });
+      lines.push('');
+
+      //  S5 PATH COMPOSITION
+      lines.push('[ SECTION 5  PATH COMPOSITION ANALYSIS ]'); lines.push(hr2);
+      const pg = {};
+      logs.forEach(e => { const k = e.pathSummary || 'unknown'; if (!pg[k]) pg[k] = []; pg[k].push(e); });
+      Object.entries(pg).forEach(([ps, runs]) => {
+        lines.push('  ' + ps + '  ' + runs.length + ' run(s)');
+        const af = {}; SUBSTATS.forEach(s => { af[s.name] = 0; }); let aR = 0;
+        runs.forEach(e => { e.relics.forEach(r => { aR++; r.subs.forEach(s => { if (af[s] !== undefined) af[s]++; }); }); });
+        const top = Object.entries(af).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).slice(0, 5);
+        if (top.length) lines.push('  Top: ' + top.map(([s, n]) => s + ' ' + Math.round(n / aR * 100) + '%').join('  '));
+        lines.push('');
+      });
+
+      //  S6 CAVERN ANALYSIS
+      lines.push('[ SECTION 6  CAVERN ANALYSIS ]'); lines.push(hr2);
+      const cg = {};
+      logs.forEach(e => { const c = e.cavName; if (!cg[c]) cg[c] = []; cg[c].push(e); });
+      Object.entries(cg).forEach(([cv, runs]) => {
+        lines.push('  ' + cv + '  ' + runs.length + ' run(s)');
+        const af = {}; SUBSTATS.forEach(s => { af[s.name] = 0; }); let aR = 0;
+        runs.forEach(e => { e.relics.forEach(r => { aR++; r.subs.forEach(s => { if (af[s] !== undefined) af[s]++; }); }); });
+        const top = Object.entries(af).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).slice(0, 5);
+        if (top.length && aR) lines.push('  Top: ' + top.map(([s, n]) => s + ' ' + Math.round(n / aR * 100) + '%').join('  '));
+        lines.push('');
+      });
+
+      //  S7 ALL RUNS FULL DETAIL
+      lines.push('[ SECTION 7  ALL RUNS FULL DETAIL ]'); lines.push(hr2); lines.push('');
+      logs.forEach(e => {
+        lines.push('  RUN #' + String(e.n).padStart(3, '0') + '  ' + e.ts);
+        lines.push('  ' + hr3.slice(0, W - 2));
+        lines.push('  CAVERN     : ' + e.cavName);
+        lines.push('  SLOT ORDER : ' + e.slotOrder.join('  '));
+        lines.push('  ID ARRAY   : [' + e.idArray + ']');
+        lines.push('  PATHS      : ' + (e.pathSummary || ''));
+        lines.push('  TIME       : ' + e.ct + 's');
+        lines.push('  OUTCOME    : ' + (e.outcome ? e.outcome.replace(/-/g, ' ') : 'not selected'));
+        lines.push('  AVG TOP 4  : ' + (e.avgTop4.length ? e.avgTop4.join(' + ') : 'not recorded'));
+        if (e.notes) lines.push('  NOTES      : ' + e.notes);
+        // LC data if present
+        if (e.lcAssigned && e.lcIds && e.lcIds.every(Boolean)) {
+          lines.push('  LC ARRAY   : [' + e.lcIds.join('-') + ']');
+          lines.push('  LC NAMES   : ' + e.lcNames.map((n, i) => 'S' + (i + 1) + ':' + n).join('  '));
+          lines.push('  LC SUM     : ' + e.lcSum + '  LC XOR: ' + e.lcXor + '  LC SLOT: ' + e.lcSlot);
+          lines.push('  COMBO XOR  : ' + e.comboXor + '  (charXOR ^ lcXOR)');
+        }
+        lines.push('');
+        if (e.relics.length) {
+          lines.push('  RELICS (' + e.relicCount + ' pieces):');
+          e.relics.forEach(r => {
+            if (r.subs.length) {
+              lines.push('    Relic ' + r.n + ' [' + pad(r.piece, 6) + ']: ' + r.subs.join('    '));
+            } else {
+              lines.push('    Relic ' + r.n + ' [' + pad(r.piece, 6) + ']: (no substats logged)');
+            }
+          });
+          lines.push('');
+          lines.push('  SUBSTAT FREQUENCY THIS RUN:');
+          Object.entries(e.runFreq).sort((a, b) => b[1] - a[1]).filter(([, n]) => n > 0).forEach(([s, n]) => {
+            const pct = Math.round(n / e.relicCount * 100);
+            lines.push('    ' + pad(s, 12) + ' : ' + n + '/' + e.relicCount + ' relics (' + pct + '%)');
+          });
+        }
+        lines.push('');
+      });
+
+      lines.push(hr);
+      lines.push('  HOW TO READ THIS DATA:');
+      lines.push('');
+      lines.push('  S3  same ID array  same substat cluster across runs?');
+      lines.push('       YES = ordered slot array is dominant seed variable');
+      lines.push('');
+      lines.push('  S4  which character IDs score highest CR/CD/SPD % per relic?');
+      lines.push('       High % = that ID may anchor the crit zone in the seed');
+      lines.push('');
+      lines.push('  S5  does Remem path comp score differently than Harm?');
+      lines.push('       Different % = path combination contributes to seed');
+      lines.push('');
+      lines.push('  S6  does cavern change substat profile?');
+      lines.push('       Different % per cavern = stage ID is part of seed');
+      lines.push(hr);
+      lines.push('  END OF LOG  upload this file for analysis');
+      lines.push(hr);
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'hsr_seed_debug_' + Date.now() + '.txt';
+      a.click();
+    }
+
+    //  SCOUT MODE (data-driven) 
+    function renderScout() {
+      const target = document.getElementById('scout-target').value;
+      const wrap = document.getElementById('scout-results-wrap');
+      const winner = document.getElementById('scout-winner');
+      if (!logs.length) {
+        wrap.innerHTML = '<div class="scout-empty">Log at least 1 run above to see data-driven rankings here.</div>';
+        winner.style.display = 'none';
+        return;
+      }
+      const groups = {};
+      logs.forEach(e => {
+        const key = e.idArray;
+        if (!groups[key]) groups[key] = { array: key, order: e.slotOrder.join(' | '), runs: [], totalRelics: 0, targetCount: 0 };
+        groups[key].runs.push(e);
+        e.relics.forEach(r => {
+          groups[key].totalRelics++;
+          r.subs.forEach(s => {
+            if (target === 'Crit Rate+Crit DMG') {
+              if (s === 'Crit Rate' || s === 'Crit DMG') groups[key].targetCount++;
+            } else {
+              if (s === target) groups[key].targetCount++;
+            }
+          });
+        });
+      });
+      const ranked = Object.values(groups).map(g => {
+        let pct = g.totalRelics ? Math.round(g.targetCount / g.totalRelics * 100) : 0;
+        if (target === 'Crit Rate+Crit DMG') pct = Math.round(pct / 2);
+        return { ...g, pct };
+      }).sort((a, b) => b.pct - a.pct);
+      const maxPct = ranked.length ? Math.max(ranked[0].pct, 1) : 1;
+      let html = '<div class="scout-results">';
+      ranked.forEach((g, i) => {
+        const rank = i + 1;
+        const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : 'rn';
+        const entryClass = g.pct >= 40 ? 'best' : g.pct >= 25 ? 'good' : '';
+        const barColor = g.pct >= 40 ? 'var(--gold)' : g.pct >= 25 ? 'var(--green)' : g.pct >= 15 ? 'var(--accent)' : 'var(--text3)';
+        const barWidth = Math.round(g.pct / maxPct * 100);
+        const runLabel = g.runs.length === 1 ? '1 run' : g.runs.length + ' runs';
+        html += `<div class="scout-entry ${entryClass}">
+          <div class="scout-rank ${rankClass}">${rank}</div>
+          <div class="scout-info">
+            <div class="scout-array">[${g.array}]</div>
+            <div class="scout-order">${g.order}</div>
+          </div>
+          <div class="scout-bar-wrap">
+            <div class="scout-bar-track"><div class="scout-bar-fill" style="width:${barWidth}%;background:${barColor}"></div></div>
+          </div>
+          <div class="scout-pct" style="color:${barColor}">${g.pct}%</div>
+          <div class="scout-runs">${runLabel}</div>
+        </div>`;
+      });
+      html += '</div>';
+      wrap.innerHTML = html;
+      if (ranked.length && ranked[0].pct > 0) {
+        const best = ranked[0];
+        const statLabel = target === 'Crit Rate+Crit DMG' ? 'Crit Rate + Crit DMG' : target;
+        document.getElementById('sw-stat-name').textContent = statLabel;
+        document.getElementById('sw-array').textContent = '[' + best.array + ']  ' + best.pct + '% hit rate';
+        document.getElementById('sw-order').textContent = best.order + '  ' + best.runs.length + (best.runs.length === 1 ? ' run' : ' runs') + ' logged';
+        winner.style.display = 'block';
+      } else {
+        winner.style.display = 'none';
+      }
+    }
+
+    //  SLOT RANK MODE 
+
+    //  ZONE ANALYZER 
+    function buildZoneGroups() {
+      const groups = {};
+      logs.forEach(e => {
+        const key = e.idArray;
+        if (!groups[key]) groups[key] = {
+          key, ids: e.ids, names: e.team, slotOrder: e.slotOrder,
+          runs: 0, relics: 0, cr: 0, cd: 0, spd: 0, hpp: 0, brk: 0, effhit: 0, effres: 0, defflat: 0, atkflat: 0
+        };
+        const g = groups[key];
+        g.runs++;
+        e.relics.forEach(r => {
+          g.relics++;
+          r.subs.forEach(s => {
+            if (s === 'Crit Rate') g.cr++;
+            if (s === 'Crit DMG') g.cd++;
+            if (s === 'SPD') g.spd++;
+            if (s === 'HP%') g.hpp++;
+            if (s === 'Break Eff') g.brk++;
+            if (s === 'Effect Hit') g.effhit++;
+            if (s === 'Effect RES') g.effres++;
+            if (s === 'DEF flat') g.defflat++;
+            if (s === 'ATK flat') g.atkflat++;
+          });
+        });
+      });
+      return Object.values(groups).map(g => {
+        const r = Math.max(g.relics, 1);
+        return {
+          ...g,
+          crPct: Math.round(g.cr / r * 100),
+          cdPct: Math.round(g.cd / r * 100),
+          spdPct: Math.round(g.spd / r * 100),
+          hpPct: Math.round(g.hpp / r * 100),
+          brkPct: Math.round(g.brk / r * 100),
+          effhitPct: Math.round(g.effhit / r * 100),
+          effResPct: Math.round(g.effres / r * 100),
+          defPct: Math.round(g.defflat / r * 100),
+          atkflatPct: Math.round(g.atkflat / r * 100),
+          sum: rawSum(g.ids),
+          xor: rawXor(g.ids),
+          slot: rawSlot(g.ids),
+        };
+      });
+    }
+
+    function populateZoneSelect() {
+      const sel = document.getElementById('za-team-select');
+      if (!sel) return;
+      const prev = sel.value;
+      sel.innerHTML = '<option value=""> select a logged team to analyze </option>';
+      const groups = buildZoneGroups().sort((a, b) => (b.crPct + b.cdPct) - (a.crPct + a.cdPct));
+      groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.key;
+        const cr = g.crPct, cd = g.cdPct, spd = g.spdPct;
+        opt.textContent = `[${g.key}] CR${cr}% CD${cd}% SPD${spd}%  ${g.runs}run(s)  ${g.slotOrder.join(' ')}`;
+        sel.appendChild(opt);
+      });
+      if (prev) sel.value = prev;
+    }
+
+    function zaLoadCurrent() {
+      if (!team.every(Boolean)) { alert('Fill all 4 slots first.'); return; }
+      const key = team.map(t => t.id).join('-');
+      const sel = document.getElementById('za-team-select');
+      if (sel) sel.value = key;
+      renderZoneAnalyzer(key);
+    }
+
+    function zaLoadBest() {
+      const groups = buildZoneGroups();
+      if (!groups.length) { alert('No runs logged yet.'); return; }
+      const best = groups.sort((a, b) => (b.crPct + b.cdPct) - (a.crPct + a.cdPct))[0];
+      const sel = document.getElementById('za-team-select');
+      if (sel) sel.value = best.key;
+      renderZoneAnalyzer(best.key);
+    }
+
+    function renderZoneAnalyzer(keyOverride) {
+      const el = document.getElementById('za-content');
+      if (!el) return;
+      const sel = document.getElementById('za-team-select');
+      const key = keyOverride || sel?.value;
+      if (!key) { el.innerHTML = '<div class="scout-empty">Select a team above.</div>'; return; }
+
+      const groups = buildZoneGroups();
+      const g = groups.find(x => x.key === key);
+      if (!g) {
+        // Team not in logs  compute from current team if IDs match
+        if (!team.every(Boolean)) { el.innerHTML = '<div class="scout-empty">This team has no logged runs yet. Log some runs first.</div>'; return; }
+        const ids = team.map(t => t.id);
+        if (ids.join('-') !== key) { el.innerHTML = '<div class="scout-empty">No logged runs for this array. Run it and log relics first.</div>'; return; }
+      }
+
+      const data = g || null;
+      if (!data) { el.innerHTML = '<div class="scout-empty">No logged data for this team.</div>'; return; }
+
+      // Comparison against all other groups
+      const allCrits = groups.map(x => x.crPct + x.cdPct);
+      const maxCrit = Math.max(...allCrits, 1);
+      const rank = groups.sort((a, b) => (b.crPct + b.cdPct) - (a.crPct + a.cdPct)).findIndex(x => x.key === key) + 1;
+      const total = groups.length;
+
+      // Zone flavor detection
+      const critCombined = data.crPct + data.cdPct;
+      let zoneFlavor = 'unclear';
+      let zoneColor = 'var(--text3)';
+      if (critCombined >= 70 && data.spdPct >= 25) { zoneFlavor = ' Crit + SPD zone'; zoneColor = 'var(--gold)'; }
+      else if (critCombined >= 70) { zoneFlavor = ' Crit zone'; zoneColor = 'var(--gold)'; }
+      else if (critCombined >= 40 && data.hpPct >= 30) { zoneFlavor = 'Crit + HP% zone'; zoneColor = 'var(--green)'; }
+      else if (critCombined >= 40) { zoneFlavor = 'Partial crit zone'; zoneColor = 'var(--green)'; }
+      else if (data.spdPct >= 35) { zoneFlavor = 'SPD zone'; zoneColor = 'var(--accent)'; }
+      else if (data.effhitPct >= 40 || data.effResPct >= 40) { zoneFlavor = 'Effect junk zone'; zoneColor = 'var(--red)'; }
+      else if (data.defPct >= 40) { zoneFlavor = 'DEF flat junk zone'; zoneColor = 'var(--red)'; }
+      else { zoneFlavor = 'Mixed/junk zone'; zoneColor = 'var(--text3)'; }
+
+      // Hash context  compare SUM/XOR/SLOT to known crit zones
+      const knownCritZones = [
+        { sum: 5718, xor: 152, slot: 8330, label: 'pre-reset double-crit' },
+        { sum: 5630, xor: 192, slot: 8456, label: 'post-reset crit' },
+        { sum: 5630, xor: 192, slot: 8458, label: 'post-reset crit' },
+        { sum: 5630, xor: 192, slot: 8460, label: 'post-reset crit' },
+        { sum: 4643, xor: 125, slot: 7077, label: 'all-abundance crit' },
+        { sum: 5520, xor: 418, slot: 7942, label: 'Bailu SPD+crit' },
+      ];
+      const closestZone = knownCritZones.reduce((best, z) => {
+        const dist = Math.abs(z.sum - data.sum) * 0.1 + Math.abs(z.xor - data.xor) * 2 + Math.abs(z.slot - data.slot) * 0.05;
+        return dist < best.dist ? { zone: z, dist } : best;
+      }, { zone: null, dist: Infinity });
+
+      // Per-slot hash contribution (S4 has 3x weight)
+      const slotWeights = data.ids.map((id, i) => ({
+        name: data.names[i] || `S${i + 1}`,
+        id,
+        slotWeight: i === 3 ? id * 3 : id,
+        slot: i + 1
+      }));
+
+      // Build HTML
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Zone flavor</div>
+            <div style="font-size:14px;font-weight:700;color:${zoneColor};font-family:var(--mono);">${zoneFlavor}</div>
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:3px;">ranked #${rank} of ${total} logged teams</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Hash signature</div>
+            <div style="font-size:11px;font-family:var(--mono);line-height:1.7;">
+              SUM <strong style="color:var(--accent)">${data.sum}</strong><br>
+              XOR <strong style="color:var(--accent)">${data.xor}</strong><br>
+              SLOT <strong style="color:var(--accent)">${data.slot}</strong>
+            </div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Data quality</div>
+            <div style="font-size:11px;font-family:var(--mono);line-height:1.7;">
+              ${data.runs} run(s)  ${data.relics} relics<br>
+              <span style="color:${data.relics >= 21 ? 'var(--green)' : 'var(--orange)'}">
+                ${data.relics >= 21 ? ' reliable' : ' low  log more runs'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Substat profile</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+          ${[
+          ['Crit Rate', data.crPct, 'var(--gold)'],
+          ['Crit DMG', data.cdPct, 'var(--gold)'],
+          ['SPD', data.spdPct, 'var(--accent)'],
+          ['HP%', data.hpPct, 'var(--green)'],
+          ['Break Eff', data.brkPct, 'var(--purple)'],
+          ['Effect Hit', data.effhitPct, 'var(--red)'],
+          ['Effect RES', data.effResPct, 'var(--red)'],
+        ].map(([name, pct, color]) => `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:10px;color:var(--text2);font-family:var(--mono);width:76px;">${name}</span>
+              <div style="flex:1;height:10px;background:var(--surface2);border-radius:3px;overflow:hidden;border:1px solid var(--border);">
+                <div style="height:100%;width:${Math.min(pct * 2, 100)}%;background:${color};border-radius:3px;transition:width .4s;opacity:${pct >= 30 ? 1 : 0.4};"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${pct >= 35 ? color : 'var(--text3)'};font-family:var(--mono);width:36px;text-align:right;">${pct}%</span>
+            </div>`).join('')}
+        </div>
+
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Per-slot hash weight (S4  3)</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+          ${slotWeights.map(s => `
+            <div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;">
+              <span style="color:var(--text3);width:20px;">S${s.slot}</span>
+              <span style="color:var(--text);width:100px;">${s.name}</span>
+              <span style="color:var(--text3);">ID ${s.id}</span>
+              <span style="color:${s.slot === 4 ? 'var(--gold)' : 'var(--accent)'};"> ${s.slot === 4 ? 3 : 1} = <strong>${s.slotWeight}</strong></span>
+              ${s.slot === 4 ? '<span style="color:var(--gold);font-size:9px;"> drives SLOT hash most</span>' : ''}
+            </div>`).join('')}
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">SLOT raw = ${slotWeights.reduce((a, s) => a + s.slotWeight, 0)}  mod 10000 = <strong style="color:var(--accent)">${data.slot}</strong></div>
+        </div>
+
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Closest known crit reference</div>
+        <div style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;line-height:1.7;">
+          ${closestZone.zone
+          ? `<span style="color:var(--gold)">${closestZone.zone.label}</span>  SUM ${closestZone.zone.sum} XOR ${closestZone.zone.xor} SLOT ${closestZone.zone.slot}<br>
+               Distance: XOR <strong style="color:${Math.abs(closestZone.zone.xor - data.xor) === 0 ? 'var(--gold)' : 'var(--accent)'}">${Math.abs(closestZone.zone.xor - data.xor)}</strong>  SUM ${Math.abs(closestZone.zone.sum - data.sum)}  SLOT ${Math.abs(closestZone.zone.slot - data.slot)}<br>
+               <span style="color:var(--text3)">${Math.abs(closestZone.zone.xor - data.xor) === 0 ? ' Exact XOR match  strong structural alignment' : 'XOR differs  may still hit this week depending on reset state'}</span>`
+          : 'No known reference found.'}
+        </div>`;
+    }
+
+    //  LIGHT CONE UI 
+    let lcPickerSlot = 0;
+
+    function onLCPickerSearchInput() {
+      lcPickerPage = 1;
+      renderLCPicker();
+    }
+
+    function changeLCPickerPage(delta) {
+      lcPickerPage += delta;
+      renderLCPicker();
+    }
+
+    function sortLCsForSlot(pool, slot, samePathFirst = true) {
+      const charPath = team[slot]?.path || '';
+      return [...pool].sort((a, b) => {
+        if (samePathFirst && charPath) {
+          const aMismatch = a.path === charPath ? 0 : 1;
+          const bMismatch = b.path === charPath ? 0 : 1;
+          if (aMismatch !== bMismatch) return aMismatch - bMismatch;
+        }
+        if (a.rarity !== b.rarity) return b.rarity - a.rarity;
+        const nameCmp = a.name.localeCompare(b.name);
+        if (nameCmp !== 0) return nameCmp;
+        return a.id - b.id;
+      });
+    }
+
+    function renderLCSlotRows() {
+      const wrap = document.getElementById('lc-slot-rows');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      for (let i = 0; i < 4; i++) {
+        const char = team[i];
+        const lc = teamLCs[i];
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;';
+
+        const slotLabel = `<span style="font-size:10px;color:var(--text3);font-family:var(--mono);width:20px;flex-shrink:0;">S${i + 1}</span>`;
+        const charLabel = char
+          ? `<span style="font-size:11px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${char.name} <span style="color:var(--text3);font-size:9px;">(${char.path})</span></span>`
+          : `<span style="font-size:11px;color:var(--text3);flex:1;"> - empty slot - </span>`;
+
+        let lcLabel, linkBadge = '';
+        if (lc) {
+          const samePathColor = lc.path === char?.path ? 'var(--green)' : 'var(--orange)';
+          const samePathText = lc.path === char?.path ? 'same-path' : 'path mismatch';
+          linkBadge = `<span style="font-size:9px;color:${samePathColor};font-family:var(--mono);border:1px solid ${samePathColor};border-radius:3px;padding:0 4px;">${samePathText}</span>`;
+          lcLabel = `<span style="font-size:10px;color:var(--orange);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${lc.name} <span style="color:var(--text3);font-size:9px;">${lc.id}</span></span>`;
+        } else {
+          lcLabel = `<span style="font-size:10px;color:var(--text3);flex:1;">no LC assigned</span>`;
+        }
+
+        const btnAssign = `<button class="btn" style="font-size:9px;padding:3px 7px;border-color:var(--orange);color:var(--orange);" onclick="openLCPicker(${i})">Assign</button>`;
+        const btnClear = lc ? `<button class="btn" style="font-size:9px;padding:3px 7px;" onclick="teamLCs[${i}]=null;renderLCSlotRows();compute();">X</button>` : '';
+
+        row.innerHTML = slotLabel + charLabel + lcLabel + linkBadge + btnAssign + btnClear;
+        wrap.appendChild(row);
+      }
+    }
+
+    function openLCPicker(slot) {
+      lcPickerSlot = slot;
+      const picker = document.getElementById('lc-picker');
+      const label = document.getElementById('lc-picker-slot-label');
+      if (!picker || !label) return;
+      const char = team[slot];
+      label.textContent = `S${slot + 1}${char ? ' (' + char.name + ' - ' + char.path + ')' : ''}`;
+      picker.style.display = '';
+      const searchEl = document.getElementById('lc-search');
+      if (searchEl) {
+        searchEl.value = '';
+        searchEl.focus();
+      }
+      lcPickerPage = 1;
+      lcPickerLastFilterKey = '';
+      renderLCPicker();
+      picker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeLCPicker() {
+      const picker = document.getElementById('lc-picker');
+      if (picker) picker.style.display = 'none';
+    }
+
+    function clearSlotLC() {
+      teamLCs[lcPickerSlot] = null;
+      closeLCPicker();
+      renderLCSlotRows();
+      compute();
+    }
+
+    function onLCPickerSearchInput() {
+      lcPickerPage = 1;
+      renderLCPicker();
+    }
+
+    function renderLCPicker() {
+      const grid = document.getElementById('lc-grid');
+      const pagination = document.getElementById('lc-picker-pagination');
+      if (!grid) return;
+
+      const q = (document.getElementById('lc-search')?.value || '').toLowerCase().trim();
+      const samePathFirst = document.getElementById('lc-same-path-first')?.checked;
+      const fiveStarOnly = document.getElementById('lc-5star-only')?.checked;
+      const char = team[lcPickerSlot];
+      const charPath = char?.path || '';
+
+      let pool = LIGHT_CONES.filter(lc => {
+        if (fiveStarOnly && lc.rarity !== 5) return false;
+        if (!q) return true;
+        return lc.name.toLowerCase().includes(q) || lc.path.toLowerCase().includes(q);
+      });
+
+      pool = sortLCsForSlot(pool, lcPickerSlot, samePathFirst);
+
+      const filterKey = `${lcPickerSlot}|${q}|${samePathFirst ? 1 : 0}|${fiveStarOnly ? 1 : 0}`;
+      if (filterKey !== lcPickerLastFilterKey) {
+        lcPickerPage = 1;
+        lcPickerLastFilterKey = filterKey;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(pool.length / LC_PICKER_ITEMS_PER_PAGE));
+      if (lcPickerPage > totalPages) lcPickerPage = totalPages;
+      if (lcPickerPage < 1) lcPickerPage = 1;
+
+      const start = (lcPickerPage - 1) * LC_PICKER_ITEMS_PER_PAGE;
+      const paginatedPool = pool.slice(start, start + LC_PICKER_ITEMS_PER_PAGE);
+
+      grid.innerHTML = '';
+      if (!paginatedPool.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px 0;">No Light Cones match this search/filter.</div>';
+      }
+
+      paginatedPool.forEach(lc => {
+        const canUse = canAssignLC(lc.id, lcPickerSlot);
+        const isAssigned = teamLCs[lcPickerSlot]?.id === lc.id;
+        const samePath = lc.path === charPath;
+        const d = document.createElement('div');
+        d.style.cssText = `background:var(--surface);border:1px solid ${isAssigned ? 'var(--orange)' : samePath ? 'rgba(105,240,174,.3)' : 'var(--border)'};border-radius:4px;padding:6px 8px;cursor:${canUse ? 'pointer' : 'not-allowed'};opacity:${canUse ? 1 : 0.4};transition:border-color .12s;`;
+        d.innerHTML = `<div style="font-size:11px;font-weight:600;color:${isAssigned ? 'var(--orange)' : 'var(--text)'};">${lc.name}</div>
+          <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px;">${lc.id} - ${lc.path} - ${'*'.repeat(lc.rarity)}</div>
+          <div style="font-size:9px;color:${samePath ? 'var(--green)' : 'var(--orange)'};font-family:var(--mono);margin-top:2px;">${samePath ? 'same-path' : 'path mismatch'}</div>
+          ${!canUse ? '<div style="font-size:9px;color:var(--red);font-family:var(--mono);">copies limit reached</div>' : ''}`;
+        if (canUse) {
+          d.addEventListener('click', () => {
+            teamLCs[lcPickerSlot] = lc;
+            closeLCPicker();
+            renderLCSlotRows();
+            compute();
+          });
+        }
+        grid.appendChild(d);
+      });
+
+      if (pagination) {
+        const showPagination = pool.length > LC_PICKER_ITEMS_PER_PAGE;
+        pagination.style.display = showPagination ? 'flex' : 'none';
+
+        const currentEl = document.getElementById('lc-current-page-val');
+        const totalEl = document.getElementById('lc-total-pages-val');
+        const prevBtn = document.getElementById('lc-prev-page');
+        const nextBtn = document.getElementById('lc-next-page');
+        const countEl = document.getElementById('lc-result-count');
+
+        if (currentEl) currentEl.textContent = lcPickerPage;
+        if (totalEl) totalEl.textContent = totalPages;
+        if (countEl) countEl.textContent = `${pool.length} result${pool.length === 1 ? '' : 's'}`;
+        if (prevBtn) prevBtn.disabled = lcPickerPage === 1;
+        if (nextBtn) nextBtn.disabled = lcPickerPage === totalPages;
+      }
+    }
+
+    function renderLCOwnershipList() {
+      const wrap = document.getElementById('lc-ownership-list');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      LIGHT_CONES.forEach(lc => {
+        const owned = getLCCopiesOwned(lc.id);
+        const d = document.createElement('div');
+        d.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono);color:var(--text2);';
+        d.innerHTML = `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${lc.name}">${lc.name}</span>
+          <span style="color:var(--text3);font-size:9px;">${lc.path}</span>
+          <input type="number" min="0" max="5" value="${owned}" style="width:40px;font-size:11px;" data-lc-id="${lc.id}" oninput="setLCOwned(${lc.id}, this.value)">`;
+        wrap.appendChild(d);
+      });
+    }
+
+    function setLCOwned(lcId, val) {
+      const n = parseInt(val) || 0;
+      if (n <= 0) delete ownedLCs[lcId]; else ownedLCs[lcId] = n;
+      saveOwnedLCs();
+      // Remove LC from slots if now over-assigned
+      const teamCount = teamLCs.filter(lc => lc && lc.id === lcId).length;
+      if (n > 0 && teamCount > n) {
+        let removed = 0;
+        for (let i = 3; i >= 0; i--) {
+          if (teamLCs[i] && teamLCs[i].id === lcId && removed < teamCount - n) { teamLCs[i] = null; removed++; }
+        }
+        renderLCSlotRows(); compute();
+      }
+    }
+
+    //  LC VARY MODE 
+    function renderLCVaryPanel() {
+      const wrap = document.getElementById('lc-vary-list');
+      if (!wrap) return;
+      if (!team.every(Boolean)) { wrap.innerHTML = '<div class="scout-empty">Fill all 4 character slots first.</div>'; return; }
+      
+      const searchTerm = document.getElementById('lc-vary-search')?.value.toLowerCase() || '';
+      const showAll = document.getElementById('lc-vary-show-all')?.checked || false;
+
+      const ids = team.map(t => t.id);
+      const charSum = rawSum(ids); const charXor = rawXor(ids); const charSlot = rawSlot(ids);
+
+      wrap.innerHTML = '';
+      for (let slot = 0; slot < 4; slot++) {
+        const char = team[slot];
+        const currentLC = teamLCs[slot];
+        const section = document.createElement('div');
+        section.style.cssText = 'margin-bottom:14px;';
+        section.innerHTML = `<div style="font-size:11px;color:var(--text2);font-family:var(--mono);font-weight:600;margin-bottom:6px;">S${slot + 1}: ${char.name}  try these LCs:</div>`;
+
+        let candidates = LIGHT_CONES.filter(lc => {
+          if (!canAssignLC(lc.id, slot)) return false;
+          if (searchTerm && !lc.name.toLowerCase().includes(searchTerm)) return false;
+          return true;
+        }).map(lc => {
+          const lcIds = teamLCs.map((tlc, i) => i === slot ? lc.id : (tlc ? tlc.id : 0));
+          const lcXor = Math.abs(lcIds.reduce((a, b) => a ^ b, 0));
+          const lcSum = lcIds.reduce((a, b) => a + b, 0);
+          const lcSlot = (lcIds[3] * 3 + lcIds[0] + lcIds[1] + lcIds[2]) % 10000;
+          const comboXor = charXor ^ lcXor;
+          return { lc, lcXor, lcSum, lcSlot, comboXor };
+        }).sort((a, b) => {
+          const aMismatch = a.lc.path === char.path ? 0 : 1;
+          const bMismatch = b.lc.path === char.path ? 0 : 1;
+          if (aMismatch !== bMismatch) return aMismatch - bMismatch;
+          if (a.comboXor !== b.comboXor) return a.comboXor - b.comboXor;
+          if (a.lcXor !== b.lcXor) return a.lcXor - b.lcXor;
+          if (a.lc.rarity !== b.lc.rarity) return b.lc.rarity - a.lc.rarity;
+          return a.lc.name.localeCompare(b.lc.name);
+        });
+
+        if (!showAll && !searchTerm) {
+          candidates = candidates.slice(0, 8);
+        }
+
+        if (candidates.length === 0) {
+           section.innerHTML += `<div style="font-size:10px;color:var(--text3);padding:4px 0;">No matching LCs.</div>`;
+        }
+
+        candidates.forEach(({ lc, comboXor, lcXor }) => {
+          const isCurrent = currentLC?.id === lc.id;
+          const samePath = lc.path === char.path;
+          const d = document.createElement('div');
+          d.className = 'helper-item';
+          d.style.borderColor = isCurrent ? 'var(--orange)' : '';
+          d.innerHTML = `<div class="helper-top">
+            <div class="helper-name" style="font-size:11px;">${lc.name}</div>
+            <div class="helper-score" style="color:var(--orange);">combo XOR ${comboXor}  LC XOR ${lcXor}</div>
+          </div>
+          <div class="helper-meta">${lc.id}  ${lc.path}  ${'*'.repeat(lc.rarity)}  ${samePath ? '<span style="color:var(--green)">same-path</span>' : '<span style="color:var(--orange)">mismatch</span>'}</div>`;
+          d.addEventListener('click', () => { teamLCs[slot] = lc; renderLCSlotRows(); renderLCVaryPanel(); compute(); });
+          section.appendChild(d);
+        });
+        wrap.appendChild(section);
+      }
+    }
+
+    init();
+  </script>
+</body>
+
+</html>

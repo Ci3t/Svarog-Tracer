@@ -43,13 +43,17 @@ body:is(.crimson-theme, .void-theme) {
 }
 
 :is(.crimson-theme, .void-theme) .theme-panel-surface,
-:is(.crimson-theme, .void-theme) .theme-subpanel,
 :is(.crimson-theme, .void-theme) .modal-section,
 :is(.crimson-theme, .void-theme) .cavern-domain-card,
 :is(.crimson-theme, .void-theme) .archive-team-card,
 :is(.crimson-theme, .void-theme) .archive-team-stats {
   position: relative;
   overflow: hidden;
+}
+
+:is(.crimson-theme, .void-theme) .theme-subpanel {
+  position: relative;
+  /* overflow: hidden removed to allow scolling in archive modal */
 }
 
 :is(.crimson-theme, .void-theme) .theme-glass-card::before,

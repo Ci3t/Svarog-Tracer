@@ -4,6 +4,14 @@ import { gsap } from "gsap";
 import { Cpu, Flame, Snowflake, Sparkles, Star } from "lucide-react";
 import HomeStatsWidget from "../components/HomeStatsWidget";
 import { getSessionThemeConfig, THEME_OPTIONS } from "../theme/sessionThemeConfig";
+import ArcticSnow from "../components/snow/ArcticSnow";
+import AstralStars from "../components/snow/AstralStars";
+import AstralExpress from "../components/snow/AstralExpress";
+import VoidPetals from "../components/snow/VoidPetals";
+import CrimsonBloom from "../components/snow/CrimsonBloom";
+import SilverWolf999Backdrop from "../components/snow/SilverWolf999Backdrop";
+import AetherEffect from "../components/snow/AetherEffect";
+import { useAuth } from "../hooks/useAuth";
 
 const HOME_THEME_ICONS = {
   modern: Sparkles,
@@ -17,6 +25,7 @@ export default function HomePage({
   sessionTheme = "modern",
   onThemeChange = () => {},
 }) {
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const normalizedSessionTheme =
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
@@ -30,7 +39,7 @@ export default function HomePage({
     "Decrypt the hidden rhythms of the gacha. A sophisticated observation suite built to visualize RNG patterns and historical probability peaks.";
   const tlRef = useRef(null);
 
-  const modes = [
+  const baseModes = [
     {
       title: "Scanner",
       label: "Live Predictor",
@@ -81,6 +90,19 @@ export default function HomePage({
       icon: "🗓️",
     },
   ];
+
+  const modes = isAuthenticated
+    ? [
+        ...baseModes,
+        {
+          title: "Nexus",
+          label: "Zone Tracker",
+          desc: "Collaborative drop mapping and team efficiency analysis.",
+          path: "/zone-tracker",
+          icon: "🌀",
+        },
+      ]
+    : baseModes;
 
   useEffect(() => {
     gsap.set(".hero-content > *, .mode-card", { y: 30, opacity: 0 });
@@ -162,6 +184,58 @@ export default function HomePage({
     return () => clearInterval(interval);
   }, [isSplashDone, fullText]);
 
+  const renderHomeThemeEffects = () => {
+    if (normalizedSessionTheme === "arctic") {
+      return (
+        <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none opacity-95">
+          <ArcticSnow particleCount={36} speedScale={0.7} />
+        </div>
+      );
+    }
+
+    if (normalizedSessionTheme === "crimson") {
+      return (
+        <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
+          <div className="opacity-95">
+            <CrimsonBloom />
+          </div>
+          <div className="opacity-100">
+            <VoidPetals />
+          </div>
+        </div>
+      );
+    }
+
+    if (normalizedSessionTheme === "neon") {
+      return (
+        <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
+          <div className="opacity-90">
+            <SilverWolf999Backdrop image="999SW.png" />
+          </div>
+          <div className="opacity-85">
+            <AetherEffect />
+          </div>
+        </div>
+      );
+    }
+
+    if (normalizedSessionTheme === "astral") {
+      return (
+        <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
+          <div className="opacity-100">
+            <AstralStars />
+          </div>
+          <div className="opacity-90">
+            <AstralExpress />
+          </div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(227,192,114,0.12),transparent_34%)]" />
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div
       className={`relative min-h-screen overflow-x-hidden font-sans ${
@@ -236,6 +310,7 @@ export default function HomePage({
             }`}
           />
         )}
+        {renderHomeThemeEffects()}
         <div
           className={`absolute inset-0 ${
             homeTheme.overlayClass ||
@@ -308,7 +383,7 @@ export default function HomePage({
                 homeTheme.chipPrimaryClass || "bg-slate-900/30 border-white/5 text-slate-400"
               }`}
             >
-              Ver.4.0.2 FCS
+              Ver.4.1.0 FCS
             </div>
             <div
               className={`px-6 py-2 border rounded-full text-[10px] uppercase tracking-widest font-medium backdrop-blur-sm ${

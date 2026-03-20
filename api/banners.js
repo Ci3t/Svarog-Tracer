@@ -1,18 +1,11 @@
+import { GENSHIN_BANNER_CONTROL } from './_services/genshin/bannerControl.js';
+// Patch-day banner IDs live in api/_services/genshin/bannerControl.js
+
 // =========================================================================
 // GENSHIN CONTROL CENTER - Edit this for new characters!
 // =========================================================================
 const GENSHIN_CONFIG = {
-  // 1. Current Active Banner IDs (Check Paimon.moe/wish/tally)
-  active: {
-    charBannerId: "300097",
-    weaponBannerId: "400095",
-    // Set to null to enable FULL AUTO. Only use for emergency fixes.
-    forceName: null,
-    forceWeaponName: null,
-    forceImage: null,
-  },
-
-  // 2. Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
+  // Character Whitelist (Add new 5-stars here - LOWERCASE ONLY)
   characters: [
     'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
     'baizhu', 'chasca', 'chiori', 'clorinde', 'columbina', 'cyno', 'emilie',
@@ -45,7 +38,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 3, // Increment this to force cache refresh (was 1, now 2 for 4-banner support)
+  CACHE_VERSION: 4, // Increment this to force cache refresh after fallback logic updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -65,8 +58,14 @@ const CACHE_KEY = `banner_cache_v${CONFIG.CACHE_VERSION}`;
 let BANNER_CACHE = {
   data: null,
   timestamp: 0,
-  version: CONFIG.CACHE_VERSION
+  version: CONFIG.CACHE_VERSION,
+  game: 'all'
 };
+
+function normalizeGameQuery(value) {
+  const normalized = String(value || 'all').trim().toLowerCase();
+  return ['all', 'hsr', 'genshin', 'wuwa'].includes(normalized) ? normalized : 'all';
+}
 
 // =========================================================================
 // HELPER FUNCTIONS
@@ -190,15 +189,49 @@ function toPaimonSlug(name) {
     .replace(/^_+|_+$/g, '');
 }
 
+const GENSHIN_FOUR_STAR_CHARACTER_BLOCKLIST = new Set([
+  'fischl', 'chevreuse', 'bennett', 'xiangling', 'xingqiu', 'barbara',
+  'noelle', 'sucrose', 'diona', 'chongyun', 'razor', 'beidou', 'ningguang',
+  'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou',
+  'yun_jin', 'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla',
+  'faruzan', 'yaoyao', 'mika', 'kaveh', 'kirara', 'lynette', 'freminet',
+  'charlotte', 'gaming', 'sethos', 'kachina', 'ororon', 'lan_yan', 'lanyan', 'aino'
+]);
+
+const GENSHIN_FOUR_STAR_WEAPON_BLOCKLIST = new Set([
+  'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade',
+  'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
+  'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
+]);
+
+const GENSHIN_STANDARD_WEAPONS = new Set([
+  'amos_bow', 'skyward_harp', 'skyward_atlas', 'lost_prayer_to_the_sacred_winds',
+  'primordial_jade_winged_spear', 'skyward_spine', 'wolfs_gravestone', 'skyward_pride',
+  'skyward_blade', 'aquila_favonia'
+]);
+
 function extractGenshinFeaturedCharacterSlugs(pullList) {
   if (!pullList || pullList.length === 0) return [];
 
-  return pullList
-    .filter(p =>
-      p.type === 'character' &&
-      GENSHIN_CONFIG.characters.includes(p.name.toLowerCase()) &&
-      !GENSHIN_CONFIG.standard.includes(p.name.toLowerCase())
-    )
+  const normalized = pullList.filter(p =>
+    p.type === 'character' &&
+    !GENSHIN_CONFIG.standard.includes(p.name.toLowerCase())
+  );
+
+  const curated = normalized.filter(p => GENSHIN_CONFIG.characters.includes(p.name.toLowerCase()));
+  if (curated.length > 0) {
+    return curated
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2)
+      .map(p => p.name);
+  }
+
+  return normalized
+    .filter(p => {
+      const slug = p.name.toLowerCase();
+      if (GENSHIN_FOUR_STAR_CHARACTER_BLOCKLIST.has(slug)) return false;
+      return p.count > 300 && p.count < 35000;
+    })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -207,11 +240,25 @@ function extractGenshinFeaturedCharacterSlugs(pullList) {
 function extractGenshinFeaturedWeaponSlugs(pullList) {
   if (!pullList || pullList.length === 0) return [];
 
-  return pullList
-    .filter(p =>
-      p.type === 'weapon' &&
-      GENSHIN_CONFIG.weapons.includes(p.name.toLowerCase())
-    )
+  const normalized = pullList.filter(p =>
+    p.type === 'weapon' &&
+    !GENSHIN_STANDARD_WEAPONS.has(p.name.toLowerCase())
+  );
+
+  const curated = normalized.filter(p => GENSHIN_CONFIG.weapons.includes(p.name.toLowerCase()));
+  if (curated.length > 0) {
+    return curated
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2)
+      .map(p => p.name);
+  }
+
+  return normalized
+    .filter(p => {
+      const slug = p.name.toLowerCase();
+      if (GENSHIN_FOUR_STAR_WEAPON_BLOCKLIST.has(slug)) return false;
+      return p.count > 200 && p.count < 35000;
+    })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(p => p.name);
@@ -231,10 +278,30 @@ function extractGenshinWeaponNames(pullList) {
   return featured.map(toTitleCaseFromSlug).join(' / ');
 }
 async function fetchActiveGenshinBanners() {
-  const manualBanners = [];
+  // 1. Build normalized banner payload from paimon.moe list data
+  const buildBannerPayload = (bannerId, type, list, source) => {
+    const featuredSlugs = type === 'weapon'
+      ? extractGenshinFeaturedWeaponSlugs(list)
+      : extractGenshinFeaturedCharacterSlugs(list);
 
-  // 1. Helper: Search for precise banner data near a specific ID
-  const findBanners = async (startId, prefix, type) => {
+    if (type === 'character' && featuredSlugs.length === 0) return null;
+
+    const name = type === 'weapon'
+      ? (featuredSlugs.length ? featuredSlugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation')
+      : featuredSlugs.map(toTitleCaseFromSlug).join(' / ');
+
+    const firstSlug = featuredSlugs[0];
+    const image = type === 'weapon'
+      ? (firstSlug
+        ? `https://paimon.moe/images/weapons/${firstSlug}.png`
+        : `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`)
+      : (firstSlug ? `https://paimon.moe/images/characters/${firstSlug}.png` : null);
+
+    return { id: bannerId, name, type, image, game: 'genshin', source };
+  };
+
+  // 2. Search nearby IDs (auto-discovery)
+  const findBannerNear = async (startId, prefix, type) => {
     const scanRange = [];
     for (let i = startId + 2; i >= startId - 8 && i >= 0; i--) {
       scanRange.push(`${prefix}${String(i).padStart(3, '0')}`);
@@ -246,26 +313,11 @@ async function fetchActiveGenshinBanners() {
         if (!res.ok) continue;
 
         const data = await res.json();
-        if (!(data.total && data.total.legendary > 1000)) continue;
+        const legendaryCount = data?.total?.legendary || 0;
+        if (legendaryCount <= 1000) continue;
 
-        const featuredSlugs = type === 'weapon'
-          ? extractGenshinFeaturedWeaponSlugs(data.list)
-          : extractGenshinFeaturedCharacterSlugs(data.list);
-
-        if (type === 'character' && featuredSlugs.length === 0) continue;
-
-        const name = type === 'weapon'
-          ? (featuredSlugs.length ? featuredSlugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation')
-          : featuredSlugs.map(toTitleCaseFromSlug).join(' / ');
-
-        const firstSlug = featuredSlugs[0];
-        const image = type === 'weapon'
-          ? (firstSlug
-            ? `https://paimon.moe/images/weapons/${firstSlug}.png`
-            : `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`)
-          : `https://paimon.moe/images/characters/${firstSlug}.png`;
-
-        return { id: bannerId, name, type, image, game: 'genshin', source: 'auto' };
+        const payload = buildBannerPayload(bannerId, type, data.list, 'auto');
+        if (payload) return payload;
       } catch {
         continue;
       }
@@ -274,61 +326,154 @@ async function fetchActiveGenshinBanners() {
     return null;
   };
 
-  // 2. Perform Auto-Discovery
+  // 3. Exact ID fallback (single source-of-truth: GENSHIN_BANNER_CONTROL)
+  const fetchBannerByExactId = async (bannerId, type) => {
+    if (!bannerId) return null;
+
+    try {
+      const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, CONFIG.TIMEOUT_GENSHIN);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      const legendaryCount = data?.total?.legendary || 0;
+      if (legendaryCount < 200) return null;
+
+      return buildBannerPayload(bannerId, type, data.list, 'manual-id');
+    } catch {
+      return null;
+    }
+  };
+
   console.log('[Genshin] Running intelligent auto-discovery...');
-  const targetCharId = parseInt(GENSHIN_CONFIG.active.charBannerId?.slice(-3) || '115');
-  const targetWpnId = parseInt(GENSHIN_CONFIG.active.weaponBannerId?.slice(-3) || '115');
+
+  const targetCharId = parseInt(GENSHIN_BANNER_CONTROL.characterBannerId?.slice(-3) || '97', 10);
+  const targetWpnId = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId?.slice(-3) || '95', 10);
 
   const [charAuto, wpnAuto] = await Promise.all([
-    findBanners(targetCharId, '300', 'character'),
-    findBanners(targetWpnId, '400', 'weapon')
+    findBannerNear(targetCharId, '300', 'character'),
+    findBannerNear(targetWpnId, '400', 'weapon')
   ]);
 
-  // 3. Build manual fallback entries per missing side (or explicit force)
-  const shouldBuildManual = !charAuto || !wpnAuto || GENSHIN_CONFIG.active.forceName || GENSHIN_CONFIG.active.forceWeaponName;
-  if (shouldBuildManual) {
-    if (GENSHIN_CONFIG.active.charBannerId && (GENSHIN_CONFIG.active.forceName || !charAuto)) {
-      const forcedCharSlug = toPaimonSlug(GENSHIN_CONFIG.active.forceName);
-      manualBanners.push({
-        id: GENSHIN_CONFIG.active.charBannerId,
-        name: GENSHIN_CONFIG.active.forceName || 'Character Event Wish',
-        type: 'character',
-        image: GENSHIN_CONFIG.active.forceImage || (forcedCharSlug ? `https://paimon.moe/images/characters/${forcedCharSlug}.png` : null),
-        game: 'genshin',
-        source: 'manual'
-      });
-    }
+  let characterBanner = charAuto;
+  let weaponBanner = wpnAuto;
 
-    if (GENSHIN_CONFIG.active.weaponBannerId && (GENSHIN_CONFIG.active.forceWeaponName || !wpnAuto)) {
-      const forcedWeaponSlug = toPaimonSlug(GENSHIN_CONFIG.active.forceWeaponName);
-      manualBanners.push({
-        id: GENSHIN_CONFIG.active.weaponBannerId,
-        name: GENSHIN_CONFIG.active.forceWeaponName || 'Epitome Invocation',
-        type: 'weapon',
-        image: forcedWeaponSlug
-          ? `https://paimon.moe/images/weapons/${forcedWeaponSlug}.png`
-          : `https://paimon.moe/images/banners/Epitome%20Invocation%20${GENSHIN_CONFIG.active.weaponBannerId.slice(-2)}.png`,
-        game: 'genshin',
-        source: 'manual'
-      });
-    }
+  if (!characterBanner) {
+    characterBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character');
+  }
+  if (!weaponBanner) {
+    weaponBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon');
   }
 
-  const manualChar = manualBanners.find(b => b.type === 'character');
-  const manualWeapon = manualBanners.find(b => b.type === 'weapon');
+  // 4. Optional emergency manual overrides (lowest priority)
+  if (GENSHIN_BANNER_CONTROL.overrideCharacterName) {
+    const forcedCharSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideCharacterName);
+    characterBanner = {
+      id: GENSHIN_BANNER_CONTROL.characterBannerId,
+      name: GENSHIN_BANNER_CONTROL.overrideCharacterName,
+      type: 'character',
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || (forcedCharSlug ? `https://paimon.moe/images/characters/${forcedCharSlug}.png` : characterBanner?.image || null),
+      game: 'genshin',
+      source: 'manual-override'
+    };
+  }
 
-  const results = [];
-  if (charAuto && !GENSHIN_CONFIG.active.forceName) results.push(charAuto);
-  else if (manualChar) results.push(manualChar);
+  if (GENSHIN_BANNER_CONTROL.overrideWeaponName) {
+    const forcedWeaponSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideWeaponName);
+    weaponBanner = {
+      id: GENSHIN_BANNER_CONTROL.weaponBannerId,
+      name: GENSHIN_BANNER_CONTROL.overrideWeaponName,
+      type: 'weapon',
+      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage || (forcedWeaponSlug
+        ? `https://paimon.moe/images/weapons/${forcedWeaponSlug}.png`
+        : (weaponBanner?.image || `https://paimon.moe/images/banners/Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`)),
+      game: 'genshin',
+      source: 'manual-override'
+    };
+  }
 
-  if (wpnAuto && !GENSHIN_CONFIG.active.forceWeaponName) results.push(wpnAuto);
-  else if (manualWeapon) results.push(manualWeapon);
-
-  return results;
+  return [characterBanner, weaponBanner].filter(Boolean);
 }
 // =========================================================================
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
+const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100034': {
+    name: 'Sigrika',
+    type: 'character',
+  },
+  '200034': {
+    name: 'Solsworn Ciphers',
+    type: 'weapon',
+  },
+});
+
+function slugifyWuWaName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+function buildWuWaImageUrl(folder, fileName) {
+  return `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
+}
+
+function extractWuWaImageFromHtml(html) {
+  const patterns = [
+    /\/_next\/image\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^"'\\\s>]+/gi,
+    /\/api\/(?:character|weapon)-portraits\/file\/[^"'\\\s>]+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match?.[0]) continue;
+    
+    // Fix malformed URLs (e.g. &amp; instead of &) and escape sequences
+    const raw = match[0]
+      .replace(/\\u0026/g, '&')
+      .replace(/&amp;/g, '&')
+      .replace(/\\/g, '');
+      
+    if (raw.startsWith('/_next/image')) {
+      return raw.startsWith('http') ? raw : `https://wuwatracker.com${raw}`;
+    }
+    const cleaned = raw.replace(/^\/+/, '');
+    return `https://wuwatracker.com/${cleaned}`;
+  }
+
+  return null;
+}
+
+async function fetchWuWaStatsImage(bannerId, bannerName, type) {
+  try {
+    const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
+    const directRes = await fetch(statsUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
+    });
+    if (directRes.ok) {
+      const html = await directRes.text();
+      const extracted = extractWuWaImageFromHtml(html);
+      if (extracted) return extracted;
+    }
+  } catch (e) {
+    console.warn(`[WuWa] Stats image fetch failed for ${bannerName || bannerId}: ${e.message}`);
+  }
+
+  const known = WUWA_KNOWN_BANNERS[String(bannerId)] || null;
+  const resolvedType = known?.type || type;
+  const folder = resolvedType === 'character' ? 'character-portraits' : 'weapon-portraits';
+  const slug = slugifyWuWaName(known?.name || bannerName);
+  const knownCandidates = Array.isArray(known?.candidates) ? known.candidates : [];
+  const generatedCandidates = resolvedType === 'character'
+    ? [`${slug}-portrait.webp`, `${slug}-portrait.png`, `${slug}.webp`, `${slug}.png`]
+    : [`${slug}-portrait.png`, `${slug}.png`, `${slug}-portrait.webp`, `${slug}.webp`];
+  const fileName = [...knownCandidates, ...generatedCandidates].find(Boolean);
+  return fileName ? buildWuWaImageUrl(folder, fileName) : null;
+}
+
 async function fetchWuWaLiveBanners() {
   const statsUrl = `${CONFIG.WUWA_TRACKER}`;
   let html = null;
@@ -396,37 +541,41 @@ async function fetchWuWaLiveBanners() {
       if (name.toLowerCase().includes('standard')) continue;
 
       const type = isCharacter ? 'character' : 'weapon';
-      const nameSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const ext = 'png';
-      const imgPath = isCharacter ? 'character-portraits' : 'weapon-portraits';
-      const fileName = isCharacter ? `${nameSlug}-portrait.${ext}` : `${nameSlug}.${ext}`;
+      const resolvedName = WUWA_KNOWN_BANNERS[id]?.name || name;
+      
+      // OPTIMIZATION: Use slug-based images instead of fetching sub-pages during discovery
+      const firstName = resolvedName.split('&')[0].trim();
+      const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
+      const ext = type === 'character' ? 'webp' : 'png';
+      const image = `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${slug}-portrait.${ext}`)}&w=828&q=75`;
 
       banners.push({
         id,
-        name,
+        name: resolvedName,
         type,
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imgPath}%2Ffile%2F${fileName}&w=828&q=75`,
+        image,
         game: 'wuwa'
       });
     }
 
-    // Emergency Fallback for Aemeath
-    if (!banners.some(b => b.id === '100032') && html.includes('Aemeath')) {
+    // Emergency Fallback for Sigrika
+    if (!banners.some(b => b.id === '100034') && html.includes('Sigrika')) {
       banners.push({
-        id: '100032',
-        name: 'Aemeath',
+        id: '100034',
+        name: 'Sigrika',
         type: 'character',
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Faemeath-portrait.png&w=828&q=75`,
+        image: buildWuWaImageUrl('character-portraits', 'sigrika-portrait.webp'),
         game: 'wuwa'
       });
     }
-    // Emergency Fallback for Everbright Polestar
-    if (!banners.some(b => b.id === '200032') && html.includes('Everbright Polestar')) {
+    // Emergency Fallback for Solsworn Ciphers
+    if (!banners.some(b => b.id === '200034') && (html.includes('Solsworn Ciphers') || html.includes('Emerald Sentence'))) {
       banners.push({
-        id: '200032',
-        name: 'Everbright Polestar',
+        id: '200034',
+        name: 'Solsworn Ciphers',
         type: 'weapon',
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Feverbright-polestar.png&w=828&q=75`,
+        image: buildWuWaImageUrl('weapon-portraits', 'solsworn-ciphers-portrait.png'),
         game: 'wuwa'
       });
     }
@@ -466,9 +615,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    const requestedGame = normalizeGameQuery(req.query?.game);
     // Check cache (validate both time AND version)
     const cacheValid = BANNER_CACHE.data &&
       BANNER_CACHE.version === CONFIG.CACHE_VERSION &&
+      BANNER_CACHE.game === requestedGame &&
       (Date.now() - BANNER_CACHE.timestamp < CACHE_DURATION);
 
     if (cacheValid) {
@@ -482,19 +633,36 @@ export default async function handler(req, res) {
       console.log('[Banners API] Cache version mismatch - invalidating old cache');
     }
 
-    console.log('[Banners API] Fetching fresh data from all sources...');
+    console.log(`[Banners API] Fetching fresh data for ${requestedGame}...`);
 
-    // Fetch all banner data in parallel
-    const [hsr, genshin, wuwa] = await Promise.all([
-      fetchHSRActiveBanners(),
-      fetchActiveGenshinBanners(),
-      fetchWuWaLiveBanners()
-    ]);
+    const tasks = [];
+    if (requestedGame === 'all' || requestedGame === 'hsr') {
+      tasks.push(['hsr', fetchHSRActiveBanners()]);
+    }
+    if (requestedGame === 'all' || requestedGame === 'genshin') {
+      tasks.push(['genshin', fetchActiveGenshinBanners()]);
+    }
+    if (requestedGame === 'all' || requestedGame === 'wuwa') {
+      tasks.push(['wuwa', fetchWuWaLiveBanners()]);
+    }
+
+    const settled = await Promise.allSettled(tasks.map(([, promise]) => promise));
+    const resultMap = { hsr: [], genshin: [], wuwa: [] };
+
+    settled.forEach((result, index) => {
+      const key = tasks[index]?.[0];
+      if (!key) return;
+      if (result.status === 'fulfilled') {
+        resultMap[key] = Array.isArray(result.value) ? result.value : [];
+      } else {
+        console.warn(`[Banners API] ${key} fetch failed:`, result.reason?.message || result.reason);
+      }
+    });
 
     const response = {
-      hsr,
-      genshin,
-      wuwa,
+      hsr: resultMap.hsr,
+      genshin: resultMap.genshin,
+      wuwa: resultMap.wuwa,
       lastUpdate: new Date().toISOString(),
       cacheExpiry: new Date(Date.now() + CACHE_DURATION).toISOString()
     };
@@ -503,10 +671,11 @@ export default async function handler(req, res) {
     BANNER_CACHE = {
       data: response,
       timestamp: Date.now(),
-      version: CONFIG.CACHE_VERSION
+      version: CONFIG.CACHE_VERSION,
+      game: requestedGame
     };
 
-    console.log(`[Banners API] Success! HSR:${hsr.length} Genshin:${genshin.length} WuWa:${wuwa.length}`);
+    console.log(`[Banners API] Success! HSR:${response.hsr.length} Genshin:${response.genshin.length} WuWa:${response.wuwa.length}`);
 
     res.setHeader('X-Cache-Status', 'MISS');
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
@@ -520,5 +689,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
-

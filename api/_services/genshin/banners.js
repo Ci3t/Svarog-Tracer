@@ -3,6 +3,8 @@
  * Discovers live Genshin banners from paimon.moe
  */
 
+import { GENSHIN_BANNER_CONTROL } from './bannerControl.js';
+
 const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
 const GENSHIN_WEAPON_IMG_BASE = 'https://paimon.moe/images/weapons/';
@@ -19,6 +21,14 @@ function toTitleCaseFromSlug(slug) {
         : word.charAt(0).toUpperCase() + word.slice(1)
     )
     .join(' ');
+}
+
+function toPaimonSlug(name) {
+  return (name || '')
+    .toLowerCase()
+    .split(' / ')[0]
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 function extractFeaturedCharacterSlugs(list) {
@@ -38,7 +48,7 @@ function extractFeaturedCharacterSlugs(list) {
       const name = item.name.toLowerCase();
       if (standard.includes(name)) return false;
       if (fourStarBlocklist.includes(name)) return false;
-      return item.count >= 1000 && item.count < 35000;
+      return item.count >= 300 && item.count < 35000;
     })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
@@ -66,14 +76,14 @@ function extractFeaturedWeaponSlugs(list) {
       const name = item.name.toLowerCase();
       if (standardWeapons.includes(name)) return false;
       if (weapon4StarBlocklist.includes(name)) return false;
-      return item.count > 500 && item.count < 35000;
+      return item.count > 200 && item.count < 35000;
     })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map(item => item.name);
 }
 
-function buildCharacterBannerPayload(bannerId, slugs, legendaryCount) {
+function buildCharacterBannerPayload(bannerId, slugs, legendaryCount, source = 'auto') {
   if (!slugs.length) return null;
 
   return {
@@ -84,12 +94,12 @@ function buildCharacterBannerPayload(bannerId, slugs, legendaryCount) {
     image: `${GENSHIN_CHAR_IMG_BASE}${slugs[0]}.png`,
     characterId: slugs[0],
     game: 'genshin',
-    source: 'auto',
+    source,
     pullCount: legendaryCount
   };
 }
 
-function buildWeaponBannerPayload(bannerId, slugs, legendaryCount) {
+function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'auto') {
   const name = slugs.length ? slugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation';
   const image = slugs.length
     ? `${GENSHIN_WEAPON_IMG_BASE}${slugs[0]}.png`
@@ -103,9 +113,51 @@ function buildWeaponBannerPayload(bannerId, slugs, legendaryCount) {
     image,
     characterId: 'weapon_banner',
     game: 'genshin',
-    source: 'auto',
+    source,
     pullCount: legendaryCount
   };
+}
+
+function applyManualOverride(banner, type) {
+  if (type === 'character' && GENSHIN_BANNER_CONTROL.overrideCharacterName) {
+    const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideCharacterName);
+    return {
+      ...(banner || {
+        id: `${GENSHIN_BANNER_CONTROL.characterBannerId}_character`,
+        bannerId: GENSHIN_BANNER_CONTROL.characterBannerId,
+        type: 'character',
+        game: 'genshin',
+        characterId: 'manual_character',
+        source: 'manual-override'
+      }),
+      name: GENSHIN_BANNER_CONTROL.overrideCharacterName,
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage ||
+        (forcedSlug ? `${GENSHIN_CHAR_IMG_BASE}${forcedSlug}.png` : banner?.image || null),
+      source: 'manual-override'
+    };
+  }
+
+  if (type === 'weapon' && GENSHIN_BANNER_CONTROL.overrideWeaponName) {
+    const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideWeaponName);
+    return {
+      ...(banner || {
+        id: `${GENSHIN_BANNER_CONTROL.weaponBannerId}_weapon`,
+        bannerId: GENSHIN_BANNER_CONTROL.weaponBannerId,
+        type: 'weapon',
+        game: 'genshin',
+        characterId: 'manual_weapon',
+        source: 'manual-override'
+      }),
+      name: GENSHIN_BANNER_CONTROL.overrideWeaponName,
+      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage ||
+        (forcedSlug
+          ? `${GENSHIN_WEAPON_IMG_BASE}${forcedSlug}.png`
+          : banner?.image || `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`),
+      source: 'manual-override'
+    };
+  }
+
+  return banner;
 }
 
 async function discoverBannerNear(baseId, prefix, type) {
@@ -131,11 +183,11 @@ async function discoverBannerNear(baseId, prefix, type) {
 
       if (type === 'character') {
         const slugs = extractFeaturedCharacterSlugs(data.list);
-        const payload = buildCharacterBannerPayload(bannerId, slugs, legendaryCount);
+        const payload = buildCharacterBannerPayload(bannerId, slugs, legendaryCount, 'auto');
         if (payload) return payload;
       } else {
         const slugs = extractFeaturedWeaponSlugs(data.list);
-        return buildWeaponBannerPayload(bannerId, slugs, legendaryCount);
+        return buildWeaponBannerPayload(bannerId, slugs, legendaryCount, 'auto');
       }
     } catch {
       continue;
@@ -143,6 +195,35 @@ async function discoverBannerNear(baseId, prefix, type) {
   }
 
   return null;
+}
+
+async function fetchBannerByExactId(bannerId, type) {
+  if (!bannerId) return null;
+
+  try {
+    const response = await fetch(`${PAIMON_API}?banner=${bannerId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0)'
+      },
+      signal: AbortSignal.timeout(3000)
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const legendaryCount = data?.total?.legendary || 0;
+    if (legendaryCount < 200) return null;
+
+    if (type === 'character') {
+      const slugs = extractFeaturedCharacterSlugs(data.list);
+      return buildCharacterBannerPayload(bannerId, slugs, legendaryCount, 'manual-id');
+    }
+
+    const slugs = extractFeaturedWeaponSlugs(data.list);
+    return buildWeaponBannerPayload(bannerId, slugs, legendaryCount, 'manual-id');
+  } catch {
+    return null;
+  }
 }
 
 export async function handler(req, res) {
@@ -155,13 +236,23 @@ export async function handler(req, res) {
   try {
     console.log('[Genshin Banners API] Auto-discovering current banners...');
 
-    const currentCharBase = 97;
-    const currentWeaponBase = 95;
+    const currentCharBase = parseInt(GENSHIN_BANNER_CONTROL.characterBannerId.slice(-3), 10);
+    const currentWeaponBase = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-3), 10);
 
-    const [characterBanner, weaponBanner] = await Promise.all([
+    let [characterBanner, weaponBanner] = await Promise.all([
       discoverBannerNear(currentCharBase, '300', 'character'),
       discoverBannerNear(currentWeaponBase, '400', 'weapon')
     ]);
+
+    if (!characterBanner) {
+      characterBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character');
+    }
+    if (!weaponBanner) {
+      weaponBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon');
+    }
+
+    characterBanner = applyManualOverride(characterBanner, 'character');
+    weaponBanner = applyManualOverride(weaponBanner, 'weapon');
 
     const allBanners = [characterBanner, weaponBanner].filter(Boolean);
     allBanners.sort((a, b) => parseInt(b.bannerId, 10) - parseInt(a.bannerId, 10));

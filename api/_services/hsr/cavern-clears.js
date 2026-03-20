@@ -1,5 +1,6 @@
 import { del as blobDel, list as blobList, put as blobPut } from '@vercel/blob';
 import crypto from 'node:crypto';
+import { isZoneAdminUser, requireAuthenticatedUser } from '../zone/shared.js';
 
 const BLOB_PREFIX = 'hsr-cavern-clears-';
 const INITIAL_DATA = [];
@@ -29,6 +30,98 @@ const getCachedData = () => {
   if (Date.now() - lambdaCacheTime > CACHE_TTL_MS) return null;
   return lambdaDataCache;
 };
+
+function getCurrentWeeklyResetBoundary(now = new Date()) {
+  const boundary = new Date(now);
+  boundary.setUTCHours(6, 0, 0, 0);
+  const day = boundary.getUTCDay();
+  let diff = (day + 6) % 7; // days since Monday
+  if (day === 1 && now.getUTCHours() < 6) {
+    diff = 7;
+  }
+  boundary.setUTCDate(boundary.getUTCDate() - diff);
+  return boundary;
+}
+
+function normalizeIsoDate(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function sanitizeEntryForBoundary(entry, boundaryMs) {
+  const reports = ensureArray(entry?.reports).filter((report) => {
+    const ts = new Date(report?.timestamp || 0).getTime();
+    return Number.isFinite(ts) && ts >= boundaryMs;
+  });
+
+  if (reports.length > 0) {
+    const reporters = [...new Set(reports.map((report) => String(report?.reporter || '').trim()).filter(Boolean))];
+    const reportTimes = reports
+      .map((report) => new Date(report.timestamp).getTime())
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+
+    return {
+      ...entry,
+      reports,
+      reporters,
+      verifiedCount: reports.length,
+      firstReported: reportTimes.length > 0 ? new Date(reportTimes[0]).toISOString() : normalizeIsoDate(entry?.firstReported),
+      lastReported: reportTimes.length > 0 ? new Date(reportTimes[reportTimes.length - 1]).toISOString() : normalizeIsoDate(entry?.lastReported),
+    };
+  }
+
+  const fallbackTime = new Date(entry?.lastReported || entry?.firstReported || 0).getTime();
+  if (!Number.isFinite(fallbackTime) || fallbackTime < boundaryMs) {
+    return null;
+  }
+
+  return {
+    ...entry,
+    reports: [],
+    reporters: ensureArray(entry?.reporters),
+    verifiedCount: Number(entry?.verifiedCount || 0),
+    firstReported: normalizeIsoDate(entry?.firstReported),
+    lastReported: normalizeIsoDate(entry?.lastReported),
+  };
+}
+
+function trimDataToCurrentWeek(data, boundaryDate = getCurrentWeeklyResetBoundary()) {
+  const boundaryMs = boundaryDate.getTime();
+  let changed = false;
+
+  const nextData = ensureArray(data)
+    .map((entry) => {
+      const sanitized = sanitizeEntryForBoundary(entry, boundaryMs);
+      if (!sanitized) {
+        changed = true;
+        return null;
+      }
+
+      const originalReports = ensureArray(entry?.reports);
+      if (originalReports.length !== ensureArray(sanitized.reports).length) {
+        changed = true;
+      }
+      if (String(entry?.lastReported || '') !== String(sanitized.lastReported || '')) {
+        changed = true;
+      }
+      if (Number(entry?.verifiedCount || 0) !== Number(sanitized.verifiedCount || 0)) {
+        changed = true;
+      }
+      return sanitized;
+    })
+    .filter(Boolean);
+
+  if (nextData.length !== ensureArray(data).length) {
+    changed = true;
+  }
+
+  return {
+    data: nextData,
+    changed,
+    boundaryIso: boundaryDate.toISOString(),
+  };
+}
 
 const normalizeChars = (arr) => {
   if (!arr) return '';
@@ -281,19 +374,34 @@ async function saveBlobCavernData(newData, allBlobs) {
 export async function getCavernData() {
   const cached = getCachedData();
   if (cached) {
-    return { data: cached, allBlobs: [] };
+    const trimmed = trimDataToCurrentWeek(cached);
+    if (!trimmed.changed) {
+      return { data: trimmed.data, allBlobs: [] };
+    }
   }
 
   if (hasSupabaseConfig()) {
     try {
-      return await getAllSupabaseEntries();
+      const { data, allBlobs } = await getAllSupabaseEntries();
+      const trimmed = trimDataToCurrentWeek(data);
+      if (trimmed.changed) {
+        await replaceAllSupabaseEntries(trimmed.data);
+        return { data: trimmed.data, allBlobs };
+      }
+      return { data: trimmed.data, allBlobs };
     } catch (error) {
       console.error('[Cavern API] Supabase read error:', error);
       return { data: INITIAL_DATA, allBlobs: [] };
     }
   }
 
-  return getBlobCavernData();
+  const blobPayload = await getBlobCavernData();
+  const trimmed = trimDataToCurrentWeek(blobPayload.data);
+  if (trimmed.changed) {
+    await saveBlobCavernData(trimmed.data, blobPayload.allBlobs);
+    return { data: trimmed.data, allBlobs: [] };
+  }
+  return { data: trimmed.data, allBlobs: blobPayload.allBlobs };
 }
 
 export async function saveCavernData(newData, allBlobs) {
@@ -304,17 +412,20 @@ export async function saveCavernData(newData, allBlobs) {
   return saveBlobCavernData(newData, allBlobs);
 }
 
-function isUnauthorizedAdminAttempt({ key, apiKey }) {
-  const targetAdmin = normalizeKey(process.env.HSR_ADMIN_PASS || process.env.HSR_ADMIN_PAS);
-  const targetSuper = normalizeKey(process.env.ADMIN_API_KEY);
-  const receivedKey = normalizeKey(key);
-  const receivedApiKey = normalizeKey(apiKey);
-
-  const isAdmin =
-    targetAdmin !== '' && (receivedKey === targetAdmin || receivedApiKey === targetAdmin);
-  const isSuperAdmin = targetSuper !== '' && receivedApiKey === targetSuper;
-
-  return { isAdmin, isSuperAdmin };
+async function resolveAdminAccess(req, { key, apiKey }) {
+  try {
+    const auth = await requireAuthenticatedUser(req);
+    const isAdmin = isZoneAdminUser(auth.user);
+    return {
+      isAdmin,
+      isSuperAdmin: isAdmin,
+    };
+  } catch {
+    return {
+      isAdmin: false,
+      isSuperAdmin: false,
+    };
+  }
 }
 
 export async function handler(req, res) {
@@ -544,9 +655,10 @@ export async function handler(req, res) {
   if (req.method === 'DELETE') {
     const { reportId, relicId, clearTime, characters, key } = req.query;
     const apiKey = req.headers['x-api-key'];
-    const { isAdmin, isSuperAdmin } = isUnauthorizedAdminAttempt({ key, apiKey });
 
     try {
+      const { isAdmin, isSuperAdmin } = await resolveAdminAccess(req, { key, apiKey });
+
       if (!reportId && !relicId) {
         if (!isAdmin && !isSuperAdmin) {
           return res.status(401).json({ error: 'Unauthorized: Admin access required for full purge.' });

@@ -155,9 +155,11 @@ const BANNER_API_URL = isLocal
   : 'https://svarog-tracer.vercel.app/api/banners';
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
-export async function fetchCentralizedBanners() {
+export async function fetchCentralizedBanners(game = 'all') {
   try {
-    const response = await fetch(BANNER_API_URL);
+    const params = new URLSearchParams();
+    if (game && game !== 'all') params.set('game', game);
+    const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
     if (!response.ok) return [];
     const data = await response.json();
     
@@ -1322,21 +1324,21 @@ function extractGenshinWeaponNames(list) {
 
 // WuWa preset banners (fallback if auto-discovery fails)
 export const WUWA_PRESET_BANNERS = [
-  // Current featured banners (v2.0)
+  // Current featured banners (Ver 1.4 Phase 2)
   { 
-    id: "100031", 
-    name: "Mornye", 
+    id: "100034", 
+    name: "Sigrika", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fmornye-portrait.webp&w=828&q=75", 
-    characterId: "mornye", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fsigrika-portrait.webp&w=828&q=75", 
+    characterId: "sigrika", 
     game: "wuwa" 
   },
   { 
-    id: "200031", 
-    name: "Starfield Calibrator", 
+    id: "200034", 
+    name: "Solsworn Ciphers", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstarfield-calibrator-portrait.png&w=828&q=75", 
-    characterId: "starfield_calibrator", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fsolsworn-ciphers-portrait.png&w=828&q=75", 
+    characterId: "solsworn_ciphers", 
     game: "wuwa" 
   },
 ];
@@ -1595,25 +1597,16 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
                    (isCharacter ? 'character' : 'weapon'));
       
       // Generate image URL (WuWa Tracker pattern)
-      const slug = bannerName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
+      const firstName = bannerName.split('&')[0].trim();
+      const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const imageExt = type === 'character' ? 'webp' : 'png';
       // Both characters and weapons use the -portrait suffix in the latest WuWa Tracker API
-      const fallbackImage = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
+      const image = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
       
-      // Try to fetch stats to extract the actual image URL from the HTML
-      let extractedImage = null;
-      try {
-        const statsData = await fetchWuWaStats(bannerId, false);
-        if (statsData && statsData.image) {
-          extractedImage = statsData.image;
-          console.log(`[WuWa Banners] ✓ Extracted image for ${bannerName}:`, extractedImage);
-        }
-      } catch (e) {
-        console.warn(`[WuWa Banners] Could not extract image for ${bannerName}, using fallback`);
-      }
-      
-      const image = extractedImage || fallbackImage;
+      // OPTIMIZATION: Remove individual stat fetches during discovery to fix slowness.
+      // Images are now predictably derived from the slug.
       
       banners.push({
         id: `${bannerId}_${type}`,

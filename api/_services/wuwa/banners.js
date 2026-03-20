@@ -3,6 +3,56 @@
  * Fetches live WuWa banners from WuWa Tracker
  */
 
+const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100034': {
+    name: 'Sigrika',
+    type: 'character',
+  },
+  '200034': {
+    name: 'Solsworn Ciphers',
+    type: 'weapon',
+  },
+});
+
+function slugifyBannerName(value) {
+  // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
+  const firstName = String(value || '').split('&')[0].trim();
+  return firstName
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+function buildWuWaImageUrl(folder, fileName) {
+  return `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
+}
+
+function extractWuWaImageFromHtml(html) {
+  const patterns = [
+    /\/_next\/image\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^"'\\\s>]+/gi,
+    /\/api\/(?:character|weapon)-portraits\/file\/[^"'\\\s>]+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match?.[0]) continue;
+    
+    // Fix malformed URLs (e.g. &amp; instead of &) and escape sequences
+    const raw = match[0]
+      .replace(/\\u0026/g, '&')
+      .replace(/&amp;/g, '&')
+      .replace(/\\/g, '');
+      
+    if (raw.startsWith('/_next/image')) {
+      return raw.startsWith('http') ? raw : `https://wuwatracker.com${raw}`;
+    }
+    const cleaned = raw.replace(/^\/+/, '');
+    return `https://wuwatracker.com/${cleaned}`;
+  }
+
+  return null;
+}
+
 export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,14 +71,9 @@ export async function handler(req, res) {
     console.log('[WuWa Banners API] Fetching live banners...');
     
     const response = await fetch('https://wuwatracker.com/tracker/stats');
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
     const html = await response.text();
-    
-    // Parse banner IDs from HTML
     const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
     const banners = [];
     const seenIds = new Set();
@@ -36,7 +81,6 @@ export async function handler(req, res) {
     
     while ((idMatch = idPattern.exec(html)) !== null) {
       const bannerId = idMatch[1];
-      
       const isCharacter = bannerId.startsWith('100');
       const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('200');
       if (!isCharacter && !isWeapon) continue;
@@ -52,6 +96,7 @@ export async function handler(req, res) {
       
       const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
       const bannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
+      const resolvedName = WUWA_KNOWN_BANNERS[bannerId]?.name || bannerName;
       
       if (bannerName.toLowerCase().includes('standard')) continue;
       
@@ -59,17 +104,41 @@ export async function handler(req, res) {
                    (poolType.includes('weapon') ? 'weapon' : 
                    (isCharacter ? 'character' : 'weapon'));
       
-      const slug = bannerName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
-      const imageExt = type === 'character' ? 'webp' : 'png';
-      const image = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
+      // OPTIMIZATION: Predictable image URLs to avoid per-banner sub-fetches
+      const slug = slugifyBannerName(resolvedName);
+      const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
+      const ext = type === 'character' ? 'webp' : 'png';
+      const image = buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
       
       banners.push({
         id: `${bannerId}_${type}`,
         bannerId,
-        name: bannerName,
+        name: resolvedName,
         type,
         image,
+        game: 'wuwa'
+      });
+    }
+    
+    // Emergency Fallback
+    if (!banners.some(b => b.id.includes('100034')) && html.includes('Sigrika')) {
+      banners.push({
+        id: '100034_character',
+        bannerId: '100034',
+        name: 'Sigrika',
+        type: 'character',
+        image: buildWuWaImageUrl('character-portraits', 'sigrika-portrait.webp'),
+        game: 'wuwa'
+      });
+    }
+
+    if (!banners.some(b => b.id.includes('200034')) && (html.includes('Solsworn Ciphers') || html.includes('Emerald Sentence'))) {
+      banners.push({
+        id: '200034_weapon',
+        bannerId: '200034',
+        name: 'Solsworn Ciphers',
+        type: 'weapon',
+        image: buildWuWaImageUrl('weapon-portraits', 'solsworn-ciphers-portrait.png'),
         game: 'wuwa'
       });
     }
@@ -79,18 +148,10 @@ export async function handler(req, res) {
     const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
     const recentBanners = [...characterBanners, ...weaponBanners];
     
-    console.log('[WuWa Banners API] Discovered', recentBanners.length, 'active banner(s):', 
-      recentBanners.map(b => `${b.name} (${b.bannerId})`).join(', '));
-    
-    // Cache for 5 minutes (reduced from 1 hour for faster new banner detection)
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    
     return res.status(200).json(recentBanners);
   } catch (error) {
     console.error('[WuWa Banners API] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch WuWa banners',
-      message: error.message 
-    });
+    return res.status(500).json({ error: 'Failed to fetch WuWa banners', message: error.message });
   }
 }

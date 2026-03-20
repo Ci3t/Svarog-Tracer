@@ -1,0 +1,253 @@
+# Svarog Tracer — Community Zone Tracker Feature Plan
+
+---
+
+## What This Feature Does
+
+Players submit run results after clearing Cavern of Corrosion. The site aggregates submissions, groups them by epoch (reset cycle), and publishes weekly zone recommendations showing which team configurations are currently producing crits vs junk. No account required. Minimal friction to submit.
+
+---
+
+## Core Concepts
+
+**Epoch** — a reset cycle. The zone shifts when HSR resets (suspected Monday, unconfirmed). Epochs are labeled by ID number, not calendar date. Epoch boundaries are set by manual community flagging, not by calendar assumption.
+
+**Zone fingerprint** — each team is identified by its XOR + SLOT hash pair. These are computed from the 4 character IDs. SUM is stored but not user-facing. Raw character IDs are always stored so hashes can be recomputed if the formula improves.
+
+**Confidence** — based on number of submissions per fingerprint per epoch. Low confidence = 1-2 reports. Medium = 3-5. High = 6+.
+
+---
+
+## Data Schema
+
+### Run Submission
+```
+{
+  id:               uuid,
+  submitted_at:     timestamp (server-assigned),
+  epoch_id:         integer (current active epoch),
+  calendar_week:    string e.g. "2026-W12" (secondary metadata only),
+
+  // Team — minimum required from user
+  slot_order:       array[4] of character IDs  e.g. [1502, 1304, 1409, 1415],
+  char_names:       array[4] of strings (derived from IDs, stored for readability),
+  cavern:           string or null,
+  outcome:          enum ["double-crit", "one-crit", "spd-one-crit", "mixed", "flat-junk", "effect-junk"],
+
+  // Computed server-side — never trust client
+  char_sum:         integer,
+  char_xor:         integer,
+  char_slot:        integer,
+  xor_slot_key:     string e.g. "192_8458"  (primary grouping key),
+
+  // Optional user-supplied
+  notes:            string or null,  max 200 chars
+  clear_time_s:     integer or null,
+
+  // Reserved for future — nullable now
+  lc_ids:           array[4] or null,
+  lc_xor:           integer or null,
+  combo_xor:        integer or null,
+  session_marker:   string or null,
+  patch_version:    string or null,
+  support_borrowed: boolean or null,
+  run_index:        integer or null,
+
+  // Reporter identity — anonymous persistent hash, no login
+  reporter_id:      string (hash stored in localStorage, generated on first visit)
+}
+```
+
+### Epoch
+```
+{
+  id:               integer (auto-increment),
+  created_at:       timestamp,
+  flagged_by:       array of reporter_ids,
+  confirmed:        boolean,  (true when 2+ reporters flagged)
+  pending:          boolean,  (true when 1 reporter flagged, awaiting confirmation)
+  notes:            string or null,
+  calendar_week:    string (when it was created)
+}
+```
+
+### Zone Summary (computed/cached, rebuilt on new submissions)
+```
+{
+  epoch_id:         integer,
+  xor_slot_key:     string,
+  char_xor:         integer,
+  char_slot:        integer,
+  char_sum:         integer,
+  example_array:    array[4],  (most recent team that hit this fingerprint)
+  example_names:    array[4],
+  total_runs:       integer,
+  crit_runs:        integer,   (double-crit + one-crit + spd-one-crit)
+  crit_rate:        float,     (crit_runs / total_runs)
+  confidence:       enum ["low", "medium", "high"],
+  last_submitted:   timestamp
+}
+```
+
+---
+
+## API Endpoints
+
+### Submit a run
+```
+POST /api/zone/submit
+Body: {
+  slot_order: [1502, 1304, 1409, 1415],
+  cavern: "Path of Possession",
+  outcome: "one-crit",
+  notes: null,
+  clear_time_s: 45,
+  reporter_id: "anon_abc123"
+}
+Response: { success: true, epoch_id: 7, xor_slot_key: "192_8458" }
+```
+
+Server computes all hashes. Client never sends computed values.
+
+### Get current zone map
+```
+GET /api/zone/map?epoch=current
+Response: {
+  current_epoch: { id: 7, created_at: "...", calendar_week: "2026-W12" },
+  zones: [
+    {
+      xor_slot_key: "192_8458",
+      char_xor: 192,
+      char_slot: 8458,
+      crit_rate: 0.73,
+      confidence: "high",
+      total_runs: 11,
+      example_names: ["Dr. Ratio", "Phainon", "Yao Guang", "Dan Heng PT"],
+      example_array: [1305, 1408, 1502, 1414]
+    },
+    ...
+  ]
+}
+```
+
+### Get zone map for previous epoch (for comparison)
+```
+GET /api/zone/map?epoch=previous
+```
+
+### Flag possible epoch shift
+```
+POST /api/zone/flag-epoch
+Body: { reporter_id: "anon_abc123", notes: "my crit team is now junk" }
+Response: { 
+  status: "pending",   // or "confirmed" if 2+ reporters
+  pending_flags: 2 
+}
+```
+
+When `pending_flags >= 2`, server auto-creates a new epoch and marks old one as previous.
+
+### Get neighborhood for a team
+```
+POST /api/zone/neighborhood
+Body: { slot_order: [1305, 1408, 1502, 1414] }
+Response: {
+  target: { char_xor: 193, char_slot: 8457 },
+  nearby_zones: [
+    // zones within XOR±16, SLOT±20 from submission history
+  ]
+}
+```
+
+---
+
+## Frontend Components
+
+### 1. Submit Run Panel
+Minimal form. Pre-fill team from team builder if user has one set.
+
+Fields shown to user:
+- Slot order (4 character dropdowns or autocomplete)
+- Outcome (button group: double-crit / one-crit / spd+crit / mixed / junk)
+- Cavern (optional dropdown)
+- Notes (optional text, 200 char max)
+- Clear time in seconds (optional)
+
+Everything else computed or auto-assigned. No XOR/SLOT shown to user during submission — that's internal.
+
+One-click submit. No account, no login. Reporter ID generated silently on first visit and stored in localStorage.
+
+### 2. Zone Map Panel
+Shows current epoch's top zones ranked by crit rate, confidence-weighted.
+
+Display per zone:
+```
+[XOR 192 · SLOT 8458]  Crit rate: 73%  ████████░░  11 runs  HIGH CONFIDENCE
+Example team: Dr.Ratio · Phainon · YaoGuang · DanPT
+[1305-1408-1502-1414]  →  click to copy to builder
+```
+
+Color coding: green = high crit rate + high confidence, yellow = medium, grey = junk or low confidence.
+
+Below current epoch, a collapsed section "Previous epoch" shows the same data from last cycle for comparison. Label it "Historical — may not match current zones."
+
+### 3. Epoch Status Bar
+Persistent at top of the panel.
+
+```
+Epoch 7  |  Current live data  |  Week 2026-W12
+⚑ Zone feels different?  [ Flag epoch shift ]
+```
+
+If a flag is pending: `⚑ 1 reporter flagged a possible zone shift — needs 1 more confirmation`
+If confirmed: new epoch created, banner briefly shows "New epoch started — fresh zone data collecting."
+
+### 4. Confidence Labels
+Show on every recommendation:
+- `HIGH` — 6+ runs, consistent result
+- `MEDIUM` — 3-5 runs
+- `LOW` — 1-2 runs — show with warning "scout before farming"
+- Always add footer text: "Practical scouting heuristic — not proven game truth. Hidden server state causes run-to-run variance."
+
+---
+
+## Business Logic Notes
+
+**Hash computation (server-side only):**
+```
+char_sum  = sum of 4 character IDs
+char_xor  = id[0] ^ id[1] ^ id[2] ^ id[3]  (absolute value)
+char_slot = (id[3] * 3 + id[0] + id[1] + id[2]) % 10000
+xor_slot_key = `${char_xor}_${char_slot}`
+```
+
+**Epoch auto-creation rule:**
+When `pending_flags >= 2` from 2 different reporter_ids within 48 hours, create new epoch. Mark old epoch as previous. Do not delete old data.
+
+**Crit outcome definition:**
+Runs counted as "crit" for crit_rate: double-crit, one-crit, spd-one-crit.
+Runs counted as "junk": flat-junk, effect-junk.
+Mixed counted separately — neither crit nor junk for rate calculation.
+
+**Recommendation ranking:**
+1. Current epoch, high confidence, crit_rate >= 0.5
+2. Current epoch, medium confidence, crit_rate >= 0.4
+3. Previous epoch, high confidence (shown as historical/lower trust)
+4. Current epoch, low confidence (shown as "needs more data")
+
+**Anti-spam:**
+Rate limit submissions per reporter_id to 20 per day. Identical submission (same slot_order + outcome + epoch) from same reporter within 1 hour is rejected as duplicate.
+
+---
+
+## What To Tell the Claude Agent
+
+> Add a community zone tracker feature to the Svarog Tracer site. The full spec is above. Key points:
+> 1. Minimal user input — slot order + outcome + optional cavern. Server computes all hashes.
+> 2. Epoch-based grouping, not calendar week. Manual flag to start new epoch, confirmed at 2+ reporters.
+> 3. Recommendations ranked current epoch first, previous epoch second, labeled clearly as heuristics not game truth.
+> 4. Store raw character IDs always — hashes are derived and can be recomputed.
+> 5. Keep LC, session_marker, patch_version, run_index in schema as nullable — don't expose in UI yet.
+> 6. Reporter identity is anonymous localStorage hash — no login, no account.
+> 7. Zone fingerprint shown to users is XOR + SLOT pair. SUM stored but not user-facing.
+> 8. Never delete old epoch data. Keep last N epochs queryable for comparison.

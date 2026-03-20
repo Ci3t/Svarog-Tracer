@@ -64,7 +64,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
       try {
         // Fetch banners from centralized API (works for HSR, Genshin, WuWa)
         if (selectedGame === 'hsr' || selectedGame === 'genshin' || selectedGame === 'wuwa') {
-          const allBanners = await fetchCentralizedBanners();
+          const allBanners = await fetchCentralizedBanners(selectedGame);
           
           if (selectedGame === 'hsr') {
             const hsrBanners = allBanners.filter(b => b.game === 'hsr');
@@ -1102,7 +1102,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                         Operational Status
                                     </h4>
-                                    <p className="text-xs text-slate-500 font-mono">Ver 4.0.2 • Site Patch: Stability Enhanced</p>
+                                    <p className="text-xs text-slate-500 font-mono">Ver 4.1.0 • Site Patch: Stability Enhanced</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <div className="text-right hidden md:block">
