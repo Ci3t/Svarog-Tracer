@@ -130,10 +130,20 @@ export async function handler(req, res) {
       }
 
       const totalBefore = await countMatchingRuns({});
-      await supabaseAdminRequest(ZONE_RUNS_TABLE, {
-        method: 'DELETE',
-        prefer: 'return=minimal',
-      });
+      if (totalBefore > 0) {
+        await supabaseAdminRequest(
+          buildTablePath(ZONE_RUNS_TABLE, {
+            select: false,
+            filters: {
+              id: 'not.is.null',
+            },
+          }),
+          {
+            method: 'DELETE',
+            prefer: 'return=minimal',
+          }
+        );
+      }
 
       return res.status(200).json({
         success: true,

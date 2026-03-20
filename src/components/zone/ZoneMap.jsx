@@ -71,6 +71,10 @@ export default function ZoneMap({
   handleAdminWipeEpoch,
   adminWipeLoading,
   handleAdminWipeAll,
+  showAdminWipeAllModal,
+  setShowAdminWipeAllModal,
+  adminWipeAllConfirmText,
+  setAdminWipeAllConfirmText,
   showTuner,
   setShowTuner,
   tunerRef,
@@ -184,9 +188,9 @@ export default function ZoneMap({
         </div>
       </div>
 
-      <div className={showMapFilters ? 'mx-2 mt-2 p-3 rounded-xl bg-slate-950/50 border border-slate-800/70 space-y-3 shadow-xl' : 'hidden'}>
+      <div className={showMapFilters ? 'relative z-20 isolate mx-2 mt-2 p-3 rounded-xl bg-slate-950/50 border border-slate-800/70 space-y-3 shadow-xl' : 'hidden'}>
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Region Filter</p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative z-20 flex flex-wrap items-center gap-2">
           {SERVER_REGION_OPTIONS.map((region) => (
             <button
               key={`region-${region.value}`}
@@ -205,7 +209,7 @@ export default function ZoneMap({
 
         <div className="pt-2 border-t border-slate-800/60 space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drop Target</p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="relative z-20 flex flex-wrap items-center gap-2">
             {MAP_TARGET_PRESET_OPTIONS.map((option) => (
               <button
                 key={`target-${option.value}`}
@@ -219,8 +223,8 @@ export default function ZoneMap({
           </div>
 
           {mapTargetPreset === 'custom' ? (
-            <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-2 space-y-2">
-              <div className="flex items-center gap-2">
+            <div className="relative z-20 rounded-lg border border-slate-800 bg-slate-900/50 p-2 space-y-2">
+              <div className="relative z-20 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMapTargetMode('any')}
@@ -237,7 +241,7 @@ export default function ZoneMap({
                 </button>
                 <span className="text-[9px] text-slate-500">Pick up to {MAP_TARGET_CUSTOM_MAX_STATS}</span>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="relative z-20 flex flex-wrap gap-1.5">
                 {RELIC_SUBSTAT_OPTIONS.map((stat) => {
                   const active = mapTargetCustomStats.includes(stat);
                   return (
@@ -245,7 +249,7 @@ export default function ZoneMap({
                       key={`custom-target-${stat}`}
                       type="button"
                       onClick={() => toggleMapTargetCustomStat(stat)}
-                      className={active ? 'px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-wide text-emerald-200 cursor-pointer' : 'px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500 cursor-pointer'}
+                      className={active ? 'relative z-20 px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-black uppercase tracking-wide text-emerald-200 cursor-pointer' : 'relative z-20 px-2 py-1 rounded border border-slate-700 text-[9px] font-black uppercase tracking-wide text-slate-300 hover:border-slate-500 cursor-pointer'}
                     >
                       {stat}
                     </button>
@@ -338,7 +342,10 @@ export default function ZoneMap({
                   </button>
                   <button
                     type="button"
-                    onClick={handleAdminWipeAll}
+                    onClick={() => {
+                      setAdminWipeAllConfirmText('');
+                      setShowAdminWipeAllModal(true);
+                    }}
                     disabled={adminWipeLoading}
                     className="px-3 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-200 hover:bg-rose-500/20 disabled:opacity-60 cursor-pointer"
                   >
@@ -365,7 +372,7 @@ export default function ZoneMap({
         {showTuner ? (
           <div ref={tunerRef} className="pt-2 border-t border-slate-800/60 space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zone Tuner</p>
-            <p className="text-[10px] text-slate-500">Identify target XOR and Slot.</p>
+            <p className="text-[10px] text-slate-500">Identify target Zone and Slot.</p>
 
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1">
@@ -515,7 +522,7 @@ export default function ZoneMap({
                       <div className="flex items-center justify-between mb-3">
                          <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase">XOR {zone.char_xor} / SLOT {zone.char_slot}</span>
+                              <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase">Zone {zone.char_xor} / Slot {zone.char_slot}</span>
                               <span className="text-[8px] font-mono text-slate-600 bg-slate-950/40 px-1 rounded border border-slate-800/40" title="Report UID">UID: {zone.id?.toString().slice(-8) || zone.xor_slot_key?.slice(0, 8) || 'N/A'}</span>
                             </div>
                             {zone.latest_reporter_name && (
@@ -852,6 +859,69 @@ export default function ZoneMap({
            </p>
         </div>
       </div>
+
+      {showAdminWipeAllModal ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-rose-500/25 bg-slate-950 shadow-2xl shadow-rose-500/10">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-6 py-5">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-200">Wipe All Zone Reports</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  This permanently removes every zone report across all epochs. Type <span className="font-black text-slate-200">WIPE_ALL_ZONE_RUNS</span> to confirm.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (adminWipeLoading) return;
+                  setShowAdminWipeAllModal(false);
+                  setAdminWipeAllConfirmText('');
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300 hover:border-slate-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Confirmation Text
+                </label>
+                <input
+                  type="text"
+                  value={adminWipeAllConfirmText}
+                  onChange={(e) => setAdminWipeAllConfirmText(e.target.value)}
+                  placeholder="WIPE_ALL_ZONE_RUNS"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-mono text-slate-100 outline-none transition-all focus:border-rose-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-6 py-5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (adminWipeLoading) return;
+                  setShowAdminWipeAllModal(false);
+                  setAdminWipeAllConfirmText('');
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAdminWipeAll}
+                disabled={adminWipeLoading}
+                className="rounded-xl border border-rose-500/35 bg-rose-500/15 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-rose-100 hover:bg-rose-500/25 disabled:opacity-60"
+              >
+                {adminWipeLoading ? 'Wiping...' : 'Confirm Wipe'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

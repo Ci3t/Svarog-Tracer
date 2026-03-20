@@ -573,11 +573,13 @@ export default function ModernGuidesPage() {
             <span className="text-sm font-bold text-purple-300 uppercase tracking-wider">Guides</span>
           </div>
 
-          <h1 ref={titleRef} className="relative z-10 inline-block rounded-[1.75rem] bg-black/22 px-6 py-3 text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-fuchsia-100 to-amber-200 drop-shadow-[0_10px_24px_rgba(0,0,0,0.8)] [filter:drop-shadow(0_0_18px_rgba(255,255,255,0.14))] mb-4 backdrop-blur-[2px]">
-            <span>L</span><span>e</span><span>a</span><span>r</span><span>n</span><span> </span>
-            <span>S</span><span>v</span><span>a</span><span>r</span><span>o</span><span>g</span><span> </span>
-            <span>T</span><span>r</span><span>a</span><span>c</span><span>e</span><span>r</span>
-          </h1>
+          <div ref={titleRef} className="relative z-10 inline-block rounded-[2rem] bg-black/25 px-8 py-4 mb-6 backdrop-blur-sm border border-white/5 shadow-2xl">
+            <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-fuchsia-100 to-amber-200 drop-shadow-[0_10px_24px_rgba(0,0,0,0.8)] [filter:drop-shadow(0_0_18px_rgba(255,255,255,0.14))]">
+              <span>L</span><span>e</span><span>a</span><span>r</span><span>n</span><span> </span>
+              <span>S</span><span>v</span><span>a</span><span>r</span><span>o</span><span>g</span><span> </span>
+              <span>T</span><span>r</span><span>a</span><span>c</span><span>e</span><span>r</span>
+            </h1>
+          </div>
           <p className="relative z-10 text-slate-300 max-w-2xl mx-auto">
             Master relic manipulation with video tutorials and comprehensive written guides
           </p>

@@ -35,6 +35,37 @@
 
 .zone-tracker-shell button:not(:disabled), .zone-tracker-shell [role="button"], .zone-tracker-shell select { cursor: pointer; }
 .zone-tracker-shell button:disabled { cursor: not-allowed; }
+.zone-tracker-shell {
+  position: relative;
+  overflow-x: hidden;
+  isolation: isolate;
+}
+
+.zone-tracker-shell.modern-theme {
+  background: transparent !important;
+  min-height: 0 !important;
+}
+
+.zone-tracker-shell .theme-glass-card,
+.zone-tracker-shell .theme-panel-surface,
+.zone-tracker-shell .theme-modal-shell {
+  background-image: none !important;
+}
+
+.zone-tracker-shell .theme-glass-card::before,
+.zone-tracker-shell .theme-glass-card::after,
+.zone-tracker-shell .theme-panel-surface::before,
+.zone-tracker-shell .theme-panel-surface::after,
+.zone-tracker-shell .theme-modal-shell::before,
+.zone-tracker-shell .theme-modal-shell::after {
+  display: none !important;
+  content: none !important;
+  background-image: none !important;
+}
+
+.zone-tracker-shell .zone-card {
+  max-width: 100%;
+}
 
 .zone-tracker-shell .relic-card-surface {
   background: rgba(2, 6, 23, 0.45);

@@ -5,6 +5,16 @@
 
 import { parseWuWaHTML_Adaptive } from '../../utils/wuwaAdaptiveParser.js';
 
+function buildBannerIdCandidates(id) {
+  const normalized = String(id || '').trim();
+  if (!/^\d{6}$/.test(normalized)) return [normalized];
+  const suffix = normalized.slice(3);
+  const candidates = [normalized];
+  if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
+  if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
+  return Array.from(new Set(candidates));
+}
+
 export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,70 +36,72 @@ export async function handler(req, res) {
   }
   
   try {
-    const statsUrl = `https://wuwatracker.com/tracker/stats/${id}`;
-    console.log('[WuWa API] Fetching:', statsUrl);
-    
-    let html = null;
+    const bannerIdCandidates = buildBannerIdCandidates(id);
+    let finalStats = null;
 
-    // 1. Try Direct Fetch (Server-to-Server) - The Ideal Way
-    try {
-        const directRes = await fetch(statsUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            }
-        });
-        if (directRes.ok) {
-            html = await directRes.text();
-            console.log('[WuWa API] ✓ Direct fetch successful');
-        } else {
-            console.warn(`[WuWa API] Direct fetch failed: ${directRes.status}`);
-        }
-    } catch (e) {
-        console.warn(`[WuWa API] Direct fetch error:`, e.message);
+    for (const candidateId of bannerIdCandidates) {
+      const statsUrl = `https://wuwatracker.com/tracker/stats/${candidateId}`;
+      console.log('[WuWa API] Fetching:', statsUrl);
+      
+      let html = null;
+
+      try {
+          const directRes = await fetch(statsUrl, {
+              headers: {
+                  'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
+                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+              }
+          });
+          if (directRes.ok) {
+              html = await directRes.text();
+              console.log('[WuWa API] ✓ Direct fetch successful');
+          } else {
+              console.warn(`[WuWa API] Direct fetch failed: ${directRes.status}`);
+          }
+      } catch (e) {
+          console.warn(`[WuWa API] Direct fetch error:`, e.message);
+      }
+      
+      if (!html) {
+          console.log('[WuWa API] Trying proxy fallbacks...');
+          const PROXIES = [
+              (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+              (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+              (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+              (url) => `https://thingproxy.freeboard.io/fetch/${url}`
+          ];
+          
+          for (const proxyFormat of PROXIES) {
+              try {
+                  const proxyUrl = proxyFormat(statsUrl);
+                  const proxyRes = await fetch(proxyUrl, {
+                      headers: {
+                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                      }
+                  });
+                  
+                  if (proxyRes.ok) {
+                      html = await proxyRes.text();
+                      if (html.includes('WuWa Tracker')) break;
+                  }
+              } catch (e) { /* continue */ }
+          }
+      }
+
+      if (!html) {
+        continue;
+      }
+
+      console.log('[WuWa API] HTML length:', html.length);
+      const parsed = parseWuWaHTML_Adaptive(html);
+      if (parsed?.stats) {
+        finalStats = parsed;
+        break;
+      }
     }
-    
-    // 2. Proxy Fallbacks (If Direct Failed)
-    if (!html) {
-        console.log('[WuWa API] Trying proxy fallbacks...');
-        const PROXIES = [
-            // 1. CodeTabs (cors-anywhere-alt in frontend) - Confirmed working
-            (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-            // 2. CorsProxy.io - Often blocked but worth a shot as fallback
-            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-            // 3. AllOrigins - Reliable fallback
-            (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-            // 4. ThingProxy - Last resort
-            (url) => `https://thingproxy.freeboard.io/fetch/${url}`
-        ];
-        
-        for (const proxyFormat of PROXIES) {
-            try {
-                const proxyUrl = proxyFormat(statsUrl);
-                const res = await fetch(proxyUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
-                
-                if (res.ok) {
-                    html = await res.text();
-                    if (html.includes('WuWa Tracker')) break;
-                }
-            } catch (e) { /* continue */ }
-        }
-    }
-    
-    if (!html) {
-      throw new Error(`All fetch methods failed for ${id}`);
-    }
-    console.log('[WuWa API] HTML length:', html.length);
-    
-    const stats = parseWuWaHTML_Adaptive(html);
-    
-    if (!stats) {
+
+    if (!finalStats) {
       console.warn('[WuWa API] Parsing failed, returning fallback');
-      // Return a safe fallback object so frontend/bot doesn't crash
       return res.status(200).json({
         stats: {
           total_pulls_5: 0,
@@ -108,7 +120,7 @@ export async function handler(req, res) {
     // Cache for 5 minutes
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
     
-    return res.status(200).json(stats);
+    return res.status(200).json(finalStats);
   } catch (error) {
     console.error('[WuWa API] Error:', error);
     return res.status(500).json({ 

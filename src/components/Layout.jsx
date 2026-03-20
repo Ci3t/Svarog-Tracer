@@ -57,7 +57,7 @@ export default function Layout({
   prevSessions,
   onExportCSV,
   sessionTheme = "modern",
-  onThemeChange = () => {},
+  onThemeChange = () => { },
 }) {
   const location = useLocation();
   const { isAuthenticated, signOut, roleMode, setRoleMode } = useAuth();
@@ -202,9 +202,8 @@ export default function Layout({
                 {/* Animated indicator background */}
                 <div
                   ref={indicatorRef}
-                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${
-                    themeConfig.layout.navIndicatorClass
-                  }`}
+                  className={`absolute top-1 left-0 h-[calc(100%-8px)] rounded-lg pointer-events-none ${themeConfig.layout.navIndicatorClass
+                    }`}
                   style={{ width: 0, transform: 'translateX(0)' }}
                 />
 
@@ -291,7 +290,7 @@ export default function Layout({
                       }`
                     }
                   >
-                    Zone
+                    🌀 Zone
                   </NavLink>
                 )}
                 <NavLink
@@ -338,38 +337,33 @@ export default function Layout({
                               onThemeChange(themeOption.id);
                               setThemeMenuOpen(false);
                             }}
-                            className={`group w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${
-                              isActive
+                            className={`group w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${isActive
                                 ? 'bg-slate-800/70 text-white border-slate-500/70'
                                 : 'bg-slate-800/55 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
-                            }`}
+                              }`}
                             style={isActive ? themeConfig.layout.themeOptionActiveStyles?.[themeOption.id] : undefined}
                             aria-label={`Switch to ${themeOption.label} theme`}
                           >
                             <span className="relative flex items-center justify-center overflow-hidden">
                               <span
-                                className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${visual.washClass} opacity-0 transition-opacity duration-300 ${
-                                  isActive ? 'opacity-100' : 'group-hover:opacity-100'
-                                }`}
+                                className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${visual.washClass} opacity-0 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'group-hover:opacity-100'
+                                  }`}
                               />
                               <span className="relative z-10 flex items-center justify-center gap-2">
                                 <span
-                                  className={`flex h-7 w-7 items-center justify-center rounded-lg border shadow-lg transition-all duration-300 ${visual.ringClass} ${visual.glowClass} ${
-                                    isActive ? 'scale-110' : 'group-hover:scale-110 group-hover:-translate-y-0.5'
-                                  }`}
+                                  className={`flex h-7 w-7 items-center justify-center rounded-lg border shadow-lg transition-all duration-300 ${visual.ringClass} ${visual.glowClass} ${isActive ? 'scale-110' : 'group-hover:scale-110 group-hover:-translate-y-0.5'
+                                    }`}
                                 >
                                   <ThemeIcon
-                                    className={`h-4 w-4 transition-transform duration-300 ${visual.iconClass} ${
-                                      isActive ? 'animate-pulse' : 'group-hover:rotate-12'
-                                    }`}
+                                    className={`h-4 w-4 transition-transform duration-300 ${visual.iconClass} ${isActive ? 'animate-pulse' : 'group-hover:rotate-12'
+                                      }`}
                                   />
                                 </span>
                                 <span
-                                  className={`overflow-hidden whitespace-nowrap text-[10px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
-                                    isActive
+                                  className={`overflow-hidden whitespace-nowrap text-[10px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${isActive
                                       ? 'max-w-44 opacity-100'
                                       : 'max-w-0 opacity-0 group-hover:max-w-44 group-hover:opacity-100'
-                                  }`}
+                                    }`}
                                 >
                                   {themeOption.label}
                                 </span>
@@ -397,22 +391,20 @@ export default function Layout({
                   <button
                     type="button"
                     onClick={() => setRoleMode('user')}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                      roleMode === 'user'
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'user'
                         ? 'bg-slate-700/80 text-slate-100 border border-slate-500/70'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
                     User
                   </button>
                   <button
                     type="button"
                     onClick={() => setRoleMode('admin')}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                      roleMode === 'admin'
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'admin'
                         ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
                     Admin
                   </button>
@@ -453,10 +445,10 @@ export default function Layout({
             <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
               Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
               <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                Ver 4.0.2
+                Ver 4.1.0
               </span>
             </h4>
-            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2025 Ciet</p>
+            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2026 Ciet</p>
           </div>
 
           {/* Social Links */}

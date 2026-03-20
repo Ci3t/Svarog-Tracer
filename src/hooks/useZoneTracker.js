@@ -121,6 +121,129 @@ export function formatDropScore(score) {
   return `${Math.round(Number(score) * 100)}%`;
 }
 
+const CLIENT_SUBSTAT_CANONICAL_MAP = new Map([
+  ['flat hp', 'Flat HP'],
+  ['hp flat', 'Flat HP'],
+  ['flat atk', 'Flat ATK'],
+  ['atk flat', 'Flat ATK'],
+  ['flat def', 'Flat DEF'],
+  ['def flat', 'Flat DEF'],
+  ['hp%', 'HP%'],
+  ['hp pct', 'HP%'],
+  ['hp percent', 'HP%'],
+  ['atk%', 'ATK%'],
+  ['atk pct', 'ATK%'],
+  ['atk percent', 'ATK%'],
+  ['def%', 'DEF%'],
+  ['def pct', 'DEF%'],
+  ['def percent', 'DEF%'],
+  ['spd', 'SPD'],
+  ['speed', 'SPD'],
+  ['crit rate', 'CRIT Rate'],
+  ['crit_rate', 'CRIT Rate'],
+  ['critrate', 'CRIT Rate'],
+  ['crit dmg', 'CRIT DMG'],
+  ['crit damage', 'CRIT DMG'],
+  ['crit_dmg', 'CRIT DMG'],
+  ['critdmg', 'CRIT DMG'],
+  ['effect hit rate', 'Effect Hit Rate'],
+  ['effect hit', 'Effect Hit Rate'],
+  ['ehr', 'Effect Hit Rate'],
+  ['effect res', 'Effect RES'],
+  ['effect resist', 'Effect RES'],
+  ['effect resistance', 'Effect RES'],
+  ['break effect', 'Break Effect'],
+  ['break', 'Break Effect'],
+]);
+
+function normalizeClientSubstatLabel(value) {
+  const raw = typeof value === 'object' && value
+    ? String(value.name || value.stat || value.key || value.label || value.substat || '').trim()
+    : String(value || '').trim();
+  if (!raw) return '';
+  const lowered = raw.toLowerCase().replace(/\s+/g, ' ').trim();
+  return CLIENT_SUBSTAT_CANONICAL_MAP.get(lowered) || raw;
+}
+
+function collectZoneSubstatsForClient(zone) {
+  const substats = [];
+  if (Array.isArray(zone?.aggregated_substats)) {
+    for (const entry of zone.aggregated_substats) {
+      const normalized = normalizeClientSubstatLabel(entry);
+      if (normalized) substats.push(normalized);
+    }
+  }
+  const relics = Array.isArray(zone?.sample_relic_data?.relics)
+    ? zone.sample_relic_data.relics
+    : Array.isArray(zone?.relic_data?.relics)
+      ? zone.relic_data.relics
+      : [];
+  for (const relic of relics) {
+    const entries = Array.isArray(relic?.substats) ? relic.substats : [];
+    for (const entry of entries) {
+      const normalized = normalizeClientSubstatLabel(entry);
+      if (normalized) substats.push(normalized);
+    }
+  }
+  return substats;
+}
+
+function applyClientTargetFilter(zones, preset, customStats, matchMode) {
+  const presetKey = String(preset || 'crit_potential');
+  const presetStats = presetKey === 'crit_substats'
+    ? ['CRIT Rate', 'CRIT DMG']
+    : presetKey === 'spd'
+      ? ['SPD']
+      : presetKey === 'hp_pct'
+        ? ['HP%']
+        : presetKey === 'break_effect'
+          ? ['Break Effect']
+          : presetKey === 'spd_crit'
+            ? ['SPD', 'CRIT Rate', 'CRIT DMG']
+            : presetKey === 'custom'
+              ? (Array.isArray(customStats) ? customStats : [])
+              : [];
+
+  const targetStats = Array.from(new Set(presetStats.map((entry) => normalizeClientSubstatLabel(entry)).filter(Boolean)));
+  if (targetStats.length === 0) {
+    return Array.isArray(zones) ? zones : [];
+  }
+
+  const mode = String(matchMode || 'any').toLowerCase() === 'all' ? 'all' : 'any';
+
+  return (Array.isArray(zones) ? zones : [])
+    .map((zone) => {
+      const substats = collectZoneSubstatsForClient(zone);
+      const totalEntries = substats.length;
+      const countMap = new Map();
+      for (const stat of substats) {
+        const key = normalizeClientSubstatLabel(stat);
+        if (!key) continue;
+        countMap.set(key, (countMap.get(key) || 0) + 1);
+      }
+      const matchedStats = targetStats.filter((stat) => (countMap.get(stat) || 0) > 0);
+      const totalMatches = targetStats.reduce((sum, stat) => sum + (countMap.get(stat) || 0), 0);
+      const passes = mode === 'all'
+        ? matchedStats.length === targetStats.length
+        : matchedStats.length > 0;
+      const targetRate = totalEntries > 0 ? Number((totalMatches / totalEntries).toFixed(4)) : null;
+      return {
+        ...zone,
+        target_rate: targetRate,
+        target_match_count: totalMatches,
+        target_matched_stats: matchedStats,
+        target_passes: passes,
+      };
+    })
+    .filter((zone) => zone.target_passes)
+    .sort((a, b) => {
+      if ((b.target_rate ?? -1) !== (a.target_rate ?? -1)) return (b.target_rate ?? -1) - (a.target_rate ?? -1);
+      if ((b.target_match_count ?? 0) !== (a.target_match_count ?? 0)) return (b.target_match_count ?? 0) - (a.target_match_count ?? 0);
+      if ((b.crit_rate ?? -1) !== (a.crit_rate ?? -1)) return (b.crit_rate ?? -1) - (a.crit_rate ?? -1);
+      return (b.runs ?? 0) - (a.runs ?? 0);
+    });
+}
+
 export function parseClearTimeToSeconds(value) {
   if (value === undefined || value === null || value === '') return null;
   const raw = String(value).trim();
@@ -320,6 +443,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [adminStatusLoading, setAdminStatusLoading] = useState(false);
   const [adminActionLoadingKey, setAdminActionLoadingKey] = useState('');
   const [adminWipeLoading, setAdminWipeLoading] = useState(false);
+  const [showAdminWipeAllModal, setShowAdminWipeAllModal] = useState(false);
+  const [adminWipeAllConfirmText, setAdminWipeAllConfirmText] = useState('');
   const [adminEditModalZone, setAdminEditModalZone] = useState(null);
   const [adminEditDraft, setAdminEditDraft] = useState({ xor: '', slot: '', sum: '', slotOrder: ['', '', '', ''] });
 
@@ -396,25 +521,46 @@ export function useZoneTracker(sessionTheme = 'modern') {
       setLoadingMap(true);
       setError('');
       try {
-        const params = new URLSearchParams({
-          epoch: String(epoch),
-          region: String(mapRegion),
-        });
-        if (mapTargetPreset !== 'crit_potential') {
-          params.set('target', mapTargetPreset);
-          if (mapTargetPreset === 'custom') {
-            params.set('stats', mapTargetCustomStats.join(','));
-            params.set('match_mode', mapTargetMode);
+        const buildMapParams = ({ includeTarget = true } = {}) => {
+          const params = new URLSearchParams({
+            epoch: String(epoch),
+            region: String(mapRegion),
+          });
+          if (includeTarget && mapTargetPreset !== 'crit_potential') {
+            params.set('target', mapTargetPreset);
+            if (mapTargetPreset === 'custom') {
+              params.set('stats', mapTargetCustomStats.join(','));
+              params.set('match_mode', mapTargetMode);
+            }
           }
+          return params;
+        };
+
+        const requestMap = async ({ includeTarget = true } = {}) => {
+          const response = await fetch(`/api/zone/map?${buildMapParams({ includeTarget }).toString()}`, {
+            method: 'GET',
+            headers: { ...getAuthHeader() },
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+          }
+          return payload;
+        };
+
+        let payload = await requestMap({ includeTarget: true });
+
+        if (mapTargetPreset !== 'crit_potential') {
+          const rawPayload = await requestMap({ includeTarget: false });
+          payload = {
+            ...payload,
+            total_runs: rawPayload?.total_runs ?? payload?.total_runs ?? 0,
+            epoch_summary: rawPayload?.epoch_summary ?? payload?.epoch_summary,
+            target_filter: payload?.target_filter ?? rawPayload?.target_filter,
+            zones: applyClientTargetFilter(rawPayload?.zones, mapTargetPreset, mapTargetCustomStats, mapTargetMode),
+          };
         }
-        const response = await fetch(`/api/zone/map?${params.toString()}`, {
-          method: 'GET',
-          headers: { ...getAuthHeader() },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(payload.error || `HTTP ${response.status}`);
-        }
+
         setMapData(payload);
         
         const zoneCards = mapRef.current?.querySelectorAll('.zone-card');
@@ -1259,8 +1405,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
 
   const handleAdminWipeAll = useCallback(async () => {
     if (!adminEligible || !adminModeEnabled) return;
-    const confirmText = window.prompt('Type WIPE_ALL_ZONE_RUNS to wipe all zone reports:');
-    if (!confirmText || confirmText.trim() !== 'WIPE_ALL_ZONE_RUNS') {
+    const confirmText = adminWipeAllConfirmText.trim();
+    if (!confirmText || confirmText !== 'WIPE_ALL_ZONE_RUNS') {
       if (confirmText) setError('Wipe cancelled: confirmation text did not match.');
       return;
     }
@@ -1270,6 +1416,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
     try {
       const result = await runAdminZoneAction({ action: 'wipe_all', confirm: 'WIPE_ALL_ZONE_RUNS' });
       setSuccess(`Wiped ${result.deleted_count || 0} run(s) across all epochs.`);
+      setShowAdminWipeAllModal(false);
+      setAdminWipeAllConfirmText('');
       await fetchMap('current');
       setRequestedEpoch('current');
     } catch (wipeError) {
@@ -1277,7 +1425,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     } finally {
       setAdminWipeLoading(false);
     }
-  }, [adminEligible, adminModeEnabled, fetchMap, runAdminZoneAction]);
+  }, [adminEligible, adminModeEnabled, adminWipeAllConfirmText, fetchMap, runAdminZoneAction]);
 
   const handleExportDebugLogs = useCallback(async () => {
     setError('');
@@ -1372,6 +1520,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
     adminStatusLoading,
     adminActionLoadingKey,
     adminWipeLoading,
+    showAdminWipeAllModal,
+    setShowAdminWipeAllModal,
+    adminWipeAllConfirmText,
+    setAdminWipeAllConfirmText,
     adminEditModalZone,
     adminEditDraft,
     tuneXorInput, setTuneXorInput,

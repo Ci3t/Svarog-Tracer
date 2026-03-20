@@ -58,8 +58,14 @@ const CACHE_KEY = `banner_cache_v${CONFIG.CACHE_VERSION}`;
 let BANNER_CACHE = {
   data: null,
   timestamp: 0,
-  version: CONFIG.CACHE_VERSION
+  version: CONFIG.CACHE_VERSION,
+  game: 'all'
 };
+
+function normalizeGameQuery(value) {
+  const normalized = String(value || 'all').trim().toLowerCase();
+  return ['all', 'hsr', 'genshin', 'wuwa'].includes(normalized) ? normalized : 'all';
+}
 
 // =========================================================================
 // HELPER FUNCTIONS
@@ -390,6 +396,84 @@ async function fetchActiveGenshinBanners() {
 // =========================================================================
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
+const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100034': {
+    name: 'Sigrika',
+    type: 'character',
+  },
+  '200034': {
+    name: 'Solsworn Ciphers',
+    type: 'weapon',
+  },
+});
+
+function slugifyWuWaName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+function buildWuWaImageUrl(folder, fileName) {
+  return `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
+}
+
+function extractWuWaImageFromHtml(html) {
+  const patterns = [
+    /\/_next\/image\?url=%2Fapi%2F(?:character|weapon)-portraits%2Ffile%2F[^"'\\\s>]+/gi,
+    /\/api\/(?:character|weapon)-portraits\/file\/[^"'\\\s>]+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match?.[0]) continue;
+    
+    // Fix malformed URLs (e.g. &amp; instead of &) and escape sequences
+    const raw = match[0]
+      .replace(/\\u0026/g, '&')
+      .replace(/&amp;/g, '&')
+      .replace(/\\/g, '');
+      
+    if (raw.startsWith('/_next/image')) {
+      return raw.startsWith('http') ? raw : `https://wuwatracker.com${raw}`;
+    }
+    const cleaned = raw.replace(/^\/+/, '');
+    return `https://wuwatracker.com/${cleaned}`;
+  }
+
+  return null;
+}
+
+async function fetchWuWaStatsImage(bannerId, bannerName, type) {
+  try {
+    const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
+    const directRes = await fetch(statsUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
+    });
+    if (directRes.ok) {
+      const html = await directRes.text();
+      const extracted = extractWuWaImageFromHtml(html);
+      if (extracted) return extracted;
+    }
+  } catch (e) {
+    console.warn(`[WuWa] Stats image fetch failed for ${bannerName || bannerId}: ${e.message}`);
+  }
+
+  const known = WUWA_KNOWN_BANNERS[String(bannerId)] || null;
+  const resolvedType = known?.type || type;
+  const folder = resolvedType === 'character' ? 'character-portraits' : 'weapon-portraits';
+  const slug = slugifyWuWaName(known?.name || bannerName);
+  const knownCandidates = Array.isArray(known?.candidates) ? known.candidates : [];
+  const generatedCandidates = resolvedType === 'character'
+    ? [`${slug}-portrait.webp`, `${slug}-portrait.png`, `${slug}.webp`, `${slug}.png`]
+    : [`${slug}-portrait.png`, `${slug}.png`, `${slug}-portrait.webp`, `${slug}.webp`];
+  const fileName = [...knownCandidates, ...generatedCandidates].find(Boolean);
+  return fileName ? buildWuWaImageUrl(folder, fileName) : null;
+}
+
 async function fetchWuWaLiveBanners() {
   const statsUrl = `${CONFIG.WUWA_TRACKER}`;
   let html = null;
@@ -457,37 +541,41 @@ async function fetchWuWaLiveBanners() {
       if (name.toLowerCase().includes('standard')) continue;
 
       const type = isCharacter ? 'character' : 'weapon';
-      const nameSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const ext = 'png';
-      const imgPath = isCharacter ? 'character-portraits' : 'weapon-portraits';
-      const fileName = isCharacter ? `${nameSlug}-portrait.${ext}` : `${nameSlug}.${ext}`;
+      const resolvedName = WUWA_KNOWN_BANNERS[id]?.name || name;
+      
+      // OPTIMIZATION: Use slug-based images instead of fetching sub-pages during discovery
+      const firstName = resolvedName.split('&')[0].trim();
+      const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
+      const ext = type === 'character' ? 'webp' : 'png';
+      const image = `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${slug}-portrait.${ext}`)}&w=828&q=75`;
 
       banners.push({
         id,
-        name,
+        name: resolvedName,
         type,
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imgPath}%2Ffile%2F${fileName}&w=828&q=75`,
+        image,
         game: 'wuwa'
       });
     }
 
-    // Emergency Fallback for Aemeath
-    if (!banners.some(b => b.id === '100032') && html.includes('Aemeath')) {
+    // Emergency Fallback for Sigrika
+    if (!banners.some(b => b.id === '100034') && html.includes('Sigrika')) {
       banners.push({
-        id: '100032',
-        name: 'Aemeath',
+        id: '100034',
+        name: 'Sigrika',
         type: 'character',
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Faemeath-portrait.png&w=828&q=75`,
+        image: buildWuWaImageUrl('character-portraits', 'sigrika-portrait.webp'),
         game: 'wuwa'
       });
     }
-    // Emergency Fallback for Everbright Polestar
-    if (!banners.some(b => b.id === '200032') && html.includes('Everbright Polestar')) {
+    // Emergency Fallback for Solsworn Ciphers
+    if (!banners.some(b => b.id === '200034') && (html.includes('Solsworn Ciphers') || html.includes('Emerald Sentence'))) {
       banners.push({
-        id: '200032',
-        name: 'Everbright Polestar',
+        id: '200034',
+        name: 'Solsworn Ciphers',
         type: 'weapon',
-        image: `https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Feverbright-polestar.png&w=828&q=75`,
+        image: buildWuWaImageUrl('weapon-portraits', 'solsworn-ciphers-portrait.png'),
         game: 'wuwa'
       });
     }
@@ -527,9 +615,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    const requestedGame = normalizeGameQuery(req.query?.game);
     // Check cache (validate both time AND version)
     const cacheValid = BANNER_CACHE.data &&
       BANNER_CACHE.version === CONFIG.CACHE_VERSION &&
+      BANNER_CACHE.game === requestedGame &&
       (Date.now() - BANNER_CACHE.timestamp < CACHE_DURATION);
 
     if (cacheValid) {
@@ -543,19 +633,36 @@ export default async function handler(req, res) {
       console.log('[Banners API] Cache version mismatch - invalidating old cache');
     }
 
-    console.log('[Banners API] Fetching fresh data from all sources...');
+    console.log(`[Banners API] Fetching fresh data for ${requestedGame}...`);
 
-    // Fetch all banner data in parallel
-    const [hsr, genshin, wuwa] = await Promise.all([
-      fetchHSRActiveBanners(),
-      fetchActiveGenshinBanners(),
-      fetchWuWaLiveBanners()
-    ]);
+    const tasks = [];
+    if (requestedGame === 'all' || requestedGame === 'hsr') {
+      tasks.push(['hsr', fetchHSRActiveBanners()]);
+    }
+    if (requestedGame === 'all' || requestedGame === 'genshin') {
+      tasks.push(['genshin', fetchActiveGenshinBanners()]);
+    }
+    if (requestedGame === 'all' || requestedGame === 'wuwa') {
+      tasks.push(['wuwa', fetchWuWaLiveBanners()]);
+    }
+
+    const settled = await Promise.allSettled(tasks.map(([, promise]) => promise));
+    const resultMap = { hsr: [], genshin: [], wuwa: [] };
+
+    settled.forEach((result, index) => {
+      const key = tasks[index]?.[0];
+      if (!key) return;
+      if (result.status === 'fulfilled') {
+        resultMap[key] = Array.isArray(result.value) ? result.value : [];
+      } else {
+        console.warn(`[Banners API] ${key} fetch failed:`, result.reason?.message || result.reason);
+      }
+    });
 
     const response = {
-      hsr,
-      genshin,
-      wuwa,
+      hsr: resultMap.hsr,
+      genshin: resultMap.genshin,
+      wuwa: resultMap.wuwa,
       lastUpdate: new Date().toISOString(),
       cacheExpiry: new Date(Date.now() + CACHE_DURATION).toISOString()
     };
@@ -564,10 +671,11 @@ export default async function handler(req, res) {
     BANNER_CACHE = {
       data: response,
       timestamp: Date.now(),
-      version: CONFIG.CACHE_VERSION
+      version: CONFIG.CACHE_VERSION,
+      game: requestedGame
     };
 
-    console.log(`[Banners API] Success! HSR:${hsr.length} Genshin:${genshin.length} WuWa:${wuwa.length}`);
+    console.log(`[Banners API] Success! HSR:${response.hsr.length} Genshin:${response.genshin.length} WuWa:${response.wuwa.length}`);
 
     res.setHeader('X-Cache-Status', 'MISS');
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
@@ -581,5 +689,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
-

@@ -2,6 +2,7 @@ import { handler as submitHandler } from './_services/zone/submit.js';
 import { handler as mapHandler } from './_services/zone/map.js';
 import { handler as flagEpochHandler } from './_services/zone/flag-epoch.js';
 import { handler as variantsHandler } from './_services/zone/variants.js';
+import { handler as nearbyHandler } from './_services/zone/nearby.js';
 import { handler as ownedHandler } from './_services/zone/owned.js';
 import { handler as exportHandler } from './_services/zone/export.js';
 import { handler as logRunsHandler } from './_services/zone/log-runs.js';
@@ -22,6 +23,7 @@ export default async function handler(req, res) {
   if (pathPart === 'map') return mapHandler(req, res);
   if (pathPart === 'flag-epoch') return flagEpochHandler(req, res);
   if (pathPart === 'variants') return variantsHandler(req, res);
+  if (pathPart === 'nearby') return nearbyHandler(req, res);
   if (pathPart === 'owned') return ownedHandler(req, res);
   if (pathPart === 'export') return exportHandler(req, res);
   if (pathPart === 'log-runs') return logRunsHandler(req, res);
