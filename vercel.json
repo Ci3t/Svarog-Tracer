@@ -37,6 +37,10 @@
     {
       "source": "/api/zone/:slug*",
       "destination": "/api/zone"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ],
   "crons": [
