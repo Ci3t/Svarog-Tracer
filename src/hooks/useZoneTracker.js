@@ -4,6 +4,7 @@ import charactersData from '../data/characters.json';
 import { HSR_CAVERNS, findCavernById } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import { buildApiUrl as buildZoneApiUrl } from '../utils/apiBase';
 
 // --- Constants & Helpers ---
 export const SERVER_REGION_OPTIONS = [
@@ -537,7 +538,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
         };
 
         const requestMap = async ({ includeTarget = true } = {}) => {
-          const response = await fetch(`/api/zone/map?${buildMapParams({ includeTarget }).toString()}`, {
+          const response = await fetch(buildZoneApiUrl(`/api/zone/map?${buildMapParams({ includeTarget }).toString()}`), {
             method: 'GET',
             headers: { ...getAuthHeader() },
           });
@@ -587,7 +588,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     }
     setOwnedLoading(true);
     try {
-      const response = await fetch('/api/zone/owned', {
+      const response = await fetch(buildZoneApiUrl('/api/zone/owned'), {
         method: 'GET',
         headers: { ...getAuthHeader() },
       });
@@ -620,7 +621,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       )
     ).sort((a, b) => a - b);
 
-    const response = await fetch('/api/zone/owned', {
+    const response = await fetch(buildZoneApiUrl('/api/zone/owned'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -712,7 +713,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
         use_owned: useOwnedFilter ? 'true' : 'false',
         limit: '12',
       });
-      const response = await fetch(`/api/zone/variants?${params.toString()}`, {
+      const response = await fetch(buildZoneApiUrl(`/api/zone/variants?${params.toString()}`), {
         method: 'GET',
         headers: { ...getAuthHeader() },
       });
@@ -829,7 +830,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
         limit: '20',
       });
       if (targetSum !== null) params.set('sum', String(targetSum));
-      const response = await fetch(`/api/zone/variants?${params.toString()}`, {
+      const response = await fetch(buildZoneApiUrl(`/api/zone/variants?${params.toString()}`), {
         method: 'GET',
         headers: { ...getAuthHeader() },
       });
@@ -868,7 +869,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     const fetchAdminStatus = async () => {
       setAdminStatusLoading(true);
       try {
-        const response = await fetch('/api/zone/export?status=true', {
+        const response = await fetch(buildZoneApiUrl('/api/zone/export?status=true'), {
           method: 'GET',
           headers: { ...getAuthHeader() },
         });
@@ -1201,7 +1202,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     if (conflictRelic) { setError(`Relic #${conflictRelic.index} cannot include main stat in substats.`); return; }
     setSubmitting(true);
     try {
-      const response = await fetch('/api/zone/submit', {
+      const response = await fetch(buildZoneApiUrl('/api/zone/submit'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
@@ -1249,7 +1250,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     setSuccess('');
     setFlagging(true);
     try {
-      const response = await fetch('/api/zone/flag-epoch', {
+      const response = await fetch(buildZoneApiUrl('/api/zone/flag-epoch'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ notes: flagNotes || null }),
@@ -1270,7 +1271,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
   };
 
   const runAdminZoneAction = useCallback(async (payload) => {
-    const response = await fetch('/api/zone/admin-runs', {
+    const response = await fetch(buildZoneApiUrl('/api/zone/admin-runs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
@@ -1433,7 +1434,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     setExportingDebug(true);
     const exportScope = adminModeEnabled && adminEligible ? 'all' : 'self';
     try {
-      const response = await fetch(`/api/zone/export?scope=${encodeURIComponent(exportScope)}`, {
+      const response = await fetch(buildZoneApiUrl(`/api/zone/export?scope=${encodeURIComponent(exportScope)}`), {
         method: 'GET',
         headers: { ...getAuthHeader() },
       });

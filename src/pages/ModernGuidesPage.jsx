@@ -8,9 +8,10 @@ import KiyoGuide from '../components/guides/KiyoGuide';
 import WarpGuide from '../components/guides/WarpGuide';
 import guidesData from '../data/guides.json';
 import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl } from '../utils/apiBase';
 
 // API Configuration
-const API_URL = '/api/guides';
+const API_URL = buildApiUrl('/api/guides');
 
 const getYouTubeEmbedUrl = (videoId) => `https://www.youtube.com/embed/${videoId}`;
 const getYouTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -507,7 +508,7 @@ export default function ModernGuidesPage() {
       }
 
       try {
-        const response = await fetch('/api/zone/export?status=true', {
+        const response = await fetch(buildApiUrl('/api/zone/export?status=true'), {
           method: 'GET',
           headers: { ...getAuthHeader() },
         });

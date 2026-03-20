@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { Users, Plus, X, ChevronLeft, ChevronRight, Shuffle, Target } from 'lucide-react';
 import { formatRate } from '../../hooks/useZoneTracker';
+import { buildApiUrl as buildZoneApiUrl } from '../../utils/apiBase';
 
 const VARIANTS_PER_PAGE = 8;
 const NEARBY_PER_PAGE = 8;
@@ -118,6 +119,7 @@ export default function ZoneBuildTeam({
   const [enforceTeamSum, setEnforceTeamSum] = useState(false);
   const [enforceNearbySum, setEnforceNearbySum] = useState(false);
   const [nearbyRadius, setNearbyRadius] = useState(100);
+  const [nearbyScanMode, setNearbyScanMode] = useState('generated');
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
   const lastSyncedSignatureRef = useRef('');
@@ -416,7 +418,7 @@ export default function ZoneBuildTeam({
       params.append('min_owned', useOwned ? String(variantMinOwned) : '0');
       params.append('limit', '24');
 
-      const res = await fetch(`/api/zone/variants?${params.toString()}`, {
+      const res = await fetch(buildZoneApiUrl(`/api/zone/variants?${params.toString()}`), {
         headers: authHeaders,
       });
       const data = await res.json().catch(() => ({}));
@@ -445,6 +447,7 @@ export default function ZoneBuildTeam({
 
     try {
       const authHeaders = getAuthHeader?.() || {};
+      const slotOrder = buildSlots.map(Number);
       const xor = parseIntegerMaybe(manualXor) ?? buildTeamSignature?.xor ?? null;
       if (!Number.isInteger(xor)) {
         throw new Error('Zone is required to scan nearby zones.');
@@ -456,16 +459,24 @@ export default function ZoneBuildTeam({
 
       const params = new URLSearchParams({
         xor: String(xor),
+        slot: String(parseIntegerMaybe(manualSlot) ?? buildTeamSignature?.slot ?? ''),
         radius: String(nearbyRadius),
         limit: '24',
       });
+      params.append('scan_mode', nearbyScanMode);
+      if (slotOrder.filter((id) => id > 0).length === 4) {
+        params.append('source_slot_order', slotOrder.join(','));
+      }
       const sum = parseIntegerMaybe(manualSum) ?? buildTeamSignature?.sum ?? null;
       if (enforceNearbySum && Number.isInteger(sum)) {
         params.append('sum', String(sum));
         params.append('enforce_sum', 'true');
       }
+      const useOwned = variantOwnershipFilter === 'owned';
+      params.append('use_owned', useOwned ? 'true' : 'false');
+      params.append('min_owned', useOwned ? String(variantMinOwned) : '0');
 
-      const res = await fetch(`/api/zone/nearby?${params.toString()}`, {
+      const res = await fetch(buildZoneApiUrl(`/api/zone/nearby?${params.toString()}`), {
         headers: authHeaders,
       });
       const data = await res.json().catch(() => ({}));
@@ -707,6 +718,26 @@ export default function ZoneBuildTeam({
               </label>
             ) : (
               <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNearbyScanMode('generated')}
+                    className={nearbyScanMode === 'generated'
+                      ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100'
+                      : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                  >
+                    Free Team Ideas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNearbyScanMode('logged')}
+                    className={nearbyScanMode === 'logged'
+                      ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-black uppercase tracking-widest text-cyan-100'
+                      : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-slate-500'}
+                  >
+                    Logged Zones
+                  </button>
+                </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Zone Radius</span>
                   <span className="px-2.5 py-1 rounded-lg bg-cyan-950/20 border border-cyan-500/20 text-[10px] font-black text-cyan-200">
@@ -738,9 +769,18 @@ export default function ZoneBuildTeam({
                     {enforceNearbySum ? 'Lock Team Sum' : 'Team Sum Unlocked'}
                   </button>
                   <span className="text-[9px] text-slate-500">
-                    {enforceNearbySum ? `Only nearby zones with team ${activeTargetSum ?? '--'}` : 'Nearby scan ignores team sum'}
+                    {enforceNearbySum
+                      ? `Only nearby results with team ${activeTargetSum ?? '--'}`
+                      : nearbyScanMode === 'generated'
+                        ? 'Free ideas ignore team sum unless you lock it'
+                        : 'Logged scan ignores team sum unless you lock it'}
                   </span>
                 </div>
+                <p className="mt-3 text-[9px] text-slate-500">
+                  {nearbyScanMode === 'generated'
+                    ? 'Generated mode mutates 1-2 slots from your current team and ranks ideas by zone closeness, slot closeness, and similarity.'
+                    : 'Logged mode scans real reported zones near your target zone.'}
+                </p>
               </div>
             )}
 
@@ -784,13 +824,23 @@ export default function ZoneBuildTeam({
           <button
             ref={generateButtonRef}
             onClick={buildMode === 'exact' ? handleGenerateVariants : handleScanNearbyZones}
-            disabled={(!isReady && !manualXor && !manualSlot) || buildVariantLoading}
+            disabled={
+              buildVariantLoading ||
+              nearbyLoading ||
+              (buildMode === 'exact'
+                ? (!isReady && !manualXor && !manualSlot)
+                : (!Number.isInteger(activeTargetXor) || (nearbyScanMode === 'generated' && !isReady)))
+            }
             className="w-full px-4 py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-[11px] font-black uppercase tracking-widest text-violet-100 hover:bg-violet-500/25 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
           >
             <Shuffle className="w-4 h-4" />
             {buildMode === 'exact'
               ? (buildVariantLoading ? 'Generating Teams...' : (isReady || (manualXor && manualSlot)) ? 'Generate Teams' : `Pick ${4 - filledCount} more char${4 - filledCount !== 1 ? 's' : ''}`)
-              : (nearbyLoading ? 'Scanning Nearby Zones...' : Number.isInteger(activeTargetXor) ? 'Scan Nearby Zones' : 'Zone Required')}
+              : (nearbyLoading
+                ? (nearbyScanMode === 'generated' ? 'Generating Nearby Ideas...' : 'Scanning Logged Zones...')
+                : Number.isInteger(activeTargetXor)
+                  ? (nearbyScanMode === 'generated' ? 'Generate Nearby Ideas' : 'Scan Logged Zones')
+                  : 'Zone Required')}
           </button>
         </div>
 
@@ -909,10 +959,13 @@ export default function ZoneBuildTeam({
             ) : (
               <>
                   <span className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-black text-slate-300">
-                  Zone radius ±{nearbyRadius}
+                  Zone radius +/-{nearbyRadius}
                   </span>
                   <span className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-black text-slate-400">
                   {enforceNearbySum ? `Team ${activeTargetSum ?? '--'} locked` : 'Team sum unlocked'}
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-black text-slate-300">
+                    {nearbyPayload?.scan_mode === 'logged' ? 'Logged scan' : 'Free team ideas'}
                   </span>
                   {nearbyPayload?.resolved_epoch_source === 'previous_fallback' ? (
                     <span className="px-3 py-1.5 rounded-xl bg-amber-950/20 border border-amber-500/20 text-[10px] font-black text-amber-200">
@@ -1023,9 +1076,17 @@ export default function ZoneBuildTeam({
             </div>
             ) : nearbyZones.length === 0 ? (
               <div className="py-5 text-center space-y-2">
-              <p className="text-[11px] text-slate-400 font-bold">No nearby zones found in this zone radius.</p>
+              <p className="text-[11px] text-slate-400 font-bold">
+                {nearbyPayload?.scan_mode === 'logged'
+                  ? 'No logged zones found in this zone radius.'
+                  : 'No nearby team ideas matched this zone radius.'}
+              </p>
               <p className="text-[10px] text-slate-500">
-                {nearbyPayload?.errorMessage || 'Try a larger radius, unlock team sum, or wait for more current-week reports.'}
+                {nearbyPayload?.errorMessage || (
+                  nearbyPayload?.scan_mode === 'logged'
+                    ? 'Try a larger radius, unlock team sum, or wait for more current-week reports.'
+                    : 'Try a larger radius, unlock team sum, or start from a different 4-character team.'
+                )}
               </p>
               </div>
             ) : (
@@ -1035,8 +1096,9 @@ export default function ZoneBuildTeam({
                 const names = Array.isArray(zone?.sample_char_names) && zone.sample_char_names.length > 0
                   ? zone.sample_char_names
                   : charIds.map((id) => charactersByNumId?.get(Number(id))?.name || `#${id}`);
-                const diffLabel = zone?.xor_diff === 0 ? 'Exact zone' : `Zone ±${zone?.xor_diff ?? '--'}`;
+                const diffLabel = zone?.xor_diff === 0 ? 'Exact zone' : `Zone +/-${zone?.xor_diff ?? '--'}`;
                 const zoneKey = zone?.xor_slot_key || `${zone?.char_xor}_${zone?.char_slot}`;
+                const isLoggedMode = nearbyPayload?.scan_mode === 'logged';
 
                 return (
                   <div
@@ -1059,9 +1121,17 @@ export default function ZoneBuildTeam({
                         <p className="text-[13px] font-black text-slate-100 leading-tight truncate">{names.join(' / ')}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-[10px] text-cyan-300 font-bold">{diffLabel}</span>
-                          <span className="text-[10px] text-slate-500">• {zone?.runs ?? 0} runs</span>
-                          <span className="text-[10px] text-slate-500">• Crit {formatRate(zone?.crit_rate)}</span>
-                          <span className="text-[10px] text-slate-500">• {zone?.seen_char_ids?.length ?? 0} chars seen</span>
+                          <span className="text-[10px] text-slate-500">- {zone?.runs ?? 0} runs</span>
+                          <span className="text-[10px] text-slate-500">- Crit {formatRate(zone?.crit_rate)}</span>
+                          {isLoggedMode ? (
+                            <span className="text-[10px] text-slate-500">- {zone?.seen_char_ids?.length ?? 0} chars seen</span>
+                          ) : (
+                            <>
+                              <span className="text-[10px] text-slate-500">- {zone?.same_slots ?? 0}/4 same slots</span>
+                              <span className="text-[10px] text-slate-500">- {zone?.shared_chars ?? 0}/4 same chars</span>
+                              <span className="text-[10px] text-slate-500">- {zone?.mutation_steps ?? '?'} swap</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1079,10 +1149,14 @@ export default function ZoneBuildTeam({
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 text-right max-w-[360px]">
-                        Nearby zone discovery uses real logged zones, then sorts by closeness and report volume.
+                        {isLoggedMode
+                          ? 'Logged scan uses real reported zones, then sorts by closeness and report volume.'
+                          : `Free ideas keep your team shape and rank by zone ${zone?.xor_diff ?? '--'}, slot ${zone?.slot_diff ?? '--'}, and team ${zone?.sum_diff ?? '--'} distance.`}
                       </p>
                       <button
                         onClick={async () => {
+                          const nextTeam = charIds.map((val) => Number(val) || null);
+                          setBuildSlots?.(nextTeam);
                           setBuildMode('exact');
                           setManualXor(String(zone?.char_xor ?? ''));
                           setManualSlot(String(zone?.char_slot ?? ''));
@@ -1095,7 +1169,7 @@ export default function ZoneBuildTeam({
                         }}
                         className="px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-black uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/35 transition-all cursor-pointer"
                       >
-                        View Exact Matches
+                        Check Exact Matches
                       </button>
                     </div>
                   </div>

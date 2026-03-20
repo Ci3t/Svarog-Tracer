@@ -1,7 +1,10 @@
 {
   "version": 2,
-  "framework": "vite",
   "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "packageManager": "npm",
   "headers": [
     {
       "source": "/api/(.*)",
@@ -37,10 +40,6 @@
     {
       "source": "/api/zone/:slug*",
       "destination": "/api/zone"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
     }
   ],
   "crons": [

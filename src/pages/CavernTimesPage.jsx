@@ -7,6 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { findCavernById, HSR_CAVERNS, HSR_DOMAINS } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl } from '../utils/apiBase';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -38,7 +39,7 @@ const VisualIcon = ({ src, name, className = "" }) => {
 };
 
 // API Configuration
-const API_URL = '/api/hsr/cavern-clears';
+const API_URL = buildApiUrl('/api/hsr/cavern-clears');
 
 const CAVERN_PRESET_FLAGS_KEY = 'hsr_cavern_preset_flags_v1';
 const CAVERN_PRESET_DATA_KEY = 'hsr_cavern_preset_data_v1';
@@ -592,7 +593,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       }
 
       try {
-        const response = await fetch('/api/zone/export?status=true', {
+        const response = await fetch(buildApiUrl('/api/zone/export?status=true'), {
           method: 'GET',
           headers: { ...getAuthHeader() },
         });
