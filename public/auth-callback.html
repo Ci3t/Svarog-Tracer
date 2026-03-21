@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Svarog Tracer Auth</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #172036 0%, #090c14 60%);
+        color: #f8fafc;
+        font-family: Outfit, system-ui, sans-serif;
+      }
+
+      .card {
+        width: min(92vw, 560px);
+        border: 1px solid rgba(99, 102, 241, 0.22);
+        background: rgba(15, 23, 42, 0.84);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.2rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin: 0;
+        color: #cbd5e1;
+        line-height: 1.6;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 18px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        text-decoration: none;
+        color: #e2e8f0;
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        background: rgba(79, 70, 229, 0.18);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Discord Callback</h1>
+      <p id="message">Completing Discord sign-in...</p>
+      <a id="login-link" href="./#/auth" style="display:none;">Back To Login</a>
+    </div>
+    <script>
+      (function () {
+        var SESSION_STORAGE_KEY = 'svarog_zone_auth_session_v1';
+        var NEXT_PATH_KEY = 'svarog_zone_auth_next_path_v1';
+        var messageEl = document.getElementById('message');
+        var loginLink = document.getElementById('login-link');
+        var url = new URL(window.location.href);
+        var hashParams = new URLSearchParams((url.hash || '').replace(/^#/, ''));
+        var searchParams = url.searchParams;
+        var accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+        var refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+        var expiresInRaw = hashParams.get('expires_in') || searchParams.get('expires_in') || '3600';
+        var expiresIn = Number(expiresInRaw);
+        var tokenType = hashParams.get('token_type') || searchParams.get('token_type') || 'bearer';
+        var errorDescription =
+          searchParams.get('error_description') ||
+          hashParams.get('error_description') ||
+          searchParams.get('error') ||
+          hashParams.get('error');
+
+        function getBasePath(pathname) {
+          var suffix = '/auth-callback.html';
+          if (pathname.endsWith(suffix)) {
+            return pathname.slice(0, -suffix.length) + '/';
+          }
+          return pathname.replace(/[^/]*$/, '');
+        }
+
+        function showError(text) {
+          messageEl.textContent = text;
+          loginLink.style.display = 'inline-block';
+        }
+
+        var basePath = getBasePath(url.pathname);
+        var nextPath = '/zone-tracker';
+
+        try {
+          var storedNextPath = sessionStorage.getItem(NEXT_PATH_KEY) || nextPath;
+          if (storedNextPath && storedNextPath.charAt(0) === '/') {
+            nextPath = storedNextPath;
+          }
+        } catch (_) {
+          // ignore sessionStorage failures
+        }
+
+        loginLink.href = basePath + '#/auth';
+
+        if (errorDescription) {
+          showError(errorDescription);
+          return;
+        }
+
+        if (!accessToken) {
+          showError('No access token found in callback URL.');
+          return;
+        }
+
+        try {
+          localStorage.setItem(
+            SESSION_STORAGE_KEY,
+            JSON.stringify({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              token_type: tokenType,
+              expires_at: Date.now() + ((Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000),
+              user: null
+            })
+          );
+        } catch (_) {
+          showError('Could not store the session on this device.');
+          return;
+        }
+
+        messageEl.textContent = 'Discord sign-in complete. Redirecting...';
+        window.location.replace(basePath + '#' + nextPath);
+      })();
+    </script>
+  </body>
+</html>

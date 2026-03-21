@@ -13,7 +13,7 @@ export function getSessionStorageKey() {
 
 export function getAuthRedirectUrl() {
   const basePath = import.meta.env.BASE_URL || '/';
-  return new URL(`${basePath}auth/callback`, window.location.origin).toString();
+  return new URL(`${basePath}auth-callback.html`, window.location.origin).toString();
 }
 
 export function buildDiscordOAuthUrl() {
