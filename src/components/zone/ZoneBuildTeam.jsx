@@ -87,6 +87,8 @@ function CharacterBubble({ char, charId, tooltip, selected = false, disabled = f
 
 export default function ZoneBuildTeam({
   workspaceView,
+  setWorkspaceView,
+  formRef,
   buildSlots,
   setBuildSlots,
   buildTeamSignature,
@@ -119,7 +121,9 @@ export default function ZoneBuildTeam({
   const [enforceTeamSum, setEnforceTeamSum] = useState(false);
   const [enforceNearbySum, setEnforceNearbySum] = useState(false);
   const [nearbyRadius, setNearbyRadius] = useState(100);
+  const [nearbySlotRadius, setNearbySlotRadius] = useState(160);
   const [nearbyScanMode, setNearbyScanMode] = useState('generated');
+  const [nearbySortDirection, setNearbySortDirection] = useState('asc');
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
   const lastSyncedSignatureRef = useRef('');
@@ -129,6 +133,21 @@ export default function ZoneBuildTeam({
   const [manualSum, setManualSum] = useState('');
   const [nearbyPayload, setNearbyPayload] = useState(null);
   const [nearbyLoading, setNearbyLoading] = useState(false);
+
+  const exportTeamToRelicLog = (team, successMessage = 'Team exported to Relic Log.') => {
+    const nextTeam = (Array.isArray(team) ? team : []).map((val) => Number(val) || null);
+    setBuildSlots?.(nextTeam);
+    setSlots?.(nextTeam);
+    setWorkspaceView?.('logger');
+    setSuccess?.(successMessage);
+    window.setTimeout(() => {
+      if (formRef?.current?.scrollIntoView) {
+        formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 80);
+  };
 
   useEffect(() => {
     const nextSignatureKey = buildTeamSignature
@@ -449,6 +468,7 @@ export default function ZoneBuildTeam({
       const authHeaders = getAuthHeader?.() || {};
       const slotOrder = buildSlots.map(Number);
       const xor = parseIntegerMaybe(manualXor) ?? buildTeamSignature?.xor ?? null;
+      const slot = parseIntegerMaybe(manualSlot) ?? buildTeamSignature?.slot ?? null;
       if (!Number.isInteger(xor)) {
         throw new Error('Zone is required to scan nearby zones.');
       }
@@ -457,12 +477,77 @@ export default function ZoneBuildTeam({
       setNearbyPayload(null);
       setNearbyPage(0);
 
-      const params = new URLSearchParams({
-        xor: String(xor),
-        slot: String(parseIntegerMaybe(manualSlot) ?? buildTeamSignature?.slot ?? ''),
-        radius: String(nearbyRadius),
-        limit: '24',
-      });
+      if (nearbyScanMode === 'generated' && nearbyRadius === 0 && nearbySlotRadius === 0) {
+        if (!Number.isInteger(slot)) {
+          throw new Error('Slot is required when zone and slot radius are both 0.');
+        }
+
+          const exactParams = new URLSearchParams({
+            xor: String(xor),
+            slot: String(slot),
+            limit: '40',
+          });
+        if (slotOrder.filter((id) => id > 0).length === 4) {
+          exactParams.append('slot_order', slotOrder.join(','));
+        }
+        const exactSum = parseIntegerMaybe(manualSum) ?? buildTeamSignature?.sum ?? null;
+        if (enforceNearbySum && Number.isInteger(exactSum)) {
+          exactParams.append('sum', String(exactSum));
+          exactParams.append('enforce_sum', 'true');
+        }
+        const useOwnedExact = variantOwnershipFilter === 'owned';
+        exactParams.append('use_owned', useOwnedExact ? 'true' : 'false');
+        exactParams.append('min_owned', useOwnedExact ? String(variantMinOwned) : '0');
+
+        const exactRes = await fetch(buildZoneApiUrl(`/api/zone/variants?${exactParams.toString()}`), {
+          headers: authHeaders,
+        });
+        const exactData = await exactRes.json().catch(() => ({}));
+        if (!exactRes.ok) {
+          throw new Error(exactData?.error || 'Nearby zones request failed');
+        }
+
+        const exactZones = Array.isArray(exactData?.variants)
+          ? exactData.variants.map((variant) => {
+              const charIds = Array.isArray(variant?.slot_order) ? variant.slot_order : [];
+              const comparison = getComparisonStats(charIds, variant);
+              return {
+                ...variant,
+                sample_slot_order: charIds,
+                sample_char_names: Array.isArray(variant?.char_names) ? variant.char_names : charIds.map((id) => charactersByNumId?.get(Number(id))?.name || `#${id}`),
+                runs: Number(variant?.observed_runs ?? 0),
+                crit_rate: variant?.observed_crit_rate ?? null,
+                xor_diff: comparison.xorDiff ?? 0,
+                slot_diff: comparison.slotDiff ?? 0,
+                sum_diff: comparison.sumDiff ?? 0,
+                same_slots: comparison.sameSlots,
+                shared_chars: comparison.sharedChars,
+                mutation_steps: 0,
+              };
+            })
+          : [];
+
+        setNearbyPayload({
+          success: true,
+          scan_mode: 'generated',
+          strict_zero_match: true,
+          target_xor: xor,
+          target_slot: slot,
+          radius: 0,
+          slot_radius: 0,
+          zones: exactZones,
+          total_found: exactZones.length,
+        });
+        return;
+      }
+
+        const params = new URLSearchParams({
+          xor: String(xor),
+          slot: String(slot ?? ''),
+          radius: String(nearbyRadius),
+          slot_radius: String(nearbySlotRadius),
+          limit: '40',
+        });
       params.append('scan_mode', nearbyScanMode);
       if (slotOrder.filter((id) => id > 0).length === 4) {
         params.append('source_slot_order', slotOrder.join(','));
@@ -520,8 +605,63 @@ export default function ZoneBuildTeam({
   const totalPages = Math.max(1, Math.ceil(sortedVariants.length / VARIANTS_PER_PAGE));
   const pagedVariants = sortedVariants.slice(variantPage * VARIANTS_PER_PAGE, (variantPage + 1) * VARIANTS_PER_PAGE);
   const nearbyZones = nearbyPayload?.zones || [];
-  const nearbyTotalPages = Math.max(1, Math.ceil(nearbyZones.length / NEARBY_PER_PAGE));
-  const pagedNearbyZones = nearbyZones.slice(nearbyPage * NEARBY_PER_PAGE, (nearbyPage + 1) * NEARBY_PER_PAGE);
+  const sortedNearbyZones = useMemo(() => {
+    const compareNearby = (a, b) => {
+      const zoneDelta = (a?.xor_diff ?? Number.MAX_SAFE_INTEGER) - (b?.xor_diff ?? Number.MAX_SAFE_INTEGER);
+      if (zoneDelta !== 0) return nearbySortDirection === 'asc' ? zoneDelta : -zoneDelta;
+      const slotDelta = (a?.slot_diff ?? Number.MAX_SAFE_INTEGER) - (b?.slot_diff ?? Number.MAX_SAFE_INTEGER);
+      if (slotDelta !== 0) return nearbySortDirection === 'asc' ? slotDelta : -slotDelta;
+      const sumDelta = (a?.sum_diff ?? Number.MAX_SAFE_INTEGER) - (b?.sum_diff ?? Number.MAX_SAFE_INTEGER);
+      if (sumDelta !== 0) return nearbySortDirection === 'asc' ? sumDelta : -sumDelta;
+      if ((b?.same_slots ?? 0) !== (a?.same_slots ?? 0)) return (b?.same_slots ?? 0) - (a?.same_slots ?? 0);
+      if ((b?.shared_chars ?? 0) !== (a?.shared_chars ?? 0)) return (b?.shared_chars ?? 0) - (a?.shared_chars ?? 0);
+      return (b?.runs ?? 0) - (a?.runs ?? 0);
+    };
+
+    const list = [...nearbyZones].sort(compareNearby);
+    const shouldSpreadByZone =
+      nearbyPayload?.scan_mode === 'generated' &&
+      Number(nearbyRadius) > 0 &&
+      list.length > 0;
+
+    if (!shouldSpreadByZone) {
+      return list;
+    }
+
+    const groups = new Map();
+    for (const item of list) {
+      const zoneKey = Number(item?.char_xor ?? item?.charXor ?? item?.xor ?? item?.target_xor ?? NaN);
+      const teamKey = Array.isArray(item?.sample_slot_order) ? item.sample_slot_order.join(',') : String(item?.xor_slot_key || 'unknown');
+      const key = Number.isInteger(zoneKey) ? zoneKey : teamKey;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+
+    const orderedKeys = Array.from(groups.keys()).sort((a, b) => {
+      const firstA = groups.get(a)?.[0];
+      const firstB = groups.get(b)?.[0];
+      return compareNearby(firstA, firstB);
+    });
+
+    const spread = [];
+    let remaining = orderedKeys.reduce((total, key) => total + (groups.get(key)?.length || 0), 0);
+    while (remaining > 0) {
+      let madeProgress = false;
+      for (const key of orderedKeys) {
+        const bucket = groups.get(key);
+        if (bucket?.length) {
+          spread.push(bucket.shift());
+          remaining -= 1;
+          madeProgress = true;
+        }
+      }
+      if (!madeProgress) break;
+    }
+
+    return spread;
+  }, [nearbyPayload?.scan_mode, nearbyRadius, nearbyZones, nearbySortDirection]);
+  const nearbyTotalPages = Math.max(1, Math.ceil(sortedNearbyZones.length / NEARBY_PER_PAGE));
+  const pagedNearbyZones = sortedNearbyZones.slice(nearbyPage * NEARBY_PER_PAGE, (nearbyPage + 1) * NEARBY_PER_PAGE);
 
   useEffect(() => {
     if (!slotsGridRef.current) return;
@@ -706,6 +846,17 @@ export default function ZoneBuildTeam({
               <p className="text-[9px] text-slate-500 text-center mt-2 font-mono">Key: {manualXor}_{manualSlot}</p>
             )}
 
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => exportTeamToRelicLog(buildSlots, 'Build team exported to Relic Log.')}
+                disabled={filledCount !== 4}
+                className="rounded-xl border border-cyan-500/30 bg-cyan-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export To Relic Log
+              </button>
+            </div>
+
             {buildMode === 'exact' ? (
               <label className="mt-3 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-wider text-slate-400 cursor-pointer select-none">
                 <input
@@ -738,6 +889,7 @@ export default function ZoneBuildTeam({
                     Logged Zones
                   </button>
                 </div>
+                <div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Zone Radius</span>
                   <span className="px-2.5 py-1 rounded-lg bg-cyan-950/20 border border-cyan-500/20 text-[10px] font-black text-cyan-200">
@@ -746,17 +898,68 @@ export default function ZoneBuildTeam({
                 </div>
                 <input
                   type="range"
-                  min={10}
+                  min={0}
                   max={500}
                   step={10}
                   value={nearbyRadius}
-                  onChange={(event) => setNearbyRadius(Number(event.target.value))}
+                  onChange={(event) => setNearbyRadius(Math.max(0, Math.min(500, Number(event.target.value) || 0)))}
                   className="mt-3 w-full accent-cyan-400 cursor-pointer"
                   aria-label="Nearby zone radius"
                 />
                 <div className="mt-1 flex items-center justify-between text-[7px] font-mono text-slate-500">
-                  <span>10</span>
+                  <span>0</span>
                   <span>500</span>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Slot Radius</span>
+                  <span className="px-2.5 py-1 rounded-lg bg-indigo-950/20 border border-indigo-500/20 text-[10px] font-black text-indigo-200">
+                    ±{nearbySlotRadius}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={2000}
+                  step={10}
+                  value={nearbySlotRadius}
+                  onChange={(event) => setNearbySlotRadius(Math.max(0, Math.min(2000, Number(event.target.value) || 0)))}
+                  className="mt-3 w-full accent-indigo-400 cursor-pointer"
+                  aria-label="Nearby slot radius"
+                />
+                <div className="mt-1 flex items-center justify-between text-[7px] font-mono text-slate-500">
+                  <span>0</span>
+                  <span>2000</span>
+                </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="rounded-lg border border-slate-800 bg-slate-950/70 p-2 text-center">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Zone Radius</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={500}
+                      step={10}
+                      value={nearbyRadius}
+                      onChange={(event) => setNearbyRadius(Math.max(0, Math.min(500, Number(event.target.value) || 0)))}
+                      className="mt-1 w-full bg-transparent text-center text-lg font-black text-cyan-200 outline-none"
+                      aria-label="Nearby zone radius"
+                    />
+                    <p className="mt-1 text-[8px] text-slate-500">0 = exact zone only</p>
+                  </label>
+                  <label className="rounded-lg border border-slate-800 bg-slate-950/70 p-2 text-center">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slot Radius</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={2000}
+                      step={10}
+                      value={nearbySlotRadius}
+                      onChange={(event) => setNearbySlotRadius(Math.max(0, Math.min(2000, Number(event.target.value) || 0)))}
+                      className="mt-1 w-full bg-transparent text-center text-lg font-black text-indigo-200 outline-none"
+                      aria-label="Nearby slot radius"
+                    />
+                    <p className="mt-1 text-[8px] text-slate-500">0 = exact slot only</p>
+                  </label>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
@@ -778,8 +981,8 @@ export default function ZoneBuildTeam({
                 </div>
                 <p className="mt-3 text-[9px] text-slate-500">
                   {nearbyScanMode === 'generated'
-                    ? 'Generated mode mutates 1-2 slots from your current team and ranks ideas by zone closeness, slot closeness, and similarity.'
-                    : 'Logged mode scans real reported zones near your target zone.'}
+                    ? 'Free team ideas start from your current squad, then suggest nearby zone and slot alternatives.'
+                    : 'Logged zones scan real reported teams inside your chosen zone and slot range.'}
                 </p>
               </div>
             )}
@@ -887,8 +1090,7 @@ export default function ZoneBuildTeam({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {buildMode === 'exact' ? (
-                <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/60 p-1">
+              <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/60 p-1">
                   <button
                     type="button"
                     onClick={() => setResultsView('list')}
@@ -909,7 +1111,15 @@ export default function ZoneBuildTeam({
                   >
                     Grid
                   </button>
-                </div>
+              </div>
+              {buildMode === 'nearby' ? (
+                <button
+                  type="button"
+                  onClick={() => setNearbySortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+                  className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950/60 text-[9px] font-black uppercase tracking-wider text-slate-300 hover:border-slate-600"
+                >
+                  Sort {nearbySortDirection === 'asc' ? 'Asc' : 'Desc'}
+                </button>
               ) : null}
               {(buildMode === 'exact' ? totalPages > 1 : nearbyTotalPages > 1) && (
                 <div className="flex items-center gap-2">
@@ -1058,17 +1268,24 @@ export default function ZoneBuildTeam({
                           : `Raw difference: zone ${comparison.xorDiff ?? '--'}, slot ${comparison.slotDiff ?? '--'}, team ${comparison.sumDiff ?? '--'}.`}
                       </p>
 
-                      <button
-                        onClick={() => {
-                          const nextTeam = charIds.map((val) => Number(val) || null);
-                          setBuildSlots?.(nextTeam);
-                          setSuccess?.('Team loaded into Build Team.');
-                        }}
-                        className={`px-5 py-2.5 rounded-xl bg-violet-500/20 border border-violet-500/30 text-[10px] font-black uppercase tracking-wide text-violet-200 hover:bg-violet-500/40 transition-all cursor-pointer ${resultsView === 'grid' ? 'self-start' : ''
-                          }`}
-                      >
-                        Load Team
-                      </button>
+                      <div className={`flex flex-wrap gap-2 ${resultsView === 'grid' ? 'self-start' : 'lg:justify-end'}`}>
+                        <button
+                          onClick={() => {
+                            const nextTeam = charIds.map((val) => Number(val) || null);
+                            setBuildSlots?.(nextTeam);
+                            setSuccess?.('Team loaded into Build Team.');
+                          }}
+                          className="px-5 py-2.5 rounded-xl bg-violet-500/20 border border-violet-500/30 text-[10px] font-black uppercase tracking-wide text-violet-200 hover:bg-violet-500/40 transition-all cursor-pointer"
+                        >
+                          Load Team
+                        </button>
+                        <button
+                          onClick={() => exportTeamToRelicLog(charIds, 'Variant team exported to Relic Log.')}
+                          className="px-5 py-2.5 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-black uppercase tracking-wide text-cyan-200 hover:bg-cyan-500/30 transition-all cursor-pointer"
+                        >
+                          Export To Relic Log
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1090,13 +1307,13 @@ export default function ZoneBuildTeam({
               </p>
               </div>
             ) : (
-            <div className="space-y-2">
+            <div className={resultsView === 'grid' ? 'grid gap-3 md:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
               {pagedNearbyZones.map((zone, i) => {
                 const charIds = Array.isArray(zone?.sample_slot_order) ? zone.sample_slot_order : [];
                 const names = Array.isArray(zone?.sample_char_names) && zone.sample_char_names.length > 0
                   ? zone.sample_char_names
                   : charIds.map((id) => charactersByNumId?.get(Number(id))?.name || `#${id}`);
-                const diffLabel = zone?.xor_diff === 0 ? 'Exact zone' : `Zone +/-${zone?.xor_diff ?? '--'}`;
+                const diffLabel = zone?.xor_diff === 0 ? 'Exact zone' : `Zone off by ${zone?.xor_diff ?? '--'}`;
                 const zoneKey = zone?.xor_slot_key || `${zone?.char_xor}_${zone?.char_slot}`;
                 const isLoggedMode = nearbyPayload?.scan_mode === 'logged';
 
@@ -1104,9 +1321,9 @@ export default function ZoneBuildTeam({
                   <div
                     key={`nearby-zone-${zoneKey}-${i}`}
                     data-build-result-card
-                    className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 hover:border-cyan-500/30 hover:bg-cyan-950/10 transition-all flex items-center justify-between gap-3"
+                    className={`rounded-xl border border-slate-800 bg-slate-950/50 p-3 hover:border-cyan-500/30 hover:bg-cyan-950/10 transition-all ${resultsView === 'grid' ? 'flex flex-col gap-3' : 'flex items-center justify-between gap-3'}`}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
                       <div className="flex -space-x-2 shrink-0">
                         {charIds.slice(0, 4).map((id, ci) => {
                           const ch = charactersByNumId?.get(Number(id));
@@ -1121,7 +1338,7 @@ export default function ZoneBuildTeam({
                         <p className="text-[13px] font-black text-slate-100 leading-tight truncate">{names.join(' / ')}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-[10px] text-cyan-300 font-bold">{diffLabel}</span>
-                          <span className="text-[10px] text-slate-500">- {zone?.runs ?? 0} runs</span>
+                          <span className="text-[10px] text-slate-500">- {zone?.runs ?? 0} logged runs</span>
                           <span className="text-[10px] text-slate-500">- Crit {formatRate(zone?.crit_rate)}</span>
                           {isLoggedMode ? (
                             <span className="text-[10px] text-slate-500">- {zone?.seen_char_ids?.length ?? 0} chars seen</span>
@@ -1129,15 +1346,15 @@ export default function ZoneBuildTeam({
                             <>
                               <span className="text-[10px] text-slate-500">- {zone?.same_slots ?? 0}/4 same slots</span>
                               <span className="text-[10px] text-slate-500">- {zone?.shared_chars ?? 0}/4 same chars</span>
-                              <span className="text-[10px] text-slate-500">- {zone?.mutation_steps ?? '?'} swap</span>
+                              <span className="text-[10px] text-slate-500">- {zone?.mutation_steps ?? '?'} slot swap(s)</span>
                             </>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2 shrink-0 min-w-[330px]">
-                      <div className="flex flex-wrap gap-2 justify-end">
+                    <div className={`flex flex-col gap-2 shrink-0 ${resultsView === 'grid' ? 'w-full' : 'items-end min-w-[330px]'}`}>
+                      <div className={`flex flex-wrap gap-2 ${resultsView === 'grid' ? '' : 'justify-end'}`}>
                         <span className="px-3 py-1.5 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-[10px] font-black text-cyan-200">
                           Zone {zone?.char_xor ?? '--'}
                         </span>
@@ -1148,29 +1365,37 @@ export default function ZoneBuildTeam({
                           Team {zone?.char_sum ?? '--'}
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-400 text-right max-w-[360px]">
+                      <p className={`text-[10px] text-slate-400 max-w-[360px] ${resultsView === 'grid' ? '' : 'text-right'}`}>
                         {isLoggedMode
-                          ? 'Logged scan uses real reported zones, then sorts by closeness and report volume.'
-                          : `Free ideas keep your team shape and rank by zone ${zone?.xor_diff ?? '--'}, slot ${zone?.slot_diff ?? '--'}, and team ${zone?.sum_diff ?? '--'} distance.`}
+                          ? 'Logged mode shows real community teams that fall inside your chosen zone and slot range.'
+                          : `Free ideas keep your team shape, then rank nearby results by zone ${zone?.xor_diff ?? '--'}, slot ${zone?.slot_diff ?? '--'}, and team ${zone?.sum_diff ?? '--'} distance.`}
                       </p>
-                      <button
-                        onClick={async () => {
-                          const nextTeam = charIds.map((val) => Number(val) || null);
-                          setBuildSlots?.(nextTeam);
-                          setBuildMode('exact');
-                          setManualXor(String(zone?.char_xor ?? ''));
-                          setManualSlot(String(zone?.char_slot ?? ''));
-                          setManualSum(String(zone?.char_sum ?? ''));
-                          await runExactMatchSearch({
-                            xor: Number(zone?.char_xor ?? 0),
-                            slot: Number(zone?.char_slot ?? 0),
-                            sum: Number(zone?.char_sum ?? 0),
-                          });
-                        }}
-                        className="px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-black uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/35 transition-all cursor-pointer"
-                      >
-                        Check Exact Matches
-                      </button>
+                      <div className={`flex flex-wrap gap-2 ${resultsView === 'grid' ? '' : 'justify-end'}`}>
+                        <button
+                          onClick={() => exportTeamToRelicLog(charIds, 'Nearby team exported to Relic Log.')}
+                          className="px-5 py-2.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-[10px] font-black uppercase tracking-wide text-violet-100 hover:bg-violet-500/30 transition-all cursor-pointer"
+                        >
+                          Export To Relic Log
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const nextTeam = charIds.map((val) => Number(val) || null);
+                            setBuildSlots?.(nextTeam);
+                            setBuildMode('exact');
+                            setManualXor(String(zone?.char_xor ?? ''));
+                            setManualSlot(String(zone?.char_slot ?? ''));
+                            setManualSum(String(zone?.char_sum ?? ''));
+                            await runExactMatchSearch({
+                              xor: Number(zone?.char_xor ?? 0),
+                              slot: Number(zone?.char_slot ?? 0),
+                              sum: Number(zone?.char_sum ?? 0),
+                            });
+                          }}
+                          className="px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-black uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/35 transition-all cursor-pointer"
+                        >
+                          Check Exact Matches
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
