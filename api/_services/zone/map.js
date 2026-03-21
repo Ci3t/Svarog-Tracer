@@ -1,5 +1,6 @@
 import {
   ZONE_RUNS_TABLE,
+  ZONE_LIKES_TABLE,
   buildTablePath,
   buildEpochSummaryFromRuns,
   buildZoneMapFromRuns,
@@ -197,6 +198,31 @@ function hasMissingColumn(error, columnName) {
   return String(raw).toLowerCase().includes(String(columnName || '').toLowerCase());
 }
 
+function isMissingLikesTable(error) {
+  const raw = typeof error?.details === 'string'
+    ? error.details
+    : `${error?.details?.message || ''} ${error?.details?.details || ''} ${error?.details?.hint || ''}`;
+  const normalized = String(raw || '').toLowerCase();
+  return normalized.includes('zone_likes') || normalized.includes('does not exist') || normalized.includes('42p01');
+}
+
+function sortZones(zones) {
+  return [...(Array.isArray(zones) ? zones : [])].sort((a, b) => {
+    if ((b.like_count ?? 0) !== (a.like_count ?? 0)) return (b.like_count ?? 0) - (a.like_count ?? 0);
+    if ((b.target_rate ?? -1) !== (a.target_rate ?? -1)) return (b.target_rate ?? -1) - (a.target_rate ?? -1);
+    if ((b.target_match_count ?? 0) !== (a.target_match_count ?? 0)) return (b.target_match_count ?? 0) - (a.target_match_count ?? 0);
+    const aRate = a.crit_rate;
+    const bRate = b.crit_rate;
+    if (aRate === null && bRate !== null) return 1;
+    if (bRate === null && aRate !== null) return -1;
+    if (aRate !== bRate) return (bRate || 0) - (aRate || 0);
+    if ((b.weighted_confidence ?? 0) !== (a.weighted_confidence ?? 0)) {
+      return (b.weighted_confidence ?? 0) - (a.weighted_confidence ?? 0);
+    }
+    return (b.runs ?? 0) - (a.runs ?? 0);
+  });
+}
+
 function buildSelectFields({ includeReporter = true, includeClearTime = true } = {}) {
   const fields = [
     'id',
@@ -228,7 +254,7 @@ export async function handler(req, res) {
   }
 
   try {
-    await requireAuthenticatedUser(req);
+    const { user } = await requireAuthenticatedUser(req);
 
     const requestedEpoch = normalizeEpochQuery(req.query?.epoch);
     const requestedRegion = normalizeRegionQuery(req.query?.region);
@@ -310,7 +336,7 @@ export async function handler(req, res) {
 
     const safeRows = Array.isArray(runRows) ? runRows : [];
     const baseZones = buildZoneMapFromRuns(safeRows);
-    const zones = applyTargetFilter(baseZones, targetFilter);
+    let zones = applyTargetFilter(baseZones, targetFilter);
     const epochSummary = buildEpochSummaryFromRuns(safeRows);
 
     const visibleRegions = new Set(
@@ -326,6 +352,46 @@ export async function handler(req, res) {
 
     const recentFlagCutoff = new Date(Date.now() - FLAG_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
     const pendingFlagCount = await countDistinctRecentFlags(currentEpoch.id, recentFlagCutoff);
+
+    try {
+      const likeRows = await supabaseAdminRequest(
+        buildTablePath(ZONE_LIKES_TABLE, {
+          select: 'xor_slot_key,user_id',
+          filters: {
+            epoch_id: `eq.${targetEpoch.id}`,
+            limit: '5000',
+          },
+        })
+      );
+
+      const likeMap = new Map();
+      for (const row of Array.isArray(likeRows) ? likeRows : []) {
+        const key = String(row?.xor_slot_key || '').trim();
+        if (!key) continue;
+        const current = likeMap.get(key) || { like_count: 0, viewer_liked: false };
+        current.like_count += 1;
+        if (String(row?.user_id || '') === String(user?.id || '')) {
+          current.viewer_liked = true;
+        }
+        likeMap.set(key, current);
+      }
+
+      zones = zones.map((zone) => {
+        const likes = likeMap.get(String(zone?.xor_slot_key || '').trim()) || { like_count: 0, viewer_liked: false };
+        return {
+          ...zone,
+          like_count: likes.like_count,
+          viewer_liked: likes.viewer_liked,
+        };
+      });
+    } catch (error) {
+      if (!isMissingLikesTable(error)) {
+        throw error;
+      }
+      zones = zones.map((zone) => ({ ...zone, like_count: 0, viewer_liked: false }));
+    }
+
+    zones = sortZones(zones);
 
     return res.status(200).json({
       success: true,

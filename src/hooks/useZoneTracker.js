@@ -238,6 +238,7 @@ function applyClientTargetFilter(zones, preset, customStats, matchMode) {
     })
     .filter((zone) => zone.target_passes)
     .sort((a, b) => {
+      if ((b.like_count ?? 0) !== (a.like_count ?? 0)) return (b.like_count ?? 0) - (a.like_count ?? 0);
       if ((b.target_rate ?? -1) !== (a.target_rate ?? -1)) return (b.target_rate ?? -1) - (a.target_rate ?? -1);
       if ((b.target_match_count ?? 0) !== (a.target_match_count ?? 0)) return (b.target_match_count ?? 0) - (a.target_match_count ?? 0);
       if ((b.crit_rate ?? -1) !== (a.crit_rate ?? -1)) return (b.crit_rate ?? -1) - (a.crit_rate ?? -1);
@@ -349,9 +350,8 @@ export function buildZoneVariantKey(zone) {
   if (explicit) return explicit;
   const xor = parseNonNegativeInteger(zone?.char_xor, { max: 99999 });
   const slot = parseNonNegativeInteger(zone?.char_slot, { max: 99999 });
-  const sum = parseNonNegativeInteger(zone?.char_sum, { max: 99999 });
   if (xor === null || slot === null) return '';
-  return String(xor) + ':' + String(slot) + ':' + String(sum === null ? 'na' : sum);
+  return `${xor}_${slot}`;
 }
 
 function extractOwnedCharacterIdsFromImport(payload) {
@@ -409,6 +409,14 @@ export function useZoneTracker(sessionTheme = 'modern') {
 
   const [requestedEpoch, setRequestedEpoch] = useState('current');
   const [mapData, setMapData] = useState(null);
+  const [zoneFontScale, setZoneFontScale] = useState(() => {
+    try {
+      const raw = Number(window.localStorage.getItem('zone-card-font-scale-v1'));
+      return Number.isFinite(raw) ? Math.min(1.15, Math.max(0.9, raw)) : 1;
+    } catch {
+      return 1;
+    }
+  });
   const [mapRegion, setMapRegion] = useState('all');
   const [mapTargetPreset, setMapTargetPreset] = useState('crit_potential');
   const [mapTargetMode, setMapTargetMode] = useState('any');
@@ -438,6 +446,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [variantEnforceSum, setVariantEnforceSum] = useState(true);
   const [variantsByZone, setVariantsByZone] = useState({});
   const [variantLoadingZoneKey, setVariantLoadingZoneKey] = useState('');
+  const [zoneLikeLoadingKey, setZoneLikeLoadingKey] = useState('');
   const [exportingDebug, setExportingDebug] = useState(false);
   const [adminEligible, setAdminEligible] = useState(false);
   const [adminModeEnabled, setAdminModeEnabled] = useState(false);
@@ -579,6 +588,14 @@ export function useZoneTracker(sessionTheme = 'modern') {
     },
     [getAuthHeader, mapRegion, mapTargetCustomStats, mapTargetMode, mapTargetPreset]
   );
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('zone-card-font-scale-v1', String(zoneFontScale));
+    } catch {
+      // ignore local storage failures
+    }
+  }, [zoneFontScale]);
 
   const loadOwnedRoster = useCallback(async () => {
     if (!user?.id) {
@@ -761,7 +778,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     setManualVariantPayload(null);
     const targetXor = parseNonNegativeInteger(tuneXorInput, { max: 99999 });
     if (targetXor === null) {
-      setError('Enter a valid XOR target to scan zones.');
+      setError('Enter a valid Zone target to scan zones.');
       return;
     }
     const targetSlot = parseNonNegativeInteger(tuneSlotInput, { max: 9999 });
@@ -809,7 +826,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     const targetSlot = parseNonNegativeInteger(tuneSlotInput, { max: 9999 });
     const targetSum = parseNonNegativeInteger(tuneSumInput, { max: 99999 });
     if (targetXor === null || targetSlot === null) {
-      setError('Manual variant generation requires both XOR and SLOT.');
+      setError('Manual variant generation requires both Zone and Slot.');
       return;
     }
     if (variantEnforceSum && String(tuneSumInput || '').trim() && targetSum === null) {
@@ -1225,7 +1242,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       const zoneSlot = payload.submitted_zone?.char_slot ?? payload.run?.char_slot ?? '--';
       const warnings = Array.isArray(payload?.warnings) ? payload.warnings : (payload?.warning ? [payload.warning] : []);
       const warningText = warnings.length > 0 ? ' (' + warnings.map(e => e.replace(/_column_missing_in_zone_runs_table/, ' fallback active')).join(', ') + ')' : '';
-      setSuccess(`Run submitted. XOR ${zoneXor} / SLOT ${zoneSlot}${warningText}`);
+      setSuccess(`Run submitted. Zone ${zoneXor} / Slot ${zoneSlot}${warningText}`);
       setRequestedEpoch('current');
       setWorkspaceView('zones');
       setSlots([null, null, null, null]);
@@ -1283,7 +1300,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
 
   const handleReportZoneCard = useCallback((zone) => {
     if (!zone) return;
-    setFlagNotes(`Zone report: XOR ${zone?.char_xor ?? '--'} / SLOT ${zone?.char_slot ?? '--'}`);
+    setFlagNotes(`Zone report: Zone ${zone?.char_xor ?? '--'} / Slot ${zone?.char_slot ?? '--'}`);
     setShowFlagModal(true);
   }, []);
 
@@ -1469,6 +1486,75 @@ export function useZoneTracker(sessionTheme = 'modern') {
     }
   }, [adminEligible, adminModeEnabled, getAuthHeader]);
 
+  const handleZoneLikeToggle = useCallback(async (zone) => {
+    const zoneKey = buildZoneVariantKey(zone);
+    const epochId = mapData?.epoch?.id;
+    if (!zoneKey || !epochId) return;
+
+    setZoneLikeLoadingKey(zoneKey);
+    setError('');
+    try {
+      const requestedLiked = !Boolean(zone?.viewer_liked);
+      const response = await fetch(buildZoneApiUrl('/api/zone/likes'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          epoch_id: epochId,
+          xor_slot_key: zoneKey,
+          liked: requestedLiked,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      let nextViewerLiked = Object.prototype.hasOwnProperty.call(payload, 'viewer_liked')
+        ? Boolean(payload.viewer_liked)
+        : requestedLiked;
+      let nextLikeCount = Object.prototype.hasOwnProperty.call(payload, 'like_count')
+        ? Number(payload.like_count ?? 0)
+        : Math.max(0, Number(zone?.like_count ?? 0) + (requestedLiked ? 1 : -1));
+      const useOptimisticLikeCount = payload?.warning === 'zone_likes_table_missing';
+      if (!useOptimisticLikeCount && nextViewerLiked === Boolean(zone?.viewer_liked) && nextLikeCount === Number(zone?.like_count ?? 0)) {
+        nextViewerLiked = requestedLiked;
+        nextLikeCount = Math.max(0, Number(zone?.like_count ?? 0) + (requestedLiked ? 1 : -1));
+      }
+
+      setMapData((prev) => {
+        if (!prev || !Array.isArray(prev.zones)) return prev;
+        const nextZones = [...prev.zones]
+          .map((entry) => {
+            const entryKey = buildZoneVariantKey(entry);
+            if (entryKey !== zoneKey) return entry;
+            return {
+              ...entry,
+              like_count: useOptimisticLikeCount
+                ? Math.max(0, Number(entry.like_count ?? 0) + (nextViewerLiked ? 1 : -1))
+                : nextLikeCount,
+              viewer_liked: nextViewerLiked,
+            };
+          })
+          .sort((a, b) => {
+            if ((b.like_count ?? 0) !== (a.like_count ?? 0)) return (b.like_count ?? 0) - (a.like_count ?? 0);
+            if ((b.target_rate ?? -1) !== (a.target_rate ?? -1)) return (b.target_rate ?? -1) - (a.target_rate ?? -1);
+            if ((b.target_match_count ?? 0) !== (a.target_match_count ?? 0)) return (b.target_match_count ?? 0) - (a.target_match_count ?? 0);
+            if ((b.crit_rate ?? -1) !== (a.crit_rate ?? -1)) return (b.crit_rate ?? -1) - (a.crit_rate ?? -1);
+            if ((b.weighted_confidence ?? 0) !== (a.weighted_confidence ?? 0)) return (b.weighted_confidence ?? 0) - (a.weighted_confidence ?? 0);
+            return (b.runs ?? 0) - (a.runs ?? 0);
+          });
+        return { ...prev, zones: nextZones };
+      });
+      if (useOptimisticLikeCount) {
+        setSuccess('Like saved only in the current UI because the zone_likes table is not ready on this API yet.');
+      }
+    } catch (likeError) {
+      setError(mapAuthError(likeError));
+    } finally {
+      setZoneLikeLoadingKey('');
+    }
+  }, [getAuthHeader, mapData?.epoch?.id]);
+
   return {
     user,
     getAuthHeader,
@@ -1489,6 +1575,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     workspaceView, setWorkspaceView,
     requestedEpoch, setRequestedEpoch,
     mapData,
+    zoneFontScale, setZoneFontScale,
     mapRegion, setMapRegion,
     mapTargetPreset, setMapTargetPreset,
     mapTargetMode, setMapTargetMode,
@@ -1515,6 +1602,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     variantsByZone,
     setVariantsByZone,
     variantLoadingZoneKey,
+    zoneLikeLoadingKey,
     exportingDebug,
     adminEligible,
     adminModeEnabled, setAdminModeEnabled,
@@ -1594,6 +1682,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     handleAdminWipeEpoch,
     handleAdminWipeAll,
     handleExportDebugLogs,
+    handleZoneLikeToggle,
     sanitizeClearTimeMmSsInput,
     normalizeClearTimeMmSsInput
   };

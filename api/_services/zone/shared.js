@@ -13,6 +13,7 @@ export const ZONE_EPOCH_TABLE = env.SUPABASE_ZONE_EPOCH_TABLE || 'zone_epochs';
 export const ZONE_RUNS_TABLE = env.SUPABASE_ZONE_RUNS_TABLE || 'zone_runs';
 export const ZONE_FLAGS_TABLE = env.SUPABASE_ZONE_FLAGS_TABLE || 'zone_epoch_flags';
 export const ZONE_ROSTERS_TABLE = env.SUPABASE_ZONE_ROSTERS_TABLE || 'zone_user_rosters';
+export const ZONE_LIKES_TABLE = env.SUPABASE_ZONE_LIKES_TABLE || 'zone_likes';
 const ZONE_EPOCH_TIMEZONE = env.ZONE_EPOCH_TIMEZONE || 'Asia/Jerusalem';
 const ZONE_EPOCH_ROLLOVER_HOUR = Math.max(0, Math.min(23, Number(env.ZONE_EPOCH_ROLLOVER_HOUR || 5) || 5));
 
@@ -358,6 +359,19 @@ export function parseZoneNoteMeta(notesValue) {
     reporter_name: reporterName,
     clear_time_seconds: clearTime,
   };
+}
+
+export function stripZoneNoteMeta(notesValue) {
+  const notes = String(notesValue || '');
+  if (!notes) return null;
+
+  const stripped = notes
+    .replace(ZONE_NOTE_REPORTER_PATTERN, '')
+    .replace(ZONE_NOTE_CLEAR_PATTERN, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return stripped || null;
 }
 
 export function embedZoneNoteMeta(notesValue, { reporterName = null, clearTimeSeconds = null, maxLength = 200 } = {}) {
@@ -882,6 +896,7 @@ export function buildZoneMapFromRuns(runs) {
         last_submitted_at: run.submitted_at || null,
         latest_reporter_name: runReporterName,
         latest_clear_time_seconds: runClearTime,
+        latest_note: stripZoneNoteMeta(run.notes),
         _seen_char_ids: new Set(),
         _seen_char_names: new Set(),
         _cavern_counts: new Map(),
@@ -907,6 +922,7 @@ export function buildZoneMapFromRuns(runs) {
       if (runClearTime !== null) {
         group.latest_clear_time_seconds = runClearTime;
       }
+      group.latest_note = stripZoneNoteMeta(run.notes);
     }
 
     const slotOrder = Array.isArray(run.slot_order) ? run.slot_order : [];
@@ -1033,6 +1049,7 @@ export function buildZoneMapFromRuns(runs) {
       dominant_region: regions[0] || null,
       region_counts: Object.fromEntries(regionEntries),
       latest_reporter_name: group.latest_reporter_name,
+      latest_note: group.latest_note || null,
       top_reporter_name: reporterEntries[0]?.[0] || null,
       reporter_names: reporterNames,
       reporter_counts: Object.fromEntries(reporterEntries),
