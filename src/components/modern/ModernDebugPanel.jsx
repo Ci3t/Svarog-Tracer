@@ -430,7 +430,7 @@ export default function ModernDebugPanel({
 
                         // Wave snapshot for this roll (newest first → index in chrono is reversed)
                         const chronoIdx = chronoRolls.length - 1 - idx;
-                        const snap = w2Snapshots[chronoIdx];
+                        const snap = chronoIdx > 0 ? w2Snapshots[chronoIdx - 1] : null;
                         let waveVerdict = "—";
                         let betRollsStr = "—";
                         let waveHit = "-";
@@ -452,7 +452,7 @@ export default function ModernDebugPanel({
                           }
                         }
 
-                        const tableBetStr = getTableBet(chronoRolls.slice(0, chronoIdx + 1));
+                        const tableBetStr = getTableBet(chronoRolls.slice(0, chronoIdx));
                         let tableHit = "-";
                         if (tableBetStr !== "—") {
                           const tRolls = tableBetStr.split("/");
@@ -499,7 +499,7 @@ export default function ModernDebugPanel({
                       lines.push("VERDICT TYPE BREAKDOWN:");
                       const verdictStats = {};
                       chronoRolls.forEach((actual, i) => {
-                        const snap = w2Snapshots[i];
+                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
                         if (!snap || !snap.betRolls) return;
                         const a = snap.action || 'OTHER';
                         if (!verdictStats[a]) verdictStats[a] = { total: 0, hits: 0 };
@@ -521,7 +521,7 @@ export default function ModernDebugPanel({
                       lines.push("  (How often wave bet wins when confidence is high vs low)");
                       const tier = { high: { h: 0, t: 0 }, mid: { h: 0, t: 0 }, low: { h: 0, t: 0 } };
                       chronoRolls.forEach((actual, i) => {
-                        const snap = w2Snapshots[i];
+                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
                         if (!snap || !snap.betRolls) return;
                         const confPct = snap.action === 'DOMINANT'
                           ? snap.dominantPct
@@ -584,7 +584,7 @@ export default function ModernDebugPanel({
                       const half = Math.floor(chronoRolls.length / 2);
                       let earlyHits = 0, earlyTotal = 0, lateHits = 0, lateTotal = 0;
                       chronoRolls.forEach((actual, i) => {
-                        const snap = w2Snapshots[i];
+                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
                         if (!snap?.betRolls) return;
                         const hit = snap.betRolls.some(b => actual.startsWith(b));
                         if (i < half) { earlyTotal++; if (hit) earlyHits++; }
