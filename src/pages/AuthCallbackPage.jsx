@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { readAuthNextPath } from '../lib/authNavigation';
+import { parseAuthTokensFromUrl } from '../lib/supabaseClient';
 
 export default function AuthCallbackPage() {
-  const { completeOAuthFromUrl } = useAuth();
+  const { completeOAuthFromUrl, isAuthenticated, loading } = useAuth();
   const [status, setStatus] = useState('processing');
   const [message, setMessage] = useState('Completing Discord sign-in...');
   const [nextPath, setNextPath] = useState('/zone-tracker');
@@ -14,10 +15,21 @@ export default function AuthCallbackPage() {
 
     async function finishLogin() {
       try {
+        setNextPath(readAuthNextPath());
+        const hasTokenPayload = Boolean(parseAuthTokensFromUrl(window.location.href)?.access_token);
+
+        if (!hasTokenPayload) {
+          if (!loading && isAuthenticated) {
+            setStatus('done');
+            return;
+          }
+
+          throw new Error('No access token found in callback URL.');
+        }
+
         await completeOAuthFromUrl(window.location.href);
         if (!mounted) return;
 
-        setNextPath(readAuthNextPath());
         setStatus('done');
 
         const cleanUrl = `${window.location.pathname}`;
@@ -34,7 +46,7 @@ export default function AuthCallbackPage() {
     return () => {
       mounted = false;
     };
-  }, [completeOAuthFromUrl]);
+  }, [completeOAuthFromUrl, isAuthenticated, loading]);
 
   if (status === 'done') {
     return <Navigate to={nextPath} replace />;
