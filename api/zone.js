@@ -7,6 +7,7 @@ import { handler as ownedHandler } from './_services/zone/owned.js';
 import { handler as exportHandler } from './_services/zone/export.js';
 import { handler as logRunsHandler } from './_services/zone/log-runs.js';
 import { handler as adminRunsHandler } from './_services/zone/admin-runs.js';
+import { handler as likesHandler } from './_services/zone/likes.js';
 import { setCorsHeaders } from './_services/zone/shared.js';
 
 export default async function handler(req, res) {
@@ -28,6 +29,7 @@ export default async function handler(req, res) {
   if (pathPart === 'export') return exportHandler(req, res);
   if (pathPart === 'log-runs') return logRunsHandler(req, res);
   if (pathPart === 'admin-runs') return adminRunsHandler(req, res);
+  if (pathPart === 'likes') return likesHandler(req, res);
 
   return res.status(404).json({ error: 'Zone endpoint not found.', pathPart, url: req.url });
 }
