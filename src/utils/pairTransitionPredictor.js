@@ -327,43 +327,92 @@ export function calculateWaveSignals(rolls, commons = []) {
 export function calculateTrends(rolls) {
   if (!rolls || rolls.length < 6) {
     return VALUES.reduce((acc, v) => {
-      acc[v] = { direction: 'stable', delta: 0, current: 0 };
+      acc[v] = { direction: 'stable', delta: 0, current: 0, arrowAge: 0, arrowWeight: 1.0 };
       return acc;
     }, {});
   }
 
-  // Compare distribution from 5 rolls ago vs now
+  // Helper: compute direction for a given 5-vs-5 window
+  function computeDirection(recent5, older5) {
+    const dir = {};
+    VALUES.forEach(v => {
+      const recentCount = recent5.filter(r => r === v).length;
+      const olderCount = older5.length > 0 ? older5.filter(r => r === v).length : 0;
+      const recentPct = (recentCount / recent5.length) * 100;
+      const olderPct = older5.length > 0 ? (olderCount / older5.length) * 100 : recentPct;
+      const delta = Math.round(recentPct - olderPct);
+      dir[v] = delta >= 10 ? 'rising' : delta <= -10 ? 'falling' : 'stable';
+    });
+    return dir;
+  }
+
+  // Current window: last 5 vs prev 5
   const recentRolls = rolls.slice(-5);
-  const olderRolls = rolls.slice(-10, -5);
-  
+  const olderRolls  = rolls.slice(-10, -5);
+  const currentDir  = computeDirection(recentRolls, olderRolls);
+
+  // Previous window (shifted back 5 rolls): for arrowAge calculation
+  const prevRecent  = rolls.slice(-10, -5);
+  const prevOlder   = rolls.slice(-15, -10);
+  const prevDir     = prevOlder.length >= 5
+    ? computeDirection(prevRecent, prevOlder)
+    : currentDir; // not enough history — assume same
+
+  // One window before that: for age=2 check
+  const prev2Recent = rolls.slice(-15, -10);
+  const prev2Older  = rolls.slice(-20, -15);
+  const prev2Dir    = prev2Older.length >= 5
+    ? computeDirection(prev2Recent, prev2Older)
+    : prevDir;
+
   const trends = {};
-  
+
   VALUES.forEach(v => {
     const recentCount = recentRolls.filter(r => r === v).length;
-    const olderCount = olderRolls.length > 0 
-      ? olderRolls.filter(r => r === v).length 
-      : 0;
-    
-    const recentPct = (recentCount / recentRolls.length) * 100;
-    const olderPct = olderRolls.length > 0 
-      ? (olderCount / olderRolls.length) * 100 
-      : recentPct;
-    
-    const delta = Math.round(recentPct - olderPct);
-    
-    let direction = 'stable';
-    if (delta >= 10) direction = 'rising';
-    else if (delta <= -10) direction = 'falling';
-    
+    const olderCount  = olderRolls.length > 0 ? olderRolls.filter(r => r === v).length : 0;
+    const recentPct   = (recentCount / recentRolls.length) * 100;
+    const olderPct    = olderRolls.length > 0 ? (olderCount / olderRolls.length) * 100 : recentPct;
+    const delta       = Math.round(recentPct - olderPct);
+    const direction   = currentDir[v];
+
+    // arrowAge: how many consecutive windows has direction been the same?
+    // age 0 = just changed this window (fresh)
+    // age 1 = same as previous window
+    // age 2 = same for 2+ windows (stale)
+    let arrowAge = 0;
+    if (direction === prevDir[v]) {
+      arrowAge = 1;
+      if (direction === prev2Dir[v]) {
+        arrowAge = 2;
+      }
+    }
+
+    // arrowWeight: decay multiplier for scoring use
+    // Fresh (age 0-1) = full trust, stale (age 2+) = reduced
+    const arrowWeight = arrowAge === 0 ? 1.0
+                      : arrowAge === 1 ? 0.75
+                      : 0.40; // age 2+ = stale
+
+    // trustScore: how much to trust this value as a candidate
+    // rising = confident pick, stable = neutral, falling = soft noise flag
+    // Applied as a multiplier — not a hard gate (Codex: "treat as modifier, not belief system")
+    const trustScore = direction === 'rising' ? 1.0
+                     : direction === 'stable'  ? 0.6
+                     : 0.25; // falling = likely cooling off, don't let it flip reads
+
     trends[v] = {
       direction,
       delta,
-      current: Math.round(recentPct)
+      current: Math.round(recentPct),
+      arrowAge,
+      arrowWeight,
+      trustScore,
     };
   });
-  
+
   return trends;
 }
+
 
 /**
  * Get the distribution percentages for each value
@@ -663,7 +712,10 @@ export function predictWithPairs(rolls) {
         score += 1 / Math.pow(distance + 1, 1.5); // Exponential decay
       }
     }
-    momentumScores[v] = Math.round(score * 100) / 100;
+    // 🆕 ARROW FRESHNESS DECAY: multiply by arrowWeight from trends
+    // Stale arrows (same direction 2+ windows) get reduced weight
+    const trendWeight = trends[v]?.arrowWeight ?? 1.0;
+    momentumScores[v] = Math.round(score * trendWeight * 100) / 100;
   });
   
   // Determine "hot" values (highest momentum) - these are the real commons NOW
@@ -849,9 +901,11 @@ export function predictWithPairs(rolls) {
   const freqWeight = 1 - pairWeight;
 
   // Compute a blended score for each value (used instead of raw pair % when sparse)
+  // 🆕 TRUST SCORE: multiply by direction trust — falling values deprioritized
   const blendedScores = VALUES.map(v => ({
     value: v,
-    blended: freqWeight * (distribution[v] || 0) + pairWeight * (matrix[lastRoll]?.[v]?.pct || 0)
+    blended: (freqWeight * (distribution[v] || 0) + pairWeight * (matrix[lastRoll]?.[v]?.pct || 0))
+             * (trends[v]?.trustScore ?? 1.0)  // soft modifier, not hard gate
   })).sort((a, b) => b.blended - a.blended);
 
   // Blended pair prediction (commons-filtered for main use)

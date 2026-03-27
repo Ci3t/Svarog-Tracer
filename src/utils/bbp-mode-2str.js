@@ -919,12 +919,66 @@ export function predictNext2BBPMode(rolls, options = {}) {
     userFriendlyMode = "Balanced";
   }
 
-  // 🔥 KIYO ENHANCEMENT: Use SUGGEST logic for the final prediction
-  // This takes the results from suggest logic (80% accuracy) but keeps Kiyo reasoning
+  // =========================================================================
+  // 🆕 BLENDED HANDOFF (replaces unconditional predictWithPairs override)
+  //
+  // Regime logic:
+  //   < 8 rolls  → BBP pattern only (not enough pair evidence)
+  //   8–19 rolls → blend, pair weight scales from 0.2→0.8 with roll count
+  //   20+ rolls  → pair primary, BUT only if transition evidence is dense enough
+  //
+  // "Dense enough" = lastRoll has ≥ 3 reliable outgoing transitions in the matrix.
+  // If not dense, BBP keeps control even above 20 rolls.
+  // This fixes: pair logic shouldn't dominate just because roll count crossed a threshold.
+  // =========================================================================
   const suggest = predictWithPairs(cleanedRolls);
-  finalPrediction = suggest.prediction || patternResult.prediction;
-  altPrediction = suggest.alt || patternResult.alt;
-  finalConfidence = suggest.confidence || markAdjustedConfidence;
+  const blendRollCount = cleanedRolls.length;
+
+  // Check pair evidence density: how many reliable transitions does lastRoll have?
+  const lastRollForBlend = cleanedRolls[cleanedRolls.length - 1];
+  const pairEvidenceCount = suggest?.lastRoll && lastRollForBlend
+    ? VALUES.filter(v => {
+        const cell = suggest.pairMatrix?.[lastRollForBlend]?.[v];
+        return cell?.reliable === true;
+      }).length
+    : 0;
+  const pairEvidenceDense = pairEvidenceCount >= 2;
+
+  if (blendRollCount < 8) {
+    finalPrediction = patternResult.prediction;
+    altPrediction   = patternResult.alt;
+    finalConfidence = markAdjustedConfidence;
+    userFriendlyMode = `BBP-short`;
+  } else if (blendRollCount < 20) {
+    const blendT     = (blendRollCount - 8) / 11;
+    const pairAlpha  = 0.20 + blendT * 0.45;
+    const bbpAlpha   = 1 - pairAlpha;
+    const pairPred   = suggest.prediction;
+    const bbpPred    = patternResult.prediction;
+    if (pairPred && pairAlpha >= 0.4 && pairEvidenceDense) {
+      finalPrediction = pairAlpha > bbpAlpha ? pairPred : bbpPred;
+      altPrediction   = pairPred !== finalPrediction ? pairPred : (suggest.alt || patternResult.alt);
+      finalConfidence = pairAlpha * (suggest.confidence || 0) + bbpAlpha * markAdjustedConfidence;
+      userFriendlyMode = `BBP-blend(${Math.round(pairAlpha * 100)}% pair)`;
+    } else {
+      finalPrediction = bbpPred;
+      altPrediction   = patternResult.alt;
+      finalConfidence = markAdjustedConfidence;
+      userFriendlyMode = `BBP-short`;
+    }
+  } else {
+    if (suggest.prediction && pairEvidenceDense) {
+      finalPrediction = suggest.prediction;
+      altPrediction   = suggest.alt   || patternResult.alt;
+      finalConfidence = Math.max(suggest.confidence || 0, markAdjustedConfidence);
+      userFriendlyMode = `BBP-pair`;
+    } else {
+      finalPrediction = patternResult.prediction;
+      altPrediction   = patternResult.alt;
+      finalConfidence = markAdjustedConfidence;
+      userFriendlyMode = `BBP-mode`;
+    }
+  }
 
   return {
     prediction: finalPrediction,
