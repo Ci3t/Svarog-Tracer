@@ -2,20 +2,15 @@
  * API Client for Backend
  * Handles all API calls to Vercel backend
  */
+import { API_BASE_URL } from './apiBase';
 
-// API Base URL - always use deployed Vercel API
-// (We don't run a local backend, so dev mode uses production API too)
-const getApiBaseUrl = () => {
-  return 'https://svarog-tracer.vercel.app/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
 
 /**
  * Generic fetch wrapper with error handling
  */
 async function apiFetch(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${BACKEND_API_BASE_URL}${endpoint}`;
   
   try {
     const response = await fetch(url, {

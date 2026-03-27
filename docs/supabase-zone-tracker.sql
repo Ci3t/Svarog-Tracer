@@ -74,9 +74,25 @@ create table if not exists public.zone_epoch_flags (
 create index if not exists zone_epoch_flags_epoch_created_desc_idx
   on public.zone_epoch_flags (epoch_id, created_at desc);
 
+create table if not exists public.zone_likes (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  epoch_id bigint not null references public.zone_epochs(id),
+  xor_slot_key text not null,
+  user_id uuid not null,
+  constraint zone_likes_unique_user_zone unique (epoch_id, xor_slot_key, user_id)
+);
+
+create index if not exists zone_likes_epoch_zone_idx
+  on public.zone_likes (epoch_id, xor_slot_key);
+
+create index if not exists zone_likes_user_created_desc_idx
+  on public.zone_likes (user_id, created_at desc);
+
 alter table public.zone_epochs enable row level security;
 alter table public.zone_runs enable row level security;
 alter table public.zone_epoch_flags enable row level security;
+alter table public.zone_likes enable row level security;
 
 -- Epoch metadata can be read by authenticated users.
 do $$
@@ -92,6 +108,57 @@ begin
       for select
       to authenticated
       using (true);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'zone_likes'
+      and policyname = 'zone_likes_select_own'
+  ) then
+    create policy zone_likes_select_own
+      on public.zone_likes
+      for select
+      to authenticated
+      using (user_id = auth.uid());
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'zone_likes'
+      and policyname = 'zone_likes_insert_own'
+  ) then
+    create policy zone_likes_insert_own
+      on public.zone_likes
+      for insert
+      to authenticated
+      with check (user_id = auth.uid());
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'zone_likes'
+      and policyname = 'zone_likes_delete_own'
+  ) then
+    create policy zone_likes_delete_own
+      on public.zone_likes
+      for delete
+      to authenticated
+      using (user_id = auth.uid());
   end if;
 end
 $$;

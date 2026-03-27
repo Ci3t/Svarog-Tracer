@@ -21,6 +21,8 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     requestedEpoch,
     loadingMap,
     mapData,
+    zoneFontScale,
+    setZoneFontScale,
     setRequestedEpoch,
     workspaceView,
     setWorkspaceView,
@@ -133,6 +135,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     handleLoadZoneTeam,
     fetchVariantsForZone,
     variantLoadingZoneKey,
+    zoneLikeLoadingKey,
     manualVariantPayload,
     zones,
     signalMetricLabel,
@@ -144,6 +147,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
     adminEditDraft,
     variantsByZone,
     handleExportZoneToCaverns,
+    handleZoneLikeToggle,
     handleAdminEditDraftChange,
     handleAdminEditSlotOrderChange,
     handleAdminEditCancel,
@@ -207,7 +211,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         <ZoneMap
           {...{
             mapRef, workspaceView, loadingMap, zoneCardView, setZoneCardView, showMapFilters,
-            setShowMapFilters, mapData, isRelicTargetMode, mapTargetFilter,
+            setShowMapFilters, mapData, zoneFontScale, setZoneFontScale, isRelicTargetMode, mapTargetFilter,
             mapRegion, setMapRegion, mapTargetPreset, setMapTargetPreset,
             mapTargetMode, setMapTargetMode, toggleMapTargetCustomStat,
             mapTargetCustomStats, variantOwnershipFilter, setVariantOwnershipFilter,
@@ -221,7 +225,9 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
             currentTeamSignature, handleFindTunedZones, handleGenerateManualVariants,
             manualVariantLoading, tunedZones, handleTuneFromZone, handleLoadZoneTeam,
             fetchVariantsForZone, variantLoadingZoneKey, manualVariantPayload,
+            zoneLikeLoadingKey,
             zones, signalMetricLabel, requestedEpoch, handleReportZoneCard,
+            handleZoneLikeToggle,
             handleAdminDeleteZone, handleAdminEditZone, adminActionLoadingKey,
             adminEditModalZone, adminEditDraft, handleAdminEditDraftChange,
             handleAdminEditSlotOrderChange, handleAdminEditCancel, handleAdminEditSubmit, variantsByZone, setVariantsByZone, handleExportZoneToCaverns, charactersByNumId,
@@ -232,6 +238,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
         <ZoneBuildTeam
           workspaceView={workspaceView}
           setWorkspaceView={setWorkspaceView}
+          formRef={formRef}
           buildSlots={buildSlots}
           setBuildSlots={setBuildSlots}
           buildTeamSignature={buildTeamSignature}

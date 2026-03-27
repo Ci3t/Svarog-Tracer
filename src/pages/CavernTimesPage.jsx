@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
@@ -352,8 +352,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const cavernId = String(params.get('cavern') || '').trim();
     const cavernEntry = findCavernById(cavernId);
     const relicIdFromQuery = String(params.get('relic_id') || '').trim();
-    const fallbackRelicId = cavernEntry?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
-    const selectedRelicId = relicIdFromQuery || fallbackRelicId;
+    const selectedTargetId = cavernEntry?.id || relicIdFromQuery;
 
     // Mark that we are doing a zone import so the preset useEffect doesn't
     // overwrite what we set here when setIsFormOpen(true) fires.
@@ -366,7 +365,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
     if (importedChars.length > 0) setFormChars(importedChars);
     if (clearTime) setFormTime(clearTime);
-    if (selectedRelicId) setFormItemId(selectedRelicId);
+    if (selectedTargetId) setFormItemId(selectedTargetId);
 
     // Pre-select substats from the zone's batch average (top 4)
     const substatsParam = String(params.get('substats') || '').trim();
@@ -1142,6 +1141,28 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     notify('Recent team loaded.', 'info');
   };
 
+  const getDomainMatchIds = useCallback((domainLike) => {
+    const domain =
+      domainLike && typeof domainLike === 'object'
+        ? domainLike
+        : findCavernById(domainLike);
+    if (!domain) return [];
+
+    return Array.from(
+      new Set(
+        [domain.id, ...(Array.isArray(domain.relicSetIds) ? domain.relicSetIds : [])]
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      )
+    );
+  }, []);
+
+  const doesClearBelongToDomain = useCallback((clear, domainLike) => {
+    const clearId = String(clear?.relicId || '').trim();
+    if (!clearId) return false;
+    return getDomainMatchIds(domainLike).includes(clearId);
+  }, [getDomainMatchIds]);
+
   const resetCurrentTeam = () => {
     setFormChars([]);
     notify('Current team cleared.', 'info');
@@ -1174,8 +1195,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   };
 
   // Group clear records by time AND substats for a specific domain
-  const getGroupedTimesForDomain = (domainId) => {
-    const domainClears = clears.filter(c => c.relicId === domainId);
+  const getGroupedTimesForDomain = (domainLike) => {
+    const domainClears = clears.filter(c => doesClearBelongToDomain(c, domainLike));
     const groups = {};
 
     domainClears.forEach(clear => {
@@ -2316,20 +2337,24 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           ) : (
             category === 'relics' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8">
-                {filteredDomains.map(domain => {
-                  const totalDomainRecords = domain.relicSetIds.reduce((sum, id) => {
-                    const domainClears = clears.filter(c => c.relicId === id);
-                    return sum + domainClears.reduce((vSum, c) => vSum + (c.verifiedCount || 1), 0);
-                  }, 0);
+                  {filteredDomains.map(domain => {
+                    const totalDomainRecords = clears
+                      .filter(c => doesClearBelongToDomain(c, domain))
+                      .reduce((sum, c) => sum + (c.verifiedCount || 1), 0);
 
-                  const anyRecentClears = clears.some(c => domain.relicSetIds.includes(c.relicId));
+                    const anyRecentClears = clears.some(c => doesClearBelongToDomain(c, domain));
+                    const domainPreview = {
+                      ...domain,
+                      image: relicsData.find(r => r.id === domain.relicSetIds[0])?.image || '',
+                      isDomain: true,
+                    };
 
-                  return (
-                    <div
-                      key={domain.id}
-                      onClick={() => setSelectedDomain(relicsData.find(r => r.id === domain.relicSetIds[0]) || null)}
-                      className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
-                    >
+                    return (
+                      <div
+                        key={domain.id}
+                        onClick={() => setSelectedDomain(domainPreview)}
+                        className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
+                      >
                       {/* Background Accents */}
                       <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700"></div>
                       

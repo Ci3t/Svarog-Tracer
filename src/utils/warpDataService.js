@@ -150,8 +150,8 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - Intelligent switching between Local and Prod
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const BANNER_API_URL = isLocal 
-  ? '/api/banners' 
+const BANNER_API_URL = isLocal
+  ? '/api/banners'
   : 'https://svarog-tracer.vercel.app/api/banners';
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
@@ -409,6 +409,62 @@ function deduplicateBanners(banners) {
   return deduplicatedBanners;
 }
 
+function extractHSRFeaturedIds(bannerData, charMap = {}, lcMap = {}) {
+  const FEATURED_KEY_RE = /(rate.?up|featured|up_?5|rateup_?5|rarity_?5|five.?star)/i;
+
+  const parseFeaturedIds = (value, collected = []) => {
+    if (value == null) return collected;
+    if (Array.isArray(value)) {
+      value.forEach(item => parseFeaturedIds(item, collected));
+      return collected;
+    }
+    if (typeof value === 'object') {
+      for (const [key, nested] of Object.entries(value)) {
+        if (FEATURED_KEY_RE.test(key) || typeof nested === 'object') {
+          parseFeaturedIds(nested, collected);
+        }
+      }
+      return collected;
+    }
+
+    const stringValue = String(value).trim();
+    if (/^\d+$/.test(stringValue)) {
+      collected.push(stringValue);
+    }
+    return collected;
+  };
+
+  const directCandidates = [
+    bannerData?.rateup,
+    bannerData?.rateup_5,
+    bannerData?.rate_up,
+    bannerData?.up_5,
+    bannerData?.featured,
+    bannerData?.featured_5,
+    bannerData?.rarity_5,
+    bannerData?.five_star,
+  ];
+
+  const collected = [];
+  directCandidates.forEach(value => parseFeaturedIds(value, collected));
+
+  if (collected.length === 0) {
+    for (const [key, value] of Object.entries(bannerData || {})) {
+      if (FEATURED_KEY_RE.test(key)) {
+        parseFeaturedIds(value, collected);
+      }
+    }
+  }
+
+  const uniqueIds = [...new Set(collected)];
+  const mappedFiveStars = uniqueIds.filter((id) => {
+    const entry = charMap[id] || lcMap[id];
+    return Number(entry?.rarity) === 5;
+  });
+
+  return mappedFiveStars.length > 0 ? mappedFiveStars : uniqueIds;
+}
+
 /**
  * Fetches latest banners from SRS + StarRailRes with Caching
  * Returns { status: 'uptodate' | 'updated' | 'error', data: [] }
@@ -454,13 +510,14 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     // SRS Character Ids are usually < 8000 (Lightcones are higher? or distinct). 
     // We'll rely on StarRailRes to filter valid chars later.
     for (const [bid, bdata] of Object.entries(gachaList)) {
-      if (bdata.start_time <= currentSeconds && currentSeconds <= bdata.end_time) {
-        if (bdata.rateup) {
-           activeBanners.push({
-             bannerId: bid,
-             charId: String(bdata.rateup)
-           });
-        }
+      if (!(bdata.start_time <= currentSeconds && currentSeconds <= bdata.end_time)) continue;
+
+      const featuredIds = extractHSRFeaturedIds(bdata, {}, {});
+      for (const featuredId of featuredIds) {
+        activeBanners.push({
+          bannerId: bid,
+          charId: String(featuredId)
+        });
       }
     }
 
@@ -472,7 +529,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     // 4. Smart Check: Compare IDs with Cache
     const CACHE_ID_KEY = 'cached_banner_ids';
     const cachedIds = JSON.parse(localStorage.getItem(CACHE_ID_KEY) || '[]');
-    const newIds = activeBanners.map(b => b.bannerId).sort();
+    const newIds = [...new Set(activeBanners.map(b => b.bannerId))].sort();
     
     const isSame = JSON.stringify(newIds) === JSON.stringify(cachedIds.sort());
     
@@ -505,7 +562,22 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     
     // 6. Construct Final Banner List
     const finalBanners = [];
-    for (const b of activeBanners) {
+    const resolvedActiveBanners = [];
+    for (const [bid, bdata] of Object.entries(gachaList)) {
+      if (!(bdata.start_time <= currentSeconds && currentSeconds <= bdata.end_time)) continue;
+
+      const featuredIds = extractHSRFeaturedIds(bdata, charMap, lcMap);
+      for (const featuredId of featuredIds) {
+        resolvedActiveBanners.push({
+          bannerId: bid,
+          charId: String(featuredId)
+        });
+      }
+    }
+
+    for (const b of resolvedActiveBanners.filter((candidate, index, array) =>
+      array.findIndex(item => item.bannerId === candidate.bannerId && item.charId === candidate.charId) === index
+    )) {
         let type = 'unknown';
         let info = null;
         

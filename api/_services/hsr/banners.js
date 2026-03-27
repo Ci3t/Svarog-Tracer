@@ -37,31 +37,6 @@ export async function handler(req, res) {
     }
     
     const configData = await configRes.json();
-    const gachaList = configData.config?.banners || {};
-    
-    // 2. Filter for active banners (current timestamp within start/end time)
-    const activeCandidates = [];
-    for (const [bannerId, bannerData] of Object.entries(gachaList)) {
-      if (bannerData.start_time <= currentSeconds && currentSeconds <= bannerData.end_time) {
-        if (bannerData.rateup) {
-          activeCandidates.push({
-            bannerId,
-            characterId: String(bannerData.rateup),
-            startTime: bannerData.start_time,
-            endTime: bannerData.end_time
-          });
-        }
-      }
-    }
-    
-    if (activeCandidates.length === 0) {
-      console.log('[HSR Banners API] No active banners found');
-      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-      return res.status(200).json([]);
-    }
-    
-    console.log(`[HSR Banners API] Found ${activeCandidates.length} active banner(s)`);
-    
     // 3. Fetch character and light cone metadata from StarRailRes
     const [charRes, lcRes] = await Promise.all([
       fetch('https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/characters.json'),
@@ -70,9 +45,95 @@ export async function handler(req, res) {
     
     const charMap = charRes.ok ? await charRes.json() : {};
     const lcMap = lcRes.ok ? await lcRes.json() : {};
+
+    const gachaList = configData.config?.banners || {};
+
+    const FEATURED_KEY_RE = /(rate.?up|featured|up_?5|rateup_?5|rarity_?5|five.?star)/i;
+
+    const parseFeaturedIds = (value, collected = []) => {
+      if (value == null) return collected;
+      if (Array.isArray(value)) {
+        value.forEach(item => parseFeaturedIds(item, collected));
+        return collected;
+      }
+      if (typeof value === 'object') {
+        for (const [key, nested] of Object.entries(value)) {
+          if (FEATURED_KEY_RE.test(key) || typeof nested === 'object') {
+            parseFeaturedIds(nested, collected);
+          }
+        }
+        return collected;
+      }
+
+      const stringValue = String(value).trim();
+      if (/^\d+$/.test(stringValue)) {
+        collected.push(stringValue);
+      }
+      return collected;
+    };
+
+    const extractFeaturedIds = (bannerData) => {
+      const directCandidates = [
+        bannerData?.rateup,
+        bannerData?.rateup_5,
+        bannerData?.rate_up,
+        bannerData?.up_5,
+        bannerData?.featured,
+        bannerData?.featured_5,
+        bannerData?.rarity_5,
+        bannerData?.five_star,
+      ];
+
+      const collected = [];
+      directCandidates.forEach(value => parseFeaturedIds(value, collected));
+
+      if (collected.length === 0) {
+        for (const [key, value] of Object.entries(bannerData || {})) {
+          if (FEATURED_KEY_RE.test(key)) {
+            parseFeaturedIds(value, collected);
+          }
+        }
+      }
+
+      const uniqueIds = [...new Set(collected)];
+      const mappedFiveStars = uniqueIds.filter((id) => {
+        const entry = charMap[id] || lcMap[id];
+        return Number(entry?.rarity) === 5;
+      });
+
+      return mappedFiveStars.length > 0 ? mappedFiveStars : uniqueIds;
+    };
+
+    // 2. Filter for active banners (current timestamp within start/end time)
+    const activeCandidates = [];
+    for (const [bannerId, bannerData] of Object.entries(gachaList)) {
+      if (!(bannerData.start_time <= currentSeconds && currentSeconds <= bannerData.end_time)) continue;
+
+      const featuredIds = extractFeaturedIds(bannerData);
+      for (const featuredId of featuredIds) {
+        activeCandidates.push({
+          bannerId,
+          characterId: String(featuredId),
+          startTime: bannerData.start_time,
+          endTime: bannerData.end_time
+        });
+      }
+    }
+
+    const dedupedCandidates = activeCandidates.filter((candidate, index, array) =>
+      array.findIndex(item => item.bannerId === candidate.bannerId && item.characterId === candidate.characterId) === index
+    );
+
+    if (dedupedCandidates.length === 0) {
+      console.log('[HSR Banners API] No active banners found');
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+      return res.status(200).json([]);
+    }
+
+    console.log(`[HSR Banners API] Found ${dedupedCandidates.length} active banner candidate(s)`);
     
     // 4. Map banner IDs to character/LC names and images
-    const banners = activeCandidates.map(banner => {
+    const banners = dedupedCandidates.map(banner => {
       const charId = banner.characterId;
       
       // Check if it's a character

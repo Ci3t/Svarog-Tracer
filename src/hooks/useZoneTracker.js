@@ -1169,7 +1169,6 @@ export function useZoneTracker(sessionTheme = 'modern') {
     if (!clearMmSs) { setError('Zone card cannot be exported: clear time is missing.'); return; }
     const zoneCavernIds = Array.isArray(zone?.caverns) ? zone.caverns : [];
     const preferredCavern = findCavernById(zoneCavernIds[0]) || findCavernById(cavern) || null;
-    const relicId = preferredCavern?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
 
     // Compute top 4 substats from all aggregated relics across all grouped reports
     const allRelics = Array.isArray(zone?.aggregated_relics)
@@ -1190,7 +1189,6 @@ export function useZoneTracker(sessionTheme = 'modern') {
 
     const params = new URLSearchParams({ source: 'zone', chars: slotOrder.join(','), clear_time: clearMmSs });
     if (preferredCavern?.id) params.set('cavern', preferredCavern.id);
-    if (relicId) params.set('relic_id', relicId);
     if (mapData?.epoch?.id) params.set('from_epoch', String(mapData.epoch.id));
     if (top4Substats.length > 0) params.set('substats', top4Substats.join(','));
     const base = String(import.meta.env.BASE_URL || '/');

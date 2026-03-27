@@ -65,6 +65,7 @@ import KiyoModeCard from "./components/KiyoModeCard";
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // ðŸ”¥ NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
+import { getWaveAndTableSignals } from "./utils/kiyo2strSignals";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
@@ -151,6 +152,17 @@ export default function App() {
       col1Status: debugData?.waveData?.col1RawStatus || null,
       col2Status: debugData?.waveData?.col2Status || null,
       col3Status: debugData?.waveData?.col3Status || null,
+      wave2Action: debugData?.waveData?.wave2Action || null,
+      wave2SessionMode: debugData?.waveData?.wave2SessionMode || null,
+      wave2PairingName: debugData?.waveData?.wave2PairingName || null,
+      wave2Verdict: debugData?.waveData?.wave2Verdict || null,
+      wave2BetRolls: Array.isArray(debugData?.waveData?.wave2BetRolls)
+        ? [...debugData.waveData.wave2BetRolls]
+        : null,
+      tablePairingKey: debugData?.waveData?.tablePairingKey || null,
+      tableBetRolls: Array.isArray(debugData?.waveData?.tableBetRolls)
+        ? [...debugData.waveData.tableBetRolls]
+        : null,
       prefixMain: debugData?.smartPrefix?.prediction || null,
       prefixAlt: debugData?.smartPrefix?.alt || null,
       tracerMain: debugData?.prediction?.prediction || null,
@@ -251,6 +263,7 @@ export default function App() {
       {
         const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
         const actualStr = String(actual3).slice(0, 3); // 2 or 3 chars depending on mode
+        const fallbackTwoStrSignals = getWaveAndTableSignals(contextRolls);
 
         const newLog = {
           ts: Date.now() + idx,
@@ -283,6 +296,21 @@ export default function App() {
           col3Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).confidence || 0,
           col2Status: "unknown",
           col3Status: "unknown",
+          wave2Action: latestSnapshot?.wave2Action || fallbackTwoStrSignals?.waveSnapshot?.action || null,
+          wave2SessionMode: latestSnapshot?.wave2SessionMode || fallbackTwoStrSignals?.waveSnapshot?.sessionMode || null,
+          wave2PairingName: latestSnapshot?.wave2PairingName || fallbackTwoStrSignals?.waveSnapshot?.pairingName || null,
+          wave2Verdict: latestSnapshot?.wave2Verdict || fallbackTwoStrSignals?.waveSnapshot?.message || null,
+          wave2BetRolls: Array.isArray(latestSnapshot?.wave2BetRolls)
+            ? [...latestSnapshot.wave2BetRolls]
+            : Array.isArray(fallbackTwoStrSignals?.waveSnapshot?.betRolls)
+              ? [...fallbackTwoStrSignals.waveSnapshot.betRolls]
+              : null,
+          tablePairingKey: latestSnapshot?.tablePairingKey || fallbackTwoStrSignals?.table?.activeKey || null,
+          tableBetRolls: Array.isArray(latestSnapshot?.tableBetRolls)
+            ? [...latestSnapshot.tableBetRolls]
+            : Array.isArray(fallbackTwoStrSignals?.table?.betRolls)
+              ? [...fallbackTwoStrSignals.table.betRolls]
+              : null,
           livePrefix: livePrefixPredictionRef.current ? { ...livePrefixPredictionRef.current } : null,
         };
 

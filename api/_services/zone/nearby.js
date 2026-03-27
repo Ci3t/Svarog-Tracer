@@ -196,9 +196,13 @@ function buildObservedOrderMap(runs) {
   return map;
 }
 
-function buildLoggedNearbyZones({ rows, targetXor, targetSlot = null, targetSum = null, enforceSum = false, limit = 20 }) {
+function buildLoggedNearbyZones({ rows, targetXor, targetSlot = null, targetSum = null, enforceSum = false, slotRadius = null, limit = 20 }) {
   return buildZoneMapFromRuns(rows)
     .filter((zone) => !enforceSum || Number(zone?.char_sum) === Number(targetSum))
+    .filter((zone) => {
+      if (!Number.isInteger(targetSlot) || !Number.isInteger(slotRadius)) return true;
+      return Math.abs(Number(zone?.char_slot ?? 0) - targetSlot) <= slotRadius;
+    })
     .map((zone) => ({
       ...zone,
       xor_diff: Math.abs(Number(zone?.char_xor ?? 0) - targetXor),
@@ -253,6 +257,7 @@ function pushGeneratedCandidate({
   targetSlot,
   targetSum,
   radius,
+  slotRadius,
   enforceSum,
   ownedSet,
   minOwned,
@@ -268,6 +273,7 @@ function pushGeneratedCandidate({
 
   const comparison = getComparisonStats(nextSlotOrder, sourceSlotOrder, targetXor, targetSlot, targetSum);
   if (comparison.xor_diff > radius) return;
+  if (Number.isInteger(slotRadius) && Number.isInteger(comparison.slot_diff) && comparison.slot_diff > slotRadius) return;
   if (enforceSum && comparison.char_sum !== targetSum) return;
 
   const observed = observedMap.get(candidateKey) || null;
@@ -297,6 +303,7 @@ function buildGeneratedNearbyZones({
   targetSlot,
   targetSum,
   radius,
+  slotRadius,
   enforceSum,
   ownedSet,
   minOwned,
@@ -325,6 +332,7 @@ function buildGeneratedNearbyZones({
         targetSlot,
         targetSum,
         radius,
+        slotRadius,
         enforceSum,
         ownedSet,
         minOwned,
@@ -350,6 +358,7 @@ function buildGeneratedNearbyZones({
             targetSlot,
             targetSum,
             radius,
+            slotRadius,
             enforceSum,
             ownedSet,
             minOwned,
@@ -408,15 +417,21 @@ export async function handler(req, res) {
 
     const radius = normalizeIntegerQuery(req.query?.radius, {
       field: 'radius',
-      min: 1,
+      min: 0,
       max: 500,
       fallback: 100,
+    });
+    const slotRadius = normalizeIntegerQuery(req.query?.slot_radius, {
+      field: 'slot_radius',
+      min: 0,
+      max: 2000,
+      fallback: 160,
     });
 
     const limit = normalizeIntegerQuery(req.query?.limit, {
       field: 'limit',
       min: 1,
-      max: 50,
+      max: 250,
       fallback: 20,
     });
 
@@ -482,6 +497,7 @@ export async function handler(req, res) {
             targetSlot,
             targetSum,
             enforceSum,
+            slotRadius,
             limit,
           })
         : buildGeneratedNearbyZones({
@@ -490,6 +506,7 @@ export async function handler(req, res) {
             targetSlot,
             targetSum,
             radius,
+            slotRadius,
             enforceSum,
             ownedSet,
             minOwned,
@@ -514,6 +531,7 @@ export async function handler(req, res) {
                 targetSlot,
                 targetSum,
                 enforceSum,
+                slotRadius,
                 limit,
               })
             : buildGeneratedNearbyZones({
@@ -522,6 +540,7 @@ export async function handler(req, res) {
                 targetSlot,
                 targetSum,
                 radius,
+                slotRadius,
                 enforceSum,
                 ownedSet,
                 minOwned,
@@ -546,6 +565,7 @@ export async function handler(req, res) {
       target_xor: targetXor,
       target_slot: targetSlot,
       radius,
+      slot_radius: slotRadius,
       target_sum: targetSum,
       enforce_sum: enforceSum,
       clear_time_available: !clearTimeColumnMissing,

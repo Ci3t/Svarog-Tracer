@@ -9,6 +9,33 @@ import BacktestComparison from "../BacktestComparison";
 import { LongStringBacktestResults } from "./LongStringBacktestResults";
 import { KiyoBacktestResults } from "./KiyoBacktestResults";
 import { analyze2strWave } from "../../utils/kiyoPrefixWave";
+import { getWaveAndTableSignals } from "../../utils/kiyo2strSignals";
+
+function formatCompactWaveVerdict(snapshot, storedMode) {
+  if (!snapshot) return storedMode || "—";
+  const action = snapshot.action || storedMode || "—";
+  if (action === "DOMINANT") {
+    return `DOM ${snapshot.dominantLabel}(${snapshot.dominantPct}%)`;
+  }
+  if (action === "FLIP") {
+    return `FLIP→${snapshot.flipLabel} ${snapshot.runLength}/${snapshot.dominantN}`;
+  }
+  if (action === "HOLD") {
+    return `HOLD ${snapshot.currentLabel} ${snapshot.runLength}/${snapshot.dominantN}`;
+  }
+  if (action === "WAIT") {
+    return "BUILDING";
+  }
+  if (action === "SKIP") {
+    return "CHAOTIC";
+  }
+  if (snapshot.sessionMode === "AMBIGUOUS") {
+    const label = snapshot.dominantLabel || snapshot.currentLabel || snapshot.flipLabel || "";
+    const pct = snapshot.dominantPct ? `(${snapshot.dominantPct}%)` : "";
+    return `AMB ${label}${pct}`.trim();
+  }
+  return snapshot.sessionMode || action || storedMode || "—";
+}
 
 export default function ModernDebugPanel({
   debugLogs,
@@ -366,63 +393,28 @@ export default function ModernDebugPanel({
                       lines.push(header);
                       lines.push("─".repeat(108));
 
-                      // Pre-compute wave snapshot at each roll (oldest → newest)
-                      // Thread hysteresis lock through each step to match live behaviour
+                      // Pre-compute the exact pre-roll 2-str signals for each row.
+                      // This mirrors the live Kiyo card more closely than rebuilding from the full row itself.
                       const chronoRolls = [...kiyoLogs].reverse().map(l => l.actual).filter(Boolean);
-                      const w2Snapshots = [];
+                      const preRollSignals = [];
                       let _lockedPairing = null;
                       for (let i = 0; i < chronoRolls.length; i++) {
-                        if (i < 2) { w2Snapshots.push(null); continue; }
-                        const snap = analyze2strWave(chronoRolls.slice(0, i + 1), _lockedPairing);
-                        if (snap && snap.pairingConfidence >= 0.55 && !snap.isAmbiguous) {
+                        const priorRolls = chronoRolls.slice(0, i);
+                        if (priorRolls.length < 3) {
+                          preRollSignals.push(null);
+                          continue;
+                        }
+                        const signals = getWaveAndTableSignals(priorRolls, _lockedPairing);
+                        const snap = signals?.waveSnapshot;
+                        if (snap?.pairingConfidence >= 0.55 && !snap?.isAmbiguous) {
                           _lockedPairing = snap.pairing.name;
                         }
-                        w2Snapshots.push(snap);
+                        preRollSignals.push(signals);
                       }
 
 
                       let betHitTotal = 0, betHitHits = 0;
                       let tableHitTotal = 0, tableHitHits = 0;
-
-                      // TABLE pairing definitions (mirrors WavePairingTable.jsx)
-                      const TABLE_PAIRINGS = [
-                        { key: "41/44", sideA: ["41", "44"], sideB: ["42", "43"], sideAName: "Outer", sideBName: "Inner" },
-                        { key: "42/44", sideA: ["42", "44"], sideB: ["41", "43"], sideAName: "Even", sideBName: "Odd" },
-                        { key: "43/44", sideA: ["43", "44"], sideB: ["41", "42"], sideAName: "High", sideBName: "Low" },
-                      ];
-
-                      // Compute TABLE bet at each roll (snapshot of last N rolls up to this point)
-                      const getTableBet = (rollsUpTo) => {
-                        if (!rollsUpTo || rollsUpTo.length < 3) return "—";
-                        const recent = rollsUpTo.slice(-12).map(r => String(r).slice(0, 2)).filter(r => ["41", "42", "43", "44"].includes(r));
-                        if (recent.length < 3) return "—";
-
-                        const colStats = TABLE_PAIRINGS.map(p => {
-                          const aCount = recent.filter(r => p.sideA.includes(r)).length;
-                          const bCount = recent.filter(r => p.sideB.includes(r)).length;
-                          const total = aCount + bCount;
-                          const domPct = total > 0 ? Math.round(Math.max(aCount, bCount) / total * 100) : 0;
-                          const sides = recent.map(r => p.sideA.includes(r) ? 'A' : p.sideB.includes(r) ? 'B' : null);
-                          const firstValid = sides.find(s => s !== null);
-                          let streakLen = 0;
-                          if (firstValid) {
-                            for (const s of sides) {
-                              if (s === firstValid) streakLen++;
-                              else if (s !== null) break;
-                            }
-                          }
-                          const streakSide = firstValid;
-                          const streakRolls = streakSide === 'A' ? p.sideA : p.sideB;
-                          return { key: p.key, domPct, streakLen, streakSide, streakRolls, total };
-                        });
-
-                        const withStreak = colStats.filter(s => s.streakLen >= 4).sort((a, b) => b.streakLen - a.streakLen || b.domPct - a.domPct);
-                        const bestByDom = [...colStats].sort((a, b) => b.domPct - a.domPct)[0];
-                        const chosen = withStreak[0] ?? bestByDom;
-                        if (!chosen || !chosen.streakRolls) return "—";
-                        return chosen.streakRolls.join("/");
-                      };
-
                       kiyoLogs.forEach((log, idx) => {
                         const actual = log.actual || "---";
                         const rawActual = log.rawActual || actual;
@@ -430,33 +422,35 @@ export default function ModernDebugPanel({
 
                         // Wave snapshot for this roll (newest first → index in chrono is reversed)
                         const chronoIdx = chronoRolls.length - 1 - idx;
-                        const snap = chronoIdx > 0 ? w2Snapshots[chronoIdx - 1] : null;
-                        let waveVerdict = "—";
-                        let betRollsStr = "—";
+                        const fallbackSignals = preRollSignals[chronoIdx];
+                        const snap = fallbackSignals?.waveSnapshot || null;
+                        let waveVerdict = log.wave2Verdict || "—";
+                        let betRolls = Array.isArray(log.wave2BetRolls) ? log.wave2BetRolls : null;
+                        let betRollsStr = betRolls?.length ? betRolls.join("/") : "—";
                         let waveHit = "-";
-                        if (snap) {
-                          const a = snap.action;
-                          if (a === 'DOMINANT')
-                            waveVerdict = `DOM ${snap.dominantLabel}(${snap.dominantPct}%)`;
-                          else if (a === 'FLIP')
-                            waveVerdict = `FLIP→${snap.flipLabel} (${snap.runLength}/${snap.dominantN})`;
-                          else if (a === 'HOLD')
-                            waveVerdict = `HOLD ${snap.currentLabel} (${snap.runLength}/${snap.dominantN})`;
-                          else
-                            waveVerdict = a || "—";
+                        if (!betRolls?.length && snap) {
                           if (snap.betRolls) {
+                            betRolls = snap.betRolls;
                             betRollsStr = snap.betRolls.join("/");
-                            const hit = snap.betRolls.some(b => actual.startsWith(b));
-                            waveHit = hit ? "✓" : "✗";
-                            if (betRollsStr !== "—") { betHitTotal++; if (hit) betHitHits++; }
                           }
                         }
+                        waveVerdict = formatCompactWaveVerdict(snap, log.wave2SessionMode || snap?.sessionMode || "—");
+                        if (betRolls?.length) {
+                          const hit = betRolls.some(b => actual.startsWith(b));
+                          waveHit = hit ? "✓" : "✗";
+                          betHitTotal++;
+                          if (hit) betHitHits++;
+                        }
 
-                        const tableBetStr = getTableBet(chronoRolls.slice(0, chronoIdx));
+                        const tableBetRolls = Array.isArray(log.tableBetRolls)
+                          ? log.tableBetRolls
+                          : Array.isArray(fallbackSignals?.table?.betRolls)
+                            ? fallbackSignals.table.betRolls
+                            : null;
+                        const tableBetStr = tableBetRolls?.length ? tableBetRolls.join("/") : "—";
                         let tableHit = "-";
-                        if (tableBetStr !== "—") {
-                          const tRolls = tableBetStr.split("/");
-                          const hit = tRolls.some(b => actual.startsWith(b));
+                        if (tableBetRolls?.length) {
+                          const hit = tableBetRolls.some(b => actual.startsWith(b));
                           tableHit = hit ? "✓" : "✗";
                           tableHitTotal++;
                           if (hit) tableHitHits++;
@@ -499,8 +493,9 @@ export default function ModernDebugPanel({
                       lines.push("VERDICT TYPE BREAKDOWN:");
                       const verdictStats = {};
                       chronoRolls.forEach((actual, i) => {
-                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
-                        if (!snap || !snap.betRolls) return;
+                        const signal = preRollSignals[i];
+                        const snap = signal?.waveSnapshot || null;
+                        if (!snap?.betRolls) return;
                         const a = snap.action || 'OTHER';
                         if (!verdictStats[a]) verdictStats[a] = { total: 0, hits: 0 };
                         verdictStats[a].total++;
@@ -521,8 +516,9 @@ export default function ModernDebugPanel({
                       lines.push("  (How often wave bet wins when confidence is high vs low)");
                       const tier = { high: { h: 0, t: 0 }, mid: { h: 0, t: 0 }, low: { h: 0, t: 0 } };
                       chronoRolls.forEach((actual, i) => {
-                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
-                        if (!snap || !snap.betRolls) return;
+                        const signal = preRollSignals[i];
+                        const snap = signal?.waveSnapshot || null;
+                        if (!snap?.betRolls) return;
                         const confPct = snap.action === 'DOMINANT'
                           ? snap.dominantPct
                           : Math.round((snap.confidence || 0.5) * 100);
@@ -584,7 +580,8 @@ export default function ModernDebugPanel({
                       const half = Math.floor(chronoRolls.length / 2);
                       let earlyHits = 0, earlyTotal = 0, lateHits = 0, lateTotal = 0;
                       chronoRolls.forEach((actual, i) => {
-                        const snap = i > 0 ? w2Snapshots[i - 1] : null;
+                        const signal = preRollSignals[i];
+                        const snap = signal?.waveSnapshot || null;
                         if (!snap?.betRolls) return;
                         const hit = snap.betRolls.some(b => actual.startsWith(b));
                         if (i < half) { earlyTotal++; if (hit) earlyHits++; }

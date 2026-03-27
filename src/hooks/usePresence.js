@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { buildApiUrl } from '../utils/apiBase';
 
 // Generate a unique session ID
 const generateSessionId = () => {
@@ -12,11 +13,7 @@ const generateSessionId = () => {
   });
 };
 
-const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-// Use relative path to leverage Vite proxy or Vercel routing
-const PRESENCE_API = isDev 
-  ? '/api/presence' 
-  : 'https://svarog-tracer.vercel.app/api/presence';
+const PRESENCE_API = buildApiUrl('/api/presence');
 
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
