@@ -415,6 +415,42 @@ export function calculateTrends(rolls) {
 
 
 /**
+ * Step 6: Regime Detector
+ * Classifies the current session into one of three states:
+ *   'stable'      — commons are dominant and consistent, low noise rate
+ *   'transition'  — commons are shifting, distribution changing significantly
+ *   'noise-burst' — noise rate is spiking (≥40% of recent rolls are noise)
+ *
+ * @param {string[]} rolls
+ * @param {string[]} commons - current identified commons
+ * @param {string[]} noise   - current identified noise values
+ * @returns {'stable'|'transition'|'noise-burst'}
+ */
+export function classifyRegime(rolls, commons, noise) {
+  if (!rolls || rolls.length < 8) return 'stable'; // not enough data to classify
+
+  // Recent window for noise rate check
+  const recentN = Math.min(8, rolls.length);
+  const recent  = rolls.slice(-recentN);
+  const noiseInRecent = recent.filter(r => noise.includes(r)).length;
+  const noiseRate = noiseInRecent / recentN;
+
+  if (noiseRate >= 0.40) return 'noise-burst';
+
+  // Transition detection: compare commons share in session halves
+  const half = Math.floor(rolls.length / 2);
+  const firstHalf = rolls.slice(0, half);
+  const secondHalf = rolls.slice(half);
+  const commonsShareFirst  = firstHalf.filter(r => commons.includes(r)).length / firstHalf.length;
+  const commonsShareSecond = secondHalf.filter(r => commons.includes(r)).length / secondHalf.length;
+  const shareShift = Math.abs(commonsShareSecond - commonsShareFirst);
+
+  if (shareShift >= 0.20) return 'transition'; // ≥20% shift in commons share = transition
+
+  return 'stable';
+}
+
+/**
  * Get the distribution percentages for each value
  * 
  * @param {string[]} rolls - Array of 2-digit rolls
@@ -553,6 +589,8 @@ export function predictWithPairs(rolls) {
   const { matrix, matrix2gram, lastRoll, last2Rolls } = buildPairMatrix(rolls);
   const waveSignals = calculateWaveSignals(rolls, commons);
   const trends = calculateTrends(rolls);
+  // 🆕 Step 6: Regime classification — used by final ranker and exposed in debug
+  const regime = classifyRegime(rolls, commons, noise);
 
   // =========================================================================
   // 🔥 CHAOS DETECTION: When session is too noisy, use simpler logic
@@ -888,16 +926,23 @@ export function predictWithPairs(rolls) {
     pairConfidence = pairSorted[0].pct;
   }
 
-  // ── FREQ/PAIR BLEND based on sample count ─────────────────────────────────
-  // How many times has lastRoll appeared? That's how many pair samples we have.
-  const pairSamplesForLastRoll = rolls.filter(r => r === lastRoll).length;
-  // Weight schedule:
-  //   < 3 samples → freq dominates (pair data too noisy)
-  //   3–5 samples → equal blend
-  //   6+ samples  → pair dominates
-  const pairWeight = pairSamplesForLastRoll < 3 ? 0.20
-    : pairSamplesForLastRoll < 6 ? 0.50
-    : 0.80;
+  // ── FREQ/PAIR BLEND based on RELIABLE EVIDENCE COUNT ────────────────────────
+  // How many outgoing transitions from lastRoll have ≥ 3 samples in the matrix?
+  // This is stronger than raw sample count — it asks "does the matrix actually know
+  // what tends to follow lastRoll?" not just "did lastRoll appear often?"
+  //
+  //   0 reliable transitions → freq dominates (matrix is blind to this roll)
+  //   1 reliable transition  → light pair touch (still learning)
+  //   2+ reliable transitions → pair earns more influence
+  //   3+ reliable transitions → pair dominates
+  const reliableTransitionCount = lastRoll && matrix[lastRoll]
+    ? VALUES.filter(v => matrix[lastRoll][v]?.reliable === true).length
+    : 0;
+  const pairSamplesForLastRoll = rolls.filter(r => r === lastRoll).length; // kept for confidence cap
+  const pairWeight = reliableTransitionCount === 0 ? 0.10   // matrix is blind — freq only
+    : reliableTransitionCount === 1              ? 0.30   // one reliable edge — light touch
+    : reliableTransitionCount === 2              ? 0.55   // two reliable edges — meaningful
+    :                                              0.80;  // 3+ reliable edges — pair leads
   const freqWeight = 1 - pairWeight;
 
   // Compute a blended score for each value (used instead of raw pair % when sparse)
@@ -913,11 +958,12 @@ export function predictWithPairs(rolls) {
   const blendedPairPrediction = blendedCommons[0]?.value || pairPrediction;
   const blendedPairAlt        = blendedCommons[1]?.value || pairAlt;
   // Use blended confidence (scale down when freq-heavy since freq is weaker)
-  const blendedPairConfidence = pairSamplesForLastRoll < 3
-    ? Math.min((blendedCommons[0]?.blended || 0), 40)   // Freq-heavy: cap low
-    : pairSamplesForLastRoll < 6
-    ? Math.min((blendedCommons[0]?.blended || 0), 60)   // Blend: medium cap
-    : (blendedCommons[0]?.blended || pairConfidence);   // Pair-heavy: full trust
+  const blendedPairConfidence = reliableTransitionCount === 0
+    ? Math.min((blendedCommons[0]?.blended || 0), 35)   // matrix blind: cap very low
+    : reliableTransitionCount <= 1
+    ? Math.min((blendedCommons[0]?.blended || 0), 50)   // light evidence: medium cap
+    : (blendedCommons[0]?.blended || pairConfidence);   // solid evidence: full trust
+
   
   // 6. ALTERNATING PATTERN DETECTION (noise-tolerant, data-driven)
   // Classic: requires strict ABAB in last 4 raw rolls — breaks on any noise insertion
@@ -1368,6 +1414,45 @@ export function predictWithPairs(rolls) {
     isUncertainResult = true;
   }
 
+  // =========================================================================
+  // 🆕 Step 7: FINAL RANKER
+  // After all prediction logic has run, do one final re-ranking of (prediction, alt)
+  // using: pair transition probability × arrow trustScore × regime multiplier.
+  // If the ranker swaps the pick, it only does so when the gap is significant (>12 pts)
+  // to avoid noise-driven flips on weak signals.
+  //
+  // Regime multipliers:
+  //   stable      = 1.0 (trust pair transitions fully)
+  //   transition  = 0.8 (slightly discounted — things are changing)
+  //   noise-burst = 0.5 (pair signal is polluted — rely more on commons baseline)
+  // =========================================================================
+  const regimeMult = regime === 'stable' ? 1.0 : regime === 'transition' ? 0.8 : 0.5;
+
+  // Only re-rank commons candidates (never noise). Score = pair pct × trustScore × regimeMult
+  const rankableCandidates = [prediction, alt]
+    .filter(v => v && commons.includes(v))
+    .map(v => {
+      const pairPct   = matrix[lastRoll]?.[v]?.pct || 0;
+      const trust     = trends[v]?.trustScore ?? 0.6;
+      const freqScore = distribution[v] || 0;
+      // Pair pct is primary; freq is used as a tie-break when pairPct is low
+      const score = (pairPct > 0 ? pairPct : freqScore * 0.4) * trust * regimeMult;
+      return { value: v, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  if (rankableCandidates.length >= 2) {
+    const winner = rankableCandidates[0];
+    const runner = rankableCandidates[1];
+    const scoreGap = winner.score - runner.score;
+    // Only swap if current prediction disagrees AND gap is meaningful
+    if (winner.value !== prediction && scoreGap > 12) {
+      alt = prediction; // demote current prediction to alt
+      prediction = winner.value;
+      method = method + '+ranker';
+    }
+  }
+
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
 
@@ -1508,6 +1593,9 @@ export function predictWithPairs(rolls) {
     commons,
     noise,
     distribution,
+    // 🆕 Step 6+7: Regime and evidence quality
+    regime,
+    reliableTransitionCount,
     // Enhanced data
     noiseRising,
     currentRunLength,
