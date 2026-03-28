@@ -306,7 +306,6 @@ function scoreTrustedPairs({
 }
 
 function scoreRunBreakCandidate({
-  rolls,
   candidate,
   lastRoll,
   matrix,
@@ -335,9 +334,9 @@ function scoreRunBreakCandidate({
         : avgObservedRunLen * 1.5
     )
   );
-  const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
-  const absenceScore = Math.min(effectiveGap, expectedGap * 2) * 2.5;
-  const overdueBoost = effectiveGap >= Math.round(expectedGap * 1.5) ? 20 : 0;
+  const absenceGap = seenAgo >= 0 ? seenAgo : 0;
+  const absenceScore = seenAgo >= 0 ? Math.min(absenceGap, expectedGap * 2) * 2.5 : 0;
+  const overdueBoost = seenAgo >= Math.round(expectedGap * 1.5) ? 20 : 0;
   const recencyBoost =
     seenAgo === 0 ? 18 :
     seenAgo === 1 ? 12 :
@@ -1706,7 +1705,6 @@ export function predictWithPairs(rolls, options = {}) {
         .map(value => ({
           value,
           score: scoreRunBreakCandidate({
-            rolls,
             candidate: value,
             lastRoll,
             matrix,
@@ -1722,28 +1720,12 @@ export function predictWithPairs(rolls, options = {}) {
         }))
         .sort((a, b) => b.score - a.score);
 
-      const commonBreakCandidates = breakCandidates.filter(entry => commons.includes(entry.value));
-      const bestBreak = commonBreakCandidates[0]?.value || breakCandidates[0]?.value || otherCommon;
-      const expectedGap = Math.max(
-        2,
-        Math.round(
-          avgNoiseGap !== null && avgNoiseGap !== undefined
-            ? avgNoiseGap
-            : avgObservedRunLen * 1.5
-        )
-      );
-      const absenceBreakthrough = breakCandidates.find(entry => {
-        if (entry.value === bestBreak || commons.includes(entry.value)) return false;
-        const seenAgo = lastSeen[entry.value];
-        const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
-        return effectiveGap >= expectedGap * 2;
-      });
-      const fallbackCommonAlt = commonBreakCandidates.find(entry => entry.value !== bestBreak)?.value || lastRoll;
-      const secondBreak = absenceBreakthrough?.value || fallbackCommonAlt;
+      const bestBreak = breakCandidates[0]?.value || otherCommon;
+      const secondBreak = breakCandidates.find(entry => entry.value !== bestBreak)?.value || lastRoll;
 
       prediction = bestBreak;
       alt = secondBreak;
-      method = absenceBreakthrough ? 'run-break+absence-breakthrough' : 'run-break';
+      method = 'run-break';
       // Higher confidence for longer runs (more likely to break)
       confidence = currentRunLen >= 4 ? 0.70 : currentRunLen >= 3 ? 0.62 : 0.55;
     }
