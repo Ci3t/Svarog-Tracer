@@ -231,6 +231,38 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
     return picks.slice(0, 2);
   })();
 
+  const analyzerMatchesLane = analyzerPicks.some(pick => displayPair?.includes(pick));
+  const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
+  const followGuide = (() => {
+    if (!analyzerPicks.length) return null;
+    if (analyzerMatchesLane && analyzerAgreesOnMain) {
+      return {
+        tone: 'good',
+        title: 'Both agree',
+        text: 'Strongest signal. Lane and analyzer point to the same side.',
+      };
+    }
+    if (pairSafety === 'safe') {
+      return {
+        tone: 'lane',
+        title: 'Follow Main Predictor',
+        text: 'Safe lane. Trust the 2 picks first and use Svarog only as a lean.',
+      };
+    }
+    if (pairSafety === 'danger') {
+      return {
+        tone: 'analyzer',
+        title: 'Check Svarog Analyzer',
+        text: 'Pair is fragile. Use Svarog for the sharper break guess.',
+      };
+    }
+    return {
+      tone: 'split',
+      title: 'Split Read',
+      text: 'Main = safer lane. Svarog = riskier exact next-line lean.',
+    };
+  })();
+
   const primaryWatchLine = (() => {
     if (isNoiseTrap && trapCandidate) {
       return {
@@ -378,6 +410,30 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
                 ))}
               </div>
             </div>
+            {followGuide && (
+              <div className={`mt-2 rounded-lg border px-2.5 py-1.5 ${
+                followGuide.tone === 'good'
+                  ? 'border-emerald-500/30 bg-emerald-500/8'
+                  : followGuide.tone === 'lane'
+                  ? 'border-violet-500/25 bg-violet-500/8'
+                  : followGuide.tone === 'analyzer'
+                  ? 'border-cyan-500/25 bg-cyan-500/8'
+                  : 'border-amber-500/25 bg-amber-500/8'
+              }`}>
+                <p className={`text-[10px] font-black uppercase tracking-widest ${
+                  followGuide.tone === 'good'
+                    ? 'text-emerald-300'
+                    : followGuide.tone === 'lane'
+                    ? 'text-violet-300'
+                    : followGuide.tone === 'analyzer'
+                    ? 'text-cyan-300'
+                    : 'text-amber-300'
+                }`}>
+                  {followGuide.title}
+                </p>
+                <p className="mt-0.5 text-[10px] text-slate-400">{followGuide.text}</p>
+              </div>
+            )}
           </div>
         )}
 
