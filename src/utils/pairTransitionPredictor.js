@@ -454,6 +454,14 @@ function scoreSvarogAnalyzerPicks({
     const pair1Weight = isSelfTransition
       ? (currentRunLen >= 2 ? (pair1Reliable ? 0.52 : 0.24) : (pair1Reliable ? 0.14 : 0.06))
       : (pair1Reliable ? 1.08 : 0.5);
+    const distributionWithoutPairPenalty =
+      !isSelfTransition &&
+      rolls.length >= 8 &&
+      pair1 === 0 &&
+      !pair1Reliable &&
+      (distribution?.[value] || 0) >= 45
+        ? 12
+        : 0;
     const stableComebackBonus =
       !isSelfTransition &&
       seenAgo >= 2 &&
@@ -499,6 +507,7 @@ function scoreSvarogAnalyzerPicks({
     if (currentRunLen >= 3 && value === lastRoll) score -= 18;
     else if (currentRunLen >= 3 && value !== lastRoll) score += 5;
     score -= postRunCooldown;
+    score -= distributionWithoutPairPenalty;
 
     return { value, score: Math.round(score * 100) / 100 };
   }).sort((a, b) => b.score - a.score);
