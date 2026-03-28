@@ -140,9 +140,9 @@ function scoreTrustedPairs({
     return { pair, pairKey, score };
   }).sort((a, b) => b.score - a.score);
 
-  const trustedPair = pairScores[0]?.pair || commons;
-  const noisePair = VALUES.filter(value => !trustedPair.includes(value));
-  const runnerUpPair = pairScores[1]?.pair || noisePair;
+  let trustedPair = pairScores[0]?.pair || commons;
+  let noisePair = VALUES.filter(value => !trustedPair.includes(value));
+  let runnerUpPair = pairScores[1]?.pair || noisePair;
   const scoreGap = (pairScores[0]?.score || 0) - (pairScores[1]?.score || 0);
   let tailRunLength = 0;
   for (let i = rolls.length - 1; i >= 0; i--) {
@@ -179,6 +179,46 @@ function scoreTrustedPairs({
   const outsiderPressure = outsiderSignals.reduce((sum, item) => sum + item.score, 0) / Math.max(outsiderSignals.length, 1);
   const freshOutsider = outsiderSignals[0] || null;
   const mixedWindow = new Set(rolls.slice(-6)).size >= 3;
+
+  const trustedSignals = trustedPair.map((value) => {
+    const recent = recent6Dist[value] || 0;
+    const recent2Hits = recent2.filter(r => r === value).length;
+    const recent4Hits = recent4.filter(r => r === value).length;
+    const trust = (trends[value]?.trustScore ?? 0.6) * 20;
+    const freshness = (trends[value]?.arrowWeight ?? 0.6) * 12;
+    const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
+    const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
+    const direction = trends[value]?.direction || 'stable';
+    const score =
+      recent +
+      recent2Hits * 14 +
+      recent4Hits * 7 +
+      trust +
+      freshness +
+      momentum +
+      pairPct * 0.25 +
+      (direction === 'rising' ? 8 : direction === 'stable' ? 3 : -4);
+    return { value, score, recent, direction };
+  }).sort((a, b) => b.score - a.score);
+
+  const weakestTrusted = trustedSignals[trustedSignals.length - 1];
+  const strongestTrusted = trustedSignals[0];
+  const outsiderCanPivot = !!freshOutsider && !!weakestTrusted && (
+    freshOutsider.recent2Hits >= 1 ||
+    freshOutsider.recent4Hits >= 2 ||
+    (freshOutsider.direction === 'rising' && freshOutsider.rollsAgo <= 2)
+  );
+  if (
+    outsiderCanPivot &&
+    strongestTrusted &&
+    freshOutsider.value !== strongestTrusted.value &&
+    freshOutsider.score >= weakestTrusted.score + 10 &&
+    (mixedWindow || regime !== 'stable' || scoreGap <= profile.pairGapCaution + 4)
+  ) {
+    trustedPair = [strongestTrusted.value, freshOutsider.value].sort();
+    noisePair = VALUES.filter(value => !trustedPair.includes(value));
+    runnerUpPair = pairScores.find(entry => entry.pair.join('/') !== trustedPair.join('/'))?.pair || noisePair;
+  }
 
   const recentNoiseShare = noisePair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
   let noiseRisk = Math.round(
@@ -1910,9 +1950,18 @@ export function predictWithPairs(rolls, options = {}) {
   }
 
   // Noise watch: is a noise value likely to appear soon? (for ⚡ Watch indicator)
-  const noiseWatchValue = _chaosNoiseWatch ||
-    (waveSignals?.isWaveWarning && noise[0]) ||
-    (noiseRising.length > 0 ? noiseRising[0] : null);
+  const shouldWatchFreshOutsider = pairOutlook.freshOutsider?.value &&
+    !commons.includes(pairOutlook.freshOutsider.value) &&
+    (
+      pairOutlook.freshOutsider.recent2Hits >= 1 ||
+      pairOutlook.freshOutsider.recent4Hits >= 1 ||
+      pairOutlook.freshOutsider.direction === 'rising'
+    );
+  const noiseWatchValue = shouldWatchFreshOutsider
+    ? pairOutlook.freshOutsider.value
+    : _chaosNoiseWatch ||
+      (waveSignals?.isWaveWarning && noise[0]) ||
+      (noiseRising.length > 0 ? noiseRising[0] : null);
 
   // Overdue noise: noise values that have been absent unusually long
   // Threshold: avgNoiseGap * 2.5 rolls (if known), else 7 rolls as fallback
