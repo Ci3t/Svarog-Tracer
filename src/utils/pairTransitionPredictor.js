@@ -101,6 +101,7 @@ function scoreTrustedPairs({
   regime,
   profile,
 }) {
+  const recent2 = rolls.slice(-2);
   const recent4 = rolls.slice(-4);
   const recent6Dist = getDistribution(rolls.slice(-6));
   const recent10Dist = getDistribution(rolls.slice(-10));
@@ -143,23 +144,37 @@ function scoreTrustedPairs({
   const noisePair = VALUES.filter(value => !trustedPair.includes(value));
   const runnerUpPair = pairScores[1]?.pair || noisePair;
   const scoreGap = (pairScores[0]?.score || 0) - (pairScores[1]?.score || 0);
+  let tailRunLength = 0;
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (rolls[i] === lastRoll) tailRunLength++;
+    else break;
+  }
   const outsiderSignals = noisePair.map((value) => {
     const recent = recent6Dist[value] || 0;
+    const recent2Hits = recent2.filter(r => r === value).length;
     const recent4Hits = recent4.filter(r => r === value).length;
+    const rollsAgo = (() => {
+      for (let i = rolls.length - 1; i >= 0; i--) {
+        if (rolls[i] === value) return rolls.length - 1 - i;
+      }
+      return -1;
+    })();
     const trust = (trends[value]?.trustScore ?? 0.25) * 20;
     const freshness = (trends[value]?.arrowWeight ?? 0.4) * 12;
     const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
     const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
     const direction = trends[value]?.direction || 'stable';
+    const recencyMultiplier = rollsAgo <= 1 ? 1.0 : rollsAgo === 2 ? 0.72 : rollsAgo === 3 ? 0.45 : 0.18;
     const score =
-      recent * 0.8 +
-      recent4Hits * 10 +
+      (recent * 0.8 +
+      recent2Hits * 16 +
+      recent4Hits * 8 +
       trust +
       freshness +
       momentum +
       pairPct * 0.35 +
-      (direction === 'rising' ? 10 : direction === 'stable' ? 3 : 0);
-    return { value, score, recent4Hits, direction };
+      (direction === 'rising' ? 10 : direction === 'stable' ? 3 : 0)) * recencyMultiplier;
+    return { value, score, recent2Hits, recent4Hits, rollsAgo, direction };
   }).sort((a, b) => b.score - a.score);
   const outsiderPressure = outsiderSignals.reduce((sum, item) => sum + item.score, 0) / Math.max(outsiderSignals.length, 1);
   const freshOutsider = outsiderSignals[0] || null;
@@ -173,17 +188,20 @@ function scoreTrustedPairs({
     profile.noiseRiskBias
   );
   if (mixedWindow) noiseRisk += 10;
-  if (freshOutsider?.recent4Hits >= 1) noiseRisk += 8;
-  if (freshOutsider?.recent4Hits >= 2) noiseRisk += 12;
-  if (freshOutsider?.direction === 'rising') noiseRisk += 8;
+  if (freshOutsider?.recent2Hits >= 1) noiseRisk += 12;
+  else if (freshOutsider?.recent4Hits >= 1) noiseRisk += 6;
+  if (freshOutsider?.recent4Hits >= 2) noiseRisk += 10;
+  if (freshOutsider?.direction === 'rising' && freshOutsider?.rollsAgo <= 2) noiseRisk += 8;
+  if (regime === 'stable' && tailRunLength >= 3 && (freshOutsider?.rollsAgo ?? 99) > 2) noiseRisk -= 10;
   noiseRisk = Math.max(0, Math.min(100, noiseRisk));
 
   let pairSafety = 'danger';
   const safeThreshold = mixedWindow ? profile.pairGapSafe + 6 : profile.pairGapSafe;
   const cautionThreshold = mixedWindow ? profile.pairGapCaution + 4 : profile.pairGapCaution;
   const freshOutsiderHot = !!freshOutsider && (
+    freshOutsider.recent2Hits >= 1 ||
     freshOutsider.recent4Hits >= 2 ||
-    (freshOutsider.recent4Hits >= 1 && freshOutsider.direction === 'rising')
+    (freshOutsider.recent4Hits >= 1 && freshOutsider.direction === 'rising' && freshOutsider.rollsAgo <= 2)
   );
   if (!freshOutsiderHot && scoreGap >= safeThreshold && noiseRisk <= 28) pairSafety = 'safe';
   else if (scoreGap >= cautionThreshold && noiseRisk <= 56 && !freshOutsiderHot) pairSafety = 'caution';
