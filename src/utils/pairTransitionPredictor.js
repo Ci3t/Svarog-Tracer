@@ -1169,7 +1169,9 @@ export function predictWithPairs(rolls) {
   
   // Step 2b: OVERDUE WAVE - Individual wave cycle detection
   // 🔧 FIX: Only predict COMMONS for overdue-wave method. Noise-overdue is shown in Watch strip.
-  else if (mostOverdueCommon && lastSeen[mostOverdueCommon] >= OVERDUE_THRESHOLD) {
+  // 🆕 REGIME GATE: overdue-wave only reliable in stable sessions
+  // In transition/noise-burst the "most absent common" is a red herring
+  else if (regime === 'stable' && mostOverdueCommon && lastSeen[mostOverdueCommon] >= OVERDUE_THRESHOLD) {
     const overdueMomentum = momentumScores[mostOverdueCommon] || 0;
     const isOnlyOverdue = overdueValues.includes(mostOverdueCommon) && 
       overdueValues.filter(v => commons.includes(v)).length <= 1;
@@ -1300,6 +1302,41 @@ export function predictWithPairs(rolls) {
     method = pairSamplesForLastRoll < 3 ? 'freq-blend' : pairSamplesForLastRoll < 6 ? 'freq+pair-blend' : 'pair-matrix';
   }
   
+  // Step 9b: WIDE-CANDIDATE MODE (transition / noise-burst only)
+  // ═══════════════════════════════════════════════════════════════
+  // Problem (Codex): in mixed sessions the predictor over-commits to
+  // its current 2-common narrative. When the real answer is the
+  // 3rd-most-active value, it gets excluded from candidates entirely.
+  //
+  // Fix: in transition or noise-burst, open the candidate pool to
+  // top-3 momentum values — not just the 2 session commons.
+  // We use pair-transition pct as the ranking signal within that pool.
+  //
+  // Conditions to fire:
+  //   - regime is not 'stable' (transition or noise-burst)
+  //   - no prediction set yet by earlier steps
+  //   - at least 8 rolls of history (enough for momentum to mean something)
+  // ═══════════════════════════════════════════════════════════════
+  if (!prediction && regime !== 'stable' && rolls.length >= 8) {
+    // Pool = top-3 by recent momentum (arrowWeight-adjusted, already computed)
+    const widePool = sortedByMomentum.slice(0, 3).map(x => x.value);
+
+    // Score each pool member by pair transition pct from lastRoll
+    const wideScores = widePool.map(v => {
+      const pairPct   = matrix[lastRoll]?.[v]?.pct || 0;
+      const trust     = trends[v]?.trustScore ?? 0.6;
+      const score     = (pairPct > 0 ? pairPct : (distribution[v] || 0) * 0.5) * trust;
+      return { value: v, score };
+    }).sort((a, b) => b.score - a.score);
+
+    if (wideScores.length >= 2) {
+      prediction = wideScores[0].value;
+      alt        = wideScores[1].value;
+      method     = 'wide-candidate';
+      confidence = Math.min(0.35 + (wideScores[0].score / 100) * 0.2, 0.55);
+    }
+  }
+
   // Step 10: FREQUENCY FALLBACK - Use distribution
   if (!prediction) {
     prediction = freqPrediction;
@@ -1473,16 +1510,38 @@ export function predictWithPairs(rolls) {
   const risingValue = shiftedToValue || (commonsFlipDetected && newCommons?.find(v => noise.includes(v))) || null;
   const risingMomentum = risingValue ? (momentumScores[risingValue] || 0) : 0;
 
+  // Path A: explicit rising signal (patternShifted / commonsFlip)
   if (
     risingValue &&
     risingValue !== prediction &&
     risingValue !== alt &&
-    risingMomentum > 0.05 &&                 // has real recent presence
-    !method.startsWith('pattern-shift') &&   // pattern-shift branch already handles this
-    !method.startsWith('chaos')              // chaos mode manages its own candidates
+    risingMomentum > 0.05 &&
+    !method.startsWith('pattern-shift') &&
+    !method.startsWith('chaos')
   ) {
     alt = risingValue;
     method = method + '+rising-promoted';
+  }
+  // Path B: regime-aware 3rd-value injection (Codex: break 2-commons lock in noisy sessions)
+  // When session is in transition/noise-burst, check if top-3 momentum has a value that's
+  // excluded from both prediction and alt — and inject it if it has real recent presence.
+  // Only fires when Path A didn't already promote something, and not in chaos/pattern-shift.
+  else if (
+    regime !== 'stable' &&
+    !method.startsWith('pattern-shift') &&
+    !method.startsWith('chaos') &&
+    !method.startsWith('wide-candidate')  // wide-candidate already opened the pool
+  ) {
+    // Top-3 momentum values (already computed by sortedByMomentum)
+    const thirdCandidate = sortedByMomentum
+      .slice(0, 3)
+      .map(x => x.value)
+      .find(v => v !== prediction && v !== alt && (momentumScores[v] || 0) > 0.08);
+
+    if (thirdCandidate) {
+      alt = thirdCandidate;
+      method = method + '+wide-alt';
+    }
   }
 
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
@@ -1495,13 +1554,14 @@ export function predictWithPairs(rolls) {
   // =========================================================================
 
   // Commons guardian: last safety net — if somehow prediction is noise, swap to top common
-  if (noise.includes(prediction)) {
+  // Exception: wide-candidate can intentionally set prediction to a noise/non-common value
+  const predIsWideCandidate = method.startsWith('wide-candidate');
+  if (!predIsWideCandidate && noise.includes(prediction)) {
     prediction = commons[0] || freqSorted.find(f => commons.includes(f.value))?.value || prediction;
   }
-  // Guard for alt: skip eviction if alt is the deliberately promoted rising value
-  // (risingValue is still in noise[] at classification time, but we intentionally promoted it)
-  const altIsRising = risingValue && alt === risingValue;
-  if (!altIsRising && (noise.includes(alt) || alt === prediction)) {
+  // Guard for alt: skip eviction if alt is deliberately promoted (rising-promoted or wide-alt)
+  const altIsPromoted = (risingValue && alt === risingValue) || method.includes('+wide-alt');
+  if (!altIsPromoted && (noise.includes(alt) || alt === prediction)) {
     alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || alt;
   }
 
