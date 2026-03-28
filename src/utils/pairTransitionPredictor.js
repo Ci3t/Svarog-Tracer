@@ -732,6 +732,7 @@ export function identifyCommonsNoise(rolls, options = {}) {
   // NOISE RISING DETECTION
   // =========================================================================
   const last6 = rolls.slice(-6);
+  const last2 = rolls.slice(-2);
   const noiseRising = [];
   noise.forEach(noiseVal => {
     const countInLast6 = last6.filter(r => r === noiseVal).length;
@@ -747,6 +748,21 @@ export function identifyCommonsNoise(rolls, options = {}) {
       noise = noise.filter(nv => nv !== risingNoise);
       noise.push(weakerCommon);
     }
+  }
+  // Fast outsider promotion: if a noise value just hit twice in the last two rolls,
+  // treat it as emerging immediately instead of waiting for the wider threshold.
+  const doubledNoise = noise.find(noiseVal =>
+    last2.length === 2 &&
+    last2[0] === noiseVal &&
+    last2[1] === noiseVal &&
+    last6.filter(r => r === noiseVal).length >= 2
+  );
+  if (doubledNoise && !commons.includes(doubledNoise)) {
+    const weakerCommon = commons[1];
+    commons = [commons[0], doubledNoise];
+    noise = noise.filter(nv => nv !== doubledNoise);
+    noise.push(weakerCommon);
+    if (!noiseRising.includes(doubledNoise)) noiseRising.push(doubledNoise);
   }
 
   // RUN BREAK DETECTION
@@ -1839,11 +1855,39 @@ export function predictWithPairs(rolls, options = {}) {
     }
   }
 
+  let displayPairSafety = pairOutlook.pairSafety;
+  let displayNoiseRisk = pairOutlook.noiseRisk;
+
+  if (method.startsWith('run-break')) {
+    if (displayPairSafety === 'safe') displayPairSafety = 'caution';
+    displayNoiseRisk = Math.max(displayNoiseRisk, currentRunLen >= 4 ? 34 : 24);
+    if (
+      currentRunLen >= 3 &&
+      pairOutlook.freshOutsider?.value &&
+      pairOutlook.freshOutsider.value !== prediction &&
+      pairOutlook.freshOutsider.value !== alt &&
+      (
+        pairOutlook.freshOutsider.recent2Hits >= 1 ||
+        pairOutlook.freshOutsider.recent4Hits >= 1 ||
+        pairOutlook.freshOutsider.direction === 'rising'
+      )
+    ) {
+      alt = pairOutlook.freshOutsider.value;
+      method = method + '+break-watch';
+    }
+  }
+
+  if (method.startsWith('alternating') && regime !== 'stable') {
+    if (displayPairSafety === 'safe') displayPairSafety = 'caution';
+    displayNoiseRisk = Math.max(displayNoiseRisk, 28);
+    confidence = Math.min(confidence, 0.58);
+  }
+
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
-  if (pairOutlook.pairSafety === 'danger') {
+  if (displayPairSafety === 'danger') {
     confidence = Math.min(confidence, 0.48);
-  } else if (pairOutlook.pairSafety === 'safe' && pairOutlook.noiseRisk <= 30) {
+  } else if (displayPairSafety === 'safe' && displayNoiseRisk <= 30) {
     confidence = Math.min(confidence + 0.04, 0.82);
   }
 
@@ -1978,8 +2022,8 @@ export function predictWithPairs(rolls, options = {}) {
     reasonLine: labelEntry.reason,
     trustedPair: commons,
     runnerUpPair: pairOutlook.runnerUpPair,
-    pairSafety: pairOutlook.pairSafety,
-    noiseRisk: pairOutlook.noiseRisk,
+    pairSafety: displayPairSafety,
+    noiseRisk: displayNoiseRisk,
     pairScoreGap: Math.round(pairOutlook.scoreGap),
     mixedWindow: pairOutlook.mixedWindow,
     freshOutsider: pairOutlook.freshOutsider,
