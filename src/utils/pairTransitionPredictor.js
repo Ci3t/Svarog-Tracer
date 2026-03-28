@@ -131,9 +131,27 @@ function scoreTrustedPairs({
 
     const commonsCount = pair.filter(value => commons.includes(value)).length;
     const noiseCount = pair.filter(value => noise.includes(value)).length;
+    const outsiderValues = pair.filter(value => noise.includes(value));
+    const outsiderRecentPeak = outsiderValues.reduce((max, value) => Math.max(max, recent6Dist[value] || 0), 0);
+    const outsiderRecent4Peak = outsiderValues.reduce((max, value) => {
+      const recentHits = recent4.filter(r => r === value).length;
+      return Math.max(max, recentHits);
+    }, 0);
     if (commonsCount === 2) score += regime === 'stable' ? 8 : 3;
-    if (noiseCount > 0 && regime !== 'stable') score += noiseCount * profile.outsiderPromotion;
-    if (pair.some(value => noiseRising.includes(value))) score += profile.outsiderPromotion + 4;
+    if (noiseCount > 0 && regime !== 'stable') {
+      if (outsiderRecentPeak >= 25 || outsiderRecent4Peak >= 2) score += noiseCount * profile.outsiderPromotion;
+      else score += noiseCount * Math.max(2, Math.round(profile.outsiderPromotion * 0.35));
+    }
+    if (pair.some(value => noiseRising.includes(value))) {
+      if (outsiderRecentPeak >= 25 || outsiderRecent4Peak >= 2) score += profile.outsiderPromotion + 4;
+      else score += 3;
+    }
+    if (
+      commonsCount === 2 &&
+      pair.every(value => (recent6Dist[value] || 0) >= 25)
+    ) {
+      score += regime === 'stable' ? 9 : 5;
+    }
     if (pair.every(value => (trends[value]?.direction || 'stable') === 'rising')) score += 6;
     if (pair.every(value => (trends[value]?.direction || 'stable') === 'falling')) score -= 10;
 
@@ -164,7 +182,12 @@ function scoreTrustedPairs({
     const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
     const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
     const direction = trends[value]?.direction || 'stable';
-    const recencyMultiplier = rollsAgo <= 1 ? 1.0 : rollsAgo === 2 ? 0.72 : rollsAgo === 3 ? 0.45 : 0.18;
+    const recencyMultiplier =
+      rollsAgo < 0 ? 0.04 :
+      rollsAgo <= 1 ? 1.0 :
+      rollsAgo === 2 ? 0.72 :
+      rollsAgo === 3 ? 0.45 :
+      0.18;
     const score =
       (recent * 0.8 +
       recent2Hits * 16 +
