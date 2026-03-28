@@ -450,6 +450,17 @@ function scoreSvarogAnalyzerPicks({
     const seenAgo = lastSeen?.[value] ?? -1;
     const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
     const postRunCooldown = getPostRunCooldown(value);
+    const isSelfTransition = value === lastRoll;
+    const pair1Weight = isSelfTransition
+      ? (currentRunLen >= 2 ? (pair1Reliable ? 0.52 : 0.24) : (pair1Reliable ? 0.14 : 0.06))
+      : (pair1Reliable ? 1.08 : 0.5);
+    const stableComebackBonus =
+      !isSelfTransition &&
+      seenAgo >= 2 &&
+      pair1 >= 15 &&
+      direction !== 'falling'
+        ? Math.min(12, 6 + Math.max(0, seenAgo - 2) * 2)
+        : 0;
     const absenceCredit =
       seenAgo < 0
         ? Math.min(rolls.length * 0.8, 20)
@@ -460,7 +471,7 @@ function scoreSvarogAnalyzerPicks({
         : 0;
 
     let score =
-      pair1 * (pair1Reliable ? 0.78 : 0.44) +
+      pair1 * pair1Weight +
       pair2 * (pair2Reliable ? 1.04 : 0.22) +
       recent6 * 0.24 +
       recent4Hits * 6 +
@@ -469,7 +480,8 @@ function scoreSvarogAnalyzerPicks({
       trust * 15 +
       arrowWeight * 8 +
       (distribution?.[value] || 0) * 0.08 +
-      absenceCredit;
+      absenceCredit +
+      stableComebackBonus;
 
     if (commons?.includes(value)) score += 5;
     if (noise?.includes(value)) score -= 1;
