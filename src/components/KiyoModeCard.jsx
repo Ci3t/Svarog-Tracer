@@ -753,7 +753,8 @@ export default function KiyoModeCard({
 
     // 2-STR PREDICTION — uses live BBP pair-matrix predictor (same as live session card)
     const bbp2str = predictWithPairs(
-      combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)) // use 2-digit prefix (41/42/43/44)
+      combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)),
+      { region: datasetRegion }
     );
     const prediction2str = bbp2str.prediction
       ? {

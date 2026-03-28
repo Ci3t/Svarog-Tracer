@@ -636,7 +636,7 @@ export default function App() {
       .filter((r) => r.length === 4); // Chronological
 
     // ðŸ”¥ CAPTURE: The predictions that were SHOWING before this roll
-    const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before) : null;
+    const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before, { region }) : null;
     const p3Before = predictNext3(rolls3Before);
     const p4Before = predictNext4(rolls4Before);
 

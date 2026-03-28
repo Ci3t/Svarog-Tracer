@@ -93,6 +93,9 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `[${time}] pred: ${pred} (${conf}%) | alt: ${alt} | method: ${method}\n`;
       content += `         ↳ actual: ${actual} | ${status}\n`;
       content += `         Commons: [${commons.join(', ')}] | Noise: [${noise.join(', ')}]\n`;
+      if (data.trustedPair?.length === 2) {
+        content += `         Pair: [${data.trustedPair.join(', ')}] | Safety: ${data.pairSafety || 'unknown'} | Noise risk: ${data.noiseRisk ?? 0}%\n`;
+      }
       if (distStr) content += `         Dist: ${distStr}\n`;
       if (data.momentumScores) {
         const hotStr = Object.entries(data.momentumScores).map(([v, s]) => `${v}:${s}`).join(', ');

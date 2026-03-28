@@ -10,6 +10,169 @@
  */
 
 const VALUES = ['41', '42', '43', '44'];
+const VALUE_PAIRS = [
+  ['41', '42'],
+  ['41', '43'],
+  ['41', '44'],
+  ['42', '43'],
+  ['42', '44'],
+  ['43', '44'],
+];
+
+function normalizePredictorRegion(region) {
+  const key = String(region || '').trim().toUpperCase();
+  if (key === 'EU' || key === 'EUROPE') return 'EU';
+  if (key === 'ASIA' || key === 'APAC') return 'ASIA';
+  if (key === 'NA' || key === 'AMERICA' || key === 'AMERICAS' || key === 'USA') return 'NA';
+  return 'NA';
+}
+
+function resolvePredictorRegion(region) {
+  if (region) return normalizePredictorRegion(region);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem('hsr-rng-session-v6');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.region) return normalizePredictorRegion(parsed.region);
+      }
+    } catch (error) {
+      // Ignore storage parsing issues and fall back to default region.
+    }
+  }
+  return 'NA';
+}
+
+function getPredictorProfile(region) {
+  const normalizedRegion = resolvePredictorRegion(region);
+  if (normalizedRegion === 'EU') {
+    return {
+      region: normalizedRegion,
+      noiseBurstRate: 0.32,
+      transitionShift: 0.16,
+      chaosNoiseRate: 0.34,
+      flatBand: 14,
+      noiseRisingCount: 2,
+      outsiderPromotion: 11,
+      pairGapSafe: 22,
+      pairGapCaution: 10,
+      noiseRiskBias: 8,
+    };
+  }
+  if (normalizedRegion === 'ASIA') {
+    return {
+      region: normalizedRegion,
+      noiseBurstRate: 0.44,
+      transitionShift: 0.22,
+      chaosNoiseRate: 0.44,
+      flatBand: 16,
+      noiseRisingCount: 3,
+      outsiderPromotion: 7,
+      pairGapSafe: 18,
+      pairGapCaution: 8,
+      noiseRiskBias: -3,
+    };
+  }
+  return {
+    region: normalizedRegion,
+    noiseBurstRate: 0.40,
+    transitionShift: 0.20,
+    chaosNoiseRate: 0.40,
+    flatBand: 15,
+    noiseRisingCount: 3,
+    outsiderPromotion: 8,
+    pairGapSafe: 18,
+    pairGapCaution: 8,
+    noiseRiskBias: 0,
+  };
+}
+
+function scoreTrustedPairs({
+  rolls,
+  distribution,
+  fullDistribution,
+  trends,
+  momentumScores,
+  matrix,
+  lastRoll,
+  commons,
+  noise,
+  noiseRising,
+  regime,
+  profile,
+}) {
+  const recent6Dist = getDistribution(rolls.slice(-6));
+  const recent10Dist = getDistribution(rolls.slice(-10));
+  const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
+
+  const pairScores = VALUE_PAIRS.map((pair) => {
+    const pairKey = pair.join('/');
+    const localRecent = pair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+    const localWindow = pair.reduce((sum, value) => sum + (recent10Dist[value] || 0), 0);
+    const sessionPct = pair.reduce((sum, value) => sum + (distribution[value] || 0), 0);
+    const fullPct = pair.reduce((sum, value) => sum + (fullDistribution[value] || 0), 0);
+    const pairTransition = pair.reduce((sum, value) => sum + (matrix[lastRoll]?.[value]?.pct || 0), 0);
+    const trust = pair.reduce((sum, value) => sum + (trends[value]?.trustScore ?? 0.6), 0) / pair.length;
+    const freshness = pair.reduce((sum, value) => sum + (trends[value]?.arrowWeight ?? 1), 0) / pair.length;
+    const momentum = pair.reduce((sum, value) => sum + ((momentumScores[value] || 0) / maxMomentum) * 100, 0) / pair.length;
+
+    let score =
+      localRecent * 0.48 +
+      localWindow * 0.22 +
+      sessionPct * 0.10 +
+      fullPct * 0.05 +
+      pairTransition * 0.15;
+
+    score += momentum * 0.18;
+    score += trust * 12;
+    score += freshness * 7;
+
+    const commonsCount = pair.filter(value => commons.includes(value)).length;
+    const noiseCount = pair.filter(value => noise.includes(value)).length;
+    if (commonsCount === 2) score += regime === 'stable' ? 8 : 3;
+    if (noiseCount > 0 && regime !== 'stable') score += noiseCount * profile.outsiderPromotion;
+    if (pair.some(value => noiseRising.includes(value))) score += profile.outsiderPromotion + 4;
+    if (pair.every(value => (trends[value]?.direction || 'stable') === 'rising')) score += 6;
+    if (pair.every(value => (trends[value]?.direction || 'stable') === 'falling')) score -= 10;
+
+    return { pair, pairKey, score };
+  }).sort((a, b) => b.score - a.score);
+
+  const trustedPair = pairScores[0]?.pair || commons;
+  const noisePair = VALUES.filter(value => !trustedPair.includes(value));
+  const runnerUpPair = pairScores[1]?.pair || noisePair;
+  const scoreGap = (pairScores[0]?.score || 0) - (pairScores[1]?.score || 0);
+  const outsiderPressure = noisePair.reduce((sum, value) => {
+    const recent = recent6Dist[value] || 0;
+    const trust = (trends[value]?.trustScore ?? 0.25) * 20;
+    const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
+    return sum + recent + trust + momentum;
+  }, 0) / Math.max(noisePair.length, 1);
+
+  const recentNoiseShare = noisePair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+  let noiseRisk = Math.round(
+    recentNoiseShare * 0.55 +
+    outsiderPressure * 0.45 +
+    (regime === 'noise-burst' ? 18 : regime === 'transition' ? 10 : 0) +
+    profile.noiseRiskBias
+  );
+  noiseRisk = Math.max(0, Math.min(100, noiseRisk));
+
+  let pairSafety = 'danger';
+  if (scoreGap >= profile.pairGapSafe && noiseRisk <= 34) pairSafety = 'safe';
+  else if (scoreGap >= profile.pairGapCaution && noiseRisk <= 58) pairSafety = 'caution';
+
+  return {
+    trustedPair,
+    noisePair,
+    runnerUpPair,
+    scoreGap,
+    pairSafety,
+    noiseRisk,
+    pairScores,
+    outsiderPressure,
+  };
+}
 
 // =========================================================================
 // 🧠 META-PATTERN: Property Map for Secondary Characteristics
@@ -426,7 +589,8 @@ export function calculateTrends(rolls) {
  * @param {string[]} noise   - current identified noise values
  * @returns {'stable'|'transition'|'noise-burst'}
  */
-export function classifyRegime(rolls, commons, noise) {
+export function classifyRegime(rolls, commons, noise, options = {}) {
+  const profile = getPredictorProfile(options.region);
   if (!rolls || rolls.length < 8) return 'stable'; // not enough data to classify
 
   // Recent window for noise rate check
@@ -435,7 +599,7 @@ export function classifyRegime(rolls, commons, noise) {
   const noiseInRecent = recent.filter(r => noise.includes(r)).length;
   const noiseRate = noiseInRecent / recentN;
 
-  if (noiseRate >= 0.40) return 'noise-burst';
+  if (noiseRate >= profile.noiseBurstRate) return 'noise-burst';
 
   // Transition detection: compare commons share in session halves
   const half = Math.floor(rolls.length / 2);
@@ -445,7 +609,7 @@ export function classifyRegime(rolls, commons, noise) {
   const commonsShareSecond = secondHalf.filter(r => commons.includes(r)).length / secondHalf.length;
   const shareShift = Math.abs(commonsShareSecond - commonsShareFirst);
 
-  if (shareShift >= 0.20) return 'transition'; // ≥20% shift in commons share = transition
+  if (shareShift >= profile.transitionShift) return 'transition'; // adaptive shift threshold
 
   return 'stable';
 }
@@ -482,7 +646,8 @@ export function getDistribution(rolls) {
  * @param {string[]} rolls - Array of 2-digit rolls
  * @returns {Object} Commons, noise, distribution, and rising noise detection
  */
-export function identifyCommonsNoise(rolls) {
+export function identifyCommonsNoise(rolls, options = {}) {
+  const profile = getPredictorProfile(options.region);
   const n = rolls.length;
 
   // =========================================================================
@@ -523,7 +688,7 @@ export function identifyCommonsNoise(rolls) {
   const noiseRising = [];
   noise.forEach(noiseVal => {
     const countInLast6 = last6.filter(r => r === noiseVal).length;
-    if (countInLast6 >= 3) noiseRising.push(noiseVal);
+    if (countInLast6 >= profile.noiseRisingCount) noiseRising.push(noiseVal);
   });
   if (noiseRising.length > 0) {
     const risingNoise = noiseRising[0];
@@ -567,13 +732,15 @@ export function identifyCommonsNoise(rolls) {
  * @param {string[]} rolls - Array of 2-digit rolls
  * @returns {Object} Prediction result
  */
-export function predictWithPairs(rolls) {
+export function predictWithPairs(rolls, options = {}) {
   if (!rolls || rolls.length < 6) {
     return {
       prediction: null,
       alt: null,
       confidence: 0,
       method: 'insufficient-data',
+      pairSafety: 'warming',
+      noiseRisk: 0,
       pairMatrix: null,
       waveSignals: null,
       trends: null,
@@ -583,14 +750,16 @@ export function predictWithPairs(rolls) {
     };
   }
 
+  const profile = getPredictorProfile(options.region);
+
   // Build all the data (ENHANCED with new features)
-  const commonsData = identifyCommonsNoise(rolls);
-  const { commons, noise, distribution, noiseRising, currentRunLength, runBreakLikely } = commonsData;
+  const commonsData = identifyCommonsNoise(rolls, options);
+  let { commons, noise, distribution, fullDistribution, noiseRising, currentRunLength, runBreakLikely } = commonsData;
   const { matrix, matrix2gram, lastRoll, last2Rolls } = buildPairMatrix(rolls);
-  const waveSignals = calculateWaveSignals(rolls, commons);
   const trends = calculateTrends(rolls);
+  const waveSignals = calculateWaveSignals(rolls, commons);
   // 🆕 Step 6: Regime classification — used by final ranker and exposed in debug
-  const regime = classifyRegime(rolls, commons, noise);
+  let regime = classifyRegime(rolls, commons, noise, options);
 
   // =========================================================================
   // 🔥 CHAOS DETECTION: When session is too noisy, use simpler logic
@@ -603,10 +772,10 @@ export function predictWithPairs(rolls) {
   const distValues = Object.values(distribution);
   const maxDist = Math.max(...distValues);
   const minDist = Math.min(...distValues);
-  const isFlat = (maxDist - minDist) < 15;
+  const isFlat = (maxDist - minDist) < profile.flatBand;
   
   // Chaos = high noise rate OR flat distribution
-  const isChaotic = noiseRate >= 0.40 || isFlat;
+  const isChaotic = noiseRate >= profile.chaosNoiseRate || isFlat;
   
   // =========================================================================
   // 🚨 EMERGENCY BRAKE: Full-flat state = server reset / salt change detected
@@ -626,6 +795,11 @@ export function predictWithPairs(rolls) {
       alt: null,
       confidence: 0,
       method: 'session-reset',
+      trustedPair: commons,
+      runnerUpPair: noise,
+      pairSafety: 'danger',
+      noiseRisk: 100,
+      pairScoreGap: 0,
       label: '🔴 Reset',
       reasonLine: 'All values ~25% — server re-salted. Stand by.',
       isSessionReset: true,
@@ -763,6 +937,38 @@ export function predictWithPairs(rolls) {
   
   const hotValues = sortedByMomentum.slice(0, 2).map(x => x.value);
   const coldValues = sortedByMomentum.slice(2).map(x => x.value);
+
+  const pairInsights = scoreTrustedPairs({
+    rolls,
+    distribution,
+    fullDistribution,
+    trends,
+    momentumScores,
+    matrix,
+    lastRoll,
+    commons,
+    noise,
+    noiseRising,
+    regime,
+    profile,
+  });
+  commons = pairInsights.trustedPair;
+  noise = pairInsights.noisePair;
+  regime = classifyRegime(rolls, commons, noise, options);
+  const pairOutlook = scoreTrustedPairs({
+    rolls,
+    distribution,
+    fullDistribution,
+    trends,
+    momentumScores,
+    matrix,
+    lastRoll,
+    commons,
+    noise,
+    noiseRising,
+    regime,
+    profile,
+  });
   
   // =========================================================================
   // 🔍 LAST SEEN: Track when each value last appeared (for wave detection)
@@ -1564,6 +1770,11 @@ export function predictWithPairs(rolls) {
 
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
+  if (pairOutlook.pairSafety === 'danger') {
+    confidence = Math.min(confidence, 0.48);
+  } else if (pairOutlook.pairSafety === 'safe' && pairOutlook.noiseRisk <= 30) {
+    confidence = Math.min(confidence + 0.04, 0.82);
+  }
 
   // =========================================================================
   // 🆕 TOPIC 2+3: LABEL, REASON LINE, NOISE WATCH
@@ -1694,6 +1905,11 @@ export function predictWithPairs(rolls) {
     // 🆕 User-facing display fields
     label: labelEntry.label,
     reasonLine: labelEntry.reason,
+    trustedPair: commons,
+    runnerUpPair: pairOutlook.runnerUpPair,
+    pairSafety: pairOutlook.pairSafety,
+    noiseRisk: pairOutlook.noiseRisk,
+    pairScoreGap: Math.round(pairOutlook.scoreGap),
     noiseWatch: noiseWatchValue,
     overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,
