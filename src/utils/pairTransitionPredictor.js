@@ -1207,8 +1207,26 @@ export function predictWithPairs(rolls) {
         // Let the commons alternating pattern handle this - don't override with dead noise
         // Fall through to next step
       }
-      // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
-      else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
+      // 🆕 POST-RUN SUPPRESSION: If overdue candidate just had a hot run (3+) before going
+      // absent, it exhausted itself — not genuinely overdue.
+      // Scan backwards through recent rolls to find the run that ended before the absence.
+      let lastRunLen = 0;
+      let seenAbsence = false;
+      for (let i = rolls.length - 1; i >= Math.max(0, rolls.length - 12); i--) {
+        if (rolls[i] !== mostOverdueCommon) {
+          seenAbsence = true; // gap/absence confirmed
+        } else if (seenAbsence) {
+          lastRunLen++; // counting the run just before the absence
+        }
+        // Stop once we've counted past the prior run
+        if (seenAbsence && lastRunLen > 0 && rolls[i] !== mostOverdueCommon) break;
+      }
+      const justRanHot = lastRunLen >= 3; // ran 3+ just before going absent
+
+      // Only predict overdue if: decent momentum OR only overdue option, AND not post-run exhaustion
+      if (justRanHot) {
+        // Ran hot then stopped — normal run completion, not a due situation. Fall through.
+      } else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
         prediction = mostOverdueCommon;
         // Alt is the next most overdue common, or the hottest value
         const secondOverdueCommon = commons
