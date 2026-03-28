@@ -1797,6 +1797,30 @@ export function predictWithPairs(rolls, options = {}) {
     }
   }
 
+  // Alternating can look too clean in mixed windows. If outsider pressure is live,
+  // keep the pair but downgrade confidence and surface the outsider in alt sooner.
+  const alternatingOverheat =
+    method.startsWith('alternating') &&
+    (
+      pairOutlook.pairSafety !== 'safe' ||
+      pairOutlook.noiseRisk >= 28 ||
+      (pairOutlook.freshOutsider?.recent4Hits || 0) >= 1 ||
+      pairOutlook.freshOutsider?.direction === 'rising'
+    );
+  if (alternatingOverheat) {
+    confidence = Math.min(confidence, 0.58);
+    if (
+      pairOutlook.freshOutsider?.value &&
+      pairOutlook.freshOutsider.value !== prediction &&
+      pairOutlook.freshOutsider.value !== alt
+    ) {
+      alt = pairOutlook.freshOutsider.value;
+      method = method + '+pressure-alt';
+    } else {
+      method = method + '+pressure';
+    }
+  }
+
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
   if (pairOutlook.pairSafety === 'danger') {

@@ -48,7 +48,7 @@ const BADGE_TOOLTIPS = {
   '⏳ Warming Up':  { desc: 'Too few rolls to detect patterns yet.',     ex: 'Need 6+ rolls to start' },
 };
 
-export default function ModernPairPredictorCard({ entries = [] }) {
+export default function ModernPairPredictorCard({ entries = [], region }) {
   const [expanded, setExpanded] = useState(false);
 
   // Extract 2-str rolls from entries
@@ -59,7 +59,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       .filter(r => r && r.length === 2);
   }, [entries]);
 
-  const data = useMemo(() => predictWithPairs(rolls), [rolls]);
+  const data = useMemo(() => predictWithPairs(rolls, { region }), [rolls, region]);
 
   const isWarming = !data.prediction;
 
@@ -73,6 +73,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
     commonsFlipDetected, newCommons, flipConfidence,
     noiseRate, alternatingPair, shiftedToValue, gram2Confidence,
     isAlternating,
+    trustedPair, pairSafety, noiseRisk, freshOutsider, mixedWindow, pairScoreGap,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
     // 🚨 Emergency brake
@@ -194,8 +195,9 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   }
 
   // Commons display: main = prediction (lean here), alt = other common
-  const mainCommon = (commons || []).includes(prediction) ? prediction : (commons || [])[0];
-  const altCommon  = (commons || []).includes(alt) && alt !== mainCommon ? alt : (commons || []).find(c => c !== mainCommon) || alt;
+  const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
+  const mainCommon = displayPair?.includes(prediction) ? prediction : (displayPair || [])[0];
+  const altCommon  = displayPair?.includes(alt) && alt !== mainCommon ? alt : (displayPair || []).find(c => c !== mainCommon) || alt;
 
 
   // Lean % — use pair matrix probability for each common from last roll
@@ -255,6 +257,47 @@ export default function ModernPairPredictorCard({ entries = [] }) {
 
         {/* Reason line */}
         <p className="text-[11px] text-slate-400 italic mb-4 text-center">{reasonLine}</p>
+
+        {/* Pair safety strip */}
+        <div className={`mb-4 rounded-xl border px-3 py-2 ${
+          pairSafety === 'safe'
+            ? 'border-emerald-500/40 bg-emerald-500/10'
+            : pairSafety === 'caution'
+            ? 'border-amber-500/40 bg-amber-500/10'
+            : 'border-rose-500/40 bg-rose-500/10'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${
+                pairSafety === 'safe'
+                  ? 'text-emerald-300'
+                  : pairSafety === 'caution'
+                  ? 'text-amber-300'
+                  : 'text-rose-300'
+              }`}>
+                {pairSafety === 'safe' ? 'Trusted Pair' : pairSafety === 'caution' ? 'Pair At Risk' : 'Break Danger'}
+              </p>
+              <p className="text-[11px] text-slate-300">
+                {displayPair?.join(' / ')} {mixedWindow ? '• mixed window' : '• stable lane'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Noise Risk</p>
+              <p className={`text-sm font-black ${
+                noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
+              }`}>
+                {noiseRisk ?? 0}%
+              </p>
+            </div>
+          </div>
+          {freshOutsider?.value && (
+            <p className="mt-2 text-[10px] text-slate-400">
+              Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
+              {' '}({Math.round(freshOutsider.score)} pts)
+              {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
+            </p>
+          )}
+        </div>
 
         {/* YOUR 2 PICKS */}
         <div className="mb-1">
@@ -375,7 +418,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
-              {commons?.map(c => (
+              {displayPair?.map(c => (
                 <span key={c} className="px-1.5 py-0.5 rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
               ))}
             </div>
