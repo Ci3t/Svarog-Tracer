@@ -203,17 +203,38 @@ function scoreTrustedPairs({
 
   const weakestTrusted = trustedSignals[trustedSignals.length - 1];
   const strongestTrusted = trustedSignals[0];
+  const weakestTrustedRecent = weakestTrusted ? (recent6Dist[weakestTrusted.value] || 0) : 0;
+  const weakestTrustedRecent2Hits = weakestTrusted ? recent2.filter(r => r === weakestTrusted.value).length : 0;
+  const outsiderRecent = freshOutsider ? (recent6Dist[freshOutsider.value] || 0) : 0;
+  const outsiderHasCaughtWeakCommon =
+    outsiderRecent >= weakestTrustedRecent ||
+    (
+      freshOutsider?.recent2Hits >= 2 &&
+      weakestTrusted?.direction === 'falling' &&
+      weakestTrustedRecent <= 34
+    );
   const outsiderCanPivot = !!freshOutsider && !!weakestTrusted && (
-    freshOutsider.recent2Hits >= 1 ||
+    freshOutsider.recent2Hits >= 2 ||
     freshOutsider.recent4Hits >= 2 ||
-    (freshOutsider.direction === 'rising' && freshOutsider.rollsAgo <= 2)
+    (
+      freshOutsider.recent2Hits >= 1 &&
+      freshOutsider.direction === 'rising' &&
+      freshOutsider.rollsAgo <= 1
+    )
   );
   if (
     outsiderCanPivot &&
     strongestTrusted &&
     freshOutsider.value !== strongestTrusted.value &&
-    freshOutsider.score >= weakestTrusted.score + 10 &&
-    (mixedWindow || regime !== 'stable' || scoreGap <= profile.pairGapCaution + 4)
+    freshOutsider.score >= weakestTrusted.score + 18 &&
+    outsiderHasCaughtWeakCommon &&
+    weakestTrustedRecent <= 34 &&
+    weakestTrustedRecent2Hits === 0 &&
+    (
+      freshOutsider.recent2Hits >= 2 ||
+      (freshOutsider.recent4Hits >= 2 && freshOutsider.direction === 'rising')
+    ) &&
+    (mixedWindow || regime !== 'stable' || scoreGap <= profile.pairGapCaution)
   ) {
     trustedPair = [strongestTrusted.value, freshOutsider.value].sort();
     noisePair = VALUES.filter(value => !trustedPair.includes(value));
