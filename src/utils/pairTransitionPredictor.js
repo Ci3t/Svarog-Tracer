@@ -119,11 +119,11 @@ function scoreTrustedPairs({
     const momentum = pair.reduce((sum, value) => sum + ((momentumScores[value] || 0) / maxMomentum) * 100, 0) / pair.length;
 
     let score =
-      localRecent * 0.48 +
-      localWindow * 0.22 +
-      sessionPct * 0.10 +
-      fullPct * 0.05 +
-      pairTransition * 0.15;
+      localRecent * 0.56 +
+      localWindow * 0.18 +
+      sessionPct * 0.08 +
+      fullPct * 0.03 +
+      pairTransition * 0.18;
 
     score += momentum * 0.18;
     score += trust * 12;
@@ -315,6 +315,8 @@ function scoreRunBreakCandidate({
   recent6Dist,
   recent4,
   lastSeen,
+  avgObservedRunLen,
+  avgNoiseGap,
 }) {
   const pairPct = matrix[lastRoll]?.[candidate]?.pct || 0;
   const trust = trends[candidate]?.trustScore ?? 0.45;
@@ -324,6 +326,17 @@ function scoreRunBreakCandidate({
   const recent = recent6Dist[candidate] || 0;
   const recent4Hits = recent4.filter(r => r === candidate).length;
   const seenAgo = lastSeen[candidate];
+  const expectedGap = Math.max(
+    2,
+    Math.round(
+      avgNoiseGap !== null && avgNoiseGap !== undefined
+        ? avgNoiseGap
+        : avgObservedRunLen * 1.5
+    )
+  );
+  const absenceGap = seenAgo >= 0 ? seenAgo : 0;
+  const absenceScore = seenAgo >= 0 ? Math.min(absenceGap, expectedGap * 2) * 2.5 : 0;
+  const overdueBoost = seenAgo >= Math.round(expectedGap * 1.5) ? 20 : 0;
   const recencyBoost =
     seenAgo === 0 ? 18 :
     seenAgo === 1 ? 12 :
@@ -331,9 +344,11 @@ function scoreRunBreakCandidate({
     seenAgo === 3 ? 3 :
     seenAgo >= 0 ? 0 : -12;
   return (
-    pairPct * 1.1 +
+    pairPct * 1.5 +
+    absenceScore +
+    overdueBoost +
     recent * 0.45 +
-    recent4Hits * 12 +
+    recent4Hits * 10 +
     (distribution[candidate] || 0) * 0.15 +
     trust * 18 +
     arrowWeight * 10 +
@@ -341,6 +356,26 @@ function scoreRunBreakCandidate({
     (direction === 'rising' ? 12 : direction === 'stable' ? 3 : -5) +
     recencyBoost
   );
+}
+
+function getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, freshOutsider = null) {
+  const baseAvg = Math.max(avgObservedRunLen || 2.5, 1);
+  const exhaustionRatio = currentRunLen / baseAvg;
+  let risk =
+    exhaustionRatio < 0.8 ? 25 :
+    exhaustionRatio < 1.2 ? 42 :
+    exhaustionRatio < 1.6 ? 58 :
+    exhaustionRatio < 2.0 ? 70 :
+    82;
+
+  if (regime === 'transition') risk += 6;
+  else if (regime === 'noise-burst') risk += 12;
+
+  if (freshOutsider?.recent2Hits >= 1) risk += 8;
+  else if (freshOutsider?.recent4Hits >= 1) risk += 4;
+  if (freshOutsider?.direction === 'rising' && (freshOutsider?.rollsAgo ?? 99) <= 2) risk += 6;
+
+  return Math.max(0, Math.min(100, Math.round(risk)));
 }
 
 // =========================================================================
@@ -1679,6 +1714,8 @@ export function predictWithPairs(rolls, options = {}) {
             recent6Dist,
             recent4,
             lastSeen,
+            avgObservedRunLen,
+            avgNoiseGap,
           }),
         }))
         .sort((a, b) => b.score - a.score);
@@ -2005,7 +2042,10 @@ export function predictWithPairs(rolls, options = {}) {
 
   if (method.startsWith('run-break')) {
     if (displayPairSafety === 'safe') displayPairSafety = 'caution';
-    displayNoiseRisk = Math.max(displayNoiseRisk, currentRunLen >= 4 ? 34 : 24);
+    displayNoiseRisk = Math.max(
+      displayNoiseRisk,
+      getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, pairOutlook.freshOutsider)
+    );
     if (
       currentRunLen >= 3 &&
       pairOutlook.freshOutsider?.value &&
