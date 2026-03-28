@@ -305,6 +305,44 @@ function scoreTrustedPairs({
   };
 }
 
+function scoreRunBreakCandidate({
+  candidate,
+  lastRoll,
+  matrix,
+  trends,
+  distribution,
+  momentumScores,
+  recent6Dist,
+  recent4,
+  lastSeen,
+}) {
+  const pairPct = matrix[lastRoll]?.[candidate]?.pct || 0;
+  const trust = trends[candidate]?.trustScore ?? 0.45;
+  const direction = trends[candidate]?.direction || 'stable';
+  const arrowWeight = trends[candidate]?.arrowWeight ?? 0.5;
+  const momentum = momentumScores[candidate] || 0;
+  const recent = recent6Dist[candidate] || 0;
+  const recent4Hits = recent4.filter(r => r === candidate).length;
+  const seenAgo = lastSeen[candidate];
+  const recencyBoost =
+    seenAgo === 0 ? 18 :
+    seenAgo === 1 ? 12 :
+    seenAgo === 2 ? 7 :
+    seenAgo === 3 ? 3 :
+    seenAgo >= 0 ? 0 : -12;
+  return (
+    pairPct * 1.1 +
+    recent * 0.45 +
+    recent4Hits * 12 +
+    (distribution[candidate] || 0) * 0.15 +
+    trust * 18 +
+    arrowWeight * 10 +
+    momentum * 18 +
+    (direction === 'rising' ? 12 : direction === 'stable' ? 3 : -5) +
+    recencyBoost
+  );
+}
+
 // =========================================================================
 // 🧠 META-PATTERN: Property Map for Secondary Characteristics
 // Used for "Split-Common Breaker" when top 2 candidates are tied
@@ -1625,11 +1663,34 @@ export function predictWithPairs(rolls, options = {}) {
   if (!prediction && runBreakLikely) {
     const otherCommon = commons.find(c => c !== lastRoll);
     if (otherCommon) {
-      prediction = otherCommon;   // Break target = the other common
-      alt = lastRoll;             // Alt = run might continue one more time
+      const recent6Dist = getDistribution(rolls.slice(-6));
+      const recent4 = rolls.slice(-4);
+      const nonRunCandidates = VALUES.filter(v => v !== lastRoll);
+      const breakCandidates = nonRunCandidates
+        .map(value => ({
+          value,
+          score: scoreRunBreakCandidate({
+            candidate: value,
+            lastRoll,
+            matrix,
+            trends,
+            distribution,
+            momentumScores,
+            recent6Dist,
+            recent4,
+            lastSeen,
+          }),
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      const bestBreak = breakCandidates[0]?.value || otherCommon;
+      const secondBreak = breakCandidates.find(entry => entry.value !== bestBreak)?.value || lastRoll;
+
+      prediction = bestBreak;
+      alt = secondBreak;
       method = 'run-break';
       // Higher confidence for longer runs (more likely to break)
-      confidence = currentRunLen >= 4 ? 0.75 : currentRunLen >= 3 ? 0.65 : 0.55;
+      confidence = currentRunLen >= 4 ? 0.70 : currentRunLen >= 3 ? 0.62 : 0.55;
     }
   }
   
@@ -2113,7 +2174,7 @@ export function predictWithPairs(rolls, options = {}) {
     // 🆕 User-facing display fields
     label: labelEntry.label,
     reasonLine: labelEntry.reason,
-    trustedPair: commons,
+    trustedPair: pairOutlook.trustedPair,
     runnerUpPair: pairOutlook.runnerUpPair,
     pairSafety: displayPairSafety,
     noiseRisk: displayNoiseRisk,

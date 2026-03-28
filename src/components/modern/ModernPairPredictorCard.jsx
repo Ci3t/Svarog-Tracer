@@ -223,6 +223,30 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
     return [...watches];
   })();
 
+  const primaryWatchLine = (() => {
+    if (isNoiseTrap && trapCandidate) {
+      return {
+        tone: 'danger',
+        text: `Trap: ${trapCandidate} likely next`,
+      };
+    }
+    if (noiseWatchValues.length > 0 && pairSafety !== 'safe') {
+      return {
+        tone: pairSafety === 'danger' ? 'danger' : 'warn',
+        text: `Watch: ${noiseWatchValues.join(', ')} may break the pair`,
+      };
+    }
+    if (overdueNoise?.length > 0 && pairSafety === 'safe') {
+      const top = overdueNoise[0];
+      const ago = lastSeen?.[top] ?? '?';
+      return {
+        tone: 'soft',
+        text: `${top} is overdue (${ago} rolls)`,
+      };
+    }
+    return null;
+  })();
+
   return (
     <div className={`astral-bbp-card bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
@@ -337,49 +361,30 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
         </div>
 
 
-        {/* ⚡ Noise Watch — rising noise candidates */}
-        {noiseWatchValues.length > 0 && (
-          <div className="mt-3 flex items-center justify-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
-            <span className="text-amber-400 text-xs">⚡</span>
-            <span className="text-amber-300 text-[11px] font-medium">
-              Watch: {noiseWatchValues.join(', ')} may appear (noise)
+        {primaryWatchLine && (
+          <div className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 ${
+            primaryWatchLine.tone === 'danger'
+              ? 'bg-rose-500/12 border border-rose-500/35'
+              : primaryWatchLine.tone === 'warn'
+              ? 'bg-amber-500/10 border border-amber-500/30'
+              : 'bg-slate-700/25 border border-slate-600/30'
+          }`}>
+            <span className={`text-xs ${
+              primaryWatchLine.tone === 'danger'
+                ? 'text-rose-300'
+                : primaryWatchLine.tone === 'warn'
+                ? 'text-amber-300'
+                : 'text-slate-400'
+            }`}>⚡</span>
+            <span className={`text-[11px] font-medium ${
+              primaryWatchLine.tone === 'danger'
+                ? 'text-rose-200'
+                : primaryWatchLine.tone === 'warn'
+                ? 'text-amber-300'
+                : 'text-slate-300'
+            }`}>
+              {primaryWatchLine.text}
             </span>
-          </div>
-        )}
-
-        {/* ⚠️ Noise Trap Strip — high-confidence noise warning */}
-        {isNoiseTrap && trapCandidate && (
-          <div className="mt-3 flex items-center justify-between gap-2 bg-orange-500/15 border border-orange-500/40 rounded-lg px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-orange-400 text-sm">⚠️</span>
-              <div>
-                <span className="text-orange-300 text-[11px] font-bold uppercase tracking-wide">Trap Signal</span>
-                <span className="text-orange-200 text-[11px] ml-2">🎯 {trapCandidate} likely next</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-orange-400 text-[11px] font-medium">{noiseTrapProb}%</div>
-              <div className="text-slate-500 text-[10px]">{commonsSinceNoise}/{avgNoiseGap?.toFixed(1)} gap</div>
-            </div>
-          </div>
-        )}
-
-        {/* ⏰ Overdue Noise Comeback — sorted by likelihood (overdue + pair link), not just absence */}
-        {overdueNoise?.length > 0 && (
-          <div className="mt-2 flex items-center justify-center gap-2 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-1.5 flex-wrap">
-            <span className="text-rose-400 text-xs">⏰</span>
-            {overdueNoise.map((v, i) => {
-              const ago = lastSeen?.[v] ?? '?';
-              const isTop = i === 0;
-              return (
-                <span key={v} className={isTop
-                  ? 'text-rose-200 text-[11px] font-bold'
-                  : 'text-rose-400/60 text-[11px]'}>
-                  {isTop ? `🎯 ${v}` : v} ({ago}r)
-                </span>
-              );
-            })}
-            <span className="text-rose-500/50 text-[10px]">— comeback order</span>
           </div>
         )}
 
