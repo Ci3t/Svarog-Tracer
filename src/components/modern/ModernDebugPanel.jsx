@@ -12,13 +12,13 @@ import { analyze2strWave } from "../../utils/kiyoPrefixWave";
 import { getWaveAndTableSignals } from "../../utils/kiyo2strSignals";
 
 function formatCompactWaveVerdict(snapshot, storedMode) {
-  if (!snapshot) return storedMode || "-";
-  const action = snapshot.action || storedMode || "-";
+  if (!snapshot) return storedMode || "—";
+  const action = snapshot.action || storedMode || "—";
   if (action === "DOMINANT") {
     return `DOM ${snapshot.dominantLabel}(${snapshot.dominantPct}%)`;
   }
   if (action === "FLIP") {
-    return `FLIP->${snapshot.flipLabel} ${snapshot.runLength}/${snapshot.dominantN}`;
+    return `FLIP→${snapshot.flipLabel} ${snapshot.runLength}/${snapshot.dominantN}`;
   }
   if (action === "HOLD") {
     return `HOLD ${snapshot.currentLabel} ${snapshot.runLength}/${snapshot.dominantN}`;
@@ -34,7 +34,7 @@ function formatCompactWaveVerdict(snapshot, storedMode) {
     const pct = snapshot.dominantPct ? `(${snapshot.dominantPct}%)` : "";
     return `AMB ${label}${pct}`.trim();
   }
-  return snapshot.sessionMode || action || storedMode || "-";
+  return snapshot.sessionMode || action || storedMode || "—";
 }
 
 export default function ModernDebugPanel({
@@ -182,8 +182,8 @@ export default function ModernDebugPanel({
               <div className="text-xs font-mono text-slate-400 space-y-1">
                 {debugLogs && debugLogs.length > 0 ? (
                   [...debugLogs].reverse().map((log, idx) => {
-                    const pred = String(log.prediction || '-');
-                    const actual = String(log.actual || '-');
+                    const pred = String(log.prediction || '—');
+                    const actual = String(log.actual || '—');
                     const confidence = Math.round((log.confidence || 0) * 100);
                     const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
 
@@ -192,7 +192,7 @@ export default function ModernDebugPanel({
                         <div className="flex items-center gap-2">
                           <span className="text-violet-400">[{new Date(log.ts).toLocaleTimeString()}]</span>
                           <span className={isCorrect ? "text-green-400" : "text-red-400"}>
-                            {pred} -> {actual}
+                            {pred} → {actual}
                           </span>
                           <span className="text-slate-500">({confidence}%)</span>
                         </div>
@@ -214,8 +214,8 @@ export default function ModernDebugPanel({
                 {debugLogs && debugLogs.length > 0 ? (
                   [...debugLogs].reverse().filter(log => log.kind === '2').map((log, idx) => {
                     const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
-                    const pred = log.prediction || '-';
-                    const actual = log.actual || '-';
+                    const pred = log.prediction || '—';
+                    const actual = log.actual || '—';
                     const conf = Math.round((log.confidence || 0) * 100);
                     const alt = log.alt || '';
                     const mode = log.mode || 'unknown';
@@ -231,13 +231,13 @@ export default function ModernDebugPanel({
                     // Show ALL session rolls, not just last 8
                     const ctx = log.ctx ? (Array.isArray(log.ctx) ? log.ctx.join(', ') : log.ctx) : '';
                     const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
-                    const status = isCorrect ? 'OK' : `MISS ${log.status || 'MISS'}`;
+                    const status = isCorrect ? '✅' : `❌ ${log.status || 'MISS'}`;
 
                     return (
                       <div key={idx} className="py-2 px-3 bg-slate-900/50 rounded-lg border border-slate-800/30">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="text-violet-400">[{time}]</span>
-                          <span className="text-slate-500">2-str -></span>
+                          <span className="text-slate-500">2-str →</span>
                           <span className="text-slate-400">pred:</span>
                           <span className={isCorrect ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{pred}</span>
                           <span className="text-slate-500">({conf}%)</span>
