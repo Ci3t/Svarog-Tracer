@@ -378,6 +378,78 @@ function getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, freshOuts
   return Math.max(0, Math.min(100, Math.round(risk)));
 }
 
+function scoreSvarogAnalyzerPicks({
+  rolls,
+  lastRoll,
+  last2Rolls,
+  matrix,
+  matrix2gram,
+  trends,
+  momentumScores,
+  commons,
+  noise,
+  noiseRising,
+  distribution,
+  shiftedToValue,
+  patternShifted,
+  alternatingPair,
+  isAlternating,
+  currentRunLen,
+  freshOutsider,
+}) {
+  const recent6Dist = getDistribution(rolls.slice(-6));
+  const recent4 = rolls.slice(-4);
+  const recent2 = rolls.slice(-2);
+  const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
+  const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
+
+  const scored = VALUES.map((value) => {
+    const pair1 = matrix?.[lastRoll]?.[value]?.pct || 0;
+    const pair2 = pair2gramRow?.[value]?.pct || 0;
+    const pair2Reliable = !!pair2gramRow?.[value]?.reliable;
+    const trust = trends?.[value]?.trustScore ?? 0.5;
+    const arrowWeight = trends?.[value]?.arrowWeight ?? 0.6;
+    const direction = trends?.[value]?.direction || 'stable';
+    const momentum = ((momentumScores?.[value] || 0) / maxMomentum) * 100;
+    const recent6 = recent6Dist?.[value] || 0;
+    const recent4Hits = recent4.filter(r => r === value).length;
+    const recent2Hits = recent2.filter(r => r === value).length;
+
+    let score =
+      pair1 * 0.42 +
+      pair2 * (pair2Reliable ? 0.62 : 0.26) +
+      recent6 * 0.52 +
+      recent4Hits * 8 +
+      recent2Hits * 12 +
+      momentum * 0.18 +
+      trust * 16 +
+      arrowWeight * 10 +
+      (distribution?.[value] || 0) * 0.12;
+
+    if (commons?.includes(value)) score += 8;
+    if (noise?.includes(value)) score -= 2;
+    if (noiseRising?.includes(value)) score += 6;
+    if (patternShifted && shiftedToValue === value) score += 12;
+    if (freshOutsider?.value === value) score += 8;
+    if (isAlternating && alternatingPair?.includes(value)) score += 10;
+
+    if (direction === 'rising') score += 7;
+    else if (direction === 'stable') score += 2;
+    else score -= 6;
+
+    if (currentRunLen >= 3 && value === lastRoll) score -= 16;
+    else if (currentRunLen >= 3 && value !== lastRoll) score += 5;
+
+    return { value, score: Math.round(score * 100) / 100 };
+  }).sort((a, b) => b.score - a.score);
+
+  return {
+    prediction: scored[0]?.value || null,
+    alt: scored.find(entry => entry.value !== scored[0]?.value)?.value || null,
+    scores: scored,
+  };
+}
+
 // =========================================================================
 // 🧠 META-PATTERN: Property Map for Secondary Characteristics
 // Used for "Split-Common Breaker" when top 2 candidates are tied
@@ -2206,6 +2278,26 @@ export function predictWithPairs(rolls, options = {}) {
   // Try exact method first, then base method
   const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: '🎯 Pair', reason: `${prediction} most likely after ${lastRoll}` };
 
+  const analyzer = scoreSvarogAnalyzerPicks({
+    rolls,
+    lastRoll,
+    last2Rolls,
+    matrix,
+    matrix2gram,
+    trends,
+    momentumScores,
+    commons,
+    noise,
+    noiseRising,
+    distribution,
+    shiftedToValue,
+    patternShifted,
+    alternatingPair,
+    isAlternating,
+    currentRunLen,
+    freshOutsider: pairOutlook.freshOutsider,
+  });
+
   return {
     prediction,
     alt,
@@ -2221,6 +2313,9 @@ export function predictWithPairs(rolls, options = {}) {
     pairScoreGap: Math.round(pairOutlook.scoreGap),
     mixedWindow: pairOutlook.mixedWindow,
     freshOutsider: pairOutlook.freshOutsider,
+    analyzerPrediction: analyzer.prediction,
+    analyzerAlt: analyzer.alt,
+    analyzerScores: analyzer.scores,
     noiseWatch: noiseWatchValue,
     overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,

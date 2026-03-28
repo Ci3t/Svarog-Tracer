@@ -74,6 +74,7 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
     noiseRate, alternatingPair, shiftedToValue, gram2Confidence,
     isAlternating,
     trustedPair, pairSafety, noiseRisk, freshOutsider, mixedWindow, pairScoreGap,
+    analyzerPrediction, analyzerAlt,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
     // 🚨 Emergency brake
@@ -225,8 +226,8 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
 
   const analyzerPicks = (() => {
     const picks = [];
-    if (prediction) picks.push(prediction);
-    if (alt && alt !== prediction) picks.push(alt);
+    if (analyzerPrediction) picks.push(analyzerPrediction);
+    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
     return picks.slice(0, 2);
   })();
 

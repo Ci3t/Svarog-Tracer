@@ -95,7 +95,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         Commons: [${commons.join(', ')}] | Noise: [${noise.join(', ')}]\n`;
       if (data.trustedPair?.length === 2) {
         content += `         Pair: [${data.trustedPair.join(', ')}] | Safety: ${data.pairSafety || 'unknown'} | Noise risk: ${data.noiseRisk ?? 0}%\n`;
-        const analyzerPicks = [pred, alt].filter((value, idx, arr) => value && arr.indexOf(value) === idx);
+        const analyzerPicks = [data.analyzerPrediction, data.analyzerAlt].filter((value, idx, arr) => value && arr.indexOf(value) === idx);
         if (analyzerPicks.length > 0) {
           content += `         Svarog Analyzer: [${analyzerPicks.join('] [')}] | exact-line lean only\n`;
         }
