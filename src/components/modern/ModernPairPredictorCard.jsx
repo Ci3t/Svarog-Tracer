@@ -223,6 +223,13 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
     return [...watches];
   })();
 
+  const analyzerPicks = (() => {
+    const picks = [];
+    if (prediction) picks.push(prediction);
+    if (alt && alt !== prediction) picks.push(alt);
+    return picks.slice(0, 2);
+  })();
+
   const primaryWatchLine = (() => {
     if (isNoiseTrap && trapCandidate) {
       return {
@@ -351,6 +358,27 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
             </div>
           </div>
         </div>
+
+        {analyzerPicks.length > 0 && (
+          <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/35 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300">Svarog Analyzer</p>
+                <p className="text-[10px] text-slate-400">Exact-line lean only. Trust the lane first.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {analyzerPicks.map((pick) => (
+                  <span
+                    key={pick}
+                    className="min-w-[42px] rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-1 text-center text-sm font-black text-cyan-200"
+                  >
+                    {pick}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
 
         {primaryWatchLine && (
