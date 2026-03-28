@@ -236,14 +236,6 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
         text: `Watch: ${noiseWatchValues.join(', ')} may break the pair`,
       };
     }
-    if (overdueNoise?.length > 0 && pairSafety === 'safe') {
-      const top = overdueNoise[0];
-      const ago = lastSeen?.[top] ?? '?';
-      return {
-        tone: 'soft',
-        text: `${top} is overdue (${ago} rolls)`,
-      };
-    }
     return null;
   })();
 
