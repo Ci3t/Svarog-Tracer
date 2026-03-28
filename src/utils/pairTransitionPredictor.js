@@ -398,6 +398,7 @@ function scoreSvarogAnalyzerPicks({
   freshOutsider,
   lastSeen,
   avgObservedRunLen,
+  regime,
 }) {
   const recent6Dist = getDistribution(rolls.slice(-6));
   const recent4 = rolls.slice(-4);
@@ -451,10 +452,6 @@ function scoreSvarogAnalyzerPicks({
     const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
     const postRunCooldown = getPostRunCooldown(value);
     const isSelfTransition = value === lastRoll;
-    const lastRollIsNoise = noise?.includes(lastRoll);
-    const pair1Weight = isSelfTransition
-      ? (currentRunLen >= 2 ? (pair1Reliable ? 0.52 : 0.24) : (pair1Reliable ? 0.14 : 0.06))
-      : (pair1Reliable ? 1.08 : 0.5);
     const runBreakAbsenceBoost =
       currentRunLen >= 3 && !isSelfTransition
         ? (seenAgo < 0 ? 14 : seenAgo >= 5 ? 10 : seenAgo >= 3 ? 6 : 0)
@@ -467,59 +464,48 @@ function scoreSvarogAnalyzerPicks({
       (distribution?.[value] || 0) >= 45
         ? 10
         : 0;
-    const noiseReturnBonus =
-      !isSelfTransition &&
-      lastRollIsNoise
-        ? pair1 * (pair1Reliable ? 0.58 : 0.22) + (pair1 >= 20 ? 8 : pair1 >= 10 ? 4 : 0)
-        : 0;
-    const stableComebackBonus =
-      !isSelfTransition &&
-      seenAgo >= 2 &&
-      pair1 >= 15 &&
-      direction !== 'falling'
-        ? Math.min(12, 6 + Math.max(0, seenAgo - 2) * 2)
-        : 0;
     const absenceCredit =
       seenAgo < 0
-        ? Math.min(rolls.length * 0.8, 20)
-        : effectiveGap >= expectedGap * 2
-        ? 12 + Math.min((effectiveGap - expectedGap) * 1.2, 12)
-        : effectiveGap >= expectedGap
-        ? 6
-        : 0;
+        ? Math.min(rolls.length * 12, 100)
+        : Math.min((effectiveGap / Math.max(expectedGap, 1)) * 40, 100);
+    const pairSignal = Math.min(pair1, 100);
+    const pair2Signal = Math.min(pair2, 100);
+    const freqSignal = Math.min(distribution?.[value] || 0, 100);
+    const momentumSignal = Math.min(momentum, 100);
+    const recentSignal = Math.min(recent6 * 2, 100);
+    const absenceSignal = Math.min(absenceCredit, 100);
 
     let score =
-      pair1 * pair1Weight +
-      pair2 * (pair2Reliable ? 1.04 : 0.22) +
-      recent6 * 0.24 +
-      recent4Hits * 6 +
-      recent2Hits * 9 +
-      momentum * 0.09 +
-      trust * 15 +
-      arrowWeight * 8 +
-      (distribution?.[value] || 0) * 0.08 +
-      absenceCredit +
-      stableComebackBonus +
-      runBreakAbsenceBoost +
-      noiseReturnBonus;
+      pairSignal * 0.22 +
+      pair2Signal * 0.12 +
+      freqSignal * 0.2 +
+      momentumSignal * 0.2 +
+      recentSignal * 0.16 +
+      absenceSignal * 0.1;
 
-    if (commons?.includes(value)) score += 5;
+    if (regime === 'stable' && pair1Reliable) score += Math.min(pairSignal * 0.08, 8);
+    if (regime !== 'stable') {
+      score += Math.min(absenceSignal * 0.06, 6);
+      score += Math.min(momentumSignal * 0.05, 5);
+    }
+
+    score -= postRunCooldown;
+    score += runBreakAbsenceBoost;
+    score -= distributionWithoutPairPenalty;
+
+    if (isSelfTransition) score -= currentRunLen >= 2 ? 18 : 10;
+
+    if (commons?.includes(value)) score += 4;
     if (noise?.includes(value)) score -= 1;
     if (noiseRising?.includes(value)) score += 6;
     if (patternShifted && shiftedToValue === value) score += 12;
     if (freshOutsider?.value === value) score += 8;
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
-    if (pair1Reliable) score += 8;
-    if (pair2Reliable) score += 12;
+    if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
 
     if (direction === 'rising') score += 7;
     else if (direction === 'stable') score += 2;
     else score -= 6;
-
-    if (currentRunLen >= 3 && value === lastRoll) score -= 18;
-    else if (currentRunLen >= 3 && value !== lastRoll) score += 5;
-    score -= postRunCooldown;
-    score -= distributionWithoutPairPenalty;
 
     return { value, score: Math.round(score * 100) / 100 };
   }).sort((a, b) => b.score - a.score);
@@ -2379,6 +2365,7 @@ export function predictWithPairs(rolls, options = {}) {
     freshOutsider: pairOutlook.freshOutsider,
     lastSeen,
     avgObservedRunLen,
+    regime,
   });
 
   return {
