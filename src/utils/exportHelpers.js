@@ -57,6 +57,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     let top2 = 0;
     let total = 0;
     const methodStats = {};
+    let analyzerHits = 0;
+    let analyzerTop2 = 0;
 
     logs2str.forEach(log => {
       const ctx = log.ctx;
@@ -68,6 +70,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
 
       const pred = data.prediction;
       const alt = data.alt;
+      const analyzerPred = data.analyzerPrediction;
+      const analyzerAlt = data.analyzerAlt;
       const conf = Math.round((data.confidence || 0) * 100);
       const method = data.method || 'unknown';
       const commons = data.commons || [];
@@ -81,6 +85,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       if (isHit) hits++;
       if (isHit || isAltHit) top2++;
       total++;
+      if (analyzerPred === actual) analyzerHits++;
+      if (analyzerPred === actual || analyzerAlt === actual) analyzerTop2++;
 
       if (!methodStats[method]) methodStats[method] = { hits: 0, top2: 0, total: 0 };
       methodStats[method].total++;
@@ -124,9 +130,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     // Summary
     const mainPct = total > 0 ? Math.round((hits / total) * 100) : 0;
     const top2Pct = total > 0 ? Math.round((top2 / total) * 100) : 0;
+    const analyzerMainPct = total > 0 ? Math.round((analyzerHits / total) * 100) : 0;
+    const analyzerTop2Pct = total > 0 ? Math.round((analyzerTop2 / total) * 100) : 0;
     content += `--- Summary ---\n`;
     content += `Main hits:  ${hits}/${total} = ${mainPct}%\n`;
     content += `Top-2:      ${top2}/${total} = ${top2Pct}%\n\n`;
+    content += `Svarog Analyzer:\n`;
+    content += `  Main:      ${analyzerHits}/${total} = ${analyzerMainPct}%\n`;
+    content += `  Top-2:     ${analyzerTop2}/${total} = ${analyzerTop2Pct}%\n\n`;
     content += `Method breakdown:\n`;
     const sortedMethods = Object.entries(methodStats).sort((a, b) => b[1].total - a[1].total);
     sortedMethods.forEach(([m, s]) => {

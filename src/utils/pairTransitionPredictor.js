@@ -455,6 +455,10 @@ function scoreSvarogAnalyzerPicks({
     const pair1Weight = isSelfTransition
       ? (currentRunLen >= 2 ? (pair1Reliable ? 0.52 : 0.24) : (pair1Reliable ? 0.14 : 0.06))
       : (pair1Reliable ? 1.08 : 0.5);
+    const runBreakAbsenceBoost =
+      currentRunLen >= 3 && !isSelfTransition
+        ? (seenAgo < 0 ? 14 : seenAgo >= 5 ? 10 : seenAgo >= 3 ? 6 : 0)
+        : 0;
     const distributionWithoutPairPenalty =
       !isSelfTransition &&
       rolls.length >= 8 &&
@@ -496,6 +500,7 @@ function scoreSvarogAnalyzerPicks({
       (distribution?.[value] || 0) * 0.08 +
       absenceCredit +
       stableComebackBonus +
+      runBreakAbsenceBoost +
       noiseReturnBonus;
 
     if (commons?.includes(value)) score += 5;
