@@ -507,8 +507,85 @@ function scoreSvarogAnalyzerPicks({
     else if (direction === 'stable') score += 2;
     else score -= 6;
 
-    return { value, score: Math.round(score * 100) / 100 };
+    return {
+      value,
+      score: Math.round(score * 100) / 100,
+      pair1,
+      pair2,
+      freqSignal,
+      recentSignal,
+      momentumSignal,
+      absenceSignal,
+      seenAgo,
+      isSelfTransition,
+      direction,
+    };
   }).sort((a, b) => b.score - a.score);
+
+  // Narrow exact-pick helper for first-break moments after x3/x4 runs.
+  // We keep the balanced base scorer intact, then let the best non-runner
+  // challenger compete when the current run is stretched enough to be fragile.
+  if (currentRunLen >= 3 && scored.length >= 2) {
+    const exhaustionRatio = currentRunLen / Math.max(avgObservedRunLen || 2.5, 1);
+    const selfEntry = scored.find(entry => entry.isSelfTransition);
+    const challengerPool = scored
+      .filter(entry => !entry.isSelfTransition)
+      .map((entry) => {
+        const unseenBonus = entry.seenAgo < 0 ? 14 : 0;
+        const overdueBonus = entry.seenAgo >= 5 ? 10 : entry.seenAgo >= 3 ? 6 : 0;
+        const sparsePairBonus = entry.pair1 <= 15 ? 4 : 0;
+        const breakSignal =
+          entry.pair1 * 0.26 +
+          entry.pair2 * 0.14 +
+          entry.absenceSignal * 0.18 +
+          entry.momentumSignal * 0.08 +
+          entry.recentSignal * 0.08 +
+          entry.freqSignal * 0.04 +
+          unseenBonus +
+          overdueBonus +
+          sparsePairBonus +
+          (entry.direction === 'rising' ? 6 : entry.direction === 'stable' ? 2 : 0);
+        return {
+          ...entry,
+          breakSignal: Math.round(breakSignal * 100) / 100,
+          breakTotal: Math.round((entry.score + breakSignal) * 100) / 100,
+        };
+      })
+      .sort((a, b) => b.breakTotal - a.breakTotal);
+
+    const bestChallenger = challengerPool[0];
+    if (bestChallenger) {
+      const promoteThreshold =
+        currentRunLen >= 4 ? 2 :
+        exhaustionRatio >= 1.45 ? 4 :
+        8;
+      const selfScore = selfEntry?.score ?? -999;
+      const challengerWinsMain = bestChallenger.breakTotal >= selfScore + promoteThreshold;
+
+      if (challengerWinsMain) {
+        const promotedMain = bestChallenger.value;
+        const promotedAlt =
+          scored.find(entry => entry.value !== promotedMain && entry.value !== lastRoll)?.value ||
+          scored.find(entry => entry.value !== promotedMain)?.value ||
+          null;
+        return {
+          prediction: promotedMain,
+          alt: promotedAlt,
+          scores: scored,
+        };
+      }
+
+      const currentMain = scored[0]?.value || null;
+      const currentAlt = scored.find(entry => entry.value !== currentMain)?.value || null;
+      if (bestChallenger.value !== currentMain && bestChallenger.breakTotal >= (scored.find(entry => entry.value === currentAlt)?.score ?? -999) + 2) {
+        return {
+          prediction: currentMain,
+          alt: bestChallenger.value,
+          scores: scored,
+        };
+      }
+    }
+  }
 
   return {
     prediction: scored[0]?.value || null,
