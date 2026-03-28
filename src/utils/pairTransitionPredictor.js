@@ -457,8 +457,7 @@ function scoreSvarogAnalyzerPicks({
     const distributionWithoutPairPenalty =
       !isSelfTransition &&
       rolls.length >= 8 &&
-      pair1 === 0 &&
-      !pair1Reliable &&
+      (pair1 === 0 || !pair1Reliable) &&
       (distribution?.[value] || 0) >= 45
         ? 12
         : 0;
