@@ -1453,6 +1453,38 @@ export function predictWithPairs(rolls) {
     }
   }
 
+  // =========================================================================
+  // 🆕 RISING VALUE PROMOTION (Codex fix: post-decision alt injection)
+  // Problem: patternShifted / commonsFlipDetected are detected but only affect
+  // the pick when THEY are the decision method. All other methods (run-break,
+  // overdue-wave, hot-run…) pull alt from old commons and completely ignore
+  // the shift signal.
+  //
+  // Fix: after any method sets prediction+alt, if a rising value is confirmed,
+  // promote it into alt immediately — unless prediction is already the rising value.
+  //
+  // Guard conditions:
+  //   1. A rising value must be identified (patternShifted OR commonsFlipDetected)
+  //   2. Rising value must not already be the prediction
+  //   3. Rising value must have real recent momentum (not just noise artifact)
+  //   4. Only applies when we're NOT already in the pattern-shift method
+  //      (that branch already handles alt correctly)
+  // =========================================================================
+  const risingValue = shiftedToValue || (commonsFlipDetected && newCommons?.find(v => noise.includes(v))) || null;
+  const risingMomentum = risingValue ? (momentumScores[risingValue] || 0) : 0;
+
+  if (
+    risingValue &&
+    risingValue !== prediction &&
+    risingValue !== alt &&
+    risingMomentum > 0.05 &&                 // has real recent presence
+    !method.startsWith('pattern-shift') &&   // pattern-shift branch already handles this
+    !method.startsWith('chaos')              // chaos mode manages its own candidates
+  ) {
+    alt = risingValue;
+    method = method + '+rising-promoted';
+  }
+
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
 
@@ -1466,7 +1498,10 @@ export function predictWithPairs(rolls) {
   if (noise.includes(prediction)) {
     prediction = commons[0] || freqSorted.find(f => commons.includes(f.value))?.value || prediction;
   }
-  if (noise.includes(alt) || alt === prediction) {
+  // Guard for alt: skip eviction if alt is the deliberately promoted rising value
+  // (risingValue is still in noise[] at classification time, but we intentionally promoted it)
+  const altIsRising = risingValue && alt === risingValue;
+  if (!altIsRising && (noise.includes(alt) || alt === prediction)) {
     alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || alt;
   }
 
