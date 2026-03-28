@@ -396,15 +396,48 @@ function scoreSvarogAnalyzerPicks({
   isAlternating,
   currentRunLen,
   freshOutsider,
+  lastSeen,
+  avgObservedRunLen,
 }) {
   const recent6Dist = getDistribution(rolls.slice(-6));
   const recent4 = rolls.slice(-4);
   const recent2 = rolls.slice(-2);
   const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
   const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
+  const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
+  const recentRuns = [];
+  if (rolls.length >= 4) {
+    let runValue = rolls[0];
+    let runStart = 0;
+    for (let i = 1; i <= rolls.length; i++) {
+      const current = i < rolls.length ? rolls[i] : null;
+      if (current !== runValue) {
+        recentRuns.push({
+          value: runValue,
+          len: i - runStart,
+          endIndex: i - 1,
+        });
+        runValue = current;
+        runStart = i;
+      }
+    }
+  }
+
+  const getPostRunCooldown = (value) => {
+    const heavyRecentRun = recentRuns
+      .filter(run => run.value === value && run.len >= 3 && run.endIndex < rolls.length - 1)
+      .sort((a, b) => b.endIndex - a.endIndex)[0];
+    if (!heavyRecentRun) return 0;
+    const rollsSinceBreak = (rolls.length - 1) - heavyRecentRun.endIndex;
+    if (rollsSinceBreak <= 1) return 16;
+    if (rollsSinceBreak === 2) return 10;
+    if (rollsSinceBreak === 3) return 6;
+    return 0;
+  };
 
   const scored = VALUES.map((value) => {
     const pair1 = matrix?.[lastRoll]?.[value]?.pct || 0;
+    const pair1Reliable = !!matrix?.[lastRoll]?.[value]?.reliable;
     const pair2 = pair2gramRow?.[value]?.pct || 0;
     const pair2Reliable = !!pair2gramRow?.[value]?.reliable;
     const trust = trends?.[value]?.trustScore ?? 0.5;
@@ -414,31 +447,46 @@ function scoreSvarogAnalyzerPicks({
     const recent6 = recent6Dist?.[value] || 0;
     const recent4Hits = recent4.filter(r => r === value).length;
     const recent2Hits = recent2.filter(r => r === value).length;
+    const seenAgo = lastSeen?.[value] ?? -1;
+    const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
+    const postRunCooldown = getPostRunCooldown(value);
+    const absenceCredit =
+      seenAgo < 0
+        ? Math.min(rolls.length * 0.8, 20)
+        : effectiveGap >= expectedGap * 2
+        ? 12 + Math.min((effectiveGap - expectedGap) * 1.2, 12)
+        : effectiveGap >= expectedGap
+        ? 6
+        : 0;
 
     let score =
-      pair1 * 0.42 +
-      pair2 * (pair2Reliable ? 0.62 : 0.26) +
-      recent6 * 0.52 +
-      recent4Hits * 8 +
-      recent2Hits * 12 +
-      momentum * 0.18 +
-      trust * 16 +
-      arrowWeight * 10 +
-      (distribution?.[value] || 0) * 0.12;
+      pair1 * (pair1Reliable ? 0.78 : 0.44) +
+      pair2 * (pair2Reliable ? 1.04 : 0.22) +
+      recent6 * 0.24 +
+      recent4Hits * 6 +
+      recent2Hits * 9 +
+      momentum * 0.09 +
+      trust * 15 +
+      arrowWeight * 8 +
+      (distribution?.[value] || 0) * 0.08 +
+      absenceCredit;
 
-    if (commons?.includes(value)) score += 8;
-    if (noise?.includes(value)) score -= 2;
+    if (commons?.includes(value)) score += 5;
+    if (noise?.includes(value)) score -= 1;
     if (noiseRising?.includes(value)) score += 6;
     if (patternShifted && shiftedToValue === value) score += 12;
     if (freshOutsider?.value === value) score += 8;
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
+    if (pair1Reliable) score += 8;
+    if (pair2Reliable) score += 12;
 
     if (direction === 'rising') score += 7;
     else if (direction === 'stable') score += 2;
     else score -= 6;
 
-    if (currentRunLen >= 3 && value === lastRoll) score -= 16;
+    if (currentRunLen >= 3 && value === lastRoll) score -= 18;
     else if (currentRunLen >= 3 && value !== lastRoll) score += 5;
+    score -= postRunCooldown;
 
     return { value, score: Math.round(score * 100) / 100 };
   }).sort((a, b) => b.score - a.score);
@@ -2296,6 +2344,8 @@ export function predictWithPairs(rolls, options = {}) {
     isAlternating,
     currentRunLen,
     freshOutsider: pairOutlook.freshOutsider,
+    lastSeen,
+    avgObservedRunLen,
   });
 
   return {
