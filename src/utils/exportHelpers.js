@@ -95,6 +95,9 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         Commons: [${commons.join(', ')}] | Noise: [${noise.join(', ')}]\n`;
       if (data.trustedPair?.length === 2) {
         content += `         Pair: [${data.trustedPair.join(', ')}] | Safety: ${data.pairSafety || 'unknown'} | Noise risk: ${data.noiseRisk ?? 0}%\n`;
+        if (data.freshOutsider?.value) {
+          content += `         Break pressure: ${data.freshOutsider.value} (${Math.round(data.freshOutsider.score)} pts) | Mixed window: ${data.mixedWindow ? 'yes' : 'no'}\n`;
+        }
       }
       if (distStr) content += `         Dist: ${distStr}\n`;
       if (data.momentumScores) {
