@@ -318,6 +318,8 @@ function scoreRunBreakCandidate({
   lastSeen,
   avgObservedRunLen,
   avgNoiseGap,
+  commons,
+  currentRunLen,
 }) {
   const pairPct = matrix[lastRoll]?.[candidate]?.pct || 0;
   const trust = trends[candidate]?.trustScore ?? 0.45;
@@ -338,6 +340,16 @@ function scoreRunBreakCandidate({
   const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
   const absenceScore = Math.min(effectiveGap, expectedGap * 2) * 2.5;
   const overdueBoost = effectiveGap >= Math.round(expectedGap * 1.5) ? 20 : 0;
+  const isNoiseChallenger = !commons.includes(candidate);
+  const disruptionMode = currentRunLen >= Math.max(4, Math.ceil(avgObservedRunLen * 1.4));
+  const disruptorBonus = isNoiseChallenger && disruptionMode
+    ? (
+        10 +
+        (effectiveGap >= expectedGap ? 12 : 0) +
+        (seenAgo < 0 ? 8 : 0) +
+        (direction === 'rising' ? 8 : 0)
+      )
+    : 0;
   const recencyBoost =
     seenAgo === 0 ? 18 :
     seenAgo === 1 ? 12 :
@@ -348,6 +360,7 @@ function scoreRunBreakCandidate({
     pairPct * 1.5 +
     absenceScore +
     overdueBoost +
+    disruptorBonus +
     recent * 0.45 +
     recent4Hits * 10 +
     (distribution[candidate] || 0) * 0.15 +
@@ -1718,6 +1731,8 @@ export function predictWithPairs(rolls, options = {}) {
             lastSeen,
             avgObservedRunLen,
             avgNoiseGap,
+            commons,
+            currentRunLen,
           }),
         }))
         .sort((a, b) => b.score - a.score);
@@ -2107,7 +2122,10 @@ export function predictWithPairs(rolls, options = {}) {
     prediction = commons[0] || freqSorted.find(f => commons.includes(f.value))?.value || prediction;
   }
   // Guard for alt: skip eviction if alt is deliberately promoted (rising-promoted or wide-alt)
-  const altIsPromoted = (risingValue && alt === risingValue) || method.includes('+wide-alt');
+  const altIsPromoted =
+    (risingValue && alt === risingValue) ||
+    method.includes('+wide-alt') ||
+    method.includes('+absence-breakthrough');
   if (!altIsPromoted && (noise.includes(alt) || alt === prediction)) {
     alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || alt;
   }
