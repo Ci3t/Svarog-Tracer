@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -64,18 +64,30 @@ const TARGET_BASE_LINES = [
 ];
 
 const TARGET_FOURTH_LINE = { slot: 4, stat: 'BREAK EFFECT', tone: 'bad', hits: 0 };
+const LEVEL_TWO_TARGET_BASE_LINES = [
+  { slot: 1, stat: 'FLAT HP', tone: 'bad', hits: 0 },
+  { slot: 2, stat: 'CRIT RATE', tone: 'good', hits: 0 },
+  { slot: 3, stat: 'CRIT DMG', tone: 'good', hits: 0 },
+];
 
 const SETUP_BASE_LINES = [
   { slot: 1, stat: 'HP%', state: 'locked' },
   { slot: 2, stat: 'SPD', state: 'locked' },
   { slot: 3, stat: 'OPEN LINE', state: 'open' },
 ];
+const ONE_LINE_SETUP_BASE_LINES = [
+  { slot: 1, stat: 'OPEN LINE', state: 'open' },
+  { slot: 2, stat: 'LOCKED', state: 'locked' },
+];
 
 const LEVEL_SEQUENCE = [3, 6, 9, 12, 15];
 const DIRECT_LINE_SEQUENCE = [2, 3, 2, 3];
 const SHIFTED_LINE_SEQUENCE = [1, 2, 1, 2];
+const LEVEL_TWO_DIRECT_LINE_SEQUENCE = [2, 1, 4, 1];
+const LEVEL_TWO_SHIFTED_LINE_SEQUENCE = [2, 3, 2, 3];
+const LEVEL_TWO_VISIBLE_ROLLS = ['42', '44', '41', '44'];
 
-function TargetRelicCard({ relic, activeChapter, onTargetAction, onReset }) {
+function TargetRelicCard({ relic, title, mainStat, targetRead, onTargetAction, onReset, successBanner = null }) {
   const actionLabel = !relic.hasFourthLine
     ? 'Add 4th Line'
     : relic.level >= 15
@@ -87,7 +99,7 @@ function TargetRelicCard({ relic, activeChapter, onTargetAction, onReset }) {
       <div className="mb-5 flex items-center justify-between">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Target Relic</div>
-          <h2 className="mt-1 text-xl font-black uppercase tracking-tight text-white">The relic you actually care about</h2>
+          <h2 className="mt-1 text-xl font-black uppercase tracking-tight text-white">{title}</h2>
         </div>
         <Target className="h-5 w-5 text-emerald-300" />
       </div>
@@ -96,7 +108,7 @@ function TargetRelicCard({ relic, activeChapter, onTargetAction, onReset }) {
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">5-star target relic</div>
-            <div className="mt-1 text-base font-black uppercase text-white">Main Stat: CRIT RATE</div>
+            <div className="mt-1 text-base font-black uppercase text-white">Main Stat: {mainStat}</div>
           </div>
           <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-slate-200">
             +{relic.level}
@@ -162,23 +174,37 @@ function TargetRelicCard({ relic, activeChapter, onTargetAction, onReset }) {
 
         <div className="mt-5 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">Target read</div>
-          <p className="mt-2 text-sm leading-relaxed text-slate-200">
-            Directly using <span className="font-black text-white">42 / 43</span> on this relic means you are still
-            flirting with <span className="font-black text-amber-200">EFF RES</span>. One side is crit, one side is junk.
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-200">{targetRead}</p>
         </div>
+        {successBanner && (
+          <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
+            {successBanner}
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
-function SetupRelicCard({ setupRelic, shiftActive, activeChapter, onForceThirdLine }) {
+function SetupRelicCard({
+  setupRelic,
+  shiftActive,
+  onForceThirdLine,
+  title = 'Force the line before you return',
+  badgeLabel = 'Purple setup relic',
+  modeLabel = '2-line / 3-line forcing',
+  forcedLabel = 'Line 3 forced',
+  waitingLabel = 'Waiting',
+  buttonLabel = 'Add 3rd Line To Force It',
+  lessonTitle = 'Caesar shift lesson',
+  lessonText = 'This setup relic is the detour. You force line 3 here first so the commons pair can come back to the target relic on the crit side instead of drifting into junk.',
+}) {
   return (
     <article className="theme-glass-card rounded-[2rem] border border-white/10 p-6">
       <div className="mb-5 flex items-center justify-between">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Setup Relic</div>
-          <h2 className="mt-1 text-xl font-black uppercase tracking-tight text-white">Force the line before you return</h2>
+          <h2 className="mt-1 text-xl font-black uppercase tracking-tight text-white">{title}</h2>
         </div>
         <Wand2 className="h-5 w-5 text-cyan-300" />
       </div>
@@ -186,14 +212,14 @@ function SetupRelicCard({ setupRelic, shiftActive, activeChapter, onForceThirdLi
       <div className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/25 bg-cyan-500/8 px-4 py-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Purple setup relic</div>
-            <div className="mt-1 text-base font-black uppercase text-white">2-line / 3-line forcing</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">{badgeLabel}</div>
+            <div className="mt-1 text-base font-black uppercase text-white">{modeLabel}</div>
           </div>
           <div className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.18em] ${shiftActive
             ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
               : 'border-white/10 bg-white/[0.03] text-slate-300'
             }`}>
-            {shiftActive ? 'Line 3 forced' : 'Waiting'}
+            {shiftActive ? forcedLabel : waitingLabel}
           </div>
         </div>
 
@@ -230,22 +256,19 @@ function SetupRelicCard({ setupRelic, shiftActive, activeChapter, onForceThirdLi
             : 'border-cyan-500/25 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
             }`}
         >
-          {shiftActive ? '3rd Line Forced' : 'Add 3rd Line To Force It'}
+          {shiftActive ? forcedLabel : buttonLabel}
         </button>
 
         <div className="mt-5 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 p-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Caesar shift lesson</div>
-          <p className="mt-2 text-sm leading-relaxed text-slate-200">
-            This setup relic is the detour. You force line 3 here first so the commons pair can come back to the
-            target relic on the crit side instead of drifting into junk.
-          </p>
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">{lessonTitle}</div>
+          <p className="mt-2 text-sm leading-relaxed text-slate-200">{lessonText}</p>
         </div>
       </div>
     </article>
   );
 }
 
-export default function TutorialPage({ sessionTheme = 'modern' }) {
+export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const navigate = useNavigate();
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const [activeChapter, setActiveChapter] = useState(CHAPTERS[0].id);
@@ -253,12 +276,16 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
     level: 0,
     nextLevel: 3,
     hasFourthLine: false,
-    lines: TARGET_BASE_LINES,
+    lines: level === 2 ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES,
     lastHit: null,
   }));
   const [setupRelic, setSetupRelic] = useState(() => ({
     forced: false,
     lines: SETUP_BASE_LINES,
+  }));
+  const [oneLineSetupRelic, setOneLineSetupRelic] = useState(() => ({
+    forced: false,
+    lines: ONE_LINE_SETUP_BASE_LINES,
   }));
   const [tutorialRolls, setTutorialRolls] = useState(INITIAL_SCRIPTED_ROLLS);
   const [historyRows, setHistoryRows] = useState(INITIAL_HISTORY_ROWS);
@@ -289,9 +316,25 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
     [activeChapter]
   );
 
-  const shiftActive = setupRelic.forced;
+  const shiftActive = level === 2 ? oneLineSetupRelic.forced : setupRelic.forced;
 
   const mappingRows = useMemo(() => {
+    if (level === 2 && shiftActive) {
+      return [
+        { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
+        { roll: '44', line: '3', stat: 'CRIT DMG', tone: 'good' },
+        { roll: '41', line: '2', stat: 'CRIT RATE', tone: 'good' },
+      ];
+    }
+
+    if (level === 2) {
+      return [
+        { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
+        { roll: '44', line: '4', stat: 'BREAK EFFECT', tone: 'bad' },
+        { roll: '41', line: '1', stat: 'FLAT HP', tone: 'bad' },
+      ];
+    }
+
     if (shiftActive) {
       return [
         { roll: '42', line: '1', stat: 'CRIT RATE', tone: 'good' },
@@ -303,7 +346,20 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
       { roll: '42', line: '2', stat: 'CRIT DMG', tone: 'good' },
       { roll: '43', line: '3', stat: 'EFF RES', tone: 'bad' },
     ];
-  }, [shiftActive]);
+  }, [level, shiftActive]);
+
+  const hasBeginnerClear =
+    level === 1 &&
+    shiftActive &&
+    targetRelic.level >= 15 &&
+    (targetRelic.lines.find((line) => line.slot === 1)?.hits || 0) >= 2 &&
+    (targetRelic.lines.find((line) => line.slot === 2)?.hits || 0) >= 2;
+
+  useEffect(() => {
+    if (!hasBeginnerClear) return;
+    const timer = setTimeout(() => navigate('/tutorial/level-2'), 1200);
+    return () => clearTimeout(timer);
+  }, [hasBeginnerClear, navigate]);
 
   const handleTargetAction = () => {
     setTargetRelic((current) => {
@@ -325,12 +381,16 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
       return;
     }
 
-    const activeSequence = shiftActive ? SHIFTED_LINE_SEQUENCE : DIRECT_LINE_SEQUENCE;
+    const activeSequence = level === 2
+      ? (shiftActive ? LEVEL_TWO_SHIFTED_LINE_SEQUENCE : LEVEL_TWO_DIRECT_LINE_SEQUENCE)
+      : (shiftActive ? SHIFTED_LINE_SEQUENCE : DIRECT_LINE_SEQUENCE);
     const currentIndex = shiftActive ? shiftedStepIndex : directStepIndex;
     const hitSlot = activeSequence[Math.min(currentIndex, activeSequence.length - 1)];
     const previousLine = shiftActive ? lastShiftedLine : lastDirectLine;
     const rawPair = `${previousLine}${hitSlot}`;
-    const recordedRoll = translateTo4(rawPair) || '42';
+    const recordedRoll = level === 2 && shiftActive
+      ? LEVEL_TWO_VISIBLE_ROLLS[Math.min(currentIndex, LEVEL_TWO_VISIBLE_ROLLS.length - 1)]
+      : (translateTo4(rawPair) || '42');
     const statLabel = targetRelic.lines.find((line) => line.slot === hitSlot)?.stat || `LINE ${hitSlot}`;
 
     setTutorialRolls((existing) => [...existing, recordedRoll]);
@@ -389,23 +449,42 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
     setActiveChapter('force-line');
   };
 
+  const handleForceSecondLine = () => {
+    setOneLineSetupRelic((current) => {
+      if (current.forced) return current;
+      return {
+        forced: true,
+        lines: current.lines.map((line) =>
+          line.slot === 2 ? { ...line, stat: 'OPEN LINE', state: 'forced' } : line
+        ),
+      };
+    });
+    setActiveChapter('force-line');
+    setLastShiftedLine(2);
+    setShiftedStepIndex(1);
+  };
+
   const handleResetScenario = () => {
     setTargetRelic({
       level: 0,
       nextLevel: 3,
       hasFourthLine: false,
-      lines: TARGET_BASE_LINES,
+      lines: level === 2 ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES,
       lastHit: null,
     });
     setSetupRelic({
       forced: false,
       lines: SETUP_BASE_LINES,
     });
+    setOneLineSetupRelic({
+      forced: false,
+      lines: ONE_LINE_SETUP_BASE_LINES,
+    });
     setTutorialRolls(INITIAL_SCRIPTED_ROLLS);
     setHistoryRows(INITIAL_HISTORY_ROWS);
     setDirectStepIndex(0);
     setShiftedStepIndex(0);
-    setLastDirectLine(4);
+    setLastDirectLine(level === 2 ? 4 : 4);
     setLastShiftedLine(3);
     setActiveChapter(CHAPTERS[0].id);
   };
@@ -418,14 +497,15 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
             <div className="max-w-5xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
                 <BookOpen className="h-3.5 w-3.5" />
-                Svarog Manip Tutorial
+                {level === 2 ? 'Svarog Manip Tutorial - Level 2' : 'Svarog Manip Tutorial'}
               </div>
               <h1 className="text-3xl font-black uppercase tracking-tight text-white md:text-5xl">
-                Learn Live Mode the way you actually manip
+                {level === 2 ? 'Solve The Manip Yourself' : 'Learn Live Mode the way you actually manip'}
               </h1>
               <p className="mt-3 max-w-4xl text-sm text-slate-300 md:text-base">
-                This page teaches one real manip flow: read the live state, inspect the target relic, stop the bad
-                direct upgrade, then use a setup relic to force the line you actually want.
+                {level === 2
+                  ? 'Level 2 keeps the same board, but now you need to choose the correct reset relic and clear the target on your own.'
+                  : 'This page teaches one real manip flow: read the live state, inspect the target relic, stop the bad direct upgrade, then use a setup relic to force the line you actually want.'}
               </p>
             </div>
 
@@ -546,17 +626,37 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
 
           <TargetRelicCard
             relic={targetRelic}
-            activeChapter={activeChapter}
+            title={level === 2 ? 'Hit dual crit to clear the stage' : 'The relic you actually care about'}
+            mainStat={level === 2 ? 'ATK%' : 'CRIT RATE'}
+            targetRead={level === 2
+              ? 'In this stage the goal is dual crit on a FLAT HP / CRIT RATE / CRIT DMG relic. After the first 42 hit, the right reset should move the rest of the path onto crit lines.'
+              : <>Directly using <span className="font-black text-white">42 / 43</span> on this relic means you are still flirting with <span className="font-black text-amber-200">EFF RES</span>. One side is crit, one side is junk.</>}
             onTargetAction={handleTargetAction}
             onReset={handleResetScenario}
+            successBanner={hasBeginnerClear ? 'Dual crit confirmed. Loading Level 2...' : null}
           />
 
-          <SetupRelicCard
-            setupRelic={setupRelic}
-            shiftActive={shiftActive}
-            activeChapter={activeChapter}
-            onForceThirdLine={handleForceThirdLine}
-          />
+          <div className="grid gap-6">
+            <SetupRelicCard
+              setupRelic={setupRelic}
+              shiftActive={level === 1 ? shiftActive : false}
+              onForceThirdLine={handleForceThirdLine}
+            />
+            {level === 2 && (
+              <SetupRelicCard
+                setupRelic={oneLineSetupRelic}
+                shiftActive={oneLineSetupRelic.forced}
+                onForceThirdLine={handleForceSecondLine}
+                title="Force line 2 after the first hit"
+                badgeLabel="Mini reset relic"
+                modeLabel="1-line / 2-line forcing"
+                forcedLabel="Line 2 forced"
+                buttonLabel="Add 2nd Line To Force It"
+                lessonTitle="Stage 2 lesson"
+                lessonText="After the first 42 hit lands on Crit Rate, use this 1-line relic to force line 2. Then the rest of the visible path should stay on the dual-crit side."
+              />
+            )}
+          </div>
         </section>
 
         <section className="grid items-start gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -613,14 +713,16 @@ export default function TutorialPage({ sessionTheme = 'modern' }) {
                 Open Live Mode
                 <ChevronRight className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/tutorial/level-2')}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-rose-200 transition-all hover:bg-rose-500/20"
-              >
-                Next: Level 2
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              {level === 1 && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/tutorial/level-2')}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-rose-200 transition-all hover:bg-rose-500/20"
+                >
+                  Next: Level 2
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => navigate('/playground')}
