@@ -260,7 +260,11 @@ export default function App() {
       const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
 
       // Always create a log entry â€” even for 2-str sessions where predictNext3 returns "â€”"
-      {
+      if (
+        p.prediction &&
+        p.prediction !== "-" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
         const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
         const actualStr = String(actual3).slice(0, 3); // 2 or 3 chars depending on mode
         const fallbackTwoStrSignals = getWaveAndTableSignals(contextRolls);
@@ -268,11 +272,10 @@ export default function App() {
         const newLog = {
           ts: Date.now() + idx,
           kind: "3",
-          prediction: (p.prediction && p.prediction !== "â€”" && !String(p.prediction).toLowerCase().startsWith("insufficient"))
-            ? p.prediction : "â€”",
+          prediction: p.prediction,
           confidence: p.confidence || 0,
           alt: p.alt || null,
-          mode: p.mode || "â€”",
+          mode: p.mode || "-",
           actual: actualStr,
           ctx: contextRolls.slice(-8),
           candidates: p.candidates || [],
@@ -335,7 +338,7 @@ export default function App() {
 
         if (
           p2.prediction &&
-          p2.prediction !== "â€”" &&
+          p2.prediction !== "-" &&
           !String(p2.prediction).toLowerCase().startsWith("insufficient")
         ) {
           const newLog2 = {
@@ -345,7 +348,7 @@ export default function App() {
             confidence: p2.confidence || 0,
             baseConfidence: p2.baseConfidence || p2.confidence || 0, // ðŸ”¥ NEW
             alt: p2.alt || null,
-            mode: p2.mode || "â€”",
+            mode: p2.mode || "-",
             actual: actual2,
             ctx: rolls2.slice(-8),
             candidates: p2.candidates || [],
@@ -650,27 +653,34 @@ export default function App() {
 
     const newLogsToAdd = [];
 
-    // Capture live state of the smart predictor
+    // Capture live state of the smart predictor only when a real prediction exists.
+    const hasReal3StrPrediction =
+      p3Before?.prediction &&
+      p3Before.prediction !== "-" &&
+      !String(p3Before.prediction).toLowerCase().startsWith("insufficient");
+
     const liveSmartPrefix = {
-      main: p3Before.prediction || "â€”",
+      main: hasReal3StrPrediction ? p3Before.prediction : "-",
       alt: p3Before.alt || safeCandidates(p3Before)[1]?.value || null,
     };
 
-    newLogsToAdd.push({
-      ts: nowTs,
-      kind: "3",
-      prediction: liveSmartPrefix.main,
-      confidence: p3Before.confidence || 0,
-      alt: liveSmartPrefix.alt,
-      mode: p3Before.mode || "â€”",
-      actual: actual3,
-      ctx: rolls3Before.slice(-8),
-      candidates: safeCandidates(p3Before),
-      smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
-    });
+    if (hasReal3StrPrediction) {
+      newLogsToAdd.push({
+        ts: nowTs,
+        kind: "3",
+        prediction: liveSmartPrefix.main,
+        confidence: p3Before.confidence || 0,
+        alt: liveSmartPrefix.alt,
+        mode: p3Before.mode || "-",
+        actual: actual3,
+        ctx: rolls3Before.slice(-8),
+        candidates: safeCandidates(p3Before),
+        smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
+      });
+    }
 
     // ðŸ”¥ FIXED: Use the prediction that was SHOWING (p2Before), not a new one
-    if (p2Before && p2Before.prediction && p2Before.prediction !== "â€”" &&
+    if (p2Before && p2Before.prediction && p2Before.prediction !== "-" &&
       !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
       newLogsToAdd.push({
         ts: nowTs + 0.1, // Slight offset
@@ -679,7 +689,7 @@ export default function App() {
         confidence: p2Before.confidence || 0,
         baseConfidence: p2Before.baseConfidence || p2Before.confidence || 0,
         alt: p2Before.alt || null,
-        mode: p2Before.mode || "â€”",
+        mode: p2Before.mode || "-",
         actual: actual2,
         ctx: [...rolls2Before], // Chronological (oldestâ†’newest)
         candidates: safeCandidates(p2Before),
@@ -748,7 +758,7 @@ export default function App() {
     // Only log if we have a real prediction
     if (
       p.prediction &&
-      p.prediction !== "â€”" &&
+      p.prediction !== "-" &&
       !String(p.prediction).toLowerCase().startsWith("insufficient")
     ) {
       const newLog = {

@@ -393,45 +393,60 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
         </div>
 
         {analyzerPicks.length > 0 && (
-          <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/35 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300">Svarog Analyzer</p>
-                <p className="text-[10px] text-slate-400">Exact-line lean only. Trust the lane first.</p>
+          <div className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
+            <div className="flex items-center justify-between mb-3.5 relative z-10 pl-6">
+              <div className="relative">
+                {/* The Svarog logo breaking out of the top/left corner */}
+                <img 
+                  src="/svarog.png" 
+                  alt="Svarog Eye" 
+                  className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
+                />
+                <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
+                <p className="text-[11px] text-slate-400 mt-1 pl-8">Svarog Analyzer — Next exact line</p>
               </div>
-              <div className="flex items-center gap-2">
-                {analyzerPicks.map((pick) => (
+              <div className="flex items-center gap-2.5">
+                {analyzerPicks.map((pick, idx) => (
                   <span
                     key={pick}
-                    className="min-w-[42px] rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-1 text-center text-sm font-black text-cyan-200"
+                    className={`min-w-[48px] inline-block rounded-[14px] border-2 px-3 py-1.5 text-center text-[16px] font-black tracking-tight transition-colors
+                      ${idx === 0 
+                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
+                        : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
                   >
                     {pick}
                   </span>
                 ))}
               </div>
             </div>
+            
             {followGuide && (
-              <div className={`mt-2 rounded-lg border px-2.5 py-1.5 ${
+              <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
                 followGuide.tone === 'good'
-                  ? 'border-emerald-500/30 bg-emerald-500/8'
+                  ? 'border-emerald-500/30 bg-emerald-500/10'
                   : followGuide.tone === 'lane'
-                  ? 'border-violet-500/25 bg-violet-500/8'
+                  ? 'border-violet-500/30 bg-violet-500/10'
                   : followGuide.tone === 'analyzer'
-                  ? 'border-cyan-500/25 bg-cyan-500/8'
-                  : 'border-amber-500/25 bg-amber-500/8'
+                  ? 'border-rose-500/30 bg-rose-500/10'
+                  : 'border-amber-500/30 bg-amber-500/10'
               }`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest ${
-                  followGuide.tone === 'good'
-                    ? 'text-emerald-300'
-                    : followGuide.tone === 'lane'
-                    ? 'text-violet-300'
-                    : followGuide.tone === 'analyzer'
-                    ? 'text-cyan-300'
-                    : 'text-amber-300'
-                }`}>
-                  {followGuide.title}
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className={`w-2 h-2 rounded-full ${
+                    followGuide.tone === 'good' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 
+                    followGuide.tone === 'lane' ? 'bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]' : 
+                    followGuide.tone === 'analyzer' ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)] animate-pulse' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                  }`} />
+                  <p className={`text-[11px] font-black uppercase tracking-widest ${
+                    followGuide.tone === 'good' ? 'text-emerald-300' : 
+                    followGuide.tone === 'lane' ? 'text-violet-300' : 
+                    followGuide.tone === 'analyzer' ? 'text-rose-300' : 'text-amber-300'
+                  }`}>
+                    {followGuide.title}
+                  </p>
+                </div>
+                <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium pl-4.5">
+                  {followGuide.text}
                 </p>
-                <p className="mt-0.5 text-[10px] text-slate-400">{followGuide.text}</p>
               </div>
             )}
           </div>
