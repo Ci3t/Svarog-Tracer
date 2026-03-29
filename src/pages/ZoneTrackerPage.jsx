@@ -254,6 +254,7 @@ export default function ZoneTrackerPage({ sessionTheme = 'modern' }) {
           variantMinOwned={variantMinOwned}
           setVariantMinOwned={setVariantMinOwned}
           setSlots={setSlots}
+          setError={setError}
           setSuccess={setSuccess}
           getAuthHeader={getAuthHeader}
         />

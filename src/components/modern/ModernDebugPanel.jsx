@@ -192,7 +192,7 @@ export default function ModernDebugPanel({
                         <div className="flex items-center gap-2">
                           <span className="text-violet-400">[{new Date(log.ts).toLocaleTimeString()}]</span>
                           <span className={isCorrect ? "text-green-400" : "text-red-400"}>
-                            {pred} -> {actual}
+                            {pred} {'->'} {actual}
                           </span>
                           <span className="text-slate-500">({confidence}%)</span>
                         </div>
@@ -237,7 +237,7 @@ export default function ModernDebugPanel({
                       <div key={idx} className="py-2 px-3 bg-slate-900/50 rounded-lg border border-slate-800/30">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="text-violet-400">[{time}]</span>
-                          <span className="text-slate-500">2-str -></span>
+                          <span className="text-slate-500">{'2-str ->'}</span>
                           <span className="text-slate-400">pred:</span>
                           <span className={isCorrect ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{pred}</span>
                           <span className="text-slate-500">({conf}%)</span>

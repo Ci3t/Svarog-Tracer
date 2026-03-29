@@ -8,6 +8,7 @@ import {
   embedZoneNoteMeta,
   ensureCurrentEpoch,
   extractDiscordDisplayName,
+  hasMultipleTrailblazers,
   handleApiError,
   normalizeClearTimeSeconds,
   normalizeOptionalText,
@@ -100,6 +101,9 @@ export async function handler(req, res) {
     const body = readRequestBody(req);
 
     const slotOrder = normalizeSlotOrder(body.slot_order);
+    if (hasMultipleTrailblazers(slotOrder)) {
+      throw new HttpError(400, 'Only 1 MC is allowed in a team. Remove the current MC before adding another version.');
+    }
     const outcome = normalizeOutcome(body.outcome);
     const cavern = normalizeCavern(body.cavern);
     const notes = normalizeOptionalText(body.notes, { field: 'notes', maxLength: 200 });

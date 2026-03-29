@@ -5,6 +5,7 @@ import { HSR_CAVERNS, findCavernById } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl as buildZoneApiUrl } from '../utils/apiBase';
+import { hasMultipleTrailblazers, SINGLE_TRAILBLAZER_TEAM_MESSAGE, wouldCreateTrailblazerConflict } from '../utils/trailblazerTeam';
 
 // --- Constants & Helpers ---
 export const SERVER_REGION_OPTIONS = [
@@ -1013,6 +1014,11 @@ export function useZoneTracker(sessionTheme = 'modern') {
   }, []);
 
   const assignCharacterToSlot = useCallback((charId, targetSlotIndex) => {
+    if (wouldCreateTrailblazerConflict(slots, charId, { ignoreIndex: targetSlotIndex })) {
+      setError(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
+      setSuccess('');
+      return;
+    }
     let nextActiveSlot = targetSlotIndex;
     setSlots((prev) => {
       const next = [...prev];
@@ -1034,7 +1040,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       return next;
     });
     setActiveSlotIndex(nextActiveSlot);
-  }, []);
+  }, [setError, setSuccess, slots]);
 
   const clearSlot = (slotIndex) => {
     setSlots((prev) => {
@@ -1164,6 +1170,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       ? zone.sample_slot_order.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0).slice(0, 4)
       : [];
     if (slotOrder.length !== 4) { setError('Zone card cannot be exported: missing full team sample.'); return; }
+    if (hasMultipleTrailblazers(slotOrder)) { setError(SINGLE_TRAILBLAZER_TEAM_MESSAGE); return; }
     const clearSecondsRaw = zone?.latest_clear_time_seconds ?? zone?.avg_clear_time_seconds;
     const clearMmSs = formatMmSsFromSeconds(clearSecondsRaw);
     if (!clearMmSs) { setError('Zone card cannot be exported: clear time is missing.'); return; }
@@ -1194,7 +1201,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     const base = String(import.meta.env.BASE_URL || '/');
     const basePath = base.endsWith('/') ? base.slice(0, -1) : base;
     window.location.assign(basePath + '/caverns?' + params.toString());
-  }, [cavern, formatMmSsFromSeconds, mapData?.epoch?.id]);
+  }, [cavern, formatMmSsFromSeconds, mapData?.epoch?.id, setError]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -1206,6 +1213,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
     }
     if (new Set(slots.map((value) => Number(value))).size !== 4) {
       setError('Team must contain 4 unique characters.');
+      return;
+    }
+    if (hasMultipleTrailblazers(slots)) {
+      setError(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
       return;
     }
     if (!cavern) { setError('Cavern is required (Optional Details step).'); return; }
@@ -1375,6 +1386,10 @@ export function useZoneTracker(sessionTheme = 'modern') {
     }
     if (new Set(nextSlotOrder).size !== 4) {
       setError('Squad must contain 4 unique characters.');
+      return;
+    }
+    if (hasMultipleTrailblazers(nextSlotOrder)) {
+      setError(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
       return;
     }
     const zoneKey = buildZoneVariantKey(zone);

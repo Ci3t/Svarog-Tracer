@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { Users, Plus, X, ChevronLeft, ChevronRight, Shuffle, Target } from 'lucide-react';
 import { formatRate } from '../../hooks/useZoneTracker';
 import { buildApiUrl as buildZoneApiUrl } from '../../utils/apiBase';
+import { hasMultipleTrailblazers, SINGLE_TRAILBLAZER_TEAM_MESSAGE, wouldCreateTrailblazerConflict } from '../../utils/trailblazerTeam';
 
 const VARIANTS_PER_PAGE = 8;
 const NEARBY_PER_PAGE = 8;
@@ -104,6 +105,7 @@ export default function ZoneBuildTeam({
   variantMinOwned,
   setVariantMinOwned,
   setSlots,
+  setError,
   setSuccess,
   getAuthHeader,
 }) {
@@ -334,6 +336,11 @@ export default function ZoneBuildTeam({
 
   const addToSlot = (numId) => {
     if (buildSlots.includes(numId)) return;
+    if (wouldCreateTrailblazerConflict(buildSlots, numId)) {
+      setError?.(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
+      setSuccess?.('');
+      return;
+    }
     setBuildSlots((prev) => {
       const next = [...prev];
       const emptyIdx = next.findIndex((s) => !s);
@@ -394,6 +401,11 @@ export default function ZoneBuildTeam({
 
   const runExactMatchSearch = async (overrides = {}) => {
     if (buildVariantLoading) return;
+    if (hasMultipleTrailblazers(buildSlots)) {
+      setError?.(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
+      setSuccess?.('');
+      return;
+    }
 
     const slotOrder = buildSlots.map(Number);
     setBuildVariantLoading(true);

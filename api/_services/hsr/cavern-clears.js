@@ -1,6 +1,11 @@
 import { del as blobDel, list as blobList, put as blobPut } from '@vercel/blob';
 import crypto from 'node:crypto';
-import { isZoneAdminUser, requireAuthenticatedUser } from '../zone/shared.js';
+import {
+  extractDiscordDisplayName,
+  hasMultipleTrailblazers,
+  isZoneAdminUser,
+  requireAuthenticatedUser,
+} from '../zone/shared.js';
 
 const BLOB_PREFIX = 'hsr-cavern-clears-';
 const INITIAL_DATA = [];
@@ -516,11 +521,24 @@ export async function handler(req, res) {
         return res.status(200).json({ success: true, likes: entry.likes });
       }
 
+      let authUser = null;
+      try {
+        const auth = await requireAuthenticatedUser(req);
+        authUser = auth.user;
+      } catch {
+        return res.status(401).json({ error: 'Discord login is required to post a cavern record.' });
+      }
+
+      const reporterName = extractDiscordDisplayName(authUser);
+      if (!reporterName) {
+        return res.status(400).json({ error: 'Unable to resolve your Discord identity. Please sign in again.' });
+      }
+
       if (!relicId || !clearTime || !characters || characters.length !== 4) {
         return res.status(400).json({ error: 'Incomplete payload.' });
       }
-      if (!discordUser || discordUser.trim().length < 2) {
-        return res.status(400).json({ error: 'Discord ID required.' });
+      if (hasMultipleTrailblazers(characters)) {
+        return res.status(400).json({ error: 'Only 1 MC is allowed in a team. Remove the current MC before adding another version.' });
       }
       if (!/^\d{1,2}:\d{2}$/.test(clearTime)) {
         return res.status(400).json({ error: 'Format must be MM:SS.' });
@@ -540,7 +558,7 @@ export async function handler(req, res) {
       const reportObj = {
         id: reportId,
         key: secretKey,
-        reporter: discordUser.trim(),
+        reporter: reporterName,
         timestamp: new Date().toISOString(),
         note: note ? note.trim() : undefined,
         substats,
@@ -559,8 +577,8 @@ export async function handler(req, res) {
           existingEntry.reports.push(reportObj);
           existingEntry.reporters = ensureArray(existingEntry.reporters);
 
-          if (!existingEntry.reporters.includes(discordUser.trim())) {
-            existingEntry.reporters.push(discordUser.trim());
+          if (!existingEntry.reporters.includes(reporterName)) {
+            existingEntry.reporters.push(reporterName);
           }
 
           if (!existingEntry.mainStat && mainStat) {
@@ -575,7 +593,7 @@ export async function handler(req, res) {
             characters,
             substats,
             mainStat: mainStat || undefined,
-            reporters: [discordUser.trim()],
+            reporters: [reporterName],
             reports: [reportObj],
             verifiedCount: 1,
             likes: [],
@@ -616,8 +634,8 @@ export async function handler(req, res) {
         if (!existingEntry.reports) existingEntry.reports = [];
         existingEntry.reports.push(reportObj);
         if (!existingEntry.reporters) existingEntry.reporters = [];
-        if (!existingEntry.reporters.includes(discordUser.trim())) {
-          existingEntry.reporters.push(discordUser.trim());
+        if (!existingEntry.reporters.includes(reporterName)) {
+          existingEntry.reporters.push(reporterName);
         }
         if (!existingEntry.mainStat && mainStat) {
           existingEntry.mainStat = mainStat;
@@ -629,7 +647,7 @@ export async function handler(req, res) {
           characters,
           substats,
           mainStat: mainStat || undefined,
-          reporters: [discordUser.trim()],
+          reporters: [reporterName],
           reports: [reportObj],
           verifiedCount: 1,
           likes: [],
