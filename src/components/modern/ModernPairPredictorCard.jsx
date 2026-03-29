@@ -53,6 +53,7 @@ export default function ModernPairPredictorCard({
   region,
   advancedToggleId,
   advancedPanelId,
+  tutorialIds = {},
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -291,7 +292,7 @@ export default function ModernPairPredictorCard({
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">🎯 BBP Mode</span>
         {/* Mode badge with tooltip */}
-        <div className="relative group">
+        <div id={tutorialIds.modeBadgeId} className="relative group">
           <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border cursor-default ${badgeStyle}`}>
             {label}
           </span>
@@ -320,7 +321,7 @@ export default function ModernPairPredictorCard({
         <p className="text-[11px] text-slate-400 italic mb-4 text-center">{reasonLine}</p>
 
         {/* Pair safety strip */}
-        <div className={`mb-4 rounded-xl border px-3 py-2 ${
+        <div id={tutorialIds.warningStripId} className={`mb-4 rounded-xl border px-3 py-2 ${
           pairSafety === 'safe'
             ? 'border-emerald-500/40 bg-emerald-500/10'
             : pairSafety === 'caution'
@@ -361,7 +362,7 @@ export default function ModernPairPredictorCard({
         </div>
 
         {/* YOUR 2 PICKS */}
-        <div className="mb-1">
+        <div id={tutorialIds.mainPredictorId} className="mb-1">
           <div className="text-[9px] text-slate-500 uppercase tracking-widest text-center mb-2">
             Your 2 Picks This Session
           </div>
@@ -398,7 +399,7 @@ export default function ModernPairPredictorCard({
         </div>
 
         {analyzerPicks.length > 0 && (
-          <div className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
+          <div id={tutorialIds.svarogEyeId} className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
             <div className="flex items-center justify-between mb-3.5 relative z-10 pl-6">
               <div className="relative">
                 {/* The Svarog logo breaking out of the top/left corner */}
@@ -459,7 +460,7 @@ export default function ModernPairPredictorCard({
 
 
         {primaryWatchLine && (
-          <div className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 ${
+          <div id={tutorialIds.watchMessageId} className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 ${
             primaryWatchLine.tone === 'danger'
               ? 'bg-rose-500/12 border border-rose-500/35'
               : primaryWatchLine.tone === 'warn'
@@ -516,7 +517,7 @@ export default function ModernPairPredictorCard({
         )}
 
         {/* Commons / Noise footer — always visible */}
-        <div className="mt-3 pt-2.5 border-t border-slate-800/50 flex justify-center gap-5 text-[10px]">
+        <div id={tutorialIds.commonsNoiseId} className="mt-3 pt-2.5 border-t border-slate-800/50 flex justify-center gap-5 text-[10px]">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
@@ -551,13 +552,13 @@ export default function ModernPairPredictorCard({
         <div id={advancedPanelId} className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
 
           {/* Method string (technical) */}
-          <div className="flex items-center justify-between pt-3">
+          <div id={tutorialIds.advancedMethodId} className="flex items-center justify-between pt-3">
             <span className="text-[9px] text-slate-600 uppercase tracking-wider">Method</span>
             <span className="text-[10px] text-slate-500 font-mono">{method}</span>
           </div>
 
           {/* Trend Indicators */}
-          <div>
+          <div id={tutorialIds.advancedTrendsId}>
             <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Trends</div>
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
@@ -672,7 +673,7 @@ export default function ModernPairPredictorCard({
               ? Math.round(gaps.slice(0, -1).reduce((s, g) => s + g.commonsAfter, 0) / (gaps.length - 1))
               : '—';
             return (
-              <div>
+              <div id={tutorialIds.advancedSequenceId}>
                 {/* Roll sequence */}
                 <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">
                   Sequence (last {Math.min(20, rolls.length)})

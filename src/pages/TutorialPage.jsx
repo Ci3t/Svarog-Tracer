@@ -146,9 +146,32 @@ function TutorialTourOverlay({
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[120]">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
       <div
-        className="absolute rounded-[1.75rem] border border-cyan-400/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.25)] transition-all duration-300"
+        className="absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ height: Math.max(0, rect.top - 8) }}
+      />
+      <div
+        className="absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{
+          top: Math.max(0, rect.top - 8),
+          width: Math.max(0, rect.left - 8),
+          height: rect.height + 16,
+        }}
+      />
+      <div
+        className="absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{
+          top: Math.max(0, rect.top - 8),
+          left: rect.left + rect.width + 8,
+          height: rect.height + 16,
+        }}
+      />
+      <div
+        className="absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ top: rect.top + rect.height + 8 }}
+      />
+      <div
+        className="absolute rounded-[1.75rem] border border-pink-400/55 shadow-[0_0_22px_rgba(244,114,182,0.18)] transition-all duration-300"
         style={{
           top: rect.top - 8,
           left: rect.left - 8,
@@ -1065,6 +1088,17 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   region="America"
                   advancedToggleId="tutorial-advanced-toggle"
                   advancedPanelId="tutorial-advanced-panel"
+                  tutorialIds={{
+                    modeBadgeId: 'tutorial-mode-badge',
+                    warningStripId: 'tutorial-pair-warning',
+                    mainPredictorId: 'tutorial-main-predictor',
+                    svarogEyeId: 'tutorial-svarog-eye',
+                    watchMessageId: 'tutorial-watch-message',
+                    commonsNoiseId: 'tutorial-commons-noise',
+                    advancedMethodId: 'tutorial-advanced-method',
+                    advancedTrendsId: 'tutorial-advanced-trends',
+                    advancedSequenceId: 'tutorial-advanced-sequence',
+                  }}
                 />
               </div>
 

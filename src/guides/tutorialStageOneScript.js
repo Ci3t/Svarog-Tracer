@@ -1,7 +1,7 @@
 export const tutorialStageOneScript = [
   {
     id: "predictor-commons-noise",
-    target: "#svarog-feed-focus",
+    target: "#tutorial-commons-noise",
     title: "Commons And Noise",
     body:
       "Start by reading the pair at the bottom. Commons are the safe lane the session is living on right now. Noise are the values trying to break or interrupt that lane.",
@@ -9,7 +9,7 @@ export const tutorialStageOneScript = [
   },
   {
     id: "predictor-main-lane",
-    target: "#svarog-feed-focus",
+    target: "#tutorial-main-predictor",
     title: "Main Predictor And Lean",
     body:
       "Main Predictor shows the safer lane to follow. The % under each side is a lean, not true confidence. It shows which side the board prefers more right now.",
@@ -17,40 +17,48 @@ export const tutorialStageOneScript = [
   },
   {
     id: "predictor-warning-messages",
-    target: "#svarog-feed-focus",
+    target: "#tutorial-watch-message",
     title: "Warning Messages",
     body:
       "Warning messages tell you which value is most likely to break the current pair. Use them as pressure clues, not as automatic truth.",
     action: "next",
   },
   {
-    id: "predictor-trends",
-    target: "#tutorial-stats-helper",
-    title: "Trend Arrows And Frequency",
-    body:
-      "Trend arrows show whether a line is rising, stable, or dropping. Frequency helps you judge which side is safer and which side is just a challenge value.",
-    action: "next",
-  },
-  {
     id: "predictor-svarog-eye",
-    target: "#svarog-feed-focus",
+    target: "#tutorial-svarog-eye",
     title: "Svarog Eye",
     body:
       "Svarog Eye is the sharper exact-line lean. Main Predictor is the safer lane. Svarog is the sharper guess. When the board gets fragile, compare both.",
     action: "next",
   },
   {
-    id: "predictor-mode",
-    target: "#svarog-feed-focus",
+    id: "predictor-mode-badge",
+    target: "#tutorial-mode-badge",
     title: "Modes",
     body:
       "Modes describe what kind of pattern the system believes is active: alternating, run-break, shift, pressure, or chaos. That changes how much trust you put into the current lane.",
+    action: "next",
+  },
+  {
+    id: "predictor-open-advanced",
+    target: "#tutorial-advanced-toggle",
+    title: "Open Advanced Mode",
+    body:
+      "Now open the deep read. This is where we inspect trends, method, and extra pattern evidence when the simple lane read is not enough.",
     action: "click",
     prompt: "Click Show details to open Advanced Mode.",
     waitFor: {
       type: "selector",
       value: "#tutorial-advanced-panel",
     },
+  },
+  {
+    id: "predictor-trends",
+    target: "#tutorial-advanced-trends",
+    title: "Trend Arrows And Frequency",
+    body:
+      "Trend arrows show whether a line is rising, stable, or dropping. The % under each line is frequency. Together they help you judge which side is safe and which side is a challenge value.",
+    action: "next",
   },
   {
     id: "wrong-path-upgrade",
@@ -139,7 +147,7 @@ export const tutorialStageOneScript = [
   },
   {
     id: "guided-plus-12-read",
-    target: "#tutorial-history-log",
+    target: "#tutorial-advanced-sequence",
     title: "Read The Sequence",
     body:
       "Now compare Main Predictor, Svarog, and the warning again. This time look at Sequence (last 9). After 43 commons hit 3 times, 43 appeared again, so the pattern is stronger there. In this spot, I would trust 43.",
