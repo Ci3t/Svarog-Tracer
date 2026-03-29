@@ -6,15 +6,18 @@ import {
   ChevronRight,
   Clock3,
   History,
+  Map,
   RotateCcw,
   Target,
   Wand2,
+  X,
 } from 'lucide-react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import tutorialStageOneScript from '../guides/tutorialStageOneScript';
 
 const CHAPTERS = [
   {
@@ -93,6 +96,117 @@ const LEVEL_TWO_DIRECT_LINE_SEQUENCE = [2, 1, 4, 1];
 const LEVEL_TWO_SHIFTED_LINE_SEQUENCE = [2, 3, 2, 3];
 const LEVEL_TWO_VISIBLE_ROLLS = ['42', '44', '41', '44'];
 const LEVEL_THREE_FOURTH_LINE = { slot: 4, stat: 'EFFECT HIT RATE', tone: 'bad', hits: 0 };
+const TUTORIAL_TOUR_KEY = 'svarog-tutorial-tour-v1';
+const TOUR_STEPS = tutorialStageOneScript;
+
+function TutorialTourOverlay({
+  steps,
+  currentStep,
+  onNext,
+  onBack,
+  onClose,
+  canAdvance = true,
+  isWaiting = false,
+}) {
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    const step = steps[currentStep];
+    if (!step) return undefined;
+
+    const update = () => {
+      const element = document.querySelector(step.target);
+      if (!element) {
+        setRect(null);
+        return;
+      }
+      const nextRect = element.getBoundingClientRect();
+      setRect(nextRect);
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [steps, currentStep]);
+
+  const step = steps[currentStep];
+  if (!step || !rect) return null;
+
+  const cardWidth = 340;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const preferBelow = rect.bottom + 220 < viewportHeight;
+  const top = preferBelow ? rect.bottom + 16 : Math.max(24, rect.top - 200);
+  const left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[120]">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
+      <div
+        className="absolute rounded-[1.75rem] border border-cyan-400/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.25)] transition-all duration-300"
+        style={{
+          top: rect.top - 8,
+          left: rect.left - 8,
+          width: rect.width + 16,
+          height: rect.height + 16,
+        }}
+      />
+      <div
+        className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+        style={{ top, left, width: cardWidth }}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+            <Map className="h-3.5 w-3.5" />
+            Guided Tour
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-400 transition-colors hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="text-lg font-black uppercase tracking-tight text-white">{step.title}</div>
+        <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+        {step.prompt && (
+          <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-semibold text-cyan-100">
+            {step.prompt}
+          </div>
+        )}
+        <div className="mt-5 flex items-center justify-between">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+            {isWaiting ? 'Waiting For Action' : `${currentStep + 1} / ${steps.length}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={currentStep === 0}
+              className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!canAdvance}
+              className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {currentStep === steps.length - 1 ? 'Finish' : (isWaiting ? 'Waiting' : 'Next')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TargetRelicCard({ relic, title, mainStat, targetRead, onTargetAction, onReset, successBanner = null, compact = true }) {
   const actionLabel = !relic.hasFourthLine
@@ -364,6 +478,10 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const [shiftedStepIndex, setShiftedStepIndex] = useState(0);
   const [lastDirectLine, setLastDirectLine] = useState(4);
   const [lastShiftedLine, setLastShiftedLine] = useState(3);
+  const [tourRunning, setTourRunning] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [tourSelectorSatisfied, setTourSelectorSatisfied] = useState(false);
+  const tourSteps = useMemo(() => (level === 1 ? TOUR_STEPS : []), [level]);
 
   const scriptedEntries = useMemo(
     () =>
@@ -497,6 +615,70 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     targetRelic.level >= 15 &&
     (targetRelic.lines.find((line) => line.slot === 3)?.hits || 0) >= 4;
 
+  const tutorialHelperLine = useMemo(() => {
+    if (typeof targetRelic.lastHit === 'number' && targetRelic.lastHit >= 1 && targetRelic.lastHit <= 4) {
+      return targetRelic.lastHit;
+    }
+    if (isLevelThree) return 3;
+    if (isLevelTwo) return shiftActive ? 2 : 2;
+    return shiftActive ? 1 : 2;
+  }, [isLevelThree, isLevelTwo, shiftActive, targetRelic.lastHit]);
+
+  const tutorialTourState = useMemo(
+    () => ({
+      target_level_15: targetRelic.level >= 15,
+      scenario_reset:
+        targetRelic.level === 0 &&
+        !targetRelic.hasFourthLine &&
+        directStepIndex === 0 &&
+        shiftedStepIndex === 0,
+      fourth_line_added: targetRelic.hasFourthLine && targetRelic.level >= 3,
+      setup_line_3_forced: setupRelic.forced,
+      target_level_6: targetRelic.level >= 6,
+      target_level_9: targetRelic.level >= 9,
+      target_level_12: targetRelic.level >= 12,
+      target_level_15_final: hasBeginnerClear,
+    }),
+    [
+      directStepIndex,
+      hasBeginnerClear,
+      setupRelic.forced,
+      shiftedStepIndex,
+      targetRelic.hasFourthLine,
+      targetRelic.level,
+    ]
+  );
+
+  const currentTourStep = level === 1 ? tourSteps[tourStepIndex] : null;
+  useEffect(() => {
+    if (!tourRunning || currentTourStep?.waitFor?.type !== 'selector') {
+      setTourSelectorSatisfied(false);
+      return undefined;
+    }
+
+    const checkSelector = () => {
+      if (typeof document === 'undefined') return;
+      setTourSelectorSatisfied(Boolean(document.querySelector(currentTourStep.waitFor.value)));
+    };
+
+    checkSelector();
+    const interval = window.setInterval(checkSelector, 150);
+    return () => window.clearInterval(interval);
+  }, [currentTourStep, tourRunning]);
+
+  const currentTourStepSatisfied = useMemo(() => {
+    if (!currentTourStep?.waitFor) return true;
+    if (currentTourStep.waitFor.type === 'state') {
+      return Boolean(tutorialTourState[currentTourStep.waitFor.value]);
+    }
+    if (currentTourStep.waitFor.type === 'selector') {
+      return tourSelectorSatisfied;
+    }
+    return false;
+  }, [currentTourStep, tourSelectorSatisfied, tutorialTourState]);
+
+  const canAdvanceTour = !currentTourStep || currentTourStep.action === 'next' || currentTourStepSatisfied;
+
   useEffect(() => {
     if (!hasBeginnerClear) return;
     const timer = setTimeout(() => navigate('/tutorial/level-2'), 1200);
@@ -508,6 +690,43 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     const timer = setTimeout(() => navigate('/tutorial/level-3'), 1200);
     return () => clearTimeout(timer);
   }, [hasLevelTwoClear, navigate]);
+
+  useEffect(() => {
+    if (level !== 1) return;
+    try {
+      const seen = window.localStorage.getItem(TUTORIAL_TOUR_KEY);
+      if (!seen) {
+        const timer = setTimeout(() => setTourRunning(true), 500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      const timer = setTimeout(() => setTourRunning(true), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [level]);
+
+  const closeTour = () => {
+    setTourRunning(false);
+    setTourStepIndex(0);
+    try {
+      window.localStorage.setItem(TUTORIAL_TOUR_KEY, 'seen');
+    } catch {
+      // ignore
+    }
+  };
+
+  const nextTourStep = () => {
+    if (tourStepIndex >= tourSteps.length - 1) {
+      closeTour();
+      return;
+    }
+    setTourStepIndex((value) => value + 1);
+  };
+
+  const previousTourStep = () => {
+    setTourStepIndex((value) => Math.max(0, value - 1));
+  };
 
   const handleTargetAction = () => {
     setTargetRelic((current) => {
@@ -684,6 +903,17 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       </div>
 
       <div className="mx-auto w-full max-w-[1900px] relative z-10 flex flex-col gap-6">
+        {level === 1 && tourRunning && (
+          <TutorialTourOverlay
+            steps={tourSteps}
+            currentStep={tourStepIndex}
+            onNext={nextTourStep}
+            onBack={previousTourStep}
+            onClose={closeTour}
+            canAdvance={canAdvanceTour}
+            isWaiting={!canAdvanceTour}
+          />
+        )}
         
         {/* --- TACTICAL HEADER --- */}
         <header className="gsap-fade-up flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-white/5 pb-6">
@@ -703,11 +933,23 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-1 flex items-center gap-1 backdrop-blur-xl shadow-inner">
+            {level === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTourStepIndex(0);
+                  setTourRunning(true);
+                }}
+                className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-cyan-300 transition-all hover:bg-cyan-500/10 hover:border-cyan-500/40"
+              >
+                Start Guide
+              </button>
+            )}
+            <div id="tutorial-level-switcher" className="rounded-2xl border border-white/5 bg-slate-950/40 p-1 flex items-center gap-1 backdrop-blur-xl shadow-inner">
               {[1, 2, 3].map((num) => (
                 <button
                   key={num}
-                  onClick={() => navigate(`/tutorial/level-${num}`)}
+                  onClick={() => navigate(num === 1 ? '/tutorial' : `/tutorial/level-${num}`)}
                   className={`min-w-[44px] py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${level === num ? 'bg-cyan-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}
                 >
                   0{num}
@@ -728,7 +970,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
           
           {/* COLUMN 1: Mission Logistics (col-span-3) */}
           <aside className="flex flex-col gap-6 lg:col-span-3 lg:sticky lg:top-8">
-            <div className="gsap-slide-right relative rounded-[2rem] border border-white/5 bg-slate-950/50 p-6 backdrop-blur-3xl shadow-2xl">
+            <div id="tutorial-mission-timeline" className="gsap-slide-right relative rounded-[2rem] border border-white/5 bg-slate-950/50 p-6 backdrop-blur-3xl shadow-2xl">
               <div className="mb-8 flex items-center justify-between">
                 <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-2">
                   <div className="h-1 w-4 bg-cyan-400 rounded-full" />
@@ -773,13 +1015,34 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 </div>
               </div>
             </div>
+
+            <div id="tutorial-stats-helper" className="gsap-slide-right rounded-[2rem] border border-white/5 bg-slate-950/45 p-5 shadow-2xl backdrop-blur-3xl">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Stats & Line Helper</div>
+                  <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">Practical mapping read</div>
+                </div>
+                <div className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                  Live Helper
+                </div>
+              </div>
+              <ModernStatsPanel
+                entries={scriptedEntries}
+                prediction2={scriptedPrediction}
+                prediction3={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
+                prediction4={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
+                currentRegion="America"
+                currentPatch="4.1"
+                forcedLineOverride={tutorialHelperLine}
+              />
+            </div>
           </aside>
 
           {/* COLUMN 2: Sensor Array - Intelligence (col-span-5) */}
           <section className="flex flex-col gap-6 lg:col-span-5">
             
             {/* Primary Analysis Module (Predictor) */}
-            <div id="svarog-feed-focus" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
+            <div id="tutorial-sensor-feed" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
               <div className="mb-8 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                    <div className="h-10 w-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.1)]">
@@ -796,12 +1059,17 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 </div>
               </div>
               
-              <div className="transform transition-all duration-700 hover:scale-[1.01] origin-top mb-10 p-4 bg-black/20 rounded-[2rem] border border-white/5 shadow-inner">
-                <ModernPairPredictorCard entries={scriptedEntries} region="America" />
+              <div id="svarog-feed-focus" className="transform transition-all duration-700 hover:scale-[1.01] origin-top mb-10 p-4 bg-black/20 rounded-[2rem] border border-white/5 shadow-inner">
+                <ModernPairPredictorCard
+                  entries={scriptedEntries}
+                  region="America"
+                  advancedToggleId="tutorial-advanced-toggle"
+                  advancedPanelId="tutorial-advanced-panel"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">
+                <div id="tutorial-input-rolls" className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">
                   <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Algorithm Status</div>
                   <div className="text-lg font-black text-white tracking-tight flex items-center gap-2">
                     <span className="text-cyan-400">SYNCED</span> / V4.1.1
@@ -820,7 +1088,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
             </div>
 
             {/* Decryption Module (Map) */}
-            <div id="teaching-map-focus" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
+            <div id="tutorial-history-log" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
                <div className="flex items-center gap-4 mb-8">
                   <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                      <Wand2 className="h-5 w-5 text-emerald-400" />
@@ -875,7 +1143,8 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
             </div>
 
             {/* Target Relic (Compact) */}
-            <div id="target-relic-focus" className="gsap-scale-in transition-all duration-700">
+            <div id="tutorial-target-relic" className="gsap-scale-in transition-all duration-700">
+              <div id="target-relic-focus">
               <TargetRelicCard
                 relic={targetRelic}
                 title={isLevelThree ? 'Mono SPD Target' : (isLevelTwo ? 'Dual Crit Target' : 'Target Item')}
@@ -894,11 +1163,12 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                         : null
                 }
               />
+              </div>
             </div>
 
             {/* Setup Relic (Compact) */}
-            <div id="setup-relic-focus" className="gsap-scale-in transition-all duration-700">
-              <div className="h-full flex flex-col justify-start">
+            <div id="tutorial-setup-relic" className="gsap-scale-in transition-all duration-700">
+              <div id="setup-relic-focus" className="h-full flex flex-col justify-start">
                 {level === 1 && (
                   <SetupRelicCard
                     setupRelic={setupRelic}

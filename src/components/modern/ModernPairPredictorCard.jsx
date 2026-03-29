@@ -48,7 +48,12 @@ const BADGE_TOOLTIPS = {
   '⏳ Warming Up':  { desc: 'Too few rolls to detect patterns yet.',     ex: 'Need 6+ rolls to start' },
 };
 
-export default function ModernPairPredictorCard({ entries = [], region }) {
+export default function ModernPairPredictorCard({
+  entries = [],
+  region,
+  advancedToggleId,
+  advancedPanelId,
+}) {
   const [expanded, setExpanded] = useState(false);
 
   // Extract 2-str rolls from entries
@@ -533,7 +538,9 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
 
       {/* ── EXPAND BUTTON ──────────────────────────────────────────────────── */}
       <button
+        id={advancedToggleId}
         onClick={() => setExpanded(e => !e)}
+        data-expanded={expanded ? 'true' : 'false'}
         className="astral-bbp-toggle w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
       >
         <span>{expanded ? '▲ Hide details' : '▼ Show details (Advanced Mode)'}</span>
@@ -541,7 +548,7 @@ export default function ModernPairPredictorCard({ entries = [], region }) {
 
       {/* ── 30s EXPLORE SECTION ────────────────────────────────────────────── */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
+        <div id={advancedPanelId} className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
 
           {/* Method string (technical) */}
           <div className="flex items-center justify-between pt-3">
