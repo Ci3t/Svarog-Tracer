@@ -1369,15 +1369,17 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         return passDomain && passRarity;
       });
     }).sort((a, b) => {
-      const aClears = clears.filter(c => a.relicSetIds.includes(c.relicId)).length;
-      const bClears = clears.filter(c => b.relicSetIds.includes(c.relicId)).length;
+      const aDomainClears = clears.filter(c => doesClearBelongToDomain(c, a));
+      const bDomainClears = clears.filter(c => doesClearBelongToDomain(c, b));
+      const aClears = aDomainClears.length;
+      const bClears = bDomainClears.length;
       if (aClears > 0 && bClears === 0) return -1;
       if (bClears > 0 && aClears === 0) return 1;
-      const aLatest = Math.max(0, ...clears.filter(c => a.relicSetIds.includes(c.relicId)).map(getClearLastReportedTimestamp));
-      const bLatest = Math.max(0, ...clears.filter(c => b.relicSetIds.includes(c.relicId)).map(getClearLastReportedTimestamp));
+      const aLatest = Math.max(0, ...aDomainClears.map(getClearLastReportedTimestamp));
+      const bLatest = Math.max(0, ...bDomainClears.map(getClearLastReportedTimestamp));
       return bLatest - aLatest;
     });
-  }, [category, relicsData, activeFilters, rarityFilter, searchTerm, clears]);
+  }, [category, relicsData, activeFilters, rarityFilter, searchTerm, clears, doesClearBelongToDomain]);
 
   // Filter and sort logic for main grid
   const filteredGridData = currentItemData
