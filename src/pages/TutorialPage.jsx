@@ -69,6 +69,11 @@ const LEVEL_TWO_TARGET_BASE_LINES = [
   { slot: 2, stat: 'CRIT RATE', tone: 'good', hits: 0 },
   { slot: 3, stat: 'CRIT DMG', tone: 'good', hits: 0 },
 ];
+const LEVEL_THREE_TARGET_BASE_LINES = [
+  { slot: 1, stat: 'FLAT ATK', tone: 'bad', hits: 0 },
+  { slot: 2, stat: 'FLAT HP', tone: 'bad', hits: 0 },
+  { slot: 3, stat: 'SPD', tone: 'good', hits: 0 },
+];
 
 const SETUP_BASE_LINES = [
   { slot: 1, stat: 'HP%', state: 'locked' },
@@ -76,8 +81,8 @@ const SETUP_BASE_LINES = [
   { slot: 3, stat: 'OPEN LINE', state: 'open' },
 ];
 const ONE_LINE_SETUP_BASE_LINES = [
-  { slot: 1, stat: 'OPEN LINE', state: 'open' },
-  { slot: 2, stat: 'LOCKED', state: 'locked' },
+  { slot: 1, stat: 'HP%', state: 'locked' },
+  { slot: 2, stat: 'OPEN LINE', state: 'open' },
 ];
 
 const LEVEL_SEQUENCE = [3, 6, 9, 12, 15];
@@ -86,6 +91,7 @@ const SHIFTED_LINE_SEQUENCE = [1, 2, 1, 2];
 const LEVEL_TWO_DIRECT_LINE_SEQUENCE = [2, 1, 4, 1];
 const LEVEL_TWO_SHIFTED_LINE_SEQUENCE = [2, 3, 2, 3];
 const LEVEL_TWO_VISIBLE_ROLLS = ['42', '44', '41', '44'];
+const LEVEL_THREE_FOURTH_LINE = { slot: 4, stat: 'EFFECT HIT RATE', tone: 'bad', hits: 0 };
 
 function TargetRelicCard({ relic, title, mainStat, targetRead, onTargetAction, onReset, successBanner = null }) {
   const actionLabel = !relic.hasFourthLine
@@ -198,6 +204,7 @@ function SetupRelicCard({
   buttonLabel = 'Add 3rd Line To Force It',
   lessonTitle = 'Caesar shift lesson',
   lessonText = 'This setup relic is the detour. You force line 3 here first so the commons pair can come back to the target relic on the crit side instead of drifting into junk.',
+  helperText = null,
 }) {
   return (
     <article className="theme-glass-card rounded-[2rem] border border-white/10 p-6">
@@ -263,6 +270,11 @@ function SetupRelicCard({
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">{lessonTitle}</div>
           <p className="mt-2 text-sm leading-relaxed text-slate-200">{lessonText}</p>
         </div>
+        {helperText && (
+          <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
+            {helperText}
+          </div>
+        )}
       </div>
     </article>
   );
@@ -271,12 +283,14 @@ function SetupRelicCard({
 export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const navigate = useNavigate();
   const themeConfig = getSessionThemeConfig(sessionTheme);
+  const isLevelTwo = level === 2;
+  const isLevelThree = level === 3;
   const [activeChapter, setActiveChapter] = useState(CHAPTERS[0].id);
   const [targetRelic, setTargetRelic] = useState(() => ({
     level: 0,
     nextLevel: 3,
     hasFourthLine: false,
-    lines: level === 2 ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES,
+    lines: isLevelThree ? LEVEL_THREE_TARGET_BASE_LINES : (isLevelTwo ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES),
     lastHit: null,
   }));
   const [setupRelic, setSetupRelic] = useState(() => ({
@@ -316,10 +330,19 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     [activeChapter]
   );
 
-  const shiftActive = level === 2 ? oneLineSetupRelic.forced : setupRelic.forced;
+  const shiftActive = isLevelTwo || isLevelThree ? oneLineSetupRelic.forced : setupRelic.forced;
 
   const mappingRows = useMemo(() => {
-    if (level === 2 && shiftActive) {
+    if (isLevelThree) {
+      return shiftActive
+        ? [{ roll: '41', line: '3', stat: 'SPD', tone: 'good' }]
+        : [
+            { roll: '43', line: '3', stat: 'SPD', tone: 'good' },
+            { roll: '44', line: '4', stat: 'EFFECT HIT RATE', tone: 'bad' },
+          ];
+    }
+
+    if (isLevelTwo && shiftActive) {
       return [
         { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
         { roll: '44', line: '3', stat: 'CRIT DMG', tone: 'good' },
@@ -327,7 +350,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       ];
     }
 
-    if (level === 2) {
+    if (isLevelTwo) {
       return [
         { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
         { roll: '44', line: '4', stat: 'BREAK EFFECT', tone: 'bad' },
@@ -346,7 +369,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       { roll: '42', line: '2', stat: 'CRIT DMG', tone: 'good' },
       { roll: '43', line: '3', stat: 'EFF RES', tone: 'bad' },
     ];
-  }, [level, shiftActive]);
+  }, [isLevelThree, isLevelTwo, shiftActive]);
 
   const hasBeginnerClear =
     level === 1 &&
@@ -355,11 +378,28 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     (targetRelic.lines.find((line) => line.slot === 1)?.hits || 0) >= 2 &&
     (targetRelic.lines.find((line) => line.slot === 2)?.hits || 0) >= 2;
 
+  const hasLevelTwoClear =
+    isLevelTwo &&
+    targetRelic.level >= 15 &&
+    (targetRelic.lines.find((line) => line.slot === 2)?.hits || 0) >= 2 &&
+    (targetRelic.lines.find((line) => line.slot === 3)?.hits || 0) >= 2;
+
+  const hasLevelThreeClear =
+    isLevelThree &&
+    targetRelic.level >= 15 &&
+    (targetRelic.lines.find((line) => line.slot === 3)?.hits || 0) >= 4;
+
   useEffect(() => {
     if (!hasBeginnerClear) return;
     const timer = setTimeout(() => navigate('/tutorial/level-2'), 1200);
     return () => clearTimeout(timer);
   }, [hasBeginnerClear, navigate]);
+
+  useEffect(() => {
+    if (!hasLevelTwoClear) return;
+    const timer = setTimeout(() => navigate('/tutorial/level-3'), 1200);
+    return () => clearTimeout(timer);
+  }, [hasLevelTwoClear, navigate]);
 
   const handleTargetAction = () => {
     setTargetRelic((current) => {
@@ -370,7 +410,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
           nextLevel: 6,
           hasFourthLine: true,
           lastHit: null,
-          lines: [...current.lines, TARGET_FOURTH_LINE],
+          lines: [...current.lines, isLevelThree ? LEVEL_THREE_FOURTH_LINE : TARGET_FOURTH_LINE],
         };
       }
 
@@ -381,16 +421,39 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       return;
     }
 
-    const activeSequence = level === 2
-      ? (shiftActive ? LEVEL_TWO_SHIFTED_LINE_SEQUENCE : LEVEL_TWO_DIRECT_LINE_SEQUENCE)
-      : (shiftActive ? SHIFTED_LINE_SEQUENCE : DIRECT_LINE_SEQUENCE);
-    const currentIndex = shiftActive ? shiftedStepIndex : directStepIndex;
-    const hitSlot = activeSequence[Math.min(currentIndex, activeSequence.length - 1)];
-    const previousLine = shiftActive ? lastShiftedLine : lastDirectLine;
-    const rawPair = `${previousLine}${hitSlot}`;
-    const recordedRoll = level === 2 && shiftActive
-      ? LEVEL_TWO_VISIBLE_ROLLS[Math.min(currentIndex, LEVEL_TWO_VISIBLE_ROLLS.length - 1)]
-      : (translateTo4(rawPair) || '42');
+    let currentIndex = shiftActive ? shiftedStepIndex : directStepIndex;
+    let hitSlot;
+    let rawPair;
+    let recordedRoll;
+
+    if (isLevelThree) {
+      if (shiftActive) {
+        rawPair = '23';
+        hitSlot = 3;
+        recordedRoll = '41';
+      } else {
+        const levelThreeDirectPath = [
+          { rawPair: '43', hitSlot: 3, recordedRoll: '43' },
+          { rawPair: '34', hitSlot: 4, recordedRoll: '44' },
+          { rawPair: '41', hitSlot: 1, recordedRoll: '41' },
+          { rawPair: '12', hitSlot: 2, recordedRoll: '42' },
+        ];
+        const step = levelThreeDirectPath[Math.min(directStepIndex, levelThreeDirectPath.length - 1)];
+        rawPair = step.rawPair;
+        hitSlot = step.hitSlot;
+        recordedRoll = step.recordedRoll;
+      }
+    } else {
+      const activeSequence = isLevelTwo
+        ? (shiftActive ? LEVEL_TWO_SHIFTED_LINE_SEQUENCE : LEVEL_TWO_DIRECT_LINE_SEQUENCE)
+        : (shiftActive ? SHIFTED_LINE_SEQUENCE : DIRECT_LINE_SEQUENCE);
+      hitSlot = activeSequence[Math.min(currentIndex, activeSequence.length - 1)];
+      const previousLine = shiftActive ? lastShiftedLine : lastDirectLine;
+      rawPair = `${previousLine}${hitSlot}`;
+      recordedRoll = isLevelTwo && shiftActive
+        ? LEVEL_TWO_VISIBLE_ROLLS[Math.min(currentIndex, LEVEL_TWO_VISIBLE_ROLLS.length - 1)]
+        : (translateTo4(rawPair) || '42');
+    }
     const statLabel = targetRelic.lines.find((line) => line.slot === hitSlot)?.stat || `LINE ${hitSlot}`;
 
     setTutorialRolls((existing) => [...existing, recordedRoll]);
@@ -425,7 +488,15 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       };
     });
 
-    if (shiftActive) {
+    if (isLevelThree && shiftActive) {
+      setOneLineSetupRelic({
+        forced: false,
+        lines: ONE_LINE_SETUP_BASE_LINES,
+      });
+      setDirectStepIndex((value) => value + 1);
+    } else if (isLevelThree) {
+      setDirectStepIndex((value) => value + 1);
+    } else if (shiftActive) {
       setShiftedStepIndex((value) => value + 1);
       setLastShiftedLine(hitSlot);
     } else {
@@ -455,13 +526,17 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       return {
         forced: true,
         lines: current.lines.map((line) =>
-          line.slot === 2 ? { ...line, stat: 'OPEN LINE', state: 'forced' } : line
+          line.slot === 2
+            ? { ...line, stat: 'ATK%', state: 'forced' }
+            : line
         ),
       };
     });
     setActiveChapter('force-line');
     setLastShiftedLine(2);
-    setShiftedStepIndex(1);
+    if (!isLevelThree) {
+      setShiftedStepIndex(1);
+    }
   };
 
   const handleResetScenario = () => {
@@ -469,7 +544,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       level: 0,
       nextLevel: 3,
       hasFourthLine: false,
-      lines: level === 2 ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES,
+      lines: isLevelThree ? LEVEL_THREE_TARGET_BASE_LINES : (isLevelTwo ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES),
       lastHit: null,
     });
     setSetupRelic({
@@ -484,8 +559,8 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     setHistoryRows(INITIAL_HISTORY_ROWS);
     setDirectStepIndex(0);
     setShiftedStepIndex(0);
-    setLastDirectLine(level === 2 ? 4 : 4);
-    setLastShiftedLine(3);
+    setLastDirectLine(4);
+    setLastShiftedLine(isLevelThree ? 2 : 3);
     setActiveChapter(CHAPTERS[0].id);
   };
 
@@ -497,15 +572,17 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
             <div className="max-w-5xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
                 <BookOpen className="h-3.5 w-3.5" />
-                {level === 2 ? 'Svarog Manip Tutorial - Level 2' : 'Svarog Manip Tutorial'}
+                {isLevelThree ? 'Svarog Manip Tutorial - Level 3' : (isLevelTwo ? 'Svarog Manip Tutorial - Level 2' : 'Svarog Manip Tutorial')}
               </div>
               <h1 className="text-3xl font-black uppercase tracking-tight text-white md:text-5xl">
-                {level === 2 ? 'Solve The Manip Yourself' : 'Learn Live Mode the way you actually manip'}
+                {isLevelThree ? 'Mono SPD Loop Challenge' : (isLevelTwo ? 'Solve The Manip Yourself' : 'Learn Live Mode the way you actually manip')}
               </h1>
               <p className="mt-3 max-w-4xl text-sm text-slate-300 md:text-base">
-                {level === 2
-                  ? 'Level 2 keeps the same board, but now you need to choose the correct reset relic and clear the target on your own.'
-                  : 'This page teaches one real manip flow: read the live state, inspect the target relic, stop the bad direct upgrade, then use a setup relic to force the line you actually want.'}
+                {isLevelThree
+                  ? 'Level 3 teaches a repeatable mono-line loop. After the first SPD hit, the player must keep re-forcing line 2 before each next upgrade.'
+                  : isLevelTwo
+                    ? 'Level 2 keeps the same board, but now you need to choose the correct reset relic and clear the target on your own.'
+                    : 'This page teaches one real manip flow: read the live state, inspect the target relic, stop the bad direct upgrade, then use a setup relic to force the line you actually want.'}
               </p>
             </div>
 
@@ -616,8 +693,12 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   </div>
                   <div className="mt-3 rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-3 text-sm leading-relaxed text-slate-200">
                     {shiftActive
-                      ? 'Setup relic is active. Practical read is now shifted back onto the crit lane: 42 -> CRIT RATE, 43 -> CRIT DMG.'
-                      : 'Without the setup relic, the commons pair is still awkward here: 42 helps, but 43 drifts into EFF RES.'}
+                      ? (isLevelThree
+                        ? 'Line 2 is forced. The next visible 41 should stay on SPD, then the reset relic goes back to waiting again.'
+                        : 'Setup relic is active. Practical read is now shifted back onto the crit lane: 42 -> CRIT RATE, 43 -> CRIT DMG.')
+                      : (isLevelThree
+                        ? 'First take the raw 43 hit on SPD. After that, if you do not re-force line 2, the path drifts into EFFECT HIT RATE instead of staying mono SPD.'
+                        : 'Without the setup relic, the commons pair is still awkward here: 42 helps, but 43 drifts into EFF RES.')}
                   </div>
                 </div>
               </div>
@@ -626,34 +707,49 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
 
           <TargetRelicCard
             relic={targetRelic}
-            title={level === 2 ? 'Hit dual crit to clear the stage' : 'The relic you actually care about'}
-            mainStat={level === 2 ? 'ATK%' : 'CRIT RATE'}
-            targetRead={level === 2
+            title={isLevelThree ? 'Mono SPD to clear the stage' : (isLevelTwo ? 'Hit dual crit to clear the stage' : 'The relic you actually care about')}
+            mainStat={isLevelThree ? 'HP%' : (isLevelTwo ? 'ATK%' : 'CRIT RATE')}
+            targetRead={isLevelThree
+              ? 'This stage is a mono SPD lesson. The first +6 hit is 43 on SPD. After that, re-force line 2 before every next upgrade so 41 keeps landing back on SPD.'
+              : (isLevelTwo
               ? 'In this stage the goal is dual crit on a FLAT HP / CRIT RATE / CRIT DMG relic. After the first 42 hit, the right reset should move the rest of the path onto crit lines.'
-              : <>Directly using <span className="font-black text-white">42 / 43</span> on this relic means you are still flirting with <span className="font-black text-amber-200">EFF RES</span>. One side is crit, one side is junk.</>}
+              : <>Directly using <span className="font-black text-white">42 / 43</span> on this relic means you are still flirting with <span className="font-black text-amber-200">EFF RES</span>. One side is crit, one side is junk.</>)}
             onTargetAction={handleTargetAction}
             onReset={handleResetScenario}
-            successBanner={hasBeginnerClear ? 'Dual crit confirmed. Loading Level 2...' : null}
+            successBanner={
+              hasBeginnerClear
+                ? 'Dual crit confirmed. Loading Level 2...'
+                : hasLevelTwoClear
+                  ? 'Dual crit confirmed. Loading Level 3...'
+                  : hasLevelThreeClear
+                    ? 'Mono SPD clear complete.'
+                    : null
+            }
           />
 
           <div className="grid gap-6">
-            <SetupRelicCard
-              setupRelic={setupRelic}
-              shiftActive={level === 1 ? shiftActive : false}
-              onForceThirdLine={handleForceThirdLine}
-            />
-            {level === 2 && (
+            {level === 1 && (
+              <SetupRelicCard
+                setupRelic={setupRelic}
+                shiftActive={shiftActive}
+                onForceThirdLine={handleForceThirdLine}
+              />
+            )}
+            {(isLevelTwo || isLevelThree) && (
               <SetupRelicCard
                 setupRelic={oneLineSetupRelic}
                 shiftActive={oneLineSetupRelic.forced}
                 onForceThirdLine={handleForceSecondLine}
-                title="Force line 2 after the first hit"
+                title={isLevelThree ? 'Re-force line 2 before each next hit' : 'Force line 2 after the first hit'}
                 badgeLabel="Mini reset relic"
                 modeLabel="1-line / 2-line forcing"
                 forcedLabel="Line 2 forced"
                 buttonLabel="Add 2nd Line To Force It"
-                lessonTitle="Stage 2 lesson"
-                lessonText="After the first 42 hit lands on Crit Rate, use this 1-line relic to force line 2. Then the rest of the visible path should stay on the dual-crit side."
+                lessonTitle={isLevelThree ? 'Stage 3 lesson' : 'Stage 2 lesson'}
+                lessonText={isLevelThree
+                  ? 'After the first 43 lands on SPD, this 1-line relic must be used again before every next upgrade. Each force re-primes line 2 so the next visible 41 lands on SPD again.'
+                  : 'After the first 42 hit lands on Crit Rate, use this 1-line relic to force line 2. Then the rest of the visible path should stay on the dual-crit side.'}
+                helperText={null}
               />
             )}
           </div>
@@ -720,6 +816,16 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-rose-200 transition-all hover:bg-rose-500/20"
                 >
                   Next: Level 2
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+              {isLevelTwo && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/tutorial/level-3')}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-rose-200 transition-all hover:bg-rose-500/20"
+                >
+                  Next: Level 3
                   <ChevronRight className="h-4 w-4" />
                 </button>
               )}
