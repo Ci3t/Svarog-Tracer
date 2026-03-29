@@ -1,13 +1,6 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { gsap } from "gsap";
-import { analyze2strWave } from "../../utils/kiyoPrefixWave";
-
-// The 3 unique ways to split {41,42,43,44} into 2 pairs
-const PAIRINGS = [
-  { key: "41/44",  name: "Outer/Inner", sideAName: "Outer", sideBName: "Inner", sideA: ["41","44"], sideB: ["42","43"] },
-  { key: "42/44",  name: "Odd/Even",   sideAName: "Even",  sideBName: "Odd",   sideA: ["42","44"], sideB: ["41","43"] },
-  { key: "43/44",  name: "Low/High",   sideAName: "High",  sideBName: "Low",   sideA: ["43","44"], sideB: ["41","42"] },
-];
+import { getWaveAndTableSignals, TABLE_PAIRINGS as PAIRINGS } from "../../utils/kiyo2strSignals";
 const Y_TO_KEY = { "12": "43/44", "13": "42/44", "14": "41/44" };
 
 function getGroup(twoStr, pairing) {
@@ -52,52 +45,11 @@ export default function WavePairingTable({ pairingViz, combinedRolls }) {
 
   const lockedPairingRef = useRef(null);
 
-  // TABLE key → wave pairing name (for tiebreaker hint)
-  const TABLE_TO_WAVE = {
-    '43/44': 'Low/High',
-    '42/44': 'Odd/Even',
-    '41/44': 'Outer/Inner',
-  };
-
-  // Compute TABLE's preferred pairing BEFORE calling analyze2strWave
-  // (no wave2 dependency — avoids circular dep)
-  const tablePreferredKey = useMemo(() => {
-    const recentRolls = pairingViz
-      .map(r => r.roll?.slice(0, 2))
-      .filter(r => ['41','42','43','44'].includes(r));
-    if (recentRolls.length < 3) return null;
-    const colStats = PAIRINGS.map(p => {
-      const sides = recentRolls.map(r =>
-        p.sideA.includes(r) ? 'A' : p.sideB.includes(r) ? 'B' : null
-      );
-      const firstValid = sides.find(s => s !== null);
-      let streakLen = 0;
-      if (firstValid) {
-        for (const s of sides) {
-          if (s === firstValid) streakLen++;
-          else if (s !== null) break;
-        }
-      }
-      const total = recentRolls.length;
-      const aCount = recentRolls.filter(r => p.sideA.includes(r)).length;
-      const domPct = total > 0 ? Math.round(Math.max(aCount, total - aCount) / total * 100) : 0;
-      return { key: p.key, streakLen, domPct };
-    });
-    const withStreak = colStats
-      .filter(s => s.streakLen >= 4)
-      .sort((a, b) => b.streakLen - a.streakLen || b.domPct - a.domPct);
-    const bestByDom = [...colStats].sort((a, b) => b.domPct - a.domPct)[0];
-    return (withStreak[0] ?? bestByDom)?.key ?? null;
-  }, [pairingViz]);
-
-  const wave2 = useMemo(() =>
-    analyze2strWave(
-      (combinedRolls || [...pairingViz].reverse().map(r => r.row?.roll || r.roll)).filter(Boolean),
-      lockedPairingRef.current,
-      tablePreferredKey ? TABLE_TO_WAVE[tablePreferredKey] : null   // ← TABLE hint
-    ),
-    [combinedRolls, pairingViz, tablePreferredKey]
-  );
+  const signalBundle = useMemo(() => {
+    const sessionRolls = (combinedRolls || [...pairingViz].reverse().map(r => r.row?.roll || r.roll)).filter(Boolean);
+    return getWaveAndTableSignals(sessionRolls, lockedPairingRef.current);
+  }, [combinedRolls, pairingViz]);
+  const wave2 = signalBundle?.waveSnapshot ?? null;
 
   useEffect(() => {
     if (wave2 && wave2.pairingConfidence >= 0.55 && !wave2.isAmbiguous) {
@@ -105,64 +57,9 @@ export default function WavePairingTable({ pairingViz, combinedRolls }) {
     }
   }, [wave2]);
 
-  const { activePairingKey, tableStreakInfo } = useMemo(() => {
-    const recentRolls = pairingViz
-      .map(r => r.roll?.slice(0, 2))
-      .filter(r => ["41","42","43","44"].includes(r));
-
-    const waveKey = wave2?.pairing
-      ? (Y_TO_KEY[[...wave2.pairing.pairA].sort().join("")] ?? null)
-      : null;
-
-    if (recentRolls.length < 3) {
-      return { activePairingKey: waveKey, tableStreakInfo: null };
-    }
-
-    const colStats = PAIRINGS.map(p => {
-      let aCount = 0, bCount = 0;
-      recentRolls.forEach(r => {
-        if (p.sideA.includes(r)) aCount++;
-        else if (p.sideB.includes(r)) bCount++;
-      });
-      const total = aCount + bCount;
-      const domPct = total > 0 ? Math.round(Math.max(aCount, bCount) / total * 100) : 0;
-
-      const sides = recentRolls.map(r =>
-        p.sideA.includes(r) ? 'A' : p.sideB.includes(r) ? 'B' : null
-      );
-      const firstValid = sides.find(s => s !== null);
-      let streakLen = 0;
-      if (firstValid) {
-        for (const s of sides) {
-          if (s === firstValid) streakLen++;
-          else if (s !== null) break;
-        }
-      }
-      const streakSide = firstValid;
-      const streakRolls = streakSide === 'A' ? p.sideA : p.sideB;
-      const streakLabel = streakSide === 'A'
-        ? p.sideA.join(' & ') : p.sideB.join(' & ');
-
-      // Identify the pairing name for streakSide
-      const activePairing = PAIRINGS.find(x => x.key === p.key);
-      const streakSideName = streakSide === 'A'
-        ? activePairing?.sideAName
-        : activePairing?.sideBName;
-
-      return { key: p.key, domPct, streakLen, streakSide, streakRolls, streakLabel, streakSideName, total };
-    });
-
-    const withStreak = colStats
-      .filter(s => s.streakLen >= 4)
-      .sort((a, b) => b.streakLen - a.streakLen || b.domPct - a.domPct);
-
-    const bestByStreak = withStreak[0] ?? null;
-    const bestByDom    = [...colStats].sort((a, b) => b.domPct - a.domPct)[0];
-    const chosenStat   = bestByStreak ?? bestByDom;
-    const activeKey    = chosenStat?.key ?? waveKey;
-
-    return { activePairingKey: activeKey, tableStreakInfo: chosenStat };
-  }, [pairingViz, wave2]);
+  const activePairingKey = signalBundle?.table?.activeKey
+    ?? (wave2?.pairing ? (Y_TO_KEY[[...wave2.pairing.pairA].sort().join("")] ?? null) : null);
+  const tableStreakInfo = signalBundle?.table?.chosenStat ?? null;
 
   const rows = useMemo(() => {
     const result = [];

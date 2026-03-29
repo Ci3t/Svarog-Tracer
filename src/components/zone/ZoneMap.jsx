@@ -5,6 +5,8 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
+  Heart,
+  Type,
   X
 } from 'lucide-react';
 import { 
@@ -16,6 +18,7 @@ import {
   buildZoneVariantKey,
   formatRate
 } from '../../hooks/useZoneTracker';
+import { findCavernById } from '../../constants/caverns';
 
 function CharacterAvatar({ character, fallbackLabel, sizeClass = 'w-11 h-11', labelClass = 'text-[10px]' }) {
   const initials = String(character?.name || fallbackLabel || '?').trim().slice(0, 1).toUpperCase() || '?';
@@ -39,6 +42,29 @@ function CharacterAvatar({ character, fallbackLabel, sizeClass = 'w-11 h-11', la
   );
 }
 
+function getRegionTag(region) {
+  const normalized = String(region || '').trim().toLowerCase();
+  if (normalized === 'europe') return 'EU';
+  if (normalized === 'america') return 'NA';
+  if (normalized === 'asia') return 'ASIA';
+  return normalized ? normalized.toUpperCase() : 'UNK';
+}
+
+function sanitizeDisplayedZoneNote(note) {
+  return String(note || '')
+    .replace(/\[zt_[^\]]+\]\s*/gi, '')
+    .trim();
+}
+
+function normalizeDisplayedMainStat(value) {
+  return String(value || '').trim();
+}
+
+function formatMainStatPercent(count, total) {
+  if (!total) return '0%';
+  return `${Math.round((Number(count || 0) / Number(total || 1)) * 100)}%`;
+}
+
 export default function ZoneMap({
   mapRef,
   workspaceView,
@@ -48,6 +74,8 @@ export default function ZoneMap({
   showMapFilters,
   setShowMapFilters,
   mapData,
+  zoneFontScale,
+  setZoneFontScale,
   isRelicTargetMode,
   mapTargetFilter,
   mapRegion,
@@ -93,11 +121,13 @@ export default function ZoneMap({
   handleLoadZoneTeam,
   fetchVariantsForZone,
   variantLoadingZoneKey,
+  zoneLikeLoadingKey,
   manualVariantPayload,
   zones,
   signalMetricLabel,
   requestedEpoch,
   handleReportZoneCard,
+  handleZoneLikeToggle,
   handleAdminDeleteZone,
   handleAdminEditZone,
   adminActionLoadingKey,
@@ -115,6 +145,8 @@ export default function ZoneMap({
   setSuccess,
 }) {
   const [variantPages, setVariantPages] = useState({});
+  const [mapUserFilter, setMapUserFilter] = useState('all');
+  const [mapCavernFilter, setMapCavernFilter] = useState('all');
   const characterList = useMemo(() => {
     return Array.from(charactersByNumId?.values?.() || []).sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
   }, [charactersByNumId]);
@@ -143,8 +175,65 @@ export default function ZoneMap({
         }
       }
     });
-    return Object.values(groups);
+    return Object.values(groups).sort((a, b) => {
+      if ((b.like_count ?? 0) !== (a.like_count ?? 0)) return (b.like_count ?? 0) - (a.like_count ?? 0);
+      if ((b.target_rate ?? -1) !== (a.target_rate ?? -1)) return (b.target_rate ?? -1) - (a.target_rate ?? -1);
+      if ((b.crit_rate ?? -1) !== (a.crit_rate ?? -1)) return (b.crit_rate ?? -1) - (a.crit_rate ?? -1);
+      return (b.runs ?? 0) - (a.runs ?? 0);
+    });
   }, [zones]);
+  const userOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        groupedZones
+          .map((zone) => String(zone?.latest_reporter_name || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [groupedZones]);
+  const cavernOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        groupedZones
+          .map((zone) => String(findCavernById(zone?.dominant_cavern)?.name || zone?.dominant_cavern || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [groupedZones]);
+  const visibleZones = useMemo(() => {
+    return groupedZones.filter((zone) => {
+      const reporterName = String(zone?.latest_reporter_name || '').trim();
+      const cavernName = String(findCavernById(zone?.dominant_cavern)?.name || zone?.dominant_cavern || '').trim();
+      if (mapUserFilter !== 'all' && reporterName !== mapUserFilter) return false;
+      if (mapCavernFilter !== 'all' && cavernName !== mapCavernFilter) return false;
+      return true;
+    });
+  }, [groupedZones, mapUserFilter, mapCavernFilter]);
+
+  const fontScaleClass = zoneFontScale >= 1.1
+    ? {
+        meta: 'text-[11px]',
+        small: 'text-[10px]',
+        tiny: 'text-[9px]',
+        body: 'text-base',
+        big: 'text-[2rem]',
+      }
+    : zoneFontScale <= 0.95
+      ? {
+          meta: 'text-[9px]',
+          small: 'text-[8px]',
+          tiny: 'text-[7px]',
+          body: 'text-xs',
+          big: 'text-[1.35rem]',
+        }
+      : {
+          meta: 'text-[10px]',
+          small: 'text-[9px]',
+          tiny: 'text-[8px]',
+          body: 'text-sm',
+          big: 'text-2xl',
+        };
+  const zoneCardStyle = { zoom: zoneFontScale };
 
   return (
     <div ref={mapRef} className={workspaceView === 'zones' ? 'space-y-8' : 'hidden'}>
@@ -185,6 +274,23 @@ export default function ZoneMap({
             <p className="text-lg font-black text-indigo-300">{mapData?.total_runs ?? 0} <span className="text-[10px] text-slate-600">REPORTS</span></p>
             <p className="text-[9px] font-black tracking-widest text-slate-500">{isRelicTargetMode ? `TARGET ${String(mapTargetFilter?.label || 'Custom').toUpperCase()}` : `AVG DROP ${formatDropScore(mapData?.epoch_summary?.avg_drop_score)}`}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="mx-2 flex items-center justify-end gap-3">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
+          <Type className="h-3.5 w-3.5 text-slate-400" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Card Font</span>
+          <input
+            type="range"
+            min="0.9"
+            max="1.15"
+            step="0.05"
+            value={zoneFontScale}
+            onChange={(event) => setZoneFontScale(Number(event.target.value))}
+            className="w-24 accent-cyan-400"
+          />
+          <span className="w-9 text-right text-[9px] font-black text-cyan-200">{Math.round(zoneFontScale * 100)}%</span>
         </div>
       </div>
 
@@ -311,6 +417,38 @@ export default function ZoneMap({
         <p className="text-[10px] text-slate-500">
           Edit your saved owned roster from Relic Log inside the Team Assembly picker, then use it here with `Use Owned Roster`.
         </p>
+
+        <div className="pt-2 border-t border-slate-800/60 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card Filters</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            <label className="space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">User</span>
+              <select
+                value={mapUserFilter}
+                onChange={(event) => setMapUserFilter(event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-200 outline-none focus:border-slate-500"
+              >
+                <option value="all">All Users</option>
+                {userOptions.map((name) => (
+                  <option key={`zone-user-${name}`} value={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Cavern</span>
+              <select
+                value={mapCavernFilter}
+                onChange={(event) => setMapCavernFilter(event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-200 outline-none focus:border-slate-500"
+              >
+                <option value="all">All Caverns</option>
+                {cavernOptions.map((name) => (
+                  <option key={`zone-cavern-${name}`} value={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
 
         <div className="pt-2 border-t border-slate-800/60 space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -482,19 +620,24 @@ export default function ZoneMap({
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {zones.length === 0 ? (
+        {visibleZones.length === 0 ? (
           <div className="theme-glass-card p-20 text-center border-dashed border-slate-800">
             <BarChart3 className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No coverage data for this combination.</p>
-            <p className="text-[10px] text-slate-600 mt-2 font-bold italic">Switch region or drop target to scan different datasets.</p>
+            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No zone cards match these filters.</p>
+            <p className="text-[10px] text-slate-600 mt-2 font-bold italic">Try another user, another cavern, or widen the map filters.</p>
           </div>
         ) : (
           <div className={zoneCardView === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 XL:grid-cols-4 gap-6" : "space-y-4"}>
-            {groupedZones.map((zone) => {
+            {visibleZones.map((zone) => {
                 const zoneKey = buildZoneVariantKey(zone);
                 const isEditingZone = buildZoneVariantKey(adminEditModalZone) === zoneKey;
                 const isLoadingVar = variantLoadingZoneKey === zoneKey;
                 const hasVariants = Boolean(variantsByZone[zoneKey]);
+                const likeCount = Number(zone?.like_count ?? 0);
+                const viewerLiked = Boolean(zone?.viewer_liked);
+                const cavernName = findCavernById(zone?.dominant_cavern)?.name || zone?.dominant_cavern || 'Unknown Cavern';
+                const regionTag = getRegionTag(zone?.dominant_region);
+                  const noteText = sanitizeDisplayedZoneNote(zone?.latest_note);
                 
                 // Process card details
                 const sampleTeam = Array.isArray(zone.sample_slot_order) ? zone.sample_slot_order : [];
@@ -502,55 +645,87 @@ export default function ZoneMap({
                 const sampleNames = sampleCharacters
                   .map((char, index) => char?.name || zone.char_names?.[index] || `#${sampleTeam[index]}`)
                   .filter(Boolean);
-                const sampleRelics = Array.isArray(zone.aggregated_relics) ? zone.aggregated_relics : [];
+                const sampleRelics = Array.isArray(zone?.aggregated_relics)
+                  ? zone.aggregated_relics
+                  : (Array.isArray(zone?.sample_relic_data?.relics) ? zone.sample_relic_data.relics : []);
                 const cardSubstatFreq = {};
+                const mainStatFreq = {};
+                let mainStatSampleCount = 0;
                 sampleRelics.forEach(r => {
+                  const piece = String(r?.piece || '').trim();
+                  const mainStat = normalizeDisplayedMainStat(r?.main_stat);
+                  if (mainStat && !['Head', 'Hands'].includes(piece)) {
+                    mainStatFreq[mainStat] = (mainStatFreq[mainStat] || 0) + 1;
+                    mainStatSampleCount += 1;
+                  }
                   if (Array.isArray(r.substats)) {
                     r.substats.forEach(s => {
                       cardSubstatFreq[s] = (cardSubstatFreq[s] || 0) + 1;
                     });
                   }
                 });
+                const topMainStats = Object.entries(mainStatFreq)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 2);
                 const top4Stats = Object.entries(cardSubstatFreq)
                   .sort((a, b) => b[1] - a[1])
                   .slice(0, 4);
 
                 return (
-                  <div key={zoneKey} className="zone-card theme-glass-card border-slate-800/60 overflow-hidden group transition-all duration-500 hover:border-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/10 flex flex-col">
+                  <div key={zoneKey} style={zoneCardStyle} className="zone-card theme-glass-card border-slate-800/60 overflow-hidden group transition-all duration-500 hover:border-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/10 flex flex-col">
                     {/* Top: Stats Header */}
                     <div className={`p-4 bg-slate-900/60 border-b border-slate-800/40 ${zoneCardView === 'list' ? 'pb-3' : ''}`}>
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-start justify-between mb-3 gap-3">
                          <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase">Zone {zone.char_xor} / Slot {zone.char_slot}</span>
-                              <span className="text-[8px] font-mono text-slate-600 bg-slate-950/40 px-1 rounded border border-slate-800/40" title="Report UID">UID: {zone.id?.toString().slice(-8) || zone.xor_slot_key?.slice(0, 8) || 'N/A'}</span>
+                              <span className={`${fontScaleClass.meta} font-black text-indigo-400 tracking-tighter uppercase`}>Zone {zone.char_xor} / Slot {zone.char_slot}</span>
+                              <span className={`${fontScaleClass.tiny} font-mono text-slate-600 bg-slate-950/40 px-1 rounded border border-slate-800/40`} title="Report UID">UID: {zone.id?.toString().slice(-8) || zone.xor_slot_key?.slice(0, 8) || 'N/A'}</span>
                             </div>
-                            {zone.latest_reporter_name && (
-                              <div className="flex items-center gap-1">
-                                <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[7px] font-black text-indigo-300 uppercase tracking-widest">{zone.latest_reporter_name}</span>
-                              </div>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {zone.latest_reporter_name ? (
+                                <span className={`${fontScaleClass.tiny} px-1.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 font-black text-indigo-300 uppercase tracking-widest`}>{zone.latest_reporter_name}</span>
+                              ) : null}
+                              <span className={`${fontScaleClass.tiny} px-1.5 py-0.5 rounded-md bg-slate-950/80 border border-slate-800/60 font-black text-cyan-200 uppercase tracking-widest`}>{regionTag}</span>
+                              <span className={`${fontScaleClass.tiny} px-1.5 py-0.5 rounded-md bg-slate-950/80 border border-slate-800/60 font-black text-amber-200 uppercase tracking-widest truncate max-w-[180px]`} title={cavernName}>{cavernName}</span>
+                            </div>
                          </div>
-                         <span className="px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/60 text-[8px] font-mono text-slate-400 uppercase shadow-inner">SUM {zone.char_sum || 'NA'}</span>
+                         <div className="flex flex-col items-end gap-2">
+                           <span className={`${fontScaleClass.tiny} px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/60 font-mono text-slate-400 uppercase shadow-inner`}>Team {zone.char_sum || 'NA'}</span>
+                           <button
+                             type="button"
+                             onClick={() => handleZoneLikeToggle(zone)}
+                             disabled={zoneLikeLoadingKey === zoneKey}
+                             className={viewerLiked ? `${fontScaleClass.small} inline-flex items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/15 px-2.5 py-1 font-black uppercase tracking-widest text-rose-100 disabled:opacity-60 cursor-pointer` : `${fontScaleClass.small} inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950/70 px-2.5 py-1 font-black uppercase tracking-widest text-slate-300 hover:border-rose-500/35 hover:text-rose-100 disabled:opacity-60 cursor-pointer`}
+                           >
+                             <Heart className={`h-3.5 w-3.5 ${viewerLiked ? 'fill-current' : ''}`} />
+                             {zoneLikeLoadingKey === zoneKey ? '...' : `${likeCount}`}
+                           </button>
+                         </div>
                       </div>
                     <div className="flex items-end justify-between">
                        <div>
-                         <p className="text-[9px] font-black text-slate-500 uppercase leading-none tracking-widest">{signalMetricLabel}</p>
-                         <p className="text-2xl font-black text-white leading-none mt-1 shadow-glow">{formatRate(zone.crit_rate ?? zone.observed_crit_rate ?? zone.target_rate)}</p>
+                         <p className={`${fontScaleClass.small} font-black text-slate-500 uppercase leading-none tracking-widest`}>{signalMetricLabel}</p>
+                         <p className={`${fontScaleClass.big} font-black text-white leading-none mt-1 shadow-glow`}>{formatRate(zone.crit_rate ?? zone.observed_crit_rate ?? zone.target_rate)}</p>
                        </div>
                        <div className="text-right">
-                         <p className="text-[9px] font-black text-slate-500 uppercase leading-none tracking-widest">Reports</p>
-                         <p className="text-lg font-black text-slate-300 leading-none mt-1">{zone.runs}</p>
+                         <p className={`${fontScaleClass.small} font-black text-slate-500 uppercase leading-none tracking-widest`}>Reports</p>
+                         <p className={`${fontScaleClass.body} font-black text-slate-300 leading-none mt-1`}>{zone.runs}</p>
                        </div>
                     </div>
+                    {zoneCardView === 'grid' && noteText ? (
+                      <div className="mt-3 rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Note</p>
+                        <p className={`${fontScaleClass.small} mt-1 text-slate-300 leading-relaxed break-words`}>{noteText}</p>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Team & Substats Section */}
                   {zoneCardView === 'grid' ? (
-                    <div className="px-4 py-4 border-b border-slate-800/20 bg-slate-950/20 grid grid-cols-[1fr_auto] items-center gap-6">
-                      {/* Team Mini View */}
-                      <div className="space-y-3">
-                        <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Sample Squad</p>
+                      <div className="px-4 py-4 border-b border-slate-800/20 bg-slate-950/20 grid grid-cols-[1fr_auto] items-center gap-6">
+                        {/* Team Mini View */}
+                        <div className="space-y-3">
+                          <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Sample Squad</p>
                         <div className="flex -space-x-2">
                           {sampleTeam.map((id, i) => {
                             const char = sampleCharacters[i];
@@ -563,24 +738,43 @@ export default function ZoneMap({
                         </div>
                       </div>
 
-                      {/* Substats Mini View */}
-                      <div className="space-y-3 text-right">
-                         <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Reported Subs</p>
-                         <div className="flex flex-col gap-1.5 items-end">
-                            {top4Stats.map(([stat, count]) => (
-                              <div key={stat} className="flex items-center gap-2 group/stat">
-                                <span className="px-2 py-0.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-black text-cyan-300 uppercase tracking-tighter shadow-sm group-hover/stat:bg-cyan-500/20 transition-all">
-                                  {stat}
-                                </span>
-                              </div>
-                            ))}
-                         </div>
+                        <div className="space-y-3 text-right">
+                          <div className="space-y-2">
+                            <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Avg Main Stats</p>
+                            <div className="flex flex-col gap-1.5 items-end">
+                              {topMainStats.length > 0 ? topMainStats.map(([stat, count]) => (
+                                <div key={`main-${stat}`} className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-[9px] font-black text-violet-200 uppercase tracking-tighter">
+                                    {stat}
+                                  </span>
+                                  <span className="text-[9px] font-black text-violet-300 min-w-[36px] text-right">
+                                    {formatMainStatPercent(count, mainStatSampleCount)}
+                                  </span>
+                                </div>
+                              )) : (
+                                <span className="text-[9px] text-slate-600 italic">No main stat data</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="h-px bg-slate-800/60" />
+                          <div className="space-y-2">
+                            <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Reported Subs</p>
+                            <div className="flex flex-col gap-1.5 items-end">
+                              {top4Stats.map(([stat, count]) => (
+                                <div key={stat} className="flex items-center gap-2 group/stat">
+                                  <span className="px-2 py-0.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-black text-cyan-300 uppercase tracking-tighter shadow-sm group-hover/stat:bg-cyan-500/20 transition-all">
+                                    {stat}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="px-4 py-4 border-b border-slate-800/20 bg-slate-950/20">
-                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_220px] xl:items-center">
-                        <div className="min-w-0 space-y-3">
+                    ) : (
+                    <div className="px-4 py-3 border-b border-slate-800/20 bg-slate-950/20">
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] xl:items-start">
+                        <div className="min-w-0 space-y-2.5">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="flex -space-x-3 shrink-0">
                               {sampleTeam.map((id, i) => (
@@ -594,15 +788,35 @@ export default function ZoneMap({
                               ))}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Sample Squad</p>
-                              <p className="text-sm font-black text-slate-100 truncate">{sampleNames.join(' / ') || 'Unknown Squad'}</p>
-                              <p className="text-[10px] text-slate-500 mt-1">
+                              <p className={`${fontScaleClass.tiny} font-black text-slate-600 uppercase tracking-widest`}>Sample Squad</p>
+                              <p className={`${fontScaleClass.body} font-black text-slate-100 truncate`}>{sampleNames.join(' / ') || 'Unknown Squad'}</p>
+                              <p className={`${fontScaleClass.small} text-slate-500 mt-1`}>
                                 {Array.isArray(zone.reporter_names) && zone.reporter_names.length > 0
                                   ? `${zone.reporter_names.length} reporters tracked`
                                   : 'Single report sample'}
                               </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/60 text-[9px] font-black text-cyan-200 uppercase">{regionTag}</span>
+                                <span className="px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/60 text-[9px] font-black text-amber-200 uppercase truncate max-w-[220px]" title={cavernName}>{cavernName}</span>
+                              </div>
                             </div>
                           </div>
+                          <div className="rounded-2xl border border-violet-500/10 bg-slate-950/40 px-4 py-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[8px] font-black uppercase tracking-widest text-violet-200/80">Avg Main Stats</p>
+                              <span className="text-[8px] text-slate-500">Body / Feet / Orb / Rope</span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {topMainStats.length > 0 ? topMainStats.map(([stat, count]) => (
+                                <span key={`list-main-${zoneKey}-${stat}`} className="px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-[10px] font-black text-violet-100">
+                                  {stat} <span className="text-violet-300">{formatMainStatPercent(count, mainStatSampleCount)}</span>
+                                </span>
+                              )) : (
+                                <span className="text-[10px] text-slate-600 italic">No main stat data available for this squad.</span>
+                              )}
+                            </div>
+                          </div>
+
                           <div className="flex flex-wrap gap-2">
                             {top4Stats.length > 0 ? top4Stats.map(([stat, count]) => (
                               <span key={`list-stat-${zoneKey}-${stat}`} className="px-2.5 py-1 rounded-lg bg-slate-950/70 border border-slate-800/60 text-[10px] font-black text-cyan-200">
@@ -612,10 +826,16 @@ export default function ZoneMap({
                               <span className="text-[10px] text-slate-600 italic">No substat data available for this squad.</span>
                             )}
                           </div>
-                        </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-2xl border border-slate-800/60 bg-slate-950/50 px-4 py-3">
+                          {noteText ? (
+                            <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2">
+                              <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Note</p>
+                              <p className={`${fontScaleClass.small} mt-1 text-slate-300 break-words`}>{noteText}</p>
+                            </div>
+                          ) : null}
+
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-slate-800/60 bg-slate-950/50 px-4 py-3">
                             <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Batch Average</p>
                             <p className="mt-2 text-sm font-black text-white">{formatRate(zone.crit_rate ?? zone.observed_crit_rate ?? zone.target_rate)}</p>
                             <p className="mt-1 text-[10px] text-slate-500">{signalMetricLabel}</p>
@@ -626,8 +846,9 @@ export default function ZoneMap({
                             <p className="mt-1 text-[10px] text-slate-500">{zone.latest_reporter_name ? `Latest by ${zone.latest_reporter_name}` : 'Community sample set'}</p>
                           </div>
                         </div>
+                        </div>
 
-                        <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+                        <div className="grid grid-cols-2 gap-2 self-center">
                           <button onClick={() => handleReportZoneCard(zone)} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:border-slate-600 hover:text-slate-200 transition-all cursor-pointer">Report</button>
                           <button onClick={() => handleLoadZoneTeam(zone)} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:border-indigo-500/40 hover:text-indigo-200 transition-all cursor-pointer">Load Team</button>
                           {adminEligible && adminModeEnabled ? (
@@ -664,10 +885,32 @@ export default function ZoneMap({
                   <div className={`p-5 flex-1 ${zoneCardView === 'list' ? 'py-4' : ''}`}>
                     {zoneCardView === 'grid' ? (
                       <>
-                        <div className="space-y-4 mb-6">
-                          <div className="flex items-center justify-between border-b border-slate-800/40 pb-2">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Batch Average</p>
+                          <div className="space-y-4 mb-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between border-b border-violet-500/10 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[9px] font-black text-violet-200/80 uppercase tracking-widest">Average Main Stats</p>
+                                  <span className="text-[8px] font-bold text-slate-600 bg-slate-900 border border-slate-800/40 px-1.5 py-0.5 rounded uppercase">Top 2</span>
+                                </div>
+                                <span className="text-[8px] text-slate-500">Body / Feet / Orb / Rope</span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                {topMainStats.map(([stat, count]) => (
+                                  <div key={`grid-main-${zoneKey}-${stat}`} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-violet-500/8 border border-violet-500/15 shadow-inner">
+                                    <span className="text-[9px] font-black text-violet-100 uppercase tracking-tighter truncate pr-2">{stat}</span>
+                                    <span className="text-xs font-bold text-violet-300">{formatMainStatPercent(count, mainStatSampleCount)}</span>
+                                  </div>
+                                ))}
+                                {topMainStats.length === 0 && (
+                                  <p className="col-span-2 text-[9px] text-slate-600 italic py-2 text-center">No main stat data available for this squad</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between border-b border-slate-800/40 pb-2">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Batch Average</p>
                               <span className="text-[8px] font-bold text-slate-700 bg-slate-900 border border-slate-800/40 px-1.5 py-0.5 rounded uppercase">Top 4 Stats</span>
                             </div>
                             <div className="flex -space-x-2">
@@ -851,14 +1094,16 @@ export default function ZoneMap({
         )}
       </div>
 
+      {loadingMap ? (
       <div className="flex items-center justify-center pt-8">
         <div className="flex flex-col items-center gap-4 py-8 px-12 rounded-[2rem] bg-slate-950/30 border border-slate-800/40 backdrop-blur-sm">
-           <RefreshCw className={`w-8 h-8 text-indigo-500/40 ${loadingMap ? 'animate-spin opacity-100' : 'opacity-30'}`} />
+           <RefreshCw className="w-8 h-8 animate-spin text-indigo-500/40 opacity-100" />
            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
-             {loadingMap ? 'Updating Matrix...' : 'Matrix Synchronized'}
+             Updating Matrix...
            </p>
         </div>
       </div>
+      ) : null}
 
       {showAdminWipeAllModal ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">

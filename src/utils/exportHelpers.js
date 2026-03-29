@@ -19,43 +19,6 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
   const logs2str = [...debugLogs].reverse().filter(log => log.kind === '2');
   const logs4str = [...debugLogs].reverse().filter(log => log.kind === '4');
 
-  // Helper to format a single log entry
-  const formatLog = (log) => {
-    const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
-    const kind = log.kind || '?';
-    const pred = log.prediction || '—';
-    const actual = log.actual || '—';
-    const conf = Math.round((log.confidence || 0) * 100);
-    const alt = log.alt || '';
-    const mode = log.mode || 'unknown';
-    const pattern = log.pattern?.name || log.pattern?.pattern || log.pattern || '';
-    const dist = log.distribution ? formatDistribution(log.distribution) : '';
-    const ctx = log.ctx ? (Array.isArray(log.ctx) ? log.ctx.join(', ') : log.ctx) : '';
-    const isCorrect = pred === actual || pred === actual.slice(0, pred.length);
-    const status = isCorrect ? '✅' : `❌ ${log.status || 'MISS'}`;
-    const streak = log.streak ? `Streak: ${log.streak}` : '';
-    const last5 = log.last5 || '';
-    
-    // Enhanced with commons and noise
-    const commons = log.commons ? `Commons: [${log.commons.join(', ')}]` : '';
-    const noise = log.noise ? `Noise: [${log.noise.join(', ')}]` : '';
-    
-    let line = `[${time}] ${kind}-str → pred: ${pred} (${conf}%)`;
-    if (alt) line += ` | alt: ${alt}`;
-    if (mode) line += ` | mode: ${mode}`;
-    if (pattern) line += ` | Pattern: ${pattern}`;
-    if (dist) line += ` | Dist: ${dist}`;
-    line += ` | ${status}`;
-    if (streak) line += ` | ${streak}`;
-    if (last5) line += ` | Last5: ${last5}`;
-    line += ` | actual: ${actual}`;
-    if (ctx) line += ` | ctx: ${ctx}`;
-    if (commons) line += ` | ${commons}`;
-    if (noise) line += ` | ${noise}`;
-    
-    return line;
-  };
-
   const formatDistribution = (dist) => {
     if (typeof dist !== 'object') return '';
     return Object.entries(dist)
@@ -66,289 +29,188 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(',');
   };
 
-  // NEW: Live Tracking (2-str) Section with commons, noise, trends
-  if (entries && entries.length >= 6) {
-    content += '--- Live Tracking (2-str) ---\n';
-    const rolls = entries
-      .map(e => (e.translated || '').slice(0, 2))
-      .filter(r => r && r.length === 2);
-    
-    if (rolls.length >= 6) {
-      const pairData = predictWithPairs(rolls);
-      const time = new Date().toLocaleTimeString();
-      content += `[${time}] Commons: [${pairData.commons?.join(', ') || '—'}] | Noise: [${pairData.noise?.join(', ') || '—'}] | Trend: ${formatTrendsForExport(pairData.trends)}\n`;
-      content += `         Distribution: ${Object.entries(pairData.distribution || {}).map(([k,v]) => `${k}:${v}%`).join(', ')}\n\n`;
-    }
-  }
-
-  // NEW: Pair Predictor (Experimental) Section
-  if (entries && entries.length >= 6) {
-    content += '--- Pair Predictor (Experimental) ---\n';
-    const rolls = entries
-      .map(e => (e.translated || '').slice(0, 2))
-      .filter(r => r && r.length === 2);
-    
-    if (rolls.length >= 6) {
-      const pairData = predictWithPairs(rolls);
-      const time = new Date().toLocaleTimeString();
-      content += `[${time}] Pair pred: ${pairData.pairPrediction || '—'} | Freq pred: ${pairData.freqPrediction || '—'} | Used: ${pairData.method} (flipProb: ${pairData.waveSignals?.waveFlipProbability || 0}%)\n`;
-      content += `         ${formatWaveSignalsForExport(pairData.waveSignals)} | Matrix[${pairData.lastRoll}→]: ${formatPairRowForExport(pairData.pairMatrix, pairData.lastRoll)}\n\n`;
-    }
-  }
-
-  // 2-str section
+  // =========================================================================
+  // 📋 INPUT TIMELINE — raw actuals only, clean reference
+  // =========================================================================
   if (logs2str.length > 0) {
-    content += '--- 2-str ---\n';
+    content += '--- 📋 Input Timeline (2-str) ---\n';
+    content += '(Raw actuals — newest first)\n\n';
     logs2str.forEach(log => {
-      content += formatLog(log) + '\n\n';
+      const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
+      const actual = log.actual || '—';
+      const ctx = log.ctx ? (Array.isArray(log.ctx) ? log.ctx.slice(-4).join(', ') : log.ctx) : '';
+      content += `[${time}] actual: ${actual}  ←  last 4 ctx: [${ctx}]\n`;
     });
+    content += '\n';
   }
 
   // =========================================================================
-  // 🎯 MAIN PREDICTOR (Pair Matrix + Momentum + Wave)
-  // Re-run predictWithPairs on each log's context to show what it would predict
+  // 🎯 PREDICTOR LOG — single source of truth per entry
+  // One predictWithPairs(log.ctx) call per roll.
+  // All fields come from the same function call on the same snapshot.
   // =========================================================================
   if (logs2str.length > 0) {
-    content += '\n--- 🎯 MAIN PREDICTOR (Pair Matrix) ---\n';
-    content += '(Replaying each roll with predictor)\n\n';
-    
-    let expHits = 0;
-    let expTop2 = 0;
-    let expTotal = 0;
-    
+    content += '--- 🎯 Predictor Log ---\n';
+    content += '(All data from one predictWithPairs(ctx) call per entry)\n\n';
+
+    let hits = 0;
+    let top2 = 0;
+    let total = 0;
+    const methodStats = {};
+    let analyzerHits = 0;
+    let analyzerTop2 = 0;
+
     logs2str.forEach(log => {
-      // Get the context (rolls before this prediction)
       const ctx = log.ctx;
-      const actualRoll = log.actual;
-      
-      if (ctx && Array.isArray(ctx) && ctx.length >= 6) {
-        const rolls = ctx.map(r => String(r));
-        const expData = predictWithPairs(rolls);
-        
-        const expPred = expData.prediction;
-        const expAlt = expData.alt;
-        const expMethod = expData.method;
-        const expConf = Math.round((expData.confidence || 0) * 100);
-        
-        const isHit = expPred === actualRoll;
-        const isAltHit = expAlt === actualRoll;
-        const status = isHit ? '✅ HIT' : (isAltHit ? '⚡ ALT-HIT' : '❌ MISS');
-        
-        if (isHit) expHits++;
-        if (isHit || isAltHit) expTop2++;
-        expTotal++;
-        
-        const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
-        
-        // Clear, noticeable format
-        content += `[${time}] 🧪 EXP → pred: ${expPred} (${expConf}%) | alt: ${expAlt} | method: ${expMethod}\n`;
-        content += `         ↳ actual: ${actualRoll} | ${status}\n`;
-        // Beast Mode indicators
-        if (expData.noiseDoubleTapLikely) content += `         🔁 DOUBLE-TAP: Expecting ${expData.doubleTapValue} repeat!\n`;
-        if (expData.wasChange && expData.smartRunScores?.[expData.lastRoll] >= 1.2) content += `         📈 PAIR-EXPECT: Boosting ${expData.lastRoll}\n`;
-        if (expData.currentRunLen >= 3) content += `         ⚠️ LONG RUN: ${expData.lastRoll} x${expData.currentRunLen} - break likely\n`;
-        if (expData.momentumScores) {
-          const hotStr = Object.entries(expData.momentumScores).map(([v,s]) => `${v}:${s}`).join(',');
-          content += `         🔥 MOMENTUM: ${hotStr} | Hot: [${expData.hotValues?.join(',')}]\n`;
-        }
-        if (expData.lastSeen) {
-          const seenStr = Object.entries(expData.lastSeen).map(([v,n]) => `${v}:${n}`).join(',');
-          content += `         🔍 LAST-SEEN: ${seenStr} | Overdue: [${expData.overdueValues?.join(',') || 'none'}]\n`;
-        }
-        if (expData.isUncertain) content += `         ⚠️ UNCERTAIN (gap: ${expData.confidenceGap}%)\n`;
-        if (expData.isAlternating) content += `         🔄 ALTERNATING: ${expData.alternatingPair?.join('↔')}\n`;
-        if (expData.patternShifted) content += `         🔀 PATTERN SHIFT: ${expData.shiftedToValue} is rising!\n`;
-        if (expData.commonsFlipDetected) content += `         🔄 COMMONS FLIP: New commons [${expData.newCommons?.join(', ')}] (${expData.flipConfidence}%)\n`;
-        content += '\n';
-      }
-    });
-    
-    // Summary with TOP-2 RATE
-    const expAcc = expTotal > 0 ? Math.round((expHits / expTotal) * 100) : 0;
-    const expTop2Acc = expTotal > 0 ? Math.round((expTop2 / expTotal) * 100) : 0;
-    content += `--- PREDICTOR SUMMARY ---\n`;
-    content += `Hits (main):    ${expHits}/${expTotal} = ${expAcc}%\n`;
-    content += `Top-2 (±alt):   ${expTop2}/${expTotal} = ${expTop2Acc}%\n`;
-    content += `\n`;
-    content += `🎯 BBP ADAPTIVE: ${expTop2}/${expTotal} = ${expTop2Acc}% (hit main OR alt = valid)\n\n`;
+      const actual = log.actual;
+      if (!ctx || !Array.isArray(ctx) || ctx.length < 6) return;
 
-    // =========================================================================
-    // 🔄 KIYO vs BBP ADAPTIVE COMPARISON
-    // Run both predictors on same data and compare accuracy
-    // =========================================================================
-    content += '\n--- 🔄 PREDICTOR COMPARISON: KIYO vs BBP ADAPTIVE ---\n';
-    content += '(Running both predictors on same roll data)\n\n';
-    
-    let kiyoHits = 0;
-    let kiyoTop2 = 0;
-    let kiyoTotal = 0;
-    let liveWins = 0; // Cases where Live hit but Kiyo missed
-    let kiyoWins = 0; // Cases where Kiyo hit but Live missed
-    
-    logs2str.forEach((log, idx) => {
-      const ctx = log.ctx;
-      const actualRoll = log.actual;
-      
-      if (ctx && Array.isArray(ctx) && ctx.length >= 6) {
-        const rolls = ctx.map(r => String(r));
-        
-        // Run BBP ADAPTIVE predictor
-        const liveData = predictWithPairs(rolls);
-        const liveMain = liveData.prediction;
-        const liveAlt = liveData.alt;
-        const liveHit = liveMain === actualRoll;
-        const liveTop2Hit = liveMain === actualRoll || liveAlt === actualRoll;
-        
-        // Run KIYO predictor
-        const kiyoData = predictNext2BBPMode(rolls);
-        const kiyoMain = kiyoData.prediction;
-        const kiyoAlt = kiyoData.alt;
-        const kiyoHit = kiyoMain === actualRoll;
-        const kiyoTop2Hit = kiyoMain === actualRoll || kiyoAlt === actualRoll;
-        
-        if (kiyoHit) kiyoHits++;
-        if (kiyoTop2Hit) kiyoTop2++;
-        kiyoTotal++;
-        
-        // Track wins
-        if (liveTop2Hit && !kiyoTop2Hit) liveWins++;
-        if (kiyoTop2Hit && !liveTop2Hit) kiyoWins++;
-        
-        // Show comparison for each roll
-        const liveStatus = liveHit ? '✅' : (liveAlt === actualRoll ? '⚡' : '❌');
-        const kiyoStatus = kiyoHit ? '✅' : (kiyoAlt === actualRoll ? '⚡' : '❌');
-        
-        content += `[${idx + 1}] actual: ${actualRoll}\n`;
-        content += `     LIVE: ${liveMain}/${liveAlt} ${liveStatus} | KIYO: ${kiyoMain}/${kiyoAlt} ${kiyoStatus}\n`;
-      }
-    });
-    
-    // Comparison Summary
-    const kiyoAcc = kiyoTotal > 0 ? Math.round((kiyoHits / kiyoTotal) * 100) : 0;
-    const kiyoTop2Acc = kiyoTotal > 0 ? Math.round((kiyoTop2 / kiyoTotal) * 100) : 0;
-    
-    content += `\n--- COMPARISON SUMMARY ---\n`;
-    content += `                    BBP ADAPTIVE    vs    KIYO\n`;
-    content += `Main Hits:          ${expHits}/${expTotal} (${expAcc}%)         ${kiyoHits}/${kiyoTotal} (${kiyoAcc}%)\n`;
-    content += `Top-2:              ${expTop2}/${expTotal} (${expTop2Acc}%)         ${kiyoTop2}/${kiyoTotal} (${kiyoTop2Acc}%)\n`;
-    content += `\n`;
-    content += `🏆 WINNER: ${expTop2Acc > kiyoTop2Acc ? 'BBP ADAPTIVE' : (kiyoTop2Acc > expTop2Acc ? 'KIYO' : 'TIE')} (${Math.abs(expTop2Acc - kiyoTop2Acc)}% difference)\n`;
-    content += `LIVE caught what KIYO missed: ${liveWins} rolls\n`;
-    content += `KIYO caught what LIVE missed: ${kiyoWins} rolls\n\n`;
+      const rolls = ctx.map(r => String(r));
+      const data = predictWithPairs(rolls);
 
-    
-    // =========================================================================
-    // 📊 COMMONS SUB-PATTERN ANALYSIS
-    // =========================================================================
+      const pred = data.prediction;
+      const alt = data.alt;
+      const analyzerPred = data.analyzerPrediction;
+      const analyzerAlt = data.analyzerAlt;
+      const conf = Math.round((data.confidence || 0) * 100);
+      const method = data.method || 'unknown';
+      const commons = data.commons || [];
+      const noise = data.noise || [];
+      const dist = data.distribution || {};
+
+      const isHit = pred === actual;
+      const isAltHit = alt === actual;
+      const status = isHit ? '✅ HIT' : (isAltHit ? '⚡ ALT-HIT' : '❌ MISS');
+
+      if (isHit) hits++;
+      if (isHit || isAltHit) top2++;
+      total++;
+      if (analyzerPred === actual) analyzerHits++;
+      if (analyzerPred === actual || analyzerAlt === actual) analyzerTop2++;
+
+      if (!methodStats[method]) methodStats[method] = { hits: 0, top2: 0, total: 0 };
+      methodStats[method].total++;
+      if (isHit) methodStats[method].hits++;
+      if (isHit || isAltHit) methodStats[method].top2++;
+
+      const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
+      const distStr = formatDistribution(dist);
+
+      content += `[${time}] pred: ${pred} (${conf}%) | alt: ${alt} | method: ${method}\n`;
+      content += `         ↳ actual: ${actual} | ${status}\n`;
+      content += `         Commons: [${commons.join(', ')}] | Noise: [${noise.join(', ')}]\n`;
+      if (data.trustedPair?.length === 2) {
+        content += `         Pair: [${data.trustedPair.join(', ')}] | Safety: ${data.pairSafety || 'unknown'} | Noise risk: ${data.noiseRisk ?? 0}%\n`;
+        const analyzerPicks = [data.analyzerPrediction, data.analyzerAlt].filter((value, idx, arr) => value && arr.indexOf(value) === idx);
+        if (analyzerPicks.length > 0) {
+          content += `         Svarog Analyzer: [${analyzerPicks.join('] [')}] | exact-line lean only\n`;
+        }
+        if (data.freshOutsider?.value) {
+          content += `         Break pressure: ${data.freshOutsider.value} (${Math.round(data.freshOutsider.score)} pts) | Mixed window: ${data.mixedWindow ? 'yes' : 'no'}\n`;
+        }
+      }
+      if (distStr) content += `         Dist: ${distStr}\n`;
+      if (data.momentumScores) {
+        const hotStr = Object.entries(data.momentumScores).map(([v, s]) => `${v}:${s}`).join(', ');
+        content += `         🔥 Momentum: ${hotStr} | Hot: [${data.hotValues?.join(', ')}]\n`;
+      }
+      if (data.lastSeen) {
+        const seenStr = Object.entries(data.lastSeen).map(([v, n]) => `${v}:${n}`).join(', ');
+        content += `         🔍 Last-seen: ${seenStr} | Overdue: [${data.overdueValues?.join(', ') || 'none'}]\n`;
+      }
+      if (data.noiseDoubleTapLikely) content += `         🔁 DOUBLE-TAP: ${data.doubleTapValue} likely repeat\n`;
+      if (data.currentRunLen >= 3) content += `         ⚠️ LONG RUN: ${data.lastRoll} x${data.currentRunLen} — break likely\n`;
+      if (data.isAlternating) content += `         🔄 ALTERNATING: ${data.alternatingPair?.join('↔')}\n`;
+      if (data.patternShifted) content += `         🔀 PATTERN SHIFT: ${data.shiftedToValue} is rising\n`;
+      if (data.commonsFlipDetected) content += `         🔄 COMMONS FLIP: New commons [${data.newCommons?.join(', ')}] (${data.flipConfidence}%)\n`;
+      if (data.regime) content += `         📊 REGIME: ${data.regime}\n`;
+      content += '\n';
+    });
+
+    // Summary
+    const mainPct = total > 0 ? Math.round((hits / total) * 100) : 0;
+    const top2Pct = total > 0 ? Math.round((top2 / total) * 100) : 0;
+    const analyzerMainPct = total > 0 ? Math.round((analyzerHits / total) * 100) : 0;
+    const analyzerTop2Pct = total > 0 ? Math.round((analyzerTop2 / total) * 100) : 0;
+    content += `--- Summary ---\n`;
+    content += `Main hits:  ${hits}/${total} = ${mainPct}%\n`;
+    content += `Top-2:      ${top2}/${total} = ${top2Pct}%\n\n`;
+    content += `Svarog Analyzer:\n`;
+    content += `  Main:      ${analyzerHits}/${total} = ${analyzerMainPct}%\n`;
+    content += `  Top-2:     ${analyzerTop2}/${total} = ${analyzerTop2Pct}%\n\n`;
+    content += `Method breakdown:\n`;
+    const sortedMethods = Object.entries(methodStats).sort((a, b) => b[1].total - a[1].total);
+    sortedMethods.forEach(([m, s]) => {
+      const mPct = Math.round((s.hits / s.total) * 100);
+      const t2Pct = Math.round((s.top2 / s.total) * 100);
+      content += `  ${m.padEnd(32)} main:${String(mPct+'%').padStart(5)}  top2:${String(t2Pct+'%').padStart(5)}  n=${s.total}\n`;
+    });
+    content += '\n';
+
+    // Commons Sub-Pattern Analysis
     const allRolls = logs2str.map(log => String(log.actual)).filter(Boolean);
-    
     if (allRolls.length >= 6) {
-      content += `--- 📊 COMMONS SUB-PATTERN ANALYSIS ---\n\n`;
-      
-      // Identify commons and noise for this session
+      content += `--- 📊 Commons Sub-Pattern Analysis ---\n\n`;
       const rollCounts = {};
       allRolls.forEach(r => { rollCounts[r] = (rollCounts[r] || 0) + 1; });
-      const sortedRolls = Object.entries(rollCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([val]) => val);
-      
-      const commons = sortedRolls.slice(0, 2);
-      const noise = sortedRolls.slice(2);
-      
-      content += `COMMONS: [${commons.join(', ')}]\n`;
-      content += `NOISE:   [${noise.join(', ')}]\n\n`;
-      
-      // Build sequence with A/B/N markers
-      const markers = allRolls.map(r => {
-        if (r === commons[0]) return 'A';
-        if (r === commons[1]) return 'B';
-        return 'N';
-      });
-      
-      // Show last 20 rolls as a table
+      const sortedRolls = Object.entries(rollCounts).sort((a, b) => b[1] - a[1]).map(([val]) => val);
+      const spCommons = sortedRolls.slice(0, 2);
+      const spNoise = sortedRolls.slice(2);
+      content += `Commons: [${spCommons.join(', ')}]\nNoise:   [${spNoise.join(', ')}]\n\n`;
+
+      const markers = allRolls.map(r => r === spCommons[0] ? 'A' : r === spCommons[1] ? 'B' : 'N');
       const displayCount = Math.min(20, allRolls.length);
-      const displayRolls = allRolls.slice(-displayCount);
-      const displayMarkers = markers.slice(-displayCount);
-      
-      content += `ROLL SEQUENCE (last ${displayCount}):\n`;
-      content += `Roll: ${displayRolls.map(r => r.padStart(2)).join(' | ')}\n`;
-      content += `Type: ${displayMarkers.map(m => m.padStart(2)).join(' | ')}\n\n`;
-      
-      // Analyze pair transitions within commons
-      const pairCounts = { 'A→A': 0, 'A→B': 0, 'B→A': 0, 'B→B': 0, 'N→A': 0, 'N→B': 0, 'A→N': 0, 'B→N': 0 };
+      content += `Roll sequence (last ${displayCount}):\n`;
+      content += `Roll: ${allRolls.slice(-displayCount).map(r => r.padStart(2)).join(' | ')}\n`;
+      content += `Type: ${markers.slice(-displayCount).map(m => m.padStart(2)).join(' | ')}\n\n`;
+
+      const pc = { 'A→A': 0, 'A→B': 0, 'B→A': 0, 'B→B': 0, 'N→A': 0, 'N→B': 0, 'A→N': 0, 'B→N': 0 };
       for (let i = 0; i < markers.length - 1; i++) {
-        const from = markers[i];
-        const to = markers[i + 1];
-        const key = `${from}→${to}`;
-        if (pairCounts[key] !== undefined) {
-          pairCounts[key]++;
-        }
+        const key = `${markers[i]}→${markers[i + 1]}`;
+        if (pc[key] !== undefined) pc[key]++;
       }
-      
-      content += `PAIR TRANSITIONS:\n`;
-      content += `  ${commons[0]} → ${commons[0]}: ${pairCounts['A→A']}x (run)\n`;
-      content += `  ${commons[0]} → ${commons[1]}: ${pairCounts['A→B']}x (alt)\n`;
-      content += `  ${commons[1]} → ${commons[0]}: ${pairCounts['B→A']}x (alt)\n`;
-      content += `  ${commons[1]} → ${commons[1]}: ${pairCounts['B→B']}x (run)\n`;
-      content += `  Noise → ${commons[0]}: ${pairCounts['N→A']}x\n`;
-      content += `  Noise → ${commons[1]}: ${pairCounts['N→B']}x\n`;
-      content += `  ${commons[0]} → Noise: ${pairCounts['A→N']}x\n`;
-      content += `  ${commons[1]} → Noise: ${pairCounts['B→N']}x\n\n`;
-      
-      // Detect dominant pattern
-      const altCount = pairCounts['A→B'] + pairCounts['B→A'];
-      const runCount = pairCounts['A→A'] + pairCounts['B→B'];
-      const noiseInsertions = pairCounts['A→N'] + pairCounts['B→N'];
-      
-      let patternType = 'mixed';
+      content += `Pair transitions:\n`;
+      content += `  ${spCommons[0]}→${spCommons[0]}: ${pc['A→A']}x (run)  |  ${spCommons[0]}→${spCommons[1]}: ${pc['A→B']}x (alt)\n`;
+      content += `  ${spCommons[1]}→${spCommons[0]}: ${pc['B→A']}x (alt)  |  ${spCommons[1]}→${spCommons[1]}: ${pc['B→B']}x (run)\n`;
+      content += `  Noise→${spCommons[0]}: ${pc['N→A']}x  |  Noise→${spCommons[1]}: ${pc['N→B']}x\n`;
+      content += `  ${spCommons[0]}→Noise: ${pc['A→N']}x  |  ${spCommons[1]}→Noise: ${pc['B→N']}x\n\n`;
+
+      const altCount = pc['A→B'] + pc['B→A'];
+      const runCount = pc['A→A'] + pc['B→B'];
+      const noiseInserts = pc['A→N'] + pc['B→N'];
+      let patternType = 'MIXED';
       if (altCount > runCount * 1.5) patternType = 'ALTERNATING (A-B-A-B)';
       else if (runCount > altCount * 1.5) patternType = 'RUNS (A-A-B-B)';
-      else if (altCount > 0 || runCount > 0) patternType = 'MIXED';
-      
-      content += `PATTERN DETECTED: ${patternType}\n`;
-      content += `  Alternating transitions: ${altCount}\n`;
-      content += `  Run transitions: ${runCount}\n`;
-      content += `  Noise insertions: ${noiseInsertions}\n`;
-      
-      // Calculate average noise frequency
-      if (noiseInsertions > 0) {
+      content += `Pattern: ${patternType}\n`;
+      content += `  Alt: ${altCount}  |  Runs: ${runCount}  |  Noise inserts: ${noiseInserts}\n`;
+      if (noiseInserts > 0) {
         const commonsOnly = markers.filter(m => m !== 'N').length;
-        const avgNoiseFreq = Math.round(commonsOnly / noiseInsertions);
-        content += `  Avg noise every: ~${avgNoiseFreq} commons\n`;
+        content += `  Avg noise every ~${Math.round(commonsOnly / noiseInserts)} commons\n`;
       }
-      
-      // Current position since last noise
-      let sinceLastNoise = 0;
-      for (let i = markers.length - 1; i >= 0; i--) {
-        if (markers[i] === 'N') break;
-        sinceLastNoise++;
-      }
-      content += `  Commons since last noise: ${sinceLastNoise}\n\n`;
+      let sinceNoise = 0;
+      for (let i = markers.length - 1; i >= 0; i--) { if (markers[i] === 'N') break; sinceNoise++; }
+      content += `  Commons since last noise: ${sinceNoise}\n\n`;
     }
   }
 
   // 4-str section
   if (logs4str.length > 0) {
-    content += '\n--- 4-str ---\n';
+    content += '--- 4-str ---\n';
     logs4str.forEach(log => {
-      content += formatLog(log) + '\n\n';
+      const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
+      const pred = log.prediction || '—';
+      const actual = log.actual || '—';
+      const conf = Math.round((log.confidence || 0) * 100);
+      const isCorrect = pred === actual;
+      content += `[${time}] 4-str → pred: ${pred} (${conf}%) | ${isCorrect ? '✅' : '❌ MISS'} | actual: ${actual}\n\n`;
     });
   } else {
-    content += '\n--- 4-str ---\n(none)\n\n';
+    content += '--- 4-str ---\n(none)\n\n';
   }
 
-  // Merged section (all logs, newest first)
-  content += '\n--- merged (all) ---\n';
-  [...debugLogs].reverse().forEach(log => {
-    content += formatLog(log) + '\n\n';
-  });
-
-  // Long string section (chronological order - oldest to newest)
-  content += '\n--- Long String (chronological) ---\n';
-  const longString = debugLogs
-    .map(log => log.actual)
-    .filter(Boolean)
-    .join('');
+  // Long string section (chronological)
+  content += '--- Long String (chronological) ---\n';
+  const longString = debugLogs.map(log => log.actual).filter(Boolean).join('');
   content += longString || '(none)';
 
   // Create blob and download
@@ -361,6 +223,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
 
 export function exportLongStringAnalysis(analysis) {
   if (!analysis) {

@@ -65,6 +65,7 @@ import KiyoModeCard from "./components/KiyoModeCard";
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // ðŸ”¥ NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
+import { getWaveAndTableSignals } from "./utils/kiyo2strSignals";
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
@@ -151,6 +152,17 @@ export default function App() {
       col1Status: debugData?.waveData?.col1RawStatus || null,
       col2Status: debugData?.waveData?.col2Status || null,
       col3Status: debugData?.waveData?.col3Status || null,
+      wave2Action: debugData?.waveData?.wave2Action || null,
+      wave2SessionMode: debugData?.waveData?.wave2SessionMode || null,
+      wave2PairingName: debugData?.waveData?.wave2PairingName || null,
+      wave2Verdict: debugData?.waveData?.wave2Verdict || null,
+      wave2BetRolls: Array.isArray(debugData?.waveData?.wave2BetRolls)
+        ? [...debugData.waveData.wave2BetRolls]
+        : null,
+      tablePairingKey: debugData?.waveData?.tablePairingKey || null,
+      tableBetRolls: Array.isArray(debugData?.waveData?.tableBetRolls)
+        ? [...debugData.waveData.tableBetRolls]
+        : null,
       prefixMain: debugData?.smartPrefix?.prediction || null,
       prefixAlt: debugData?.smartPrefix?.alt || null,
       tracerMain: debugData?.prediction?.prediction || null,
@@ -248,18 +260,22 @@ export default function App() {
       const candidates = Array.isArray(p?.candidates) ? p.candidates : [];
 
       // Always create a log entry â€” even for 2-str sessions where predictNext3 returns "â€”"
-      {
+      if (
+        p.prediction &&
+        p.prediction !== "-" &&
+        !String(p.prediction).toLowerCase().startsWith("insufficient")
+      ) {
         const latestSnapshot = pendingKiyoSnapshotsRef.current[pendingKiyoSnapshotsRef.current.length - 1];
         const actualStr = String(actual3).slice(0, 3); // 2 or 3 chars depending on mode
+        const fallbackTwoStrSignals = getWaveAndTableSignals(contextRolls);
 
         const newLog = {
           ts: Date.now() + idx,
           kind: "3",
-          prediction: (p.prediction && p.prediction !== "â€”" && !String(p.prediction).toLowerCase().startsWith("insufficient"))
-            ? p.prediction : "â€”",
+          prediction: p.prediction,
           confidence: p.confidence || 0,
           alt: p.alt || null,
-          mode: p.mode || "â€”",
+          mode: p.mode || "-",
           actual: actualStr,
           ctx: contextRolls.slice(-8),
           candidates: p.candidates || [],
@@ -283,6 +299,21 @@ export default function App() {
           col3Confidence: analyzeColumnWave(contextRolls, WAVE_SCHEMES.col3, 2).confidence || 0,
           col2Status: "unknown",
           col3Status: "unknown",
+          wave2Action: latestSnapshot?.wave2Action || fallbackTwoStrSignals?.waveSnapshot?.action || null,
+          wave2SessionMode: latestSnapshot?.wave2SessionMode || fallbackTwoStrSignals?.waveSnapshot?.sessionMode || null,
+          wave2PairingName: latestSnapshot?.wave2PairingName || fallbackTwoStrSignals?.waveSnapshot?.pairingName || null,
+          wave2Verdict: latestSnapshot?.wave2Verdict || fallbackTwoStrSignals?.waveSnapshot?.message || null,
+          wave2BetRolls: Array.isArray(latestSnapshot?.wave2BetRolls)
+            ? [...latestSnapshot.wave2BetRolls]
+            : Array.isArray(fallbackTwoStrSignals?.waveSnapshot?.betRolls)
+              ? [...fallbackTwoStrSignals.waveSnapshot.betRolls]
+              : null,
+          tablePairingKey: latestSnapshot?.tablePairingKey || fallbackTwoStrSignals?.table?.activeKey || null,
+          tableBetRolls: Array.isArray(latestSnapshot?.tableBetRolls)
+            ? [...latestSnapshot.tableBetRolls]
+            : Array.isArray(fallbackTwoStrSignals?.table?.betRolls)
+              ? [...fallbackTwoStrSignals.table.betRolls]
+              : null,
           livePrefix: livePrefixPredictionRef.current ? { ...livePrefixPredictionRef.current } : null,
         };
 
@@ -307,7 +338,7 @@ export default function App() {
 
         if (
           p2.prediction &&
-          p2.prediction !== "â€”" &&
+          p2.prediction !== "-" &&
           !String(p2.prediction).toLowerCase().startsWith("insufficient")
         ) {
           const newLog2 = {
@@ -317,7 +348,7 @@ export default function App() {
             confidence: p2.confidence || 0,
             baseConfidence: p2.baseConfidence || p2.confidence || 0, // ðŸ”¥ NEW
             alt: p2.alt || null,
-            mode: p2.mode || "â€”",
+            mode: p2.mode || "-",
             actual: actual2,
             ctx: rolls2.slice(-8),
             candidates: p2.candidates || [],
@@ -608,7 +639,7 @@ export default function App() {
       .filter((r) => r.length === 4); // Chronological
 
     // ðŸ”¥ CAPTURE: The predictions that were SHOWING before this roll
-    const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before) : null;
+    const p2Before = rolls2Before.length >= 6 ? predictWithPairs(rolls2Before, { region }) : null;
     const p3Before = predictNext3(rolls3Before);
     const p4Before = predictNext4(rolls4Before);
 
@@ -622,27 +653,34 @@ export default function App() {
 
     const newLogsToAdd = [];
 
-    // Capture live state of the smart predictor
+    // Capture live state of the smart predictor only when a real prediction exists.
+    const hasReal3StrPrediction =
+      p3Before?.prediction &&
+      p3Before.prediction !== "-" &&
+      !String(p3Before.prediction).toLowerCase().startsWith("insufficient");
+
     const liveSmartPrefix = {
-      main: p3Before.prediction || "â€”",
+      main: hasReal3StrPrediction ? p3Before.prediction : "-",
       alt: p3Before.alt || safeCandidates(p3Before)[1]?.value || null,
     };
 
-    newLogsToAdd.push({
-      ts: nowTs,
-      kind: "3",
-      prediction: liveSmartPrefix.main,
-      confidence: p3Before.confidence || 0,
-      alt: liveSmartPrefix.alt,
-      mode: p3Before.mode || "â€”",
-      actual: actual3,
-      ctx: rolls3Before.slice(-8),
-      candidates: safeCandidates(p3Before),
-      smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
-    });
+    if (hasReal3StrPrediction) {
+      newLogsToAdd.push({
+        ts: nowTs,
+        kind: "3",
+        prediction: liveSmartPrefix.main,
+        confidence: p3Before.confidence || 0,
+        alt: liveSmartPrefix.alt,
+        mode: p3Before.mode || "-",
+        actual: actual3,
+        ctx: rolls3Before.slice(-8),
+        candidates: safeCandidates(p3Before),
+        smartPrefix: liveSmartPrefix, // Store live state of the smart predictor
+      });
+    }
 
     // ðŸ”¥ FIXED: Use the prediction that was SHOWING (p2Before), not a new one
-    if (p2Before && p2Before.prediction && p2Before.prediction !== "â€”" &&
+    if (p2Before && p2Before.prediction && p2Before.prediction !== "-" &&
       !String(p2Before.prediction).toLowerCase().startsWith("insufficient")) {
       newLogsToAdd.push({
         ts: nowTs + 0.1, // Slight offset
@@ -651,7 +689,7 @@ export default function App() {
         confidence: p2Before.confidence || 0,
         baseConfidence: p2Before.baseConfidence || p2Before.confidence || 0,
         alt: p2Before.alt || null,
-        mode: p2Before.mode || "â€”",
+        mode: p2Before.mode || "-",
         actual: actual2,
         ctx: [...rolls2Before], // Chronological (oldestâ†’newest)
         candidates: safeCandidates(p2Before),
@@ -720,7 +758,7 @@ export default function App() {
     // Only log if we have a real prediction
     if (
       p.prediction &&
-      p.prediction !== "â€”" &&
+      p.prediction !== "-" &&
       !String(p.prediction).toLowerCase().startsWith("insufficient")
     ) {
       const newLog = {

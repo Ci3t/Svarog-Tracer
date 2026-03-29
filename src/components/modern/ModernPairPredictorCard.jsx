@@ -48,7 +48,7 @@ const BADGE_TOOLTIPS = {
   '⏳ Warming Up':  { desc: 'Too few rolls to detect patterns yet.',     ex: 'Need 6+ rolls to start' },
 };
 
-export default function ModernPairPredictorCard({ entries = [] }) {
+export default function ModernPairPredictorCard({ entries = [], region }) {
   const [expanded, setExpanded] = useState(false);
 
   // Extract 2-str rolls from entries
@@ -59,7 +59,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
       .filter(r => r && r.length === 2);
   }, [entries]);
 
-  const data = useMemo(() => predictWithPairs(rolls), [rolls]);
+  const data = useMemo(() => predictWithPairs(rolls, { region }), [rolls, region]);
 
   const isWarming = !data.prediction;
 
@@ -73,6 +73,8 @@ export default function ModernPairPredictorCard({ entries = [] }) {
     commonsFlipDetected, newCommons, flipConfidence,
     noiseRate, alternatingPair, shiftedToValue, gram2Confidence,
     isAlternating,
+    trustedPair, pairSafety, noiseRisk, freshOutsider, mixedWindow, pairScoreGap,
+    analyzerPrediction, analyzerAlt,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
     // 🚨 Emergency brake
@@ -194,8 +196,9 @@ export default function ModernPairPredictorCard({ entries = [] }) {
   }
 
   // Commons display: main = prediction (lean here), alt = other common
-  const mainCommon = (commons || []).includes(prediction) ? prediction : (commons || [])[0];
-  const altCommon  = (commons || []).includes(alt) && alt !== mainCommon ? alt : (commons || []).find(c => c !== mainCommon) || alt;
+  const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
+  const mainCommon = displayPair?.includes(prediction) ? prediction : (displayPair || [])[0];
+  const altCommon  = displayPair?.includes(alt) && alt !== mainCommon ? alt : (displayPair || []).find(c => c !== mainCommon) || alt;
 
 
   // Lean % — use pair matrix probability for each common from last roll
@@ -219,6 +222,61 @@ export default function ModernPairPredictorCard({ entries = [] }) {
     if (noiseWatch) watches.add(noiseWatch);
     if (isChaotic && noise) noise.forEach(n => watches.add(n));
     return [...watches];
+  })();
+
+  const analyzerPicks = (() => {
+    const picks = [];
+    if (analyzerPrediction) picks.push(analyzerPrediction);
+    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
+    return picks.slice(0, 2);
+  })();
+
+  const analyzerMatchesLane = analyzerPicks.some(pick => displayPair?.includes(pick));
+  const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
+  const followGuide = (() => {
+    if (!analyzerPicks.length) return null;
+    if (analyzerMatchesLane && analyzerAgreesOnMain) {
+      return {
+        tone: 'good',
+        title: 'Both agree',
+        text: 'Strongest signal. Lane and analyzer point to the same side.',
+      };
+    }
+    if (pairSafety === 'safe') {
+      return {
+        tone: 'lane',
+        title: 'Follow Main Predictor',
+        text: 'Safe lane. Trust the 2 picks first and use Svarog only as a lean.',
+      };
+    }
+    if (pairSafety === 'danger') {
+      return {
+        tone: 'analyzer',
+        title: 'Check Svarog Analyzer',
+        text: 'Pair is fragile. Use Svarog for the sharper break guess.',
+      };
+    }
+    return {
+      tone: 'split',
+      title: 'Split Read',
+      text: 'Main = safer lane. Svarog = riskier exact next-line lean.',
+    };
+  })();
+
+  const primaryWatchLine = (() => {
+    if (isNoiseTrap && trapCandidate) {
+      return {
+        tone: 'danger',
+        text: `Trap: ${trapCandidate} likely next`,
+      };
+    }
+    if (noiseWatchValues.length > 0 && pairSafety !== 'safe') {
+      return {
+        tone: pairSafety === 'danger' ? 'danger' : 'warn',
+        text: `Watch: ${noiseWatchValues.join(', ')} may break the pair`,
+      };
+    }
+    return null;
   })();
 
   return (
@@ -255,6 +313,47 @@ export default function ModernPairPredictorCard({ entries = [] }) {
 
         {/* Reason line */}
         <p className="text-[11px] text-slate-400 italic mb-4 text-center">{reasonLine}</p>
+
+        {/* Pair safety strip */}
+        <div className={`mb-4 rounded-xl border px-3 py-2 ${
+          pairSafety === 'safe'
+            ? 'border-emerald-500/40 bg-emerald-500/10'
+            : pairSafety === 'caution'
+            ? 'border-amber-500/40 bg-amber-500/10'
+            : 'border-rose-500/40 bg-rose-500/10'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${
+                pairSafety === 'safe'
+                  ? 'text-emerald-300'
+                  : pairSafety === 'caution'
+                  ? 'text-amber-300'
+                  : 'text-rose-300'
+              }`}>
+                {pairSafety === 'safe' ? 'Trusted Pair' : pairSafety === 'caution' ? 'Pair At Risk' : 'Break Danger'}
+              </p>
+              <p className="text-[11px] text-slate-300">
+                {displayPair?.join(' / ')} {mixedWindow ? '• mixed window' : '• stable lane'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Noise Risk</p>
+              <p className={`text-sm font-black ${
+                noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
+              }`}>
+                {noiseRisk ?? 0}%
+              </p>
+            </div>
+          </div>
+          {freshOutsider?.value && (
+            <p className="mt-2 text-[10px] text-slate-400">
+              Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
+              {' '}({Math.round(freshOutsider.score)} pts)
+              {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
+            </p>
+          )}
+        </div>
 
         {/* YOUR 2 PICKS */}
         <div className="mb-1">
@@ -293,50 +392,91 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           </div>
         </div>
 
-
-        {/* ⚡ Noise Watch — rising noise candidates */}
-        {noiseWatchValues.length > 0 && (
-          <div className="mt-3 flex items-center justify-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
-            <span className="text-amber-400 text-xs">⚡</span>
-            <span className="text-amber-300 text-[11px] font-medium">
-              Watch: {noiseWatchValues.join(', ')} may appear (noise)
-            </span>
-          </div>
-        )}
-
-        {/* ⚠️ Noise Trap Strip — high-confidence noise warning */}
-        {isNoiseTrap && trapCandidate && (
-          <div className="mt-3 flex items-center justify-between gap-2 bg-orange-500/15 border border-orange-500/40 rounded-lg px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-orange-400 text-sm">⚠️</span>
-              <div>
-                <span className="text-orange-300 text-[11px] font-bold uppercase tracking-wide">Trap Signal</span>
-                <span className="text-orange-200 text-[11px] ml-2">🎯 {trapCandidate} likely next</span>
+        {analyzerPicks.length > 0 && (
+          <div className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
+            <div className="flex items-center justify-between mb-3.5 relative z-10 pl-6">
+              <div className="relative">
+                {/* The Svarog logo breaking out of the top/left corner */}
+                <img 
+                  src="/svarog.png" 
+                  alt="Svarog Eye" 
+                  className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
+                />
+                <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
+                <p className="text-[11px] text-slate-400 mt-1 pl-8">Svarog Analyzer — Next exact line</p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                {analyzerPicks.map((pick, idx) => (
+                  <span
+                    key={pick}
+                    className={`min-w-[48px] inline-block rounded-[14px] border-2 px-3 py-1.5 text-center text-[16px] font-black tracking-tight transition-colors
+                      ${idx === 0 
+                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
+                        : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
+                  >
+                    {pick}
+                  </span>
+                ))}
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-orange-400 text-[11px] font-medium">{noiseTrapProb}%</div>
-              <div className="text-slate-500 text-[10px]">{commonsSinceNoise}/{avgNoiseGap?.toFixed(1)} gap</div>
-            </div>
+            
+            {followGuide && (
+              <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
+                followGuide.tone === 'good'
+                  ? 'border-emerald-500/30 bg-emerald-500/10'
+                  : followGuide.tone === 'lane'
+                  ? 'border-violet-500/30 bg-violet-500/10'
+                  : followGuide.tone === 'analyzer'
+                  ? 'border-rose-500/30 bg-rose-500/10'
+                  : 'border-amber-500/30 bg-amber-500/10'
+              }`}>
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className={`w-2 h-2 rounded-full ${
+                    followGuide.tone === 'good' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 
+                    followGuide.tone === 'lane' ? 'bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]' : 
+                    followGuide.tone === 'analyzer' ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)] animate-pulse' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                  }`} />
+                  <p className={`text-[11px] font-black uppercase tracking-widest ${
+                    followGuide.tone === 'good' ? 'text-emerald-300' : 
+                    followGuide.tone === 'lane' ? 'text-violet-300' : 
+                    followGuide.tone === 'analyzer' ? 'text-rose-300' : 'text-amber-300'
+                  }`}>
+                    {followGuide.title}
+                  </p>
+                </div>
+                <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium pl-4.5">
+                  {followGuide.text}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ⏰ Overdue Noise Comeback — sorted by likelihood (overdue + pair link), not just absence */}
-        {overdueNoise?.length > 0 && (
-          <div className="mt-2 flex items-center justify-center gap-2 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-1.5 flex-wrap">
-            <span className="text-rose-400 text-xs">⏰</span>
-            {overdueNoise.map((v, i) => {
-              const ago = lastSeen?.[v] ?? '?';
-              const isTop = i === 0;
-              return (
-                <span key={v} className={isTop
-                  ? 'text-rose-200 text-[11px] font-bold'
-                  : 'text-rose-400/60 text-[11px]'}>
-                  {isTop ? `🎯 ${v}` : v} ({ago}r)
-                </span>
-              );
-            })}
-            <span className="text-rose-500/50 text-[10px]">— comeback order</span>
+
+        {primaryWatchLine && (
+          <div className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 ${
+            primaryWatchLine.tone === 'danger'
+              ? 'bg-rose-500/12 border border-rose-500/35'
+              : primaryWatchLine.tone === 'warn'
+              ? 'bg-amber-500/10 border border-amber-500/30'
+              : 'bg-slate-700/25 border border-slate-600/30'
+          }`}>
+            <span className={`text-xs ${
+              primaryWatchLine.tone === 'danger'
+                ? 'text-rose-300'
+                : primaryWatchLine.tone === 'warn'
+                ? 'text-amber-300'
+                : 'text-slate-400'
+            }`}>⚡</span>
+            <span className={`text-[11px] font-medium ${
+              primaryWatchLine.tone === 'danger'
+                ? 'text-rose-200'
+                : primaryWatchLine.tone === 'warn'
+                ? 'text-amber-300'
+                : 'text-slate-300'
+            }`}>
+              {primaryWatchLine.text}
+            </span>
           </div>
         )}
 
@@ -375,7 +515,7 @@ export default function ModernPairPredictorCard({ entries = [] }) {
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
-              {commons?.map(c => (
+              {displayPair?.map(c => (
                 <span key={c} className="px-1.5 py-0.5 rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
               ))}
             </div>

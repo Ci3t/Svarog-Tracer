@@ -38,7 +38,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 4, // Increment this to force cache refresh after fallback logic updates
+  CACHE_VERSION: 5, // Increment this to force cache refresh after fallback logic updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -99,19 +99,6 @@ async function fetchHSRActiveBanners() {
 
     // 2. Filter Active Banners
     const currentSeconds = nowTs / 1000;
-    const gachaList = configData.config?.banners || {};
-    const activeCandidates = [];
-
-    for (const [bid, bdata] of Object.entries(gachaList)) {
-      if (bdata.start_time <= currentSeconds && currentSeconds <= bdata.end_time) {
-        if (bdata.rateup) {
-          activeCandidates.push({ id: bid, charId: String(bdata.rateup) });
-        }
-      }
-    }
-
-    if (activeCandidates.length === 0) return [];
-
     // 3. Fetch metadata (character/weapon names and images)
     const [charRes, lcRes] = await Promise.all([
       fetchWithTimeout(`${CONFIG.STARRAIL_RES}/index_new/en/characters.json`),
@@ -120,9 +107,81 @@ async function fetchHSRActiveBanners() {
 
     const charMap = charRes.ok ? await charRes.json() : {};
     const lcMap = lcRes.ok ? await lcRes.json() : {};
+    const gachaList = configData.config?.banners || {};
+    const FEATURED_KEY_RE = /(rate.?up|featured|up_?5|rateup_?5|rarity_?5|five.?star)/i;
+
+    const parseFeaturedIds = (value, collected = []) => {
+      if (value == null) return collected;
+      if (Array.isArray(value)) {
+        value.forEach(item => parseFeaturedIds(item, collected));
+        return collected;
+      }
+      if (typeof value === 'object') {
+        for (const [key, nested] of Object.entries(value)) {
+          if (FEATURED_KEY_RE.test(key) || typeof nested === 'object') {
+            parseFeaturedIds(nested, collected);
+          }
+        }
+        return collected;
+      }
+
+      const stringValue = String(value).trim();
+      if (/^\d+$/.test(stringValue)) {
+        collected.push(stringValue);
+      }
+      return collected;
+    };
+
+    const extractFeaturedIds = (bannerData) => {
+      const directCandidates = [
+        bannerData?.rateup,
+        bannerData?.rateup_5,
+        bannerData?.rate_up,
+        bannerData?.up_5,
+        bannerData?.featured,
+        bannerData?.featured_5,
+        bannerData?.rarity_5,
+        bannerData?.five_star,
+      ];
+
+      const collected = [];
+      directCandidates.forEach(value => parseFeaturedIds(value, collected));
+
+      if (collected.length === 0) {
+        for (const [key, value] of Object.entries(bannerData || {})) {
+          if (FEATURED_KEY_RE.test(key)) {
+            parseFeaturedIds(value, collected);
+          }
+        }
+      }
+
+      const uniqueIds = [...new Set(collected)];
+      const mappedFiveStars = uniqueIds.filter((id) => {
+        const entry = charMap[id] || lcMap[id];
+        return Number(entry?.rarity) === 5;
+      });
+
+      return mappedFiveStars.length > 0 ? mappedFiveStars : uniqueIds;
+    };
+
+    const activeCandidates = [];
+    for (const [bid, bdata] of Object.entries(gachaList)) {
+      if (!(bdata.start_time <= currentSeconds && currentSeconds <= bdata.end_time)) continue;
+
+      const featuredIds = extractFeaturedIds(bdata);
+      for (const featuredId of featuredIds) {
+        activeCandidates.push({ id: bid, charId: String(featuredId) });
+      }
+    }
+
+    const dedupedCandidates = activeCandidates.filter((candidate, index, array) =>
+      array.findIndex(item => item.id === candidate.id && item.charId === candidate.charId) === index
+    );
+
+    if (dedupedCandidates.length === 0) return [];
 
     // 4. Map IDs to Names and Images
-    const liveBanners = activeCandidates.map(b => {
+    const liveBanners = dedupedCandidates.map(b => {
       const charData = charMap[b.charId];
       const lcData = lcMap[b.charId];
 

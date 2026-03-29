@@ -122,6 +122,7 @@ const ZONE_ADMIN_DISCORD_IDS = new Set([
   ...splitEnvCsv(env.ZONE_ADMIN_DISCORD_IDS),
   ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_DISCORD_IDS),
   '110890964364627968',
+  '97579134456168448',
 ]);
 
 const ZONE_ADMIN_ROLE_LABELS = new Set(['admin', 'zone_admin', 'owner']);
@@ -208,6 +209,29 @@ export function isZoneAdminUser(user) {
     return true;
   }
 
+  return false;
+}
+
+export function isTrailblazerCharacterRef(value) {
+  if (value === null || value === undefined) return false;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith('trailblazer-')) return true;
+
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric >= 8001 && numeric <= 8008;
+}
+
+export function hasMultipleTrailblazers(values) {
+  let count = 0;
+  for (const value of Array.isArray(values) ? values : []) {
+    if (!value) continue;
+    if (isTrailblazerCharacterRef(value)) {
+      count += 1;
+      if (count >= 2) return true;
+    }
+  }
   return false;
 }
 

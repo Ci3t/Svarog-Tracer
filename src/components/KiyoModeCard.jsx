@@ -41,6 +41,7 @@ import { analyzeAllPrefixWaves, getPrefixWavePrediction, analyze2strWave } from 
 import RollInput from "./kiyo/RollInput";
 import AddedRollsPanel from "./kiyo/AddedRollsPanel";
 import WavePairingTable from "./kiyo/WavePairingTable";
+import { getWaveAndTableSignals } from "../utils/kiyo2strSignals";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
 import PrefixPredictors from "./kiyo/PrefixPredictors";
@@ -611,6 +612,10 @@ export default function KiyoModeCard({
     if (!combinedRolls || combinedRolls.length < 3) return null;
     return analyze2strWave(combinedRolls);
   }, [combinedRolls]);
+  const twoStrSignals = useMemo(() => {
+    if (!combinedRolls || combinedRolls.length < 3) return null;
+    return getWaveAndTableSignals(combinedRolls);
+  }, [combinedRolls]);
 
   const smartPrefixPrediction = useMemo(() => {
     if (combinedRolls.length < 3) return null;
@@ -748,7 +753,8 @@ export default function KiyoModeCard({
 
     // 2-STR PREDICTION — uses live BBP pair-matrix predictor (same as live session card)
     const bbp2str = predictWithPairs(
-      combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)) // use 2-digit prefix (41/42/43/44)
+      combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)),
+      { region: datasetRegion }
     );
     const prediction2str = bbp2str.prediction
       ? {
@@ -948,6 +954,17 @@ export default function KiyoModeCard({
         col3PatternBroke: analyzeWavePatterns?.columns?.[3]?.patternBroke || false,
         col2Expected: analyzeWavePatterns?.columns?.[2]?.flipLabel || "—",
         col3Expected: analyzeWavePatterns?.columns?.[3]?.flipLabel || "—",
+        wave2Action: twoStrSignals?.waveSnapshot?.action || null,
+        wave2SessionMode: twoStrSignals?.waveSnapshot?.sessionMode || null,
+        wave2PairingName: twoStrSignals?.waveSnapshot?.pairingName || null,
+        wave2Verdict: twoStrSignals?.waveSnapshot?.message || null,
+        wave2BetRolls: Array.isArray(twoStrSignals?.waveSnapshot?.betRolls)
+          ? [...twoStrSignals.waveSnapshot.betRolls]
+          : null,
+        tablePairingKey: twoStrSignals?.table?.activeKey || null,
+        tableBetRolls: Array.isArray(twoStrSignals?.table?.betRolls)
+          ? [...twoStrSignals.table.betRolls]
+          : null,
       },
     };
 
@@ -958,6 +975,7 @@ export default function KiyoModeCard({
     smartRecommendation,
     pairingViz,
     combinedRolls,
+    twoStrSignals,
     onSendKiyoDebugData,
   ]);
 

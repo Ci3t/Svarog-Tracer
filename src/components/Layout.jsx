@@ -7,7 +7,7 @@ import LiveStatsBanner from './LiveStatsBanner';
 import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
 import { useAuth } from '../hooks/useAuth';
 
-const PATCH_PRESETS = ["3.6", "3.7", "3.8", "3.9", "4.0", "custom"];
+const PATCH_PRESETS = ["4.0", "4.1", "4.2", "4.3", "4.4", "custom"];
 const THEME_VISUALS = {
   modern: {
     Icon: Sparkles,
@@ -338,8 +338,8 @@ export default function Layout({
                               setThemeMenuOpen(false);
                             }}
                             className={`group w-full px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.14em] transition-all cursor-pointer border ${isActive
-                                ? 'bg-slate-800/70 text-white border-slate-500/70'
-                                : 'bg-slate-800/55 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
+                              ? 'bg-slate-800/70 text-white border-slate-500/70'
+                              : 'bg-slate-800/55 text-slate-300 border-slate-700/60 hover:text-white hover:border-slate-500/70'
                               }`}
                             style={isActive ? themeConfig.layout.themeOptionActiveStyles?.[themeOption.id] : undefined}
                             aria-label={`Switch to ${themeOption.label} theme`}
@@ -361,8 +361,8 @@ export default function Layout({
                                 </span>
                                 <span
                                   className={`overflow-hidden whitespace-nowrap text-[10px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${isActive
-                                      ? 'max-w-44 opacity-100'
-                                      : 'max-w-0 opacity-0 group-hover:max-w-44 group-hover:opacity-100'
+                                    ? 'max-w-44 opacity-100'
+                                    : 'max-w-0 opacity-0 group-hover:max-w-44 group-hover:opacity-100'
                                     }`}
                                 >
                                   {themeOption.label}
@@ -392,8 +392,8 @@ export default function Layout({
                     type="button"
                     onClick={() => setRoleMode('user')}
                     className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'user'
-                        ? 'bg-slate-700/80 text-slate-100 border border-slate-500/70'
-                        : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-slate-700/80 text-slate-100 border border-slate-500/70'
+                      : 'text-slate-400 hover:text-slate-200'
                       }`}
                   >
                     User
@@ -402,8 +402,8 @@ export default function Layout({
                     type="button"
                     onClick={() => setRoleMode('admin')}
                     className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'admin'
-                        ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60'
-                        : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60'
+                      : 'text-slate-400 hover:text-slate-200'
                       }`}
                   >
                     Admin

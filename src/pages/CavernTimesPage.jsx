@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { Trophy, Shield, Zap, Search, ChevronRight, ChevronLeft, Filter, Trash2, Star, Heart, Clock, AlertCircle, CheckCircle2, Info, ChevronDown, X, Binary, Gem, Navigation, RefreshCw, PlusCircle, Users } from 'lucide-react';
 import ArcticSnow from '../components/snow/ArcticSnow';
@@ -8,6 +8,11 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { findCavernById, HSR_CAVERNS, HSR_DOMAINS } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { buildApiUrl } from '../utils/apiBase';
+import {
+  hasMultipleTrailblazers,
+  SINGLE_TRAILBLAZER_TEAM_MESSAGE,
+  wouldCreateTrailblazerConflict,
+} from '../utils/trailblazerTeam';
 
 // Static Data
 import charactersData from '../data/characters.json';
@@ -136,8 +141,64 @@ const readStorageJson = (key, fallback) => {
   }
 };
 
+const getAuthDiscordDisplayName = (user) => {
+  if (!user || typeof user !== 'object') return '';
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find((identity) => {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    return provider === 'discord';
+  });
+  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+
+  const picks = [
+    metadata.global_name,
+    metadata.full_name,
+    metadata.user_name,
+    identityData.global_name,
+    identityData.username,
+    metadata.name,
+    user.email,
+  ];
+
+  for (const value of picks) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+  return '';
+};
+
+const getClearReportCount = (clear) => {
+  const reports = Array.isArray(clear?.reports) ? clear.reports.length : 0;
+  return Math.max(Number(clear?.verifiedCount || 0), reports);
+};
+
+const getClearLastReportedTimestamp = (clear) => {
+  const reportTimes = (Array.isArray(clear?.reports) ? clear.reports : [])
+    .map((report) => new Date(report?.timestamp || 0).getTime())
+    .filter(Number.isFinite);
+  const fallbackTimes = [clear?.lastReported, clear?.firstReported]
+    .map((value) => new Date(value || 0).getTime())
+    .filter(Number.isFinite);
+  return Math.max(0, ...reportTimes, ...fallbackTimes);
+};
+
+const compareCavernEntriesByFreshness = (a, b) => {
+  const aHasReports = getClearReportCount(a) > 0;
+  const bHasReports = getClearReportCount(b) > 0;
+  if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
+
+  const timeDiff = getClearLastReportedTimestamp(b) - getClearLastReportedTimestamp(a);
+  if (timeDiff !== 0) return timeDiff;
+
+  if (a.clearTime === b.clearTime) return getClearReportCount(b) - getClearReportCount(a);
+  return String(a.clearTime || '').localeCompare(String(b.clearTime || ''));
+};
+
 export default function CavernTimesPage({ sessionTheme = 'modern' }) {
-  const { isAuthenticated, getAuthHeader, roleMode } = useAuth();
+  const { isAuthenticated, getAuthHeader, roleMode, signInWithDiscord, user } = useAuth();
   const baseUrl = import.meta.env.BASE_URL;
   const location = useLocation();
   const themeConfig = getSessionThemeConfig(sessionTheme);
@@ -297,6 +358,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const [resetTimer, setResetTimer] = useState('');
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState(null);
+  const authDiscordName = useMemo(() => getAuthDiscordDisplayName(user), [user]);
 
   const charIdByNumId = useMemo(() => {
     const map = new Map();
@@ -329,6 +391,34 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     return `in ${m}m ${s}s`;
   };
 
+  const notify = useCallback((message, type = 'info') => {
+    const id = Date.now() + Math.random();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
+  }, []);
+
+  const applyCavernTeam = useCallback((nextTeam) => {
+    const normalized = Array.isArray(nextTeam) ? nextTeam.filter(Boolean).slice(0, 4) : [];
+    if (hasMultipleTrailblazers(normalized)) {
+      notify(SINGLE_TRAILBLAZER_TEAM_MESSAGE, 'error');
+      return false;
+    }
+    setFormChars(normalized);
+    return true;
+  }, [notify]);
+
+  const handlePrimaryRecordAction = useCallback(() => {
+    if (!isAuthenticated) {
+      signInWithDiscord();
+      return;
+    }
+    setIsFormOpen(prev => !prev);
+    setSelectedDomain(null);
+    setSubmitStatus({ type: '', msg: '' });
+  }, [isAuthenticated, signInWithDiscord]);
+
   useEffect(() => {
     setResetTimer(getTimeUntilReset());
     const interval = setInterval(() => setResetTimer(getTimeUntilReset()), 1000);
@@ -352,8 +442,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const cavernId = String(params.get('cavern') || '').trim();
     const cavernEntry = findCavernById(cavernId);
     const relicIdFromQuery = String(params.get('relic_id') || '').trim();
-    const fallbackRelicId = cavernEntry?.relicSetIds?.find((entry) => String(entry || '').trim()) || '';
-    const selectedRelicId = relicIdFromQuery || fallbackRelicId;
+    const selectedTargetId = cavernEntry?.id || relicIdFromQuery;
 
     // Mark that we are doing a zone import so the preset useEffect doesn't
     // overwrite what we set here when setIsFormOpen(true) fires.
@@ -364,9 +453,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     setIsFormOpen(true);
     setShowItemSelector(false); // User wants a quick way, so auto-opening selector might be disruptive
 
-    if (importedChars.length > 0) setFormChars(importedChars);
+    if (importedChars.length > 0) applyCavernTeam(importedChars);
     if (clearTime) setFormTime(clearTime);
-    if (selectedRelicId) setFormItemId(selectedRelicId);
+    if (selectedTargetId) setFormItemId(selectedTargetId);
 
     // Pre-select substats from the zone's batch average (top 4)
     const substatsParam = String(params.get('substats') || '').trim();
@@ -376,7 +465,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     }
 
     // Auto-fill discord from saved preset if available
-    const savedDiscord = entryPreset?.discord || '';
+    const savedDiscord = authDiscordName || entryPreset?.discord || '';
     if (savedDiscord) setFormDiscord(savedDiscord);
 
     const relatedRelicIds = Array.isArray(cavernEntry?.relicSetIds)
@@ -397,7 +486,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     ['source', 'chars', 'clear_seconds', 'clear_time', 'cavern', 'relic_id', 'from_epoch', 'substats'].forEach((key) => nextParams.delete(key));
     const nextSearch = nextParams.toString();
     window.history.replaceState({}, '', location.pathname + (nextSearch ? '?' + nextSearch : ''));
-  }, [charIdByNumId, location.pathname, location.search]);
+  }, [applyCavernTeam, authDiscordName, charIdByNumId, entryPreset?.discord, location.pathname, location.search]);
 
 
   useEffect(() => {
@@ -457,6 +546,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   }, [recentTeams]);
 
   useEffect(() => {
+    if (isAuthenticated && authDiscordName) {
+      setFormDiscord(authDiscordName);
+    }
+  }, [authDiscordName, isAuthenticated]);
+
+  useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(teamPresets.length / TEAM_PRESETS_PAGE_SIZE) - 1);
     setTeamPresetPage(prev => Math.min(prev, maxPage));
   }, [teamPresets.length]);
@@ -475,15 +570,29 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       if (presetItemId) setFormItemId(presetItemId);
     }
     if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
-      setFormChars(entryPreset.team.slice(0, 4));
+      applyCavernTeam(entryPreset.team.slice(0, 4));
     }
-    if (presetFlags.keepDiscord && entryPreset.discord) {
-      setFormDiscord(entryPreset.discord);
+    if (presetFlags.keepDiscord && (authDiscordName || entryPreset.discord)) {
+      setFormDiscord(authDiscordName || entryPreset.discord);
     }
     if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
       setFormMainStat(entryPreset.relics.mainStat);
     }
-  }, [isFormOpen]);
+  }, [
+    applyCavernTeam,
+    authDiscordName,
+    category,
+    entryPreset.discord,
+    entryPreset.relics?.itemId,
+    entryPreset.relics?.mainStat,
+    entryPreset.team,
+    entryPreset.traces?.itemId,
+    isFormOpen,
+    presetFlags.keepDiscord,
+    presetFlags.keepItem,
+    presetFlags.keepMainStat,
+    presetFlags.keepTeam,
+  ]);
 
   useEffect(() => {
     if (!isFormOpen || (isZoneImportRef && isZoneImportRef.current)) return;
@@ -536,7 +645,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     if (!presetFlags.keepTeam) {
       setFormChars([]);
     }
-    if (!presetFlags.keepDiscord) {
+    if (!presetFlags.keepDiscord && !isAuthenticated) {
       setFormDiscord('');
     }
 
@@ -566,10 +675,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       if (!res.ok) throw new Error('Failed to fetch data');
       const data = await res.json();
 
-      data.sort((a, b) => {
-        if (a.clearTime === b.clearTime) return b.verifiedCount - a.verifiedCount;
-        return a.clearTime.localeCompare(b.clearTime);
-      });
+      data.sort(compareCavernEntriesByFreshness);
 
       setClears(data);
     } catch (err) {
@@ -663,7 +769,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
     const normalizedFormTime = normalizeTimeForSubmit(formTime);
 
-    if (!formItemId || !formTime.trim() || !formDiscord) {
+    if (!isAuthenticated) {
+      return setSubmitStatus({ type: 'error', msg: 'Discord login is required to post a cavern record.' });
+    }
+    if (!formItemId || !formTime.trim() || !authDiscordName) {
       return setSubmitStatus({ type: 'error', msg: 'Please complete all steps.' });
     }
     if (!normalizedFormTime) {
@@ -671,6 +780,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     }
     if (formChars.length !== 4) {
       return setSubmitStatus({ type: 'error', msg: 'Assemble a team of 4.' });
+    }
+    if (hasMultipleTrailblazers(formChars)) {
+      return setSubmitStatus({ type: 'error', msg: SINGLE_TRAILBLAZER_TEAM_MESSAGE });
     }
 
     // For Traces, we mandatory purple count. For Relics, we need substats.
@@ -690,19 +802,19 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const submittedCategory = category;
       const submittedItemId = formItemId;
       const submittedChars = [...formChars];
-      const submittedDiscord = formDiscord.trim();
+      const submittedDiscord = authDiscordName.trim();
       const submittedMainStat = formMainStat || '';
       const submittedTime = normalizedFormTime;
       setFormTime(submittedTime);
 
       const res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
           relicId: formItemId,
           clearTime: submittedTime,
           characters: formChars,
-          discordUser: formDiscord,
+          discordUser: submittedDiscord,
           note: formNote || undefined,
           substats: payloadSubstats,
           mainStat: formMainStat || undefined
@@ -799,7 +911,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         if (!presetFlags.keepTeam) {
           setFormChars([]);
         }
-        if (!presetFlags.keepDiscord) {
+        if (!presetFlags.keepDiscord && !isAuthenticated) {
           setFormDiscord('');
         }
         if (!presetFlags.keepItem) {
@@ -854,6 +966,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const toggleChar = (charId) => {
     if (formChars.includes(charId)) {
       setFormChars(formChars.filter(id => id !== charId));
+    } else if (wouldCreateTrailblazerConflict(formChars, charId)) {
+      notify(SINGLE_TRAILBLAZER_TEAM_MESSAGE, 'error');
     } else if (formChars.length < 4) {
       setFormChars([...formChars, charId]);
 
@@ -1004,14 +1118,6 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     }
   };
 
-  const notify = (message, type = 'info') => {
-    const id = Date.now();
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 4000);
-  };
-
   const shiftTimeNodePreview = (time, total, dir) => {
     if (!time || total <= 1) return;
     setTimeNodePreviewIndex(prev => {
@@ -1047,9 +1153,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const presetItemId = category === 'traces' ? entryPreset.traces?.itemId : entryPreset.relics?.itemId;
     if (presetFlags.keepItem && presetItemId) setFormItemId(presetItemId);
     if (presetFlags.keepTeam && Array.isArray(entryPreset.team) && entryPreset.team.length) {
-      setFormChars(entryPreset.team.slice(0, 4));
+      applyCavernTeam(entryPreset.team.slice(0, 4));
     }
-    if (presetFlags.keepDiscord && entryPreset.discord) setFormDiscord(entryPreset.discord);
+    if (presetFlags.keepDiscord && (authDiscordName || entryPreset.discord)) setFormDiscord(authDiscordName || entryPreset.discord);
     if (category === 'relics' && presetFlags.keepMainStat && entryPreset.relics?.mainStat) {
       setFormMainStat(entryPreset.relics.mainStat);
     }
@@ -1087,7 +1193,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   const applyTeamPreset = (preset) => {
     if (!preset?.chars?.length) return;
-    setFormChars(preset.chars.slice(0, 4));
+    if (!applyCavernTeam(preset.chars.slice(0, 4))) return;
     setPresetFlags(prev => ({ ...prev, keepTeam: true }));
     setTeamPresets(prev => prev.map(p => p.id === preset.id ? { ...p, updatedAt: Date.now() } : p).sort((a, b) => b.updatedAt - a.updatedAt));
     addRecentTeam(preset.chars.slice(0, 4), formItemId, category);
@@ -1134,13 +1240,35 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
   const applyRecentTeam = (recent) => {
     if (!recent?.chars?.length) return;
-    setFormChars(recent.chars.slice(0, 4));
+    if (!applyCavernTeam(recent.chars.slice(0, 4))) return;
     setPresetFlags(prev => ({ ...prev, keepTeam: true }));
     setRecentTeams(prev =>
       [{ ...recent, updatedAt: Date.now() }, ...prev.filter(t => t.id !== recent.id)].slice(0, RECENT_TEAMS_LIMIT)
     );
     notify('Recent team loaded.', 'info');
   };
+
+  const getDomainMatchIds = useCallback((domainLike) => {
+    const domain =
+      domainLike && typeof domainLike === 'object'
+        ? domainLike
+        : findCavernById(domainLike);
+    if (!domain) return [];
+
+    return Array.from(
+      new Set(
+        [domain.id, ...(Array.isArray(domain.relicSetIds) ? domain.relicSetIds : [])]
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      )
+    );
+  }, []);
+
+  const doesClearBelongToDomain = useCallback((clear, domainLike) => {
+    const clearId = String(clear?.relicId || '').trim();
+    if (!clearId) return false;
+    return getDomainMatchIds(domainLike).includes(clearId);
+  }, [getDomainMatchIds]);
 
   const resetCurrentTeam = () => {
     setFormChars([]);
@@ -1174,8 +1302,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   };
 
   // Group clear records by time AND substats for a specific domain
-  const getGroupedTimesForDomain = (domainId) => {
-    const domainClears = clears.filter(c => c.relicId === domainId);
+  const getGroupedTimesForDomain = (domainLike) => {
+    const domainClears = clears.filter(c => doesClearBelongToDomain(c, domainLike));
     const groups = {};
 
     domainClears.forEach(clear => {
@@ -1241,13 +1369,17 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         return passDomain && passRarity;
       });
     }).sort((a, b) => {
-      const aClears = clears.filter(c => a.relicSetIds.includes(c.relicId)).length;
-      const bClears = clears.filter(c => b.relicSetIds.includes(c.relicId)).length;
+      const aDomainClears = clears.filter(c => doesClearBelongToDomain(c, a));
+      const bDomainClears = clears.filter(c => doesClearBelongToDomain(c, b));
+      const aClears = aDomainClears.length;
+      const bClears = bDomainClears.length;
       if (aClears > 0 && bClears === 0) return -1;
       if (bClears > 0 && aClears === 0) return 1;
-      return 0;
+      const aLatest = Math.max(0, ...aDomainClears.map(getClearLastReportedTimestamp));
+      const bLatest = Math.max(0, ...bDomainClears.map(getClearLastReportedTimestamp));
+      return bLatest - aLatest;
     });
-  }, [category, relicsData, activeFilters, rarityFilter, searchTerm, clears]);
+  }, [category, relicsData, activeFilters, rarityFilter, searchTerm, clears, doesClearBelongToDomain]);
 
   // Filter and sort logic for main grid
   const filteredGridData = currentItemData
@@ -1263,7 +1395,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       const bClears = clears.filter(c => c.relicId === b.id).length;
       if (aClears > 0 && bClears === 0) return -1;
       if (bClears > 0 && aClears === 0) return 1;
-      return 0; // Maintain original stable order otherwise
+      const aLatest = Math.max(0, ...clears.filter(c => c.relicId === a.id).map(getClearLastReportedTimestamp));
+      const bLatest = Math.max(0, ...clears.filter(c => c.relicId === b.id).map(getClearLastReportedTimestamp));
+      return bLatest - aLatest;
     });
 
   // Handle Wheel Scroll for Filter Bar
@@ -1396,11 +1530,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                 <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-white ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
-                onClick={() => { setIsFormOpen(!isFormOpen); setSelectedDomain(null); setSubmitStatus({ type: '', msg: '' }); }}
+                onClick={handlePrimaryRecordAction}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all text-xs md:text-sm uppercase tracking-widest cursor-pointer ${themeConfig.caverns.addButtonClass}`}
               >
-                {isFormOpen ? <X className="w-5 h-5 shrink-0" /> : <PlusCircle className="w-5 h-5 shrink-0" />}
-                {isFormOpen ? 'Close Portal' : 'Add New Record'}
+                {isAuthenticated && isFormOpen ? <X className="w-5 h-5 shrink-0" /> : <PlusCircle className="w-5 h-5 shrink-0" />}
+                {isAuthenticated ? (isFormOpen ? 'Close Portal' : 'Add New Record') : 'Log in'}
               </button>
             </div>
           </div>
@@ -1493,7 +1627,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.0 Active</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.1 Active</p>
                       </div>
                       
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
@@ -1844,9 +1978,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             <input
                               type="text"
                               required
-                              placeholder="Discord Username"
+                              placeholder={isAuthenticated ? 'Discord Account' : 'Log in with Discord'}
                               value={formDiscord}
                               onChange={e => setFormDiscord(e.target.value)}
+                              readOnly={isAuthenticated}
+                              disabled={!isAuthenticated}
                               className={`w-full bg-white/[0.03] backdrop-blur-sm shadow-[inset_0_0_15px_rgba(255,255,255,0.02)] border border-white/10 rounded-[1.5rem] p-5 pl-12 text-white font-black outline-none transition-all placeholder:text-slate-500 cursor-text hover:bg-white/[0.08] hover:border-white/20 focus:bg-white/[0.08] focus:border-amber-500/50 ${
                                 isCrimson ? 'focus:ring-red-500/20 focus:ring-4' :
                                 isGlacial ? 'focus:ring-cyan-500/20 focus:ring-4' :
@@ -2316,20 +2452,24 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           ) : (
             category === 'relics' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8">
-                {filteredDomains.map(domain => {
-                  const totalDomainRecords = domain.relicSetIds.reduce((sum, id) => {
-                    const domainClears = clears.filter(c => c.relicId === id);
-                    return sum + domainClears.reduce((vSum, c) => vSum + (c.verifiedCount || 1), 0);
-                  }, 0);
+                  {filteredDomains.map(domain => {
+                    const totalDomainRecords = clears
+                      .filter(c => doesClearBelongToDomain(c, domain))
+                      .reduce((sum, c) => sum + (c.verifiedCount || 1), 0);
 
-                  const anyRecentClears = clears.some(c => domain.relicSetIds.includes(c.relicId));
+                    const anyRecentClears = clears.some(c => doesClearBelongToDomain(c, domain));
+                    const domainPreview = {
+                      ...domain,
+                      image: relicsData.find(r => r.id === domain.relicSetIds[0])?.image || '',
+                      isDomain: true,
+                    };
 
-                  return (
-                    <div
-                      key={domain.id}
-                      onClick={() => setSelectedDomain(relicsData.find(r => r.id === domain.relicSetIds[0]) || null)}
-                      className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
-                    >
+                    return (
+                      <div
+                        key={domain.id}
+                        onClick={() => setSelectedDomain(domainPreview)}
+                        className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
+                      >
                       {/* Background Accents */}
                       <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700"></div>
                       
@@ -2565,7 +2705,12 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
               <div className={`theme-subpanel flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar rounded-none border-0 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
                   const grouped = getGroupedTimesForDomain(selectedDomain.id);
-                  const times = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+                  const times = Object.keys(grouped).sort((a, b) => {
+                    const aLatest = Math.max(0, ...(grouped[a] || []).flatMap((card) => card.variants || []).map(getClearLastReportedTimestamp));
+                    const bLatest = Math.max(0, ...(grouped[b] || []).flatMap((card) => card.variants || []).map(getClearLastReportedTimestamp));
+                    if (aLatest !== bLatest) return bLatest - aLatest;
+                    return a.localeCompare(b);
+                  });
                   const totalVariantCards = times.reduce((sum, time) => sum + grouped[time].length, 0);
 
                   if (times.length === 0) {
@@ -2574,10 +2719,18 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         <Binary className="w-20 h-20 text-slate-800" />
                         <h3 className="text-3xl font-black text-slate-700 uppercase tracking-widest italic outline-text">Archive Blank</h3>
                         <button
-                          onClick={() => { setSelectedDomain(null); setFormItemId(selectedDomain.id); setIsFormOpen(true); }}
+                          onClick={() => {
+                            if (!isAuthenticated) {
+                              signInWithDiscord();
+                              return;
+                            }
+                            setSelectedDomain(null);
+                            setFormItemId(selectedDomain.id);
+                            setIsFormOpen(true);
+                          }}
                           className={`px-10 py-4 text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all hover:scale-105 active:scale-95 shadow-xl cursor-pointer ${isGlacial ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
                         >
-                          + Log First Record
+                          {isAuthenticated ? '+ Log First Record' : 'Log in'}
                         </button>
                       </div>
                     );

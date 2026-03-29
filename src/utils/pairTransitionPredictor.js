@@ -10,6 +10,589 @@
  */
 
 const VALUES = ['41', '42', '43', '44'];
+const VALUE_PAIRS = [
+  ['41', '42'],
+  ['41', '43'],
+  ['41', '44'],
+  ['42', '43'],
+  ['42', '44'],
+  ['43', '44'],
+];
+
+function normalizePredictorRegion(region) {
+  const key = String(region || '').trim().toUpperCase();
+  if (key === 'EU' || key === 'EUROPE') return 'EU';
+  if (key === 'ASIA' || key === 'APAC') return 'ASIA';
+  if (key === 'NA' || key === 'AMERICA' || key === 'AMERICAS' || key === 'USA') return 'NA';
+  return 'NA';
+}
+
+function resolvePredictorRegion(region) {
+  if (region) return normalizePredictorRegion(region);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem('hsr-rng-session-v6');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.region) return normalizePredictorRegion(parsed.region);
+      }
+    } catch (error) {
+      // Ignore storage parsing issues and fall back to default region.
+    }
+  }
+  return 'NA';
+}
+
+function getPredictorProfile(region) {
+  const normalizedRegion = resolvePredictorRegion(region);
+  if (normalizedRegion === 'EU') {
+    return {
+      region: normalizedRegion,
+      noiseBurstRate: 0.32,
+      transitionShift: 0.16,
+      chaosNoiseRate: 0.34,
+      flatBand: 14,
+      noiseRisingCount: 2,
+      outsiderPromotion: 11,
+      pairGapSafe: 22,
+      pairGapCaution: 10,
+      noiseRiskBias: 8,
+    };
+  }
+  if (normalizedRegion === 'ASIA') {
+    return {
+      region: normalizedRegion,
+      noiseBurstRate: 0.44,
+      transitionShift: 0.22,
+      chaosNoiseRate: 0.44,
+      flatBand: 16,
+      noiseRisingCount: 3,
+      outsiderPromotion: 7,
+      pairGapSafe: 18,
+      pairGapCaution: 8,
+      noiseRiskBias: -3,
+    };
+  }
+  return {
+    region: normalizedRegion,
+    noiseBurstRate: 0.40,
+    transitionShift: 0.20,
+    chaosNoiseRate: 0.40,
+    flatBand: 15,
+    noiseRisingCount: 3,
+    outsiderPromotion: 8,
+    pairGapSafe: 18,
+    pairGapCaution: 8,
+    noiseRiskBias: 0,
+  };
+}
+
+function scoreTrustedPairs({
+  rolls,
+  distribution,
+  fullDistribution,
+  trends,
+  momentumScores,
+  matrix,
+  lastRoll,
+  commons,
+  noise,
+  noiseRising,
+  regime,
+  profile,
+}) {
+  const recent2 = rolls.slice(-2);
+  const recent4 = rolls.slice(-4);
+  const recent6Dist = getDistribution(rolls.slice(-6));
+  const recent10Dist = getDistribution(rolls.slice(-10));
+  const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
+
+  const pairScores = VALUE_PAIRS.map((pair) => {
+    const pairKey = pair.join('/');
+    const localRecent = pair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+    const localWindow = pair.reduce((sum, value) => sum + (recent10Dist[value] || 0), 0);
+    const sessionPct = pair.reduce((sum, value) => sum + (distribution[value] || 0), 0);
+    const fullPct = pair.reduce((sum, value) => sum + (fullDistribution[value] || 0), 0);
+    const pairTransition = pair.reduce((sum, value) => sum + (matrix[lastRoll]?.[value]?.pct || 0), 0);
+    const trust = pair.reduce((sum, value) => sum + (trends[value]?.trustScore ?? 0.6), 0) / pair.length;
+    const freshness = pair.reduce((sum, value) => sum + (trends[value]?.arrowWeight ?? 1), 0) / pair.length;
+    const momentum = pair.reduce((sum, value) => sum + ((momentumScores[value] || 0) / maxMomentum) * 100, 0) / pair.length;
+
+    let score =
+      localRecent * 0.56 +
+      localWindow * 0.18 +
+      sessionPct * 0.08 +
+      fullPct * 0.03 +
+      pairTransition * 0.18;
+
+    score += momentum * 0.18;
+    score += trust * 12;
+    score += freshness * 7;
+
+    const commonsCount = pair.filter(value => commons.includes(value)).length;
+    const noiseCount = pair.filter(value => noise.includes(value)).length;
+    const outsiderValues = pair.filter(value => noise.includes(value));
+    const outsiderRecentPeak = outsiderValues.reduce((max, value) => Math.max(max, recent6Dist[value] || 0), 0);
+    const outsiderRecent4Peak = outsiderValues.reduce((max, value) => {
+      const recentHits = recent4.filter(r => r === value).length;
+      return Math.max(max, recentHits);
+    }, 0);
+    if (commonsCount === 2) score += regime === 'stable' ? 8 : 3;
+    if (noiseCount > 0 && regime !== 'stable') {
+      if (outsiderRecentPeak >= 25 || outsiderRecent4Peak >= 2) score += noiseCount * profile.outsiderPromotion;
+      else score += noiseCount * Math.max(2, Math.round(profile.outsiderPromotion * 0.35));
+    }
+    if (pair.some(value => noiseRising.includes(value))) {
+      if (outsiderRecentPeak >= 25 || outsiderRecent4Peak >= 2) score += profile.outsiderPromotion + 4;
+      else score += 3;
+    }
+    if (
+      commonsCount === 2 &&
+      pair.every(value => (recent6Dist[value] || 0) >= 25)
+    ) {
+      score += regime === 'stable' ? 9 : 5;
+    }
+    if (pair.every(value => (trends[value]?.direction || 'stable') === 'rising')) score += 6;
+    if (pair.every(value => (trends[value]?.direction || 'stable') === 'falling')) score -= 10;
+
+    return { pair, pairKey, score };
+  }).sort((a, b) => b.score - a.score);
+
+  let trustedPair = pairScores[0]?.pair || commons;
+  let noisePair = VALUES.filter(value => !trustedPair.includes(value));
+  let runnerUpPair = pairScores[1]?.pair || noisePair;
+  const scoreGap = (pairScores[0]?.score || 0) - (pairScores[1]?.score || 0);
+  let tailRunLength = 0;
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (rolls[i] === lastRoll) tailRunLength++;
+    else break;
+  }
+  const outsiderSignals = noisePair.map((value) => {
+    const recent = recent6Dist[value] || 0;
+    const recent2Hits = recent2.filter(r => r === value).length;
+    const recent4Hits = recent4.filter(r => r === value).length;
+    const rollsAgo = (() => {
+      for (let i = rolls.length - 1; i >= 0; i--) {
+        if (rolls[i] === value) return rolls.length - 1 - i;
+      }
+      return -1;
+    })();
+    const trust = (trends[value]?.trustScore ?? 0.25) * 20;
+    const freshness = (trends[value]?.arrowWeight ?? 0.4) * 12;
+    const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
+    const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
+    const direction = trends[value]?.direction || 'stable';
+    const recencyMultiplier =
+      rollsAgo < 0 ? 0.04 :
+      rollsAgo <= 1 ? 1.0 :
+      rollsAgo === 2 ? 0.72 :
+      rollsAgo === 3 ? 0.45 :
+      0.18;
+    const score =
+      (recent * 0.8 +
+      recent2Hits * 16 +
+      recent4Hits * 8 +
+      trust +
+      freshness +
+      momentum +
+      pairPct * 0.35 +
+      (direction === 'rising' ? 10 : direction === 'stable' ? 3 : 0)) * recencyMultiplier;
+    return { value, score, recent2Hits, recent4Hits, rollsAgo, direction };
+  }).sort((a, b) => b.score - a.score);
+  const outsiderPressure = outsiderSignals.reduce((sum, item) => sum + item.score, 0) / Math.max(outsiderSignals.length, 1);
+  const freshOutsider = outsiderSignals[0] || null;
+  const mixedWindow = new Set(rolls.slice(-6)).size >= 3;
+
+  const trustedSignals = trustedPair.map((value) => {
+    const recent = recent6Dist[value] || 0;
+    const recent2Hits = recent2.filter(r => r === value).length;
+    const recent4Hits = recent4.filter(r => r === value).length;
+    const trust = (trends[value]?.trustScore ?? 0.6) * 20;
+    const freshness = (trends[value]?.arrowWeight ?? 0.6) * 12;
+    const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
+    const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
+    const direction = trends[value]?.direction || 'stable';
+    const score =
+      recent +
+      recent2Hits * 14 +
+      recent4Hits * 7 +
+      trust +
+      freshness +
+      momentum +
+      pairPct * 0.25 +
+      (direction === 'rising' ? 8 : direction === 'stable' ? 3 : -4);
+    return { value, score, recent, direction };
+  }).sort((a, b) => b.score - a.score);
+
+  const weakestTrusted = trustedSignals[trustedSignals.length - 1];
+  const strongestTrusted = trustedSignals[0];
+  const weakestTrustedRecent = weakestTrusted ? (recent6Dist[weakestTrusted.value] || 0) : 0;
+  const weakestTrustedRecent2Hits = weakestTrusted ? recent2.filter(r => r === weakestTrusted.value).length : 0;
+  const outsiderRecent = freshOutsider ? (recent6Dist[freshOutsider.value] || 0) : 0;
+  const outsiderHasCaughtWeakCommon =
+    outsiderRecent >= weakestTrustedRecent ||
+    (
+      freshOutsider?.recent2Hits >= 2 &&
+      weakestTrusted?.direction === 'falling' &&
+      weakestTrustedRecent <= 34
+    );
+  const outsiderCanPivot = !!freshOutsider && !!weakestTrusted && (
+    freshOutsider.recent2Hits >= 2 ||
+    freshOutsider.recent4Hits >= 2 ||
+    (
+      freshOutsider.recent2Hits >= 1 &&
+      freshOutsider.direction === 'rising' &&
+      freshOutsider.rollsAgo <= 1
+    )
+  );
+  if (
+    outsiderCanPivot &&
+    strongestTrusted &&
+    freshOutsider.value !== strongestTrusted.value &&
+    freshOutsider.score >= weakestTrusted.score + 18 &&
+    outsiderHasCaughtWeakCommon &&
+    weakestTrustedRecent <= 34 &&
+    weakestTrustedRecent2Hits === 0 &&
+    (
+      freshOutsider.recent2Hits >= 2 ||
+      (freshOutsider.recent4Hits >= 2 && freshOutsider.direction === 'rising')
+    ) &&
+    (mixedWindow || regime !== 'stable' || scoreGap <= profile.pairGapCaution)
+  ) {
+    trustedPair = [strongestTrusted.value, freshOutsider.value].sort();
+    noisePair = VALUES.filter(value => !trustedPair.includes(value));
+    runnerUpPair = pairScores.find(entry => entry.pair.join('/') !== trustedPair.join('/'))?.pair || noisePair;
+  }
+
+  const recentNoiseShare = noisePair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+  let noiseRisk = Math.round(
+    recentNoiseShare * 0.55 +
+    outsiderPressure * 0.45 +
+    (regime === 'noise-burst' ? 18 : regime === 'transition' ? 10 : 0) +
+    profile.noiseRiskBias
+  );
+  if (mixedWindow) noiseRisk += 10;
+  if (freshOutsider?.recent2Hits >= 1) noiseRisk += 12;
+  else if (freshOutsider?.recent4Hits >= 1) noiseRisk += 6;
+  if (freshOutsider?.recent4Hits >= 2) noiseRisk += 10;
+  if (freshOutsider?.direction === 'rising' && freshOutsider?.rollsAgo <= 2) noiseRisk += 8;
+  if (regime === 'stable' && tailRunLength >= 3 && (freshOutsider?.rollsAgo ?? 99) > 2) noiseRisk -= 10;
+  noiseRisk = Math.max(0, Math.min(100, noiseRisk));
+
+  let pairSafety = 'danger';
+  const safeThreshold = mixedWindow ? profile.pairGapSafe + 6 : profile.pairGapSafe;
+  const cautionThreshold = mixedWindow ? profile.pairGapCaution + 4 : profile.pairGapCaution;
+  const freshOutsiderHot = !!freshOutsider && (
+    freshOutsider.recent2Hits >= 1 ||
+    freshOutsider.recent4Hits >= 2 ||
+    (freshOutsider.recent4Hits >= 1 && freshOutsider.direction === 'rising' && freshOutsider.rollsAgo <= 2)
+  );
+  if (!freshOutsiderHot && scoreGap >= safeThreshold && noiseRisk <= 28) pairSafety = 'safe';
+  else if (scoreGap >= cautionThreshold && noiseRisk <= 56 && !freshOutsiderHot) pairSafety = 'caution';
+  else if (scoreGap >= safeThreshold + 4 && noiseRisk <= 44 && freshOutsider?.recent4Hits === 0) pairSafety = 'caution';
+
+  return {
+    trustedPair,
+    noisePair,
+    runnerUpPair,
+    scoreGap,
+    pairSafety,
+    noiseRisk,
+    pairScores,
+    outsiderPressure,
+    mixedWindow,
+    freshOutsider,
+  };
+}
+
+function scoreRunBreakCandidate({
+  candidate,
+  lastRoll,
+  matrix,
+  trends,
+  distribution,
+  momentumScores,
+  recent6Dist,
+  recent4,
+  lastSeen,
+  avgObservedRunLen,
+  avgNoiseGap,
+}) {
+  const pairPct = matrix[lastRoll]?.[candidate]?.pct || 0;
+  const trust = trends[candidate]?.trustScore ?? 0.45;
+  const direction = trends[candidate]?.direction || 'stable';
+  const arrowWeight = trends[candidate]?.arrowWeight ?? 0.5;
+  const momentum = momentumScores[candidate] || 0;
+  const recent = recent6Dist[candidate] || 0;
+  const recent4Hits = recent4.filter(r => r === candidate).length;
+  const seenAgo = lastSeen[candidate];
+  const expectedGap = Math.max(
+    2,
+    Math.round(
+      avgNoiseGap !== null && avgNoiseGap !== undefined
+        ? avgNoiseGap
+        : avgObservedRunLen * 1.5
+    )
+  );
+  const absenceGap = seenAgo >= 0 ? seenAgo : 0;
+  const absenceScore = seenAgo >= 0 ? Math.min(absenceGap, expectedGap * 2) * 2.5 : 0;
+  const overdueBoost = seenAgo >= Math.round(expectedGap * 1.5) ? 20 : 0;
+  const recencyBoost =
+    seenAgo === 0 ? 18 :
+    seenAgo === 1 ? 12 :
+    seenAgo === 2 ? 7 :
+    seenAgo === 3 ? 3 :
+    seenAgo >= 0 ? 0 : -12;
+  return (
+    pairPct * 1.5 +
+    absenceScore +
+    overdueBoost +
+    recent * 0.45 +
+    recent4Hits * 10 +
+    (distribution[candidate] || 0) * 0.15 +
+    trust * 18 +
+    arrowWeight * 10 +
+    momentum * 18 +
+    (direction === 'rising' ? 12 : direction === 'stable' ? 3 : -5) +
+    recencyBoost
+  );
+}
+
+function getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, freshOutsider = null) {
+  const baseAvg = Math.max(avgObservedRunLen || 2.5, 1);
+  const exhaustionRatio = currentRunLen / baseAvg;
+  let risk =
+    exhaustionRatio < 0.8 ? 25 :
+    exhaustionRatio < 1.2 ? 42 :
+    exhaustionRatio < 1.6 ? 58 :
+    exhaustionRatio < 2.0 ? 70 :
+    82;
+
+  if (regime === 'transition') risk += 6;
+  else if (regime === 'noise-burst') risk += 12;
+
+  if (freshOutsider?.recent2Hits >= 1) risk += 8;
+  else if (freshOutsider?.recent4Hits >= 1) risk += 4;
+  if (freshOutsider?.direction === 'rising' && (freshOutsider?.rollsAgo ?? 99) <= 2) risk += 6;
+
+  return Math.max(0, Math.min(100, Math.round(risk)));
+}
+
+function scoreSvarogAnalyzerPicks({
+  rolls,
+  lastRoll,
+  last2Rolls,
+  matrix,
+  matrix2gram,
+  trends,
+  momentumScores,
+  commons,
+  noise,
+  noiseRising,
+  distribution,
+  shiftedToValue,
+  patternShifted,
+  alternatingPair,
+  isAlternating,
+  currentRunLen,
+  freshOutsider,
+  lastSeen,
+  avgObservedRunLen,
+  regime,
+}) {
+  const recent6Dist = getDistribution(rolls.slice(-6));
+  const recent4 = rolls.slice(-4);
+  const recent2 = rolls.slice(-2);
+  const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
+  const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
+  const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
+  const recentRuns = [];
+  if (rolls.length >= 4) {
+    let runValue = rolls[0];
+    let runStart = 0;
+    for (let i = 1; i <= rolls.length; i++) {
+      const current = i < rolls.length ? rolls[i] : null;
+      if (current !== runValue) {
+        recentRuns.push({
+          value: runValue,
+          len: i - runStart,
+          endIndex: i - 1,
+        });
+        runValue = current;
+        runStart = i;
+      }
+    }
+  }
+
+  const getPostRunCooldown = (value) => {
+    const heavyRecentRun = recentRuns
+      .filter(run => run.value === value && run.len >= 3 && run.endIndex < rolls.length - 1)
+      .sort((a, b) => b.endIndex - a.endIndex)[0];
+    if (!heavyRecentRun) return 0;
+    const rollsSinceBreak = (rolls.length - 1) - heavyRecentRun.endIndex;
+    if (rollsSinceBreak <= 1) return 16;
+    if (rollsSinceBreak === 2) return 10;
+    if (rollsSinceBreak === 3) return 6;
+    return 0;
+  };
+
+  const scored = VALUES.map((value) => {
+    const pair1 = matrix?.[lastRoll]?.[value]?.pct || 0;
+    const pair1Reliable = !!matrix?.[lastRoll]?.[value]?.reliable;
+    const pair2 = pair2gramRow?.[value]?.pct || 0;
+    const pair2Reliable = !!pair2gramRow?.[value]?.reliable;
+    const trust = trends?.[value]?.trustScore ?? 0.5;
+    const arrowWeight = trends?.[value]?.arrowWeight ?? 0.6;
+    const direction = trends?.[value]?.direction || 'stable';
+    const momentum = ((momentumScores?.[value] || 0) / maxMomentum) * 100;
+    const recent6 = recent6Dist?.[value] || 0;
+    const recent4Hits = recent4.filter(r => r === value).length;
+    const recent2Hits = recent2.filter(r => r === value).length;
+    const seenAgo = lastSeen?.[value] ?? -1;
+    const effectiveGap = seenAgo >= 0 ? seenAgo : rolls.length;
+    const postRunCooldown = getPostRunCooldown(value);
+    const isSelfTransition = value === lastRoll;
+    const runBreakAbsenceBoost =
+      currentRunLen >= 3 && !isSelfTransition
+        ? (seenAgo < 0 ? 14 : seenAgo >= 5 ? 10 : seenAgo >= 3 ? 6 : 0)
+        : 0;
+    const distributionWithoutPairPenalty =
+      !isSelfTransition &&
+      rolls.length >= 8 &&
+      seenAgo < 0 &&
+      pair1 === 0 &&
+      (distribution?.[value] || 0) >= 45
+        ? 10
+        : 0;
+    const absenceCredit =
+      seenAgo < 0
+        ? Math.min(rolls.length * 12, 100)
+        : Math.min((effectiveGap / Math.max(expectedGap, 1)) * 40, 100);
+    const pairSignal = Math.min(pair1, 100);
+    const pair2Signal = Math.min(pair2, 100);
+    const freqSignal = Math.min(distribution?.[value] || 0, 100);
+    const momentumSignal = Math.min(momentum, 100);
+    const recentSignal = Math.min(recent6 * 2, 100);
+    const absenceSignal = Math.min(absenceCredit, 100);
+
+    let score =
+      pairSignal * 0.22 +
+      pair2Signal * 0.12 +
+      freqSignal * 0.2 +
+      momentumSignal * 0.2 +
+      recentSignal * 0.16 +
+      absenceSignal * 0.1;
+
+    if (regime === 'stable' && pair1Reliable) score += Math.min(pairSignal * 0.08, 8);
+    if (regime !== 'stable') {
+      score += Math.min(absenceSignal * 0.06, 6);
+      score += Math.min(momentumSignal * 0.05, 5);
+    }
+
+    score -= postRunCooldown;
+    score += runBreakAbsenceBoost;
+    score -= distributionWithoutPairPenalty;
+
+    if (isSelfTransition) score -= currentRunLen >= 2 ? 18 : 10;
+
+    if (commons?.includes(value)) score += 4;
+    if (noise?.includes(value)) score -= 1;
+    if (noiseRising?.includes(value)) score += 6;
+    if (patternShifted && shiftedToValue === value) score += 12;
+    if (freshOutsider?.value === value) score += 8;
+    if (isAlternating && alternatingPair?.includes(value)) score += 10;
+    if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
+
+    if (direction === 'rising') score += 7;
+    else if (direction === 'stable') score += 2;
+    else score -= 6;
+
+    return {
+      value,
+      score: Math.round(score * 100) / 100,
+      pair1,
+      pair2,
+      freqSignal,
+      recentSignal,
+      momentumSignal,
+      absenceSignal,
+      seenAgo,
+      isSelfTransition,
+      direction,
+    };
+  }).sort((a, b) => b.score - a.score);
+
+  // Narrow exact-pick helper for first-break moments after x3/x4 runs.
+  // We keep the balanced base scorer intact, then let the best non-runner
+  // challenger compete when the current run is stretched enough to be fragile.
+  if (currentRunLen >= 3 && scored.length >= 2) {
+    const exhaustionRatio = currentRunLen / Math.max(avgObservedRunLen || 2.5, 1);
+    const selfEntry = scored.find(entry => entry.isSelfTransition);
+    const challengerPool = scored
+      .filter(entry => !entry.isSelfTransition)
+      .map((entry) => {
+        const unseenBonus = entry.seenAgo < 0 ? 14 : 0;
+        const overdueBonus = entry.seenAgo >= 5 ? 10 : entry.seenAgo >= 3 ? 6 : 0;
+        const sparsePairBonus = entry.pair1 <= 15 ? 4 : 0;
+        const breakSignal =
+          entry.pair1 * 0.26 +
+          entry.pair2 * 0.14 +
+          entry.absenceSignal * 0.18 +
+          entry.momentumSignal * 0.08 +
+          entry.recentSignal * 0.08 +
+          entry.freqSignal * 0.04 +
+          unseenBonus +
+          overdueBonus +
+          sparsePairBonus +
+          (entry.direction === 'rising' ? 6 : entry.direction === 'stable' ? 2 : 0);
+        return {
+          ...entry,
+          breakSignal: Math.round(breakSignal * 100) / 100,
+          breakTotal: Math.round((entry.score + breakSignal) * 100) / 100,
+        };
+      })
+      .sort((a, b) => b.breakTotal - a.breakTotal);
+
+    const bestChallenger = challengerPool[0];
+    if (bestChallenger) {
+      const promoteThreshold =
+        currentRunLen >= 4 ? 2 :
+        exhaustionRatio >= 1.45 ? 4 :
+        8;
+      const selfScore = selfEntry?.score ?? -999;
+      const challengerWinsMain = bestChallenger.breakTotal >= selfScore + promoteThreshold;
+
+      if (challengerWinsMain) {
+        const promotedMain = bestChallenger.value;
+        const promotedAlt =
+          scored.find(entry => entry.value !== promotedMain && entry.value !== lastRoll)?.value ||
+          scored.find(entry => entry.value !== promotedMain)?.value ||
+          null;
+        return {
+          prediction: promotedMain,
+          alt: promotedAlt,
+          scores: scored,
+        };
+      }
+
+      const currentMain = scored[0]?.value || null;
+      const currentAlt = scored.find(entry => entry.value !== currentMain)?.value || null;
+      if (bestChallenger.value !== currentMain && bestChallenger.breakTotal >= (scored.find(entry => entry.value === currentAlt)?.score ?? -999) + 2) {
+        return {
+          prediction: currentMain,
+          alt: bestChallenger.value,
+          scores: scored,
+        };
+      }
+    }
+  }
+
+  return {
+    prediction: scored[0]?.value || null,
+    alt: scored.find(entry => entry.value !== scored[0]?.value)?.value || null,
+    scores: scored,
+  };
+}
 
 // =========================================================================
 // 🧠 META-PATTERN: Property Map for Secondary Characteristics
@@ -327,42 +910,128 @@ export function calculateWaveSignals(rolls, commons = []) {
 export function calculateTrends(rolls) {
   if (!rolls || rolls.length < 6) {
     return VALUES.reduce((acc, v) => {
-      acc[v] = { direction: 'stable', delta: 0, current: 0 };
+      acc[v] = { direction: 'stable', delta: 0, current: 0, arrowAge: 0, arrowWeight: 1.0 };
       return acc;
     }, {});
   }
 
-  // Compare distribution from 5 rolls ago vs now
+  // Helper: compute direction for a given 5-vs-5 window
+  function computeDirection(recent5, older5) {
+    const dir = {};
+    VALUES.forEach(v => {
+      const recentCount = recent5.filter(r => r === v).length;
+      const olderCount = older5.length > 0 ? older5.filter(r => r === v).length : 0;
+      const recentPct = (recentCount / recent5.length) * 100;
+      const olderPct = older5.length > 0 ? (olderCount / older5.length) * 100 : recentPct;
+      const delta = Math.round(recentPct - olderPct);
+      dir[v] = delta >= 10 ? 'rising' : delta <= -10 ? 'falling' : 'stable';
+    });
+    return dir;
+  }
+
+  // Current window: last 5 vs prev 5
   const recentRolls = rolls.slice(-5);
-  const olderRolls = rolls.slice(-10, -5);
-  
+  const olderRolls  = rolls.slice(-10, -5);
+  const currentDir  = computeDirection(recentRolls, olderRolls);
+
+  // Previous window (shifted back 5 rolls): for arrowAge calculation
+  const prevRecent  = rolls.slice(-10, -5);
+  const prevOlder   = rolls.slice(-15, -10);
+  const prevDir     = prevOlder.length >= 5
+    ? computeDirection(prevRecent, prevOlder)
+    : currentDir; // not enough history — assume same
+
+  // One window before that: for age=2 check
+  const prev2Recent = rolls.slice(-15, -10);
+  const prev2Older  = rolls.slice(-20, -15);
+  const prev2Dir    = prev2Older.length >= 5
+    ? computeDirection(prev2Recent, prev2Older)
+    : prevDir;
+
   const trends = {};
-  
+
   VALUES.forEach(v => {
     const recentCount = recentRolls.filter(r => r === v).length;
-    const olderCount = olderRolls.length > 0 
-      ? olderRolls.filter(r => r === v).length 
-      : 0;
-    
-    const recentPct = (recentCount / recentRolls.length) * 100;
-    const olderPct = olderRolls.length > 0 
-      ? (olderCount / olderRolls.length) * 100 
-      : recentPct;
-    
-    const delta = Math.round(recentPct - olderPct);
-    
-    let direction = 'stable';
-    if (delta >= 10) direction = 'rising';
-    else if (delta <= -10) direction = 'falling';
-    
+    const olderCount  = olderRolls.length > 0 ? olderRolls.filter(r => r === v).length : 0;
+    const recentPct   = (recentCount / recentRolls.length) * 100;
+    const olderPct    = olderRolls.length > 0 ? (olderCount / olderRolls.length) * 100 : recentPct;
+    const delta       = Math.round(recentPct - olderPct);
+    const direction   = currentDir[v];
+
+    // arrowAge: how many consecutive windows has direction been the same?
+    // age 0 = just changed this window (fresh)
+    // age 1 = same as previous window
+    // age 2 = same for 2+ windows (stale)
+    let arrowAge = 0;
+    if (direction === prevDir[v]) {
+      arrowAge = 1;
+      if (direction === prev2Dir[v]) {
+        arrowAge = 2;
+      }
+    }
+
+    // arrowWeight: decay multiplier for scoring use
+    // Fresh (age 0-1) = full trust, stale (age 2+) = reduced
+    const arrowWeight = arrowAge === 0 ? 1.0
+                      : arrowAge === 1 ? 0.75
+                      : 0.40; // age 2+ = stale
+
+    // trustScore: how much to trust this value as a candidate
+    // rising = confident pick, stable = neutral, falling = soft noise flag
+    // Applied as a multiplier — not a hard gate (Codex: "treat as modifier, not belief system")
+    const trustScore = direction === 'rising' ? 1.0
+                     : direction === 'stable'  ? 0.6
+                     : 0.25; // falling = likely cooling off, don't let it flip reads
+
     trends[v] = {
       direction,
       delta,
-      current: Math.round(recentPct)
+      current: Math.round(recentPct),
+      arrowAge,
+      arrowWeight,
+      trustScore,
     };
   });
-  
+
   return trends;
+}
+
+
+/**
+ * Step 6: Regime Detector
+ * Classifies the current session into one of three states:
+ *   'stable'      — commons are dominant and consistent, low noise rate
+ *   'transition'  — commons are shifting, distribution changing significantly
+ *   'noise-burst' — noise rate is spiking (≥40% of recent rolls are noise)
+ *
+ * @param {string[]} rolls
+ * @param {string[]} commons - current identified commons
+ * @param {string[]} noise   - current identified noise values
+ * @returns {'stable'|'transition'|'noise-burst'}
+ */
+export function classifyRegime(rolls, commons, noise, options = {}) {
+  const profile = getPredictorProfile(options.region);
+  if (!rolls || rolls.length < 8) return 'stable'; // not enough data to classify
+
+  // Recent window for noise rate check
+  const recentN = Math.min(8, rolls.length);
+  const recent  = rolls.slice(-recentN);
+  const noiseInRecent = recent.filter(r => noise.includes(r)).length;
+  const noiseRate = noiseInRecent / recentN;
+
+  if (noiseRate >= profile.noiseBurstRate) return 'noise-burst';
+
+  // Transition detection: compare commons share in session halves
+  const half = Math.floor(rolls.length / 2);
+  const firstHalf = rolls.slice(0, half);
+  const secondHalf = rolls.slice(half);
+  const commonsShareFirst  = firstHalf.filter(r => commons.includes(r)).length / firstHalf.length;
+  const commonsShareSecond = secondHalf.filter(r => commons.includes(r)).length / secondHalf.length;
+  const shareShift = Math.abs(commonsShareSecond - commonsShareFirst);
+
+  if (shareShift >= profile.transitionShift) return 'transition'; // adaptive shift threshold
+
+  return 'stable';
 }
 
 /**
@@ -397,7 +1066,8 @@ export function getDistribution(rolls) {
  * @param {string[]} rolls - Array of 2-digit rolls
  * @returns {Object} Commons, noise, distribution, and rising noise detection
  */
-export function identifyCommonsNoise(rolls) {
+export function identifyCommonsNoise(rolls, options = {}) {
+  const profile = getPredictorProfile(options.region);
   const n = rolls.length;
 
   // =========================================================================
@@ -435,10 +1105,11 @@ export function identifyCommonsNoise(rolls) {
   // NOISE RISING DETECTION
   // =========================================================================
   const last6 = rolls.slice(-6);
+  const last2 = rolls.slice(-2);
   const noiseRising = [];
   noise.forEach(noiseVal => {
     const countInLast6 = last6.filter(r => r === noiseVal).length;
-    if (countInLast6 >= 3) noiseRising.push(noiseVal);
+    if (countInLast6 >= profile.noiseRisingCount) noiseRising.push(noiseVal);
   });
   if (noiseRising.length > 0) {
     const risingNoise = noiseRising[0];
@@ -450,6 +1121,21 @@ export function identifyCommonsNoise(rolls) {
       noise = noise.filter(nv => nv !== risingNoise);
       noise.push(weakerCommon);
     }
+  }
+  // Fast outsider promotion: if a noise value just hit twice in the last two rolls,
+  // treat it as emerging immediately instead of waiting for the wider threshold.
+  const doubledNoise = noise.find(noiseVal =>
+    last2.length === 2 &&
+    last2[0] === noiseVal &&
+    last2[1] === noiseVal &&
+    last6.filter(r => r === noiseVal).length >= 2
+  );
+  if (doubledNoise && !commons.includes(doubledNoise)) {
+    const weakerCommon = commons[1];
+    commons = [commons[0], doubledNoise];
+    noise = noise.filter(nv => nv !== doubledNoise);
+    noise.push(weakerCommon);
+    if (!noiseRising.includes(doubledNoise)) noiseRising.push(doubledNoise);
   }
 
   // RUN BREAK DETECTION
@@ -482,13 +1168,15 @@ export function identifyCommonsNoise(rolls) {
  * @param {string[]} rolls - Array of 2-digit rolls
  * @returns {Object} Prediction result
  */
-export function predictWithPairs(rolls) {
+export function predictWithPairs(rolls, options = {}) {
   if (!rolls || rolls.length < 6) {
     return {
       prediction: null,
       alt: null,
       confidence: 0,
       method: 'insufficient-data',
+      pairSafety: 'warming',
+      noiseRisk: 0,
       pairMatrix: null,
       waveSignals: null,
       trends: null,
@@ -498,12 +1186,16 @@ export function predictWithPairs(rolls) {
     };
   }
 
+  const profile = getPredictorProfile(options.region);
+
   // Build all the data (ENHANCED with new features)
-  const commonsData = identifyCommonsNoise(rolls);
-  const { commons, noise, distribution, noiseRising, currentRunLength, runBreakLikely } = commonsData;
+  const commonsData = identifyCommonsNoise(rolls, options);
+  let { commons, noise, distribution, fullDistribution, noiseRising, currentRunLength, runBreakLikely } = commonsData;
   const { matrix, matrix2gram, lastRoll, last2Rolls } = buildPairMatrix(rolls);
-  const waveSignals = calculateWaveSignals(rolls, commons);
   const trends = calculateTrends(rolls);
+  const waveSignals = calculateWaveSignals(rolls, commons);
+  // 🆕 Step 6: Regime classification — used by final ranker and exposed in debug
+  let regime = classifyRegime(rolls, commons, noise, options);
 
   // =========================================================================
   // 🔥 CHAOS DETECTION: When session is too noisy, use simpler logic
@@ -516,10 +1208,10 @@ export function predictWithPairs(rolls) {
   const distValues = Object.values(distribution);
   const maxDist = Math.max(...distValues);
   const minDist = Math.min(...distValues);
-  const isFlat = (maxDist - minDist) < 15;
+  const isFlat = (maxDist - minDist) < profile.flatBand;
   
   // Chaos = high noise rate OR flat distribution
-  const isChaotic = noiseRate >= 0.40 || isFlat;
+  const isChaotic = noiseRate >= profile.chaosNoiseRate || isFlat;
   
   // =========================================================================
   // 🚨 EMERGENCY BRAKE: Full-flat state = server reset / salt change detected
@@ -539,6 +1231,11 @@ export function predictWithPairs(rolls) {
       alt: null,
       confidence: 0,
       method: 'session-reset',
+      trustedPair: commons,
+      runnerUpPair: noise,
+      pairSafety: 'danger',
+      noiseRisk: 100,
+      pairScoreGap: 0,
       label: '🔴 Reset',
       reasonLine: 'All values ~25% — server re-salted. Stand by.',
       isSessionReset: true,
@@ -663,7 +1360,10 @@ export function predictWithPairs(rolls) {
         score += 1 / Math.pow(distance + 1, 1.5); // Exponential decay
       }
     }
-    momentumScores[v] = Math.round(score * 100) / 100;
+    // 🆕 ARROW FRESHNESS DECAY: multiply by arrowWeight from trends
+    // Stale arrows (same direction 2+ windows) get reduced weight
+    const trendWeight = trends[v]?.arrowWeight ?? 1.0;
+    momentumScores[v] = Math.round(score * trendWeight * 100) / 100;
   });
   
   // Determine "hot" values (highest momentum) - these are the real commons NOW
@@ -673,6 +1373,38 @@ export function predictWithPairs(rolls) {
   
   const hotValues = sortedByMomentum.slice(0, 2).map(x => x.value);
   const coldValues = sortedByMomentum.slice(2).map(x => x.value);
+
+  const pairInsights = scoreTrustedPairs({
+    rolls,
+    distribution,
+    fullDistribution,
+    trends,
+    momentumScores,
+    matrix,
+    lastRoll,
+    commons,
+    noise,
+    noiseRising,
+    regime,
+    profile,
+  });
+  commons = pairInsights.trustedPair;
+  noise = pairInsights.noisePair;
+  regime = classifyRegime(rolls, commons, noise, options);
+  const pairOutlook = scoreTrustedPairs({
+    rolls,
+    distribution,
+    fullDistribution,
+    trends,
+    momentumScores,
+    matrix,
+    lastRoll,
+    commons,
+    noise,
+    noiseRising,
+    regime,
+    profile,
+  });
   
   // =========================================================================
   // 🔍 LAST SEEN: Track when each value last appeared (for wave detection)
@@ -836,22 +1568,31 @@ export function predictWithPairs(rolls) {
     pairConfidence = pairSorted[0].pct;
   }
 
-  // ── FREQ/PAIR BLEND based on sample count ─────────────────────────────────
-  // How many times has lastRoll appeared? That's how many pair samples we have.
-  const pairSamplesForLastRoll = rolls.filter(r => r === lastRoll).length;
-  // Weight schedule:
-  //   < 3 samples → freq dominates (pair data too noisy)
-  //   3–5 samples → equal blend
-  //   6+ samples  → pair dominates
-  const pairWeight = pairSamplesForLastRoll < 3 ? 0.20
-    : pairSamplesForLastRoll < 6 ? 0.50
-    : 0.80;
+  // ── FREQ/PAIR BLEND based on RELIABLE EVIDENCE COUNT ────────────────────────
+  // How many outgoing transitions from lastRoll have ≥ 3 samples in the matrix?
+  // This is stronger than raw sample count — it asks "does the matrix actually know
+  // what tends to follow lastRoll?" not just "did lastRoll appear often?"
+  //
+  //   0 reliable transitions → freq dominates (matrix is blind to this roll)
+  //   1 reliable transition  → light pair touch (still learning)
+  //   2+ reliable transitions → pair earns more influence
+  //   3+ reliable transitions → pair dominates
+  const reliableTransitionCount = lastRoll && matrix[lastRoll]
+    ? VALUES.filter(v => matrix[lastRoll][v]?.reliable === true).length
+    : 0;
+  const pairSamplesForLastRoll = rolls.filter(r => r === lastRoll).length; // kept for confidence cap
+  const pairWeight = reliableTransitionCount === 0 ? 0.10   // matrix is blind — freq only
+    : reliableTransitionCount === 1              ? 0.30   // one reliable edge — light touch
+    : reliableTransitionCount === 2              ? 0.55   // two reliable edges — meaningful
+    :                                              0.80;  // 3+ reliable edges — pair leads
   const freqWeight = 1 - pairWeight;
 
   // Compute a blended score for each value (used instead of raw pair % when sparse)
+  // 🆕 TRUST SCORE: multiply by direction trust — falling values deprioritized
   const blendedScores = VALUES.map(v => ({
     value: v,
-    blended: freqWeight * (distribution[v] || 0) + pairWeight * (matrix[lastRoll]?.[v]?.pct || 0)
+    blended: (freqWeight * (distribution[v] || 0) + pairWeight * (matrix[lastRoll]?.[v]?.pct || 0))
+             * (trends[v]?.trustScore ?? 1.0)  // soft modifier, not hard gate
   })).sort((a, b) => b.blended - a.blended);
 
   // Blended pair prediction (commons-filtered for main use)
@@ -859,11 +1600,12 @@ export function predictWithPairs(rolls) {
   const blendedPairPrediction = blendedCommons[0]?.value || pairPrediction;
   const blendedPairAlt        = blendedCommons[1]?.value || pairAlt;
   // Use blended confidence (scale down when freq-heavy since freq is weaker)
-  const blendedPairConfidence = pairSamplesForLastRoll < 3
-    ? Math.min((blendedCommons[0]?.blended || 0), 40)   // Freq-heavy: cap low
-    : pairSamplesForLastRoll < 6
-    ? Math.min((blendedCommons[0]?.blended || 0), 60)   // Blend: medium cap
-    : (blendedCommons[0]?.blended || pairConfidence);   // Pair-heavy: full trust
+  const blendedPairConfidence = reliableTransitionCount === 0
+    ? Math.min((blendedCommons[0]?.blended || 0), 35)   // matrix blind: cap very low
+    : reliableTransitionCount <= 1
+    ? Math.min((blendedCommons[0]?.blended || 0), 50)   // light evidence: medium cap
+    : (blendedCommons[0]?.blended || pairConfidence);   // solid evidence: full trust
+
   
   // 6. ALTERNATING PATTERN DETECTION (noise-tolerant, data-driven)
   // Classic: requires strict ABAB in last 4 raw rolls — breaks on any noise insertion
@@ -1069,7 +1811,9 @@ export function predictWithPairs(rolls) {
   
   // Step 2b: OVERDUE WAVE - Individual wave cycle detection
   // 🔧 FIX: Only predict COMMONS for overdue-wave method. Noise-overdue is shown in Watch strip.
-  else if (mostOverdueCommon && lastSeen[mostOverdueCommon] >= OVERDUE_THRESHOLD) {
+  // 🆕 REGIME GATE: overdue-wave only reliable in stable sessions
+  // In transition/noise-burst the "most absent common" is a red herring
+  else if (regime === 'stable' && mostOverdueCommon && lastSeen[mostOverdueCommon] >= OVERDUE_THRESHOLD) {
     const overdueMomentum = momentumScores[mostOverdueCommon] || 0;
     const isOnlyOverdue = overdueValues.includes(mostOverdueCommon) && 
       overdueValues.filter(v => commons.includes(v)).length <= 1;
@@ -1105,8 +1849,26 @@ export function predictWithPairs(rolls) {
         // Let the commons alternating pattern handle this - don't override with dead noise
         // Fall through to next step
       }
-      // Only predict overdue if it has DECENT momentum (> 0.20) OR it's the only overdue option
-      else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
+      // 🆕 POST-RUN SUPPRESSION: If overdue candidate just had a hot run (3+) before going
+      // absent, it exhausted itself — not genuinely overdue.
+      // Scan backwards through recent rolls to find the run that ended before the absence.
+      let lastRunLen = 0;
+      let seenAbsence = false;
+      for (let i = rolls.length - 1; i >= Math.max(0, rolls.length - 12); i--) {
+        if (rolls[i] !== mostOverdueCommon) {
+          seenAbsence = true; // gap/absence confirmed
+        } else if (seenAbsence) {
+          lastRunLen++; // counting the run just before the absence
+        }
+        // Stop once we've counted past the prior run
+        if (seenAbsence && lastRunLen > 0 && rolls[i] !== mostOverdueCommon) break;
+      }
+      const justRanHot = lastRunLen >= 3; // ran 3+ just before going absent
+
+      // Only predict overdue if: decent momentum OR only overdue option, AND not post-run exhaustion
+      if (justRanHot) {
+        // Ran hot then stopped — normal run completion, not a due situation. Fall through.
+      } else if (overdueMomentum >= 0.20 || isOnlyOverdue) {
         prediction = mostOverdueCommon;
         // Alt is the next most overdue common, or the hottest value
         const secondOverdueCommon = commons
@@ -1152,11 +1914,36 @@ export function predictWithPairs(rolls) {
   if (!prediction && runBreakLikely) {
     const otherCommon = commons.find(c => c !== lastRoll);
     if (otherCommon) {
-      prediction = otherCommon;   // Break target = the other common
-      alt = lastRoll;             // Alt = run might continue one more time
+      const recent6Dist = getDistribution(rolls.slice(-6));
+      const recent4 = rolls.slice(-4);
+      const nonRunCandidates = VALUES.filter(v => v !== lastRoll);
+      const breakCandidates = nonRunCandidates
+        .map(value => ({
+          value,
+          score: scoreRunBreakCandidate({
+            candidate: value,
+            lastRoll,
+            matrix,
+            trends,
+            distribution,
+            momentumScores,
+            recent6Dist,
+            recent4,
+            lastSeen,
+            avgObservedRunLen,
+            avgNoiseGap,
+          }),
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      const bestBreak = breakCandidates[0]?.value || otherCommon;
+      const secondBreak = breakCandidates.find(entry => entry.value !== bestBreak)?.value || lastRoll;
+
+      prediction = bestBreak;
+      alt = secondBreak;
       method = 'run-break';
       // Higher confidence for longer runs (more likely to break)
-      confidence = currentRunLen >= 4 ? 0.75 : currentRunLen >= 3 ? 0.65 : 0.55;
+      confidence = currentRunLen >= 4 ? 0.70 : currentRunLen >= 3 ? 0.62 : 0.55;
     }
   }
   
@@ -1200,6 +1987,41 @@ export function predictWithPairs(rolls) {
     method = pairSamplesForLastRoll < 3 ? 'freq-blend' : pairSamplesForLastRoll < 6 ? 'freq+pair-blend' : 'pair-matrix';
   }
   
+  // Step 9b: WIDE-CANDIDATE MODE (transition / noise-burst only)
+  // ═══════════════════════════════════════════════════════════════
+  // Problem (Codex): in mixed sessions the predictor over-commits to
+  // its current 2-common narrative. When the real answer is the
+  // 3rd-most-active value, it gets excluded from candidates entirely.
+  //
+  // Fix: in transition or noise-burst, open the candidate pool to
+  // top-3 momentum values — not just the 2 session commons.
+  // We use pair-transition pct as the ranking signal within that pool.
+  //
+  // Conditions to fire:
+  //   - regime is not 'stable' (transition or noise-burst)
+  //   - no prediction set yet by earlier steps
+  //   - at least 8 rolls of history (enough for momentum to mean something)
+  // ═══════════════════════════════════════════════════════════════
+  if (!prediction && regime !== 'stable' && rolls.length >= 8) {
+    // Pool = top-3 by recent momentum (arrowWeight-adjusted, already computed)
+    const widePool = sortedByMomentum.slice(0, 3).map(x => x.value);
+
+    // Score each pool member by pair transition pct from lastRoll
+    const wideScores = widePool.map(v => {
+      const pairPct   = matrix[lastRoll]?.[v]?.pct || 0;
+      const trust     = trends[v]?.trustScore ?? 0.6;
+      const score     = (pairPct > 0 ? pairPct : (distribution[v] || 0) * 0.5) * trust;
+      return { value: v, score };
+    }).sort((a, b) => b.score - a.score);
+
+    if (wideScores.length >= 2) {
+      prediction = wideScores[0].value;
+      alt        = wideScores[1].value;
+      method     = 'wide-candidate';
+      confidence = Math.min(0.35 + (wideScores[0].score / 100) * 0.2, 0.55);
+    }
+  }
+
   // Step 10: FREQUENCY FALLBACK - Use distribution
   if (!prediction) {
     prediction = freqPrediction;
@@ -1314,8 +2136,161 @@ export function predictWithPairs(rolls) {
     isUncertainResult = true;
   }
 
+  // =========================================================================
+  // 🆕 Step 7: FINAL RANKER
+  // After all prediction logic has run, do one final re-ranking of (prediction, alt)
+  // using: pair transition probability × arrow trustScore × regime multiplier.
+  // If the ranker swaps the pick, it only does so when the gap is significant (>12 pts)
+  // to avoid noise-driven flips on weak signals.
+  //
+  // Regime multipliers:
+  //   stable      = 1.0 (trust pair transitions fully)
+  //   transition  = 0.8 (slightly discounted — things are changing)
+  //   noise-burst = 0.5 (pair signal is polluted — rely more on commons baseline)
+  // =========================================================================
+  const regimeMult = regime === 'stable' ? 1.0 : regime === 'transition' ? 0.8 : 0.5;
+
+  // Only re-rank commons candidates (never noise). Score = pair pct × trustScore × regimeMult
+  const rankableCandidates = [prediction, alt]
+    .filter(v => v && commons.includes(v))
+    .map(v => {
+      const pairPct   = matrix[lastRoll]?.[v]?.pct || 0;
+      const trust     = trends[v]?.trustScore ?? 0.6;
+      const freqScore = distribution[v] || 0;
+      // Pair pct is primary; freq is used as a tie-break when pairPct is low
+      const score = (pairPct > 0 ? pairPct : freqScore * 0.4) * trust * regimeMult;
+      return { value: v, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  if (rankableCandidates.length >= 2) {
+    const winner = rankableCandidates[0];
+    const runner = rankableCandidates[1];
+    const scoreGap = winner.score - runner.score;
+    // Only swap if current prediction disagrees AND gap is meaningful
+    if (winner.value !== prediction && scoreGap > 12) {
+      alt = prediction; // demote current prediction to alt
+      prediction = winner.value;
+      method = method + '+ranker';
+    }
+  }
+
+  // =========================================================================
+  // 🆕 RISING VALUE PROMOTION (Codex fix: post-decision alt injection)
+  // Problem: patternShifted / commonsFlipDetected are detected but only affect
+  // the pick when THEY are the decision method. All other methods (run-break,
+  // overdue-wave, hot-run…) pull alt from old commons and completely ignore
+  // the shift signal.
+  //
+  // Fix: after any method sets prediction+alt, if a rising value is confirmed,
+  // promote it into alt immediately — unless prediction is already the rising value.
+  //
+  // Guard conditions:
+  //   1. A rising value must be identified (patternShifted OR commonsFlipDetected)
+  //   2. Rising value must not already be the prediction
+  //   3. Rising value must have real recent momentum (not just noise artifact)
+  //   4. Only applies when we're NOT already in the pattern-shift method
+  //      (that branch already handles alt correctly)
+  // =========================================================================
+  const risingValue = shiftedToValue || (commonsFlipDetected && newCommons?.find(v => noise.includes(v))) || null;
+  const risingMomentum = risingValue ? (momentumScores[risingValue] || 0) : 0;
+
+  // Path A: explicit rising signal (patternShifted / commonsFlip)
+  if (
+    risingValue &&
+    risingValue !== prediction &&
+    risingValue !== alt &&
+    risingMomentum > 0.05 &&
+    !method.startsWith('pattern-shift') &&
+    !method.startsWith('chaos')
+  ) {
+    alt = risingValue;
+    method = method + '+rising-promoted';
+  }
+  // Path B: regime-aware 3rd-value injection (Codex: break 2-commons lock in noisy sessions)
+  // When session is in transition/noise-burst, check if top-3 momentum has a value that's
+  // excluded from both prediction and alt — and inject it if it has real recent presence.
+  // Only fires when Path A didn't already promote something, and not in chaos/pattern-shift.
+  else if (
+    regime !== 'stable' &&
+    !method.startsWith('pattern-shift') &&
+    !method.startsWith('chaos') &&
+    !method.startsWith('wide-candidate')  // wide-candidate already opened the pool
+  ) {
+    // Top-3 momentum values (already computed by sortedByMomentum)
+    const thirdCandidate = sortedByMomentum
+      .slice(0, 3)
+      .map(x => x.value)
+      .find(v => v !== prediction && v !== alt && (momentumScores[v] || 0) > 0.08);
+
+    if (thirdCandidate) {
+      alt = thirdCandidate;
+      method = method + '+wide-alt';
+    }
+  }
+
+  // Alternating can look too clean in mixed windows. If outsider pressure is live,
+  // keep the pair but downgrade confidence and surface the outsider in alt sooner.
+  const alternatingOverheat =
+    method.startsWith('alternating') &&
+    (
+      pairOutlook.pairSafety !== 'safe' ||
+      pairOutlook.noiseRisk >= 28 ||
+      (pairOutlook.freshOutsider?.recent4Hits || 0) >= 1 ||
+      pairOutlook.freshOutsider?.direction === 'rising'
+    );
+  if (alternatingOverheat) {
+    confidence = Math.min(confidence, 0.58);
+    if (
+      pairOutlook.freshOutsider?.value &&
+      pairOutlook.freshOutsider.value !== prediction &&
+      pairOutlook.freshOutsider.value !== alt
+    ) {
+      alt = pairOutlook.freshOutsider.value;
+      method = method + '+pressure-alt';
+    } else {
+      method = method + '+pressure';
+    }
+  }
+
+  let displayPairSafety = pairOutlook.pairSafety;
+  let displayNoiseRisk = pairOutlook.noiseRisk;
+
+  if (method.startsWith('run-break')) {
+    if (displayPairSafety === 'safe') displayPairSafety = 'caution';
+    displayNoiseRisk = Math.max(
+      displayNoiseRisk,
+      getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, pairOutlook.freshOutsider)
+    );
+    if (
+      currentRunLen >= 3 &&
+      pairOutlook.freshOutsider?.value &&
+      pairOutlook.freshOutsider.value !== prediction &&
+      pairOutlook.freshOutsider.value !== alt &&
+      (
+        pairOutlook.freshOutsider.recent2Hits >= 1 ||
+        pairOutlook.freshOutsider.recent4Hits >= 1 ||
+        pairOutlook.freshOutsider.direction === 'rising'
+      )
+    ) {
+      alt = pairOutlook.freshOutsider.value;
+      method = method + '+break-watch';
+    }
+  }
+
+  if (method.startsWith('alternating') && regime !== 'stable') {
+    if (displayPairSafety === 'safe') displayPairSafety = 'caution';
+    displayNoiseRisk = Math.max(displayNoiseRisk, 28);
+    confidence = Math.min(confidence, 0.58);
+  }
+
   // 🔧 FINAL SAFETY: Ensure confidence is never 0%
   confidence = Math.max(confidence, 0.25);
+  if (displayPairSafety === 'danger') {
+    confidence = Math.min(confidence, 0.48);
+  } else if (displayPairSafety === 'safe' && displayNoiseRisk <= 30) {
+    confidence = Math.min(confidence + 0.04, 0.82);
+  }
 
   // =========================================================================
   // 🆕 TOPIC 2+3: LABEL, REASON LINE, NOISE WATCH
@@ -1324,17 +2299,30 @@ export function predictWithPairs(rolls) {
   // =========================================================================
 
   // Commons guardian: last safety net — if somehow prediction is noise, swap to top common
-  if (noise.includes(prediction)) {
+  // Exception: wide-candidate can intentionally set prediction to a noise/non-common value
+  const predIsWideCandidate = method.startsWith('wide-candidate');
+  if (!predIsWideCandidate && noise.includes(prediction)) {
     prediction = commons[0] || freqSorted.find(f => commons.includes(f.value))?.value || prediction;
   }
-  if (noise.includes(alt) || alt === prediction) {
+  // Guard for alt: skip eviction if alt is deliberately promoted (rising-promoted or wide-alt)
+  const altIsPromoted = (risingValue && alt === risingValue) || method.includes('+wide-alt');
+  if (!altIsPromoted && (noise.includes(alt) || alt === prediction)) {
     alt = commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || alt;
   }
 
   // Noise watch: is a noise value likely to appear soon? (for ⚡ Watch indicator)
-  const noiseWatchValue = _chaosNoiseWatch ||
-    (waveSignals?.isWaveWarning && noise[0]) ||
-    (noiseRising.length > 0 ? noiseRising[0] : null);
+  const shouldWatchFreshOutsider = pairOutlook.freshOutsider?.value &&
+    !commons.includes(pairOutlook.freshOutsider.value) &&
+    (
+      pairOutlook.freshOutsider.recent2Hits >= 1 ||
+      pairOutlook.freshOutsider.recent4Hits >= 1 ||
+      pairOutlook.freshOutsider.direction === 'rising'
+    );
+  const noiseWatchValue = shouldWatchFreshOutsider
+    ? pairOutlook.freshOutsider.value
+    : _chaosNoiseWatch ||
+      (waveSignals?.isWaveWarning && noise[0]) ||
+      (noiseRising.length > 0 ? noiseRising[0] : null);
 
   // Overdue noise: noise values that have been absent unusually long
   // Threshold: avgNoiseGap * 2.5 rolls (if known), else 7 rolls as fallback
@@ -1434,6 +2422,29 @@ export function predictWithPairs(rolls) {
   // Try exact method first, then base method
   const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: '🎯 Pair', reason: `${prediction} most likely after ${lastRoll}` };
 
+  const analyzer = scoreSvarogAnalyzerPicks({
+    rolls,
+    lastRoll,
+    last2Rolls,
+    matrix,
+    matrix2gram,
+    trends,
+    momentumScores,
+    commons,
+    noise,
+    noiseRising,
+    distribution,
+    shiftedToValue,
+    patternShifted,
+    alternatingPair,
+    isAlternating,
+    currentRunLen,
+    freshOutsider: pairOutlook.freshOutsider,
+    lastSeen,
+    avgObservedRunLen,
+    regime,
+  });
+
   return {
     prediction,
     alt,
@@ -1442,6 +2453,16 @@ export function predictWithPairs(rolls) {
     // 🆕 User-facing display fields
     label: labelEntry.label,
     reasonLine: labelEntry.reason,
+    trustedPair: pairOutlook.trustedPair,
+    runnerUpPair: pairOutlook.runnerUpPair,
+    pairSafety: displayPairSafety,
+    noiseRisk: displayNoiseRisk,
+    pairScoreGap: Math.round(pairOutlook.scoreGap),
+    mixedWindow: pairOutlook.mixedWindow,
+    freshOutsider: pairOutlook.freshOutsider,
+    analyzerPrediction: analyzer.prediction,
+    analyzerAlt: analyzer.alt,
+    analyzerScores: analyzer.scores,
     noiseWatch: noiseWatchValue,
     overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,
@@ -1454,6 +2475,9 @@ export function predictWithPairs(rolls) {
     commons,
     noise,
     distribution,
+    // 🆕 Step 6+7: Regime and evidence quality
+    regime,
+    reliableTransitionCount,
     // Enhanced data
     noiseRising,
     currentRunLength,

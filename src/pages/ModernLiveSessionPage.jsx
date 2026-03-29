@@ -90,7 +90,7 @@ export default function ModernLiveSessionPage({
         <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-12 lg:items-start">
           <div className="contents lg:block lg:col-span-3 lg:space-y-4">
             <div className="order-1 lg:order-none">
-              <ModernPairPredictorCard entries={entries} />
+              <ModernPairPredictorCard entries={entries} region={region} />
             </div>
 
             <div className="theme-glass-card order-3 lg:order-none">
