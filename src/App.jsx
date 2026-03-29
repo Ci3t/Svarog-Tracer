@@ -28,6 +28,8 @@ import ModernGuidesPage from "./pages/ModernGuidesPage"; // ðŸ”¥ NEW Guides
 import HomePage from "./pages/HomePage"; // ðŸ”¥ NEW Landing Page
 import BannerTracker from "./pages/BannerTracker"; // ðŸ”¥ NEW Banner Tracker
 import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns Page
+import TutorialPage from "./pages/TutorialPage";
+import PlaygroundPage from "./pages/PlaygroundPage";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
@@ -1182,6 +1184,8 @@ export default function App() {
             <Route path="/warp-analyzer" element={<WarpAnalyzerPage sessionTheme={sessionTheme} />} />
             <Route path="/banner-tracker" element={<BannerTracker sessionTheme={sessionTheme} />} />
             <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial" element={<TutorialPage sessionTheme={sessionTheme} />} />
+            <Route path="/playground" element={<PlaygroundPage sessionTheme={sessionTheme} />} />
             <Route
               path="/zone-tracker"
               element={

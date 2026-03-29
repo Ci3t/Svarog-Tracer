@@ -305,6 +305,30 @@ export default function Layout({
                 >
                   📚 Guides
                 </NavLink>
+                <NavLink
+                  to="/tutorial"
+                  data-active={location.pathname === '/tutorial'}
+                  className={({ isActive }) =>
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
+                    }`
+                  }
+                >
+                  Tutorial
+                </NavLink>
+                <NavLink
+                  to="/playground"
+                  data-active={location.pathname === '/playground'}
+                  className={({ isActive }) =>
+                    `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
+                      ? activeTabTextClass
+                      : inactiveTabTextClass
+                    }`
+                  }
+                >
+                  Playground
+                </NavLink>
               </nav>
 
               {/* Theme Switch (Paint Dropdown) */}
@@ -445,7 +469,7 @@ export default function Layout({
             <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
               Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
               <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                Ver 4.1.0
+                Ver 4.1.1
               </span>
             </h4>
             <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2026 Ciet</p>

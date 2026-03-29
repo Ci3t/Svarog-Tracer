@@ -21,6 +21,8 @@ const HOME_THEME_ICONS = {
   astral: Star,
 };
 
+const TUTORIAL_BANNER_STORAGE_KEY = "svarog_tutorial_banner_dismissed_v1";
+
 export default function HomePage({
   sessionTheme = "modern",
   onThemeChange = () => {},
@@ -31,6 +33,13 @@ export default function HomePage({
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const [isSplashDone, setIsSplashDone] = useState(false);
   const [typewriterText, setTypewriterText] = useState("");
+  const [showTutorialBanner, setShowTutorialBanner] = useState(() => {
+    try {
+      return localStorage.getItem(TUTORIAL_BANNER_STORAGE_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
   const baseUrl = import.meta.env.BASE_URL;
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const homeTheme = themeConfig.home || {};
@@ -91,9 +100,27 @@ export default function HomePage({
     },
   ];
 
+  const learningModes = [
+    {
+      title: "Onboarding",
+      label: "Tutorial",
+      desc: "Scripted Svarog manip training for Live Mode, Caesar Shift, and force-line setups.",
+      path: "/tutorial",
+      icon: "T",
+    },
+    {
+      title: "Practice",
+      label: "Playground",
+      desc: "Practice custom and random relic scenarios without risking a real session.",
+      path: "/playground",
+      icon: "P",
+    },
+  ];
+
   const modes = isAuthenticated
     ? [
         ...baseModes,
+        ...learningModes,
         {
           title: "Nexus",
           label: "Zone Tracker",
@@ -102,7 +129,7 @@ export default function HomePage({
           icon: "🌀",
         },
       ]
-    : baseModes;
+    : [...baseModes, ...learningModes];
 
   useEffect(() => {
     gsap.set(".hero-content > *, .mode-card", { y: 30, opacity: 0 });
@@ -183,6 +210,15 @@ export default function HomePage({
     }, 12);
     return () => clearInterval(interval);
   }, [isSplashDone, fullText]);
+
+  const dismissTutorialBanner = () => {
+    setShowTutorialBanner(false);
+    try {
+      localStorage.setItem(TUTORIAL_BANNER_STORAGE_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   const renderHomeThemeEffects = () => {
     if (normalizedSessionTheme === "arctic") {
@@ -383,7 +419,7 @@ export default function HomePage({
                 homeTheme.chipPrimaryClass || "bg-slate-900/30 border-white/5 text-slate-400"
               }`}
             >
-              Ver.4.1.0 FCS
+              Ver.4.1.1 FCS
             </div>
             <div
               className={`px-6 py-2 border rounded-full text-[10px] uppercase tracking-widest font-medium backdrop-blur-sm ${
@@ -394,6 +430,33 @@ export default function HomePage({
               SYS-Status: Validated
             </div>
           </div>
+
+          {showTutorialBanner && (
+            <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-3 rounded-[1.75rem] border border-cyan-500/20 bg-cyan-500/10 px-5 py-4 text-center backdrop-blur-sm sm:flex-row sm:justify-between sm:text-left">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">New Player Path</div>
+                <p className="mt-1 text-sm text-slate-200">
+                  New to Svarog? Start with the Tutorial to learn Live Mode, Caesar Shift, and line forcing before you jump into real manip.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/tutorial")}
+                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/25"
+                >
+                  Open Tutorial
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissTutorialBanner}
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:bg-white/5"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mt-20 flex justify-center w-full">
             <div className="w-full max-w-4xl">
