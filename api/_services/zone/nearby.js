@@ -5,11 +5,11 @@ import {
   buildTablePath,
   buildZoneMapFromRuns,
   computeHash,
-  ensureCurrentEpoch,
   fetchPreviousEpoch,
   handleApiError,
   readOwnedCharacterIds,
   requireAuthenticatedUser,
+  resolveReadableEpochContext,
   resolveCharacterNames,
   supabaseAdminRequest,
 } from './shared.js';
@@ -457,15 +457,18 @@ export async function handler(req, res) {
     const ownedSet = new Set(ownedCharIds);
     const minOwned = useOwned ? minOwnedRaw : 0;
 
-    const currentEpoch = await ensureCurrentEpoch();
-    const targetEpoch = requestedEpoch === 'previous' ? await fetchPreviousEpoch(currentEpoch) : currentEpoch;
+      const {
+        currentEpoch,
+        targetEpoch,
+        resolvedEpochSource: initialResolvedEpochSource,
+      } = await resolveReadableEpochContext(requestedEpoch);
 
-    if (!targetEpoch?.id) {
-      return res.status(200).json({
-        success: true,
-        requested_epoch: requestedEpoch,
-        resolved_epoch_source: requestedEpoch,
-        epoch: null,
+      if (!targetEpoch?.id) {
+        return res.status(200).json({
+          success: true,
+          requested_epoch: requestedEpoch,
+          resolved_epoch_source: initialResolvedEpochSource,
+          epoch: null,
         scan_mode: scanMode,
         target_xor: targetXor,
         target_slot: targetSlot,
@@ -485,7 +488,7 @@ export async function handler(req, res) {
     });
 
     let resolvedEpoch = targetEpoch;
-    let resolvedEpochSource = requestedEpoch;
+      let resolvedEpochSource = initialResolvedEpochSource;
     let clearTimeColumnMissing = primaryRows.clearTimeColumnMissing;
     let rows = primaryRows.safeRows;
 
