@@ -508,7 +508,23 @@ export async function supabaseAdminRequest(
 }
 
 function isUniqueViolationError(error) {
-  return Boolean(error?.details && typeof error.details === 'object' && error.details.code === '23505');
+  if (!error) return false;
+
+  if (Number(error?.status) === 409) {
+    return true;
+  }
+
+  const details = error?.details;
+  if (details && typeof details === 'object') {
+    if (String(details.code || '') === '23505') return true;
+    const raw = `${details.message || ''} ${details.details || ''} ${details.hint || ''}`.toLowerCase();
+    if (raw.includes('duplicate') || raw.includes('unique') || raw.includes('already exists')) {
+      return true;
+    }
+  }
+
+  const raw = String(details || error?.message || '').toLowerCase();
+  return raw.includes('23505') || raw.includes('duplicate') || raw.includes('unique') || raw.includes('already exists');
 }
 
 export function buildTablePath(table, { select = '*', filters = {} } = {}) {
