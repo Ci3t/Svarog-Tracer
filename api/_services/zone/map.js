@@ -5,8 +5,7 @@ import {
   buildEpochSummaryFromRuns,
   buildZoneMapFromRuns,
   countDistinctRecentFlags,
-  ensureCurrentEpoch,
-  fetchPreviousEpoch,
+  resolveReadableEpochContext,
   handleApiError,
   requireAuthenticatedUser,
   supabaseAdminRequest,
@@ -259,17 +258,20 @@ export async function handler(req, res) {
     const requestedEpoch = normalizeEpochQuery(req.query?.epoch);
     const requestedRegion = normalizeRegionQuery(req.query?.region);
     const targetFilter = buildTargetFilterConfig(req.query);
-    const currentEpoch = await ensureCurrentEpoch();
-    const targetEpoch =
-      requestedEpoch === 'previous' ? await fetchPreviousEpoch(currentEpoch) : currentEpoch;
+      const {
+        currentEpoch,
+        targetEpoch,
+        resolvedEpochSource,
+      } = await resolveReadableEpochContext(requestedEpoch);
 
     if (!targetEpoch?.id) {
       return res.status(200).json({
         success: true,
         requested_epoch: requestedEpoch,
-        selected_region: requestedRegion,
-        current_epoch: currentEpoch,
-        epoch: null,
+          selected_region: requestedRegion,
+          current_epoch: currentEpoch,
+          resolved_epoch_source: resolvedEpochSource,
+          epoch: null,
         pending_flag_count: 0,
         total_runs: 0,
         epoch_summary: buildEpochSummaryFromRuns([]),
@@ -396,10 +398,11 @@ export async function handler(req, res) {
     return res.status(200).json({
       success: true,
       requested_epoch: requestedEpoch,
-      selected_region: requestedRegion,
-      mixed_region_warning: mixedRegionWarning,
-      current_epoch: currentEpoch,
-      epoch: targetEpoch,
+        selected_region: requestedRegion,
+        mixed_region_warning: mixedRegionWarning,
+        current_epoch: currentEpoch,
+        resolved_epoch_source: resolvedEpochSource,
+        epoch: targetEpoch,
       pending_flag_count: pendingFlagCount,
       total_runs: safeRows.length,
       epoch_summary: epochSummary,

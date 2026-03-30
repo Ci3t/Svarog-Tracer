@@ -653,6 +653,19 @@ export async function fetchCurrentEpoch() {
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+export async function fetchLatestEpoch() {
+  const rows = await supabaseAdminRequest(
+    buildTablePath(ZONE_EPOCH_TABLE, {
+      filters: {
+        order: 'created_at.desc',
+        limit: '1',
+      },
+    })
+  );
+
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
 async function createEpochRecord({ previousEpochId = null, createdByFlag = false } = {}) {
   const rows = await supabaseAdminRequest(ZONE_EPOCH_TABLE, {
     method: 'POST',
@@ -673,65 +686,69 @@ async function createEpochRecord({ previousEpochId = null, createdByFlag = false
 }
 
 async function pruneEpochHistory(currentEpoch) {
-  const keepIds = new Set([currentEpoch?.id, currentEpoch?.previous_epoch_id].filter(Boolean).map((value) => Number(value)));
-  if (keepIds.size === 0) return;
+  try {
+    const keepIds = new Set([currentEpoch?.id, currentEpoch?.previous_epoch_id].filter(Boolean).map((value) => Number(value)));
+    if (keepIds.size === 0) return;
 
-  const epochRows = await supabaseAdminRequest(
-    buildTablePath(ZONE_EPOCH_TABLE, {
-      select: 'id',
-      filters: {
-        order: 'created_at.desc',
-        limit: '100',
-      },
-    })
-  );
+    const epochRows = await supabaseAdminRequest(
+      buildTablePath(ZONE_EPOCH_TABLE, {
+        select: 'id',
+        filters: {
+          order: 'created_at.desc',
+          limit: '100',
+        },
+      })
+    );
 
-  const staleEpochIds = (Array.isArray(epochRows) ? epochRows : [])
-    .map((row) => Number(row?.id))
-    .filter((id) => Number.isInteger(id) && id > 0 && !keepIds.has(id));
+    const staleEpochIds = (Array.isArray(epochRows) ? epochRows : [])
+      .map((row) => Number(row?.id))
+      .filter((id) => Number.isInteger(id) && id > 0 && !keepIds.has(id));
 
-  if (staleEpochIds.length === 0) return;
+    if (staleEpochIds.length === 0) return;
 
-  const inFilter = `in.(${staleEpochIds.join(',')})`;
+    const inFilter = `in.(${staleEpochIds.join(',')})`;
 
-  await supabaseAdminRequest(
-    buildTablePath(ZONE_FLAGS_TABLE, {
-      select: false,
-      filters: {
-        epoch_id: inFilter,
-      },
-    }),
-    {
-      method: 'DELETE',
-      prefer: 'return=minimal',
-    }
-  );
+    await supabaseAdminRequest(
+      buildTablePath(ZONE_FLAGS_TABLE, {
+        select: false,
+        filters: {
+          epoch_id: inFilter,
+        },
+      }),
+      {
+        method: 'DELETE',
+        prefer: 'return=minimal',
+      }
+    );
 
-  await supabaseAdminRequest(
-    buildTablePath(ZONE_RUNS_TABLE, {
-      select: false,
-      filters: {
-        epoch_id: inFilter,
-      },
-    }),
-    {
-      method: 'DELETE',
-      prefer: 'return=minimal',
-    }
-  );
+    await supabaseAdminRequest(
+      buildTablePath(ZONE_RUNS_TABLE, {
+        select: false,
+        filters: {
+          epoch_id: inFilter,
+        },
+      }),
+      {
+        method: 'DELETE',
+        prefer: 'return=minimal',
+      }
+    );
 
-  await supabaseAdminRequest(
-    buildTablePath(ZONE_EPOCH_TABLE, {
-      select: false,
-      filters: {
-        id: inFilter,
-      },
-    }),
-    {
-      method: 'DELETE',
-      prefer: 'return=minimal',
-    }
-  );
+    await supabaseAdminRequest(
+      buildTablePath(ZONE_EPOCH_TABLE, {
+        select: false,
+        filters: {
+          id: inFilter,
+        },
+      }),
+      {
+        method: 'DELETE',
+        prefer: 'return=minimal',
+      }
+    );
+  } catch (error) {
+    console.warn('[Zone API] Non-fatal epoch prune failure:', error?.status || error?.message || error);
+  }
 }
 
 export async function fetchEpochById(epochId) {
@@ -794,6 +811,64 @@ export async function fetchPreviousEpoch(currentEpoch) {
   );
 
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+export async function resolveReadableEpochContext(requestedEpoch = 'current') {
+  const normalizedEpoch = String(requestedEpoch || 'current').toLowerCase() === 'previous' ? 'previous' : 'current';
+
+  try {
+    const currentEpoch = await ensureCurrentEpoch();
+    const targetEpoch = normalizedEpoch === 'previous' ? await fetchPreviousEpoch(currentEpoch) : currentEpoch;
+
+    return {
+      currentEpoch,
+      targetEpoch,
+      resolvedEpochSource: normalizedEpoch,
+      recoveredFromConflict: false,
+    };
+  } catch (error) {
+    if (Number(error?.status) !== 409) {
+      throw error;
+    }
+
+    console.warn('[Zone API] Falling back to latest readable epoch after current-epoch conflict.', error?.details || error);
+
+    let fallbackCurrent = null;
+    try {
+      fallbackCurrent = await fetchCurrentEpoch();
+    } catch {
+      fallbackCurrent = null;
+    }
+
+    if (!fallbackCurrent) {
+      try {
+        fallbackCurrent = await fetchLatestEpoch();
+      } catch {
+        fallbackCurrent = null;
+      }
+    }
+
+    let targetEpoch = fallbackCurrent;
+    let resolvedEpochSource = `${normalizedEpoch}-fallback`;
+
+    if (normalizedEpoch === 'previous') {
+      try {
+        targetEpoch = await fetchPreviousEpoch(fallbackCurrent);
+      } catch {
+        targetEpoch = null;
+      }
+      resolvedEpochSource = targetEpoch ? 'previous-fallback' : 'previous-unavailable';
+    } else if (!targetEpoch) {
+      resolvedEpochSource = 'current-unavailable';
+    }
+
+    return {
+      currentEpoch: fallbackCurrent,
+      targetEpoch,
+      resolvedEpochSource,
+      recoveredFromConflict: true,
+    };
+  }
 }
 
 export async function countDistinctRecentFlags(epochId, sinceIso) {

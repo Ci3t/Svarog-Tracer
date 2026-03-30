@@ -3,8 +3,7 @@ import {
   HttpError,
   ZONE_RUNS_TABLE,
   buildTablePath,
-  ensureCurrentEpoch,
-  fetchPreviousEpoch,
+  resolveReadableEpochContext,
   handleApiError,
   requireAuthenticatedUser,
   resolveCharacterNames,
@@ -336,9 +335,10 @@ export async function handler(req, res) {
       ownershipWarning = ownershipWarning || 'owned_roster_empty';
     }
 
-    const currentEpoch = await ensureCurrentEpoch();
-    const targetEpoch =
-      requestedEpoch === 'previous' ? await fetchPreviousEpoch(currentEpoch) : currentEpoch;
+      const {
+        targetEpoch,
+        resolvedEpochSource,
+      } = await resolveReadableEpochContext(requestedEpoch);
 
     const runRows = targetEpoch?.id
       ? await supabaseAdminRequest(
@@ -371,9 +371,10 @@ export async function handler(req, res) {
     });
 
     return res.status(200).json({
-      success: true,
-      requested_epoch: requestedEpoch,
-      epoch: targetEpoch || null,
+        success: true,
+        requested_epoch: requestedEpoch,
+        resolved_epoch_source: resolvedEpochSource,
+        epoch: targetEpoch || null,
       target: {
         xor: targetXor,
         slot: targetSlot,
