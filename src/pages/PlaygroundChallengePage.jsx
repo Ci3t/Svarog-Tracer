@@ -25,6 +25,7 @@ import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import relicSets from '../data/relics.json';
+import { CHALLENGE_CONTRACT_ORDER, getChallengeContract, getNextChallengeContractId } from '../data/challengeContracts';
 import {
   createBucketPatternProfile,
   getVisibleRollForUpgrade,
@@ -53,20 +54,6 @@ const SEED_MOODS = {
 };
 
 const RELIC_PIECES = ['Head', 'Hands', 'Body', 'Feet'];
-const CHALLENGE_MODE_REGION = 'America';
-const CHALLENGE_MODE_PATCH = '4.1';
-const CHALLENGE_SCENARIO_BUCKET = 'contract-easy-01';
-const CHALLENGE_BRIEF = {
-  title: 'Easy Contract 01',
-  goal: 'Turn the readable pair into a dual-crit finish instead of brute forcing into EFF RES / BREAK EFFECT.',
-  win: 'Finish with at least 2 combined hits on CRIT RATE and CRIT DMG.',
-  hints: [
-    'The pair is readable, but the target relic only rewards you if that read lands on CRIT RATE or CRIT DMG.',
-    'If direct upgrades keep flirting with EFF RES / BREAK EFFECT, detour before coming back to the target relic.',
-    'Use the setup path to change where the next readable roll lands, then return for the real upgrade.',
-  ],
-};
-const CHALLENGE_STARTER_ROLLS = ['41', '41', '44', '44', '41', '43'];
 
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -181,73 +168,50 @@ function getFixedRelicMeta(setNameHint, pieceLabel) {
   };
 }
 
-function createChallengeTargetRelic() {
-  const meta = getFixedRelicMeta('Musketeer', 'Body');
+function createChallengeRelic(spec, options = {}) {
+  const { readyForUpgrades = false, carryLine = null } = options;
+  const meta = getFixedRelicMeta(spec.setNameHint, spec.pieceLabel);
+  const lineStats = Array.isArray(spec.lines) ? spec.lines : [];
   return {
     ...meta,
     seedMood: 'mixed',
-    level: 0,
-    lastLine: null,
-    lastRawPair: '',
-    lastVisibleRoll: '',
-    mainStat: 'FLAT HP',
-    orderMode: 'fixed',
-    lines: [
-      { slot: 1, stat: 'CRIT RATE', hits: 0, justHit: false },
-      { slot: 2, stat: 'CRIT DMG', hits: 0, justHit: false },
-      { slot: 3, stat: 'EFF RES', hits: 0, justHit: false },
-    ],
-    fourthLine: {
-      slot: 4,
-      stat: 'BREAK EFFECT',
-      hits: 0,
-      justHit: false,
-    },
-    hasFourthLine: false,
-  };
-}
-
-function createChallengeBuilderRelic(options = {}) {
-  const { readyForUpgrades = false, carryLine = null } = options;
-  const meta = getFixedRelicMeta('Musketeer', 'Head');
-  return {
-    ...meta,
     level: readyForUpgrades ? 3 : 0,
     lastLine: readyForUpgrades ? (Number.isInteger(carryLine) ? carryLine : 4) : null,
     lastRawPair: '',
     lastVisibleRoll: '',
-    mainStat: 'HP%',
+    mainStat: spec.mainStat,
     orderMode: 'fixed',
-    lines: [
-      { slot: 1, stat: 'ATK%', hits: 0, justHit: false },
-      { slot: 2, stat: 'SPD', hits: 0, justHit: false },
-      { slot: 3, stat: 'EFFECT HIT RATE', hits: 0, justHit: false },
-    ],
+    lines: lineStats.slice(0, 3).map((stat, index) => ({
+      slot: index + 1,
+      stat,
+      hits: 0,
+      justHit: false,
+    })),
     fourthLine: {
       slot: 4,
-      stat: 'BREAK EFFECT',
+      stat: spec.fourthLine,
       hits: 0,
       justHit: false,
     },
-    hasFourthLine: readyForUpgrades,
+    hasFourthLine: readyForUpgrades || Boolean(spec.hasFourthLine),
   };
 }
 
-function createChallengeForceRelic(baseLines = 2) {
-  const meta = getFixedRelicMeta('Musketeer', 'Hands');
+function createChallengeForceRelic(spec) {
+  const meta = getFixedRelicMeta(spec.setNameHint, spec.pieceLabel);
   return {
     ...meta,
-    mainStat: 'ATK%',
-    baseLines,
-    currentLineCount: baseLines,
-    forcedLine: Math.min(baseLines + 1, 4),
+    mainStat: spec.mainStat,
+    baseLines: spec.baseLines,
+    currentLineCount: spec.baseLines,
+    forcedLine: Math.min(spec.baseLines + 1, 4),
     isPrimed: false,
-    lines: [
-      { slot: 1, stat: 'HP%', hits: 0, justHit: false },
-      { slot: 2, stat: 'SPD', hits: 0, justHit: false },
-      { slot: 3, stat: 'OPEN LINE', hits: 0, justHit: false },
-      { slot: 4, stat: 'BREAK EFFECT', hits: 0, justHit: false },
-    ],
+    lines: spec.lines.map((stat, index) => ({
+      slot: index + 1,
+      stat,
+      hits: 0,
+      justHit: false,
+    })),
   };
 }
 
@@ -288,16 +252,23 @@ function buildEntryRows(entries) {
   }));
 }
 
-function createChallengeSessionEntries() {
-  return CHALLENGE_STARTER_ROLLS.map(createSessionEntry).filter(Boolean);
+function createChallengeSessionEntries(contract) {
+  return (contract.starterRolls || []).map(createSessionEntry).filter(Boolean);
 }
 
-function createChallengePatternProfile() {
-  const starterEntries = createChallengeSessionEntries();
+function createChallengePatternProfile(contract) {
+  const starterEntries = createChallengeSessionEntries(contract);
   return starterEntries.reduce(
     (currentProfile, entry) => advancePatternProfile(currentProfile, entry.translated),
-    createBucketPatternProfile('mixed', CHALLENGE_SCENARIO_BUCKET, CHALLENGE_MODE_REGION, CHALLENGE_MODE_PATCH)
+    createBucketPatternProfile(contract.mood, contract.seedLabel, contract.region, contract.patch)
   );
+}
+
+function getLineHitsByStat(relic) {
+  return [...relic.lines, relic.fourthLine].reduce((acc, line) => {
+    acc[line.stat] = line.hits;
+    return acc;
+  }, {});
 }
 
 function describeHint(relic, moodConfig) {
@@ -630,13 +601,16 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
 export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
-  const [seedMood] = useState('mixed');
-  const [bucketKey] = useState(CHALLENGE_SCENARIO_BUCKET);
-  const [patternProfile, setPatternProfile] = useState(() => createChallengePatternProfile());
-  const [relic, setRelic] = useState(() => createChallengeTargetRelic());
-  const [testRelic, setTestRelic] = useState(() => createChallengeBuilderRelic());
-  const [forceRelic, setForceRelic] = useState(() => createChallengeForceRelic(2));
-  const [sessionRolls, setSessionRolls] = useState(() => createChallengeSessionEntries());
+  const [currentContractId, setCurrentContractId] = useState('easy01');
+  const [completedContracts, setCompletedContracts] = useState([]);
+  const currentContract = useMemo(() => getChallengeContract(currentContractId), [currentContractId]);
+  const seedMood = currentContract.mood;
+  const bucketKey = currentContract.seedLabel;
+  const [patternProfile, setPatternProfile] = useState(() => createChallengePatternProfile(currentContract));
+  const [relic, setRelic] = useState(() => createChallengeRelic(currentContract.targetRelic));
+  const [testRelic, setTestRelic] = useState(() => createChallengeRelic(currentContract.builderRelic));
+  const [forceRelic, setForceRelic] = useState(() => createChallengeForceRelic(currentContract.forceRelic));
+  const [sessionRolls, setSessionRolls] = useState(() => createChallengeSessionEntries(currentContract));
   const [hintVisible, setHintVisible] = useState(false);
   const [sessionTab, setSessionTab] = useState('current');
   const [rollInput, setRollInput] = useState('');
@@ -645,6 +619,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [testRelicLoopMode, setTestRelicLoopMode] = useState(true);
   const [mistakes, setMistakes] = useState(0);
   const [hintStep, setHintStep] = useState(0);
+  const [triesUsed, setTriesUsed] = useState(1);
 
   const containerRef = useRef(null);
   const debugRef = useRef({
@@ -658,48 +633,100 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const hintText = useMemo(() => describeHint(relic, patternProfile), [relic, patternProfile]);
   const predictorEntries = useMemo(() => buildEntryRows(sessionRolls), [sessionRolls]);
   const translatedRolls = useMemo(() => sessionRolls.map((entry) => entry.translated), [sessionRolls]);
-  const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: CHALLENGE_MODE_REGION }), [translatedRolls]);
+  const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: currentContract.region }), [translatedRolls, currentContract.region]);
   const helperLineOverride = forceRelic.isPrimed
     ? forceRelic.forcedLine
     : relic.lastLine || testRelic.lastLine || null;
-  const activeHint = hintStep > 0 ? CHALLENGE_BRIEF.hints[Math.min(hintStep - 1, CHALLENGE_BRIEF.hints.length - 1)] : 'No hint opened yet.';
-  const critHitCount = useMemo(
-    () =>
-      relic.lines
-        .filter((line) => line.stat === 'CRIT RATE' || line.stat === 'CRIT DMG')
-        .reduce((sum, line) => sum + line.hits, 0),
-    [relic.lines]
-  );
-  const junkHitCount = useMemo(
-    () =>
-      [...relic.lines, relic.fourthLine]
-        .filter((line) => line.stat === 'EFF RES' || line.stat === 'BREAK EFFECT')
-        .reduce((sum, line) => sum + line.hits, 0),
-    [relic.lines, relic.fourthLine]
-  );
+  const activeHint = hintStep > 0 ? currentContract.hints[Math.min(hintStep - 1, currentContract.hints.length - 1)] : 'No hint opened yet.';
+  const lineHitsByStat = useMemo(() => getLineHitsByStat(relic), [relic]);
   const challengeStatus = useMemo(() => {
     if (relic.level < 15) {
       return {
         tone: 'progress',
         label: 'In Progress',
-        text: 'Route the readable pair into CRIT RATE / CRIT DMG and avoid drifting into the junk side.',
+        text: currentContract.progressText,
       };
     }
 
-    if (critHitCount >= 2) {
+    const success = currentContract.success || {};
+    const junkHitCount = Array.isArray(success.junk)
+      ? success.junk.reduce((sum, stat) => sum + (lineHitsByStat[stat] || 0), 0)
+      : 0;
+
+    if (success.type === 'dualCrit') {
+      const critRateHitCount = lineHitsByStat['CRIT RATE'] || 0;
+      const critDmgHitCount = lineHitsByStat['CRIT DMG'] || 0;
+      const passedJunkGate = typeof success.maxJunk === 'number' ? junkHitCount <= success.maxJunk : true;
+
+      if (critRateHitCount >= (success.minEach || 1) && critDmgHitCount >= (success.minEach || 1) && passedJunkGate) {
+        return {
+          tone: 'clear',
+          label: 'Contract Clear',
+          text: `Dual-crit path confirmed: CRIT RATE ${critRateHitCount}, CRIT DMG ${critDmgHitCount}.`,
+        };
+      }
+
       return {
-        tone: 'clear',
-        label: 'Contract Clear',
-        text: `Dual-crit path confirmed with ${critHitCount} combined crit-side hits.`,
+        tone: 'fail',
+        label: 'Contract Failed',
+        text: `You finished with CRIT RATE ${critRateHitCount}, CRIT DMG ${critDmgHitCount}, and ${junkHitCount} junk-side hits. Dual-crit means both crit lines must be hit.`,
+      };
+    }
+
+    if (success.type === 'dualCritCombined') {
+      const critRateHitCount = lineHitsByStat['CRIT RATE'] || 0;
+      const critDmgHitCount = lineHitsByStat['CRIT DMG'] || 0;
+      const combinedHits = critRateHitCount + critDmgHitCount;
+      const passedJunkGate = typeof success.maxJunk === 'number' ? junkHitCount <= success.maxJunk : true;
+
+      if (combinedHits >= (success.minCombined || 2) && passedJunkGate) {
+        return {
+          tone: 'clear',
+          label: 'Contract Clear',
+          text: `Crit-favored finish confirmed: CRIT RATE ${critRateHitCount}, CRIT DMG ${critDmgHitCount}, junk ${junkHitCount}.`,
+        };
+      }
+
+      return {
+        tone: 'fail',
+        label: 'Contract Failed',
+        text: `You finished with CRIT RATE ${critRateHitCount}, CRIT DMG ${critDmgHitCount}, and ${junkHitCount} junk-side hits. This contract needs at least ${(success.minCombined || 2)} combined crit hits.`,
+      };
+    }
+
+    if (success.type === 'monoLine') {
+      const targetHits = lineHitsByStat[success.target] || 0;
+      const passedJunkGate = typeof success.maxJunk === 'number' ? junkHitCount <= success.maxJunk : true;
+
+      if (targetHits >= (success.minHits || 1) && passedJunkGate) {
+        return {
+          tone: 'clear',
+          label: 'Contract Clear',
+          text: `Mono-line finish confirmed: ${success.target} hit ${targetHits} times.`,
+        };
+      }
+
+      return {
+        tone: 'fail',
+        label: 'Contract Failed',
+        text: `You finished with ${success.target} hit ${targetHits} times and ${junkHitCount} junk-side hits. This contract needs at least ${(success.minHits || 1)} ${success.target} hits.`,
       };
     }
 
     return {
       tone: 'fail',
       label: 'Contract Failed',
-      text: `You finished with only ${critHitCount} crit-side hits and ${junkHitCount} junk-side hits. Reset and detour earlier.`,
+      text: 'This contract has no valid success evaluator yet.',
     };
-  }, [critHitCount, junkHitCount, relic.level]);
+  }, [currentContract.progressText, currentContract.success, lineHitsByStat, relic.level]);
+  const nextContractId = useMemo(() => getNextChallengeContractId(currentContract.id), [currentContract.id]);
+  const canOpenContract = (contractId) => {
+    if (contractId === currentContractId) return true;
+    const targetIndex = CHALLENGE_CONTRACT_ORDER.indexOf(contractId);
+    if (targetIndex <= 0) return true;
+    const previousId = CHALLENGE_CONTRACT_ORDER[targetIndex - 1];
+    return completedContracts.includes(previousId);
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -709,6 +736,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
     );
   }, []);
+
+  useEffect(() => {
+    if (challengeStatus.tone !== 'clear') return;
+    setCompletedContracts((existing) => (existing.includes(currentContract.id) ? existing : [...existing, currentContract.id]));
+  }, [challengeStatus.tone, currentContract.id]);
 
   useEffect(() => {
     const lastSessionRoll = patternProfile?.history?.[patternProfile.history.length - 1] || '-';
@@ -800,18 +832,27 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     return () => clearInterval(interval);
   }, [timerRunning]);
 
-  const resetChallengeMode = () => {
-    setPatternProfile(createChallengePatternProfile());
-    setRelic(createChallengeTargetRelic());
-    setTestRelic(createChallengeBuilderRelic());
-    setForceRelic(createChallengeForceRelic(forceRelic.baseLines));
-    setSessionRolls(createChallengeSessionEntries());
+  const resetChallengeMode = (options = {}) => {
+    const { nextContract = currentContract, incrementTry = true } = options;
+    setPatternProfile(createChallengePatternProfile(nextContract));
+    setRelic(createChallengeRelic(nextContract.targetRelic));
+    setTestRelic(createChallengeRelic(nextContract.builderRelic));
+    setForceRelic(createChallengeForceRelic({
+      ...nextContract.forceRelic,
+      baseLines: nextContract.forceRelic.baseLines,
+    }));
+    setSessionRolls(createChallengeSessionEntries(nextContract));
     setHintVisible(false);
     setMistakes(0);
     setHintStep(0);
     setSecondsLeft(300);
     setTimerRunning(false);
+    setTriesUsed((current) => (incrementTry ? current + 1 : 1));
   };
+
+  useEffect(() => {
+    resetChallengeMode({ nextContract: currentContract, incrementTry: false });
+  }, [currentContract]);
 
   const handleStartSession = () => {
     setTimerRunning(true);
@@ -885,7 +926,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const handleTestRelicAction = () => {
     const startingRelic =
       testRelicLoopMode && testRelic.level >= 15
-        ? createChallengeBuilderRelic({ readyForUpgrades: true, carryLine: testRelic.lastLine })
+        ? createChallengeRelic(currentContract.builderRelic, { readyForUpgrades: true, carryLine: testRelic.lastLine })
         : testRelic;
     const nextRelic = handleBaseUpgrade(startingRelic, patternProfile);
     setTestRelic(nextRelic);
@@ -929,12 +970,18 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleResetForceRelic = () => {
-    setForceRelic(createChallengeForceRelic(forceRelic.baseLines));
+    setForceRelic(createChallengeForceRelic({
+      ...currentContract.forceRelic,
+      baseLines: forceRelic.baseLines,
+    }));
   };
 
   const handleCycleForceRelicType = () => {
     const nextBaseLines = forceRelic.baseLines >= 3 ? 1 : forceRelic.baseLines + 1;
-    setForceRelic(createChallengeForceRelic(nextBaseLines));
+    setForceRelic(createChallengeForceRelic({
+      ...currentContract.forceRelic,
+      baseLines: nextBaseLines,
+    }));
   };
 
   return (
@@ -972,12 +1019,39 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           </div>
         </header>
 
+        <div className="gsap-fade-up mb-6 flex flex-wrap items-center gap-2">
+          {CHALLENGE_CONTRACT_ORDER.map((contractId) => {
+            const contract = getChallengeContract(contractId);
+            const isCurrent = contractId === currentContractId;
+            const isUnlocked = canOpenContract(contractId);
+            const isCompleted = completedContracts.includes(contractId);
+            return (
+              <button
+                key={contractId}
+                type="button"
+                disabled={!isUnlocked}
+                onClick={() => setCurrentContractId(contractId)}
+                className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
+                  isCurrent
+                    ? 'border-amber-400/35 bg-amber-500/15 text-amber-100'
+                    : isUnlocked
+                      ? 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
+                      : 'cursor-not-allowed border-white/5 bg-white/5 text-slate-700'
+                }`}
+              >
+                {contract.title}
+                {isCompleted ? ' • Clear' : ''}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 3-COLUMN TACTICAL COMMAND CENTER: 3-6-3 SPLIT */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
           
           {/* COLUMN 1: FAR LEFT (3/12) - PREDICTOR */}
           <aside className="gsap-fade-up flex flex-col gap-6 lg:col-span-3">
-             <ModernPairPredictorCard entries={predictorEntries} region={CHALLENGE_MODE_REGION} />
+             <ModernPairPredictorCard entries={predictorEntries} region={currentContract.region} />
 
              <div className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 shadow-inner backdrop-blur-md">
                 <ModernStatsPanel
@@ -985,8 +1059,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   prediction2={prediction2}
                   prediction3={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
                   prediction4={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
-                  currentRegion={CHALLENGE_MODE_REGION}
-                  currentPatch={CHALLENGE_MODE_PATCH}
+                  currentRegion={currentContract.region}
+                  currentPatch={currentContract.patch}
                   forcedLineOverride={helperLineOverride}
                 />
              </div>
@@ -1002,7 +1076,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   themeColor="cyan"
                   icon={Target}
                   onAction={handlePracticeRelicAction}
-                  onReset={() => setRelic(createChallengeTargetRelic())}
+                  onReset={() => resetChallengeMode()}
                 />
 
                 <ModernRelicCard
@@ -1011,7 +1085,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   themeColor="violet"
                   icon={FlaskConical}
                   onAction={handleTestRelicAction}
-                  onReset={() => setTestRelic(createChallengeBuilderRelic())}
+                  onReset={() => resetChallengeMode()}
                   footerSlot={
                     <button
                       type="button"
@@ -1038,11 +1112,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                    <Trophy className="h-3 w-3 text-amber-300" />
                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">MISSION</span>
                 </div>
-                <div className="text-lg font-black uppercase tracking-tight text-amber-300 mb-1">{CHALLENGE_BRIEF.title}</div>
-                <p className="text-[11px] leading-relaxed text-slate-300 mb-3">{CHALLENGE_BRIEF.goal}</p>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <div className="text-lg font-black uppercase tracking-tight text-amber-300">{currentContract.title}</div>
+                  <div className="rounded-full border border-white/5 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
+                    {currentContract.difficulty}
+                  </div>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-300 mb-3">{currentContract.goal}</p>
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
                   <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Win Condition</div>
-                  <p className="text-[10px] leading-relaxed text-slate-300">{CHALLENGE_BRIEF.win}</p>
+                  <p className="text-[10px] leading-relaxed text-slate-300">{currentContract.win}</p>
                 </div>
                 <div
                   className={`rounded-xl border p-3 mb-3 ${
@@ -1069,12 +1148,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Tries</div>
+                      <div className="mt-1 text-xl font-black text-amber-200">{triesUsed}</div>
+                    </div>
+                    <div>
                       <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
                       <div className="mt-1 text-2xl font-black text-rose-300">{mistakes}</div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setHintStep((current) => Math.min(current + 1, CHALLENGE_BRIEF.hints.length))}
+                      onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
                       className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
                     >
                       <Lightbulb className="h-3.5 w-3.5" />
@@ -1083,9 +1166,19 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <p className="mt-3 text-[10px] leading-relaxed text-slate-300">{activeHint}</p>
                 </div>
+                {challengeStatus.tone === 'clear' && nextContractId ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentContractId(nextContractId)}
+                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
+                  >
+                    Next Contract
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <div className="mt-4 flex items-center justify-between">
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
-                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {CHALLENGE_SCENARIO_BUCKET}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {currentContract.seedLabel}</p>
                 </div>
               </div>
           </section>
