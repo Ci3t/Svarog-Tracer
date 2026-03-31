@@ -70,6 +70,82 @@ const PATCH_ERA_PRIORS = {
   recent: { '41': 24.6, '42': 24.8, '43': 25.7, '44': 24.9 },
 };
 
+const BACKEND_GLOBAL_PAIR_MOTIFS = {
+  '41 41': 944,
+  '43 43': 889,
+  '44 44': 882,
+  '42 43': 880,
+  '41 42': 877,
+  '42 44': 870,
+  '43 42': 867,
+  '44 43': 864,
+  '44 41': 860,
+  '42 41': 859,
+  '41 44': 859,
+  '42 42': 859,
+};
+
+const BACKEND_GLOBAL_TRI_MOTIFS = {
+  '41 41 41': 275,
+  '42 42 44': 229,
+  '42 44 42': 224,
+  '41 41 42': 224,
+  '44 43 44': 221,
+  '41 44 43': 221,
+  '44 42 41': 220,
+  '42 43 41': 220,
+  '44 44 44': 220,
+  '41 42 41': 218,
+};
+
+const BACKEND_SERVER_TRI_MOTIFS = {
+  America: {
+    '41 41 41': 104,
+    '41 44 43': 82,
+    '43 44 44': 81,
+    '42 42 42': 81,
+    '44 41 44': 80,
+  },
+  Asia: {
+    '42 44 42': 87,
+    '41 43 43': 81,
+    '43 42 41': 80,
+    '43 43 43': 80,
+    '42 44 41': 80,
+  },
+  Europe: {
+    '41 41 41': 98,
+    '43 44 43': 86,
+    '44 44 43': 86,
+    '41 42 41': 83,
+    '44 43 44': 83,
+  },
+};
+
+const BACKEND_PATCH_MOTIFS = {
+  legacy: {
+    '41 41 41': 86,
+    '42 42 42': 57,
+    '43 44 43': 55,
+    '44 43 44': 54,
+    '41 42 44': 51,
+  },
+  recent: {
+    '42 43 42': 33,
+    '44 44 44': 28,
+    '43 42 41': 26,
+    '42 42 44': 25,
+    '42 44 44': 24,
+  },
+};
+
+const BACKEND_RUN_TARGETS = {
+  '41': 1.341,
+  '42': 1.31,
+  '43': 1.324,
+  '44': 1.322,
+};
+
 const PROFILE_LIBRARY = {
   stableBalanced4243: {
     id: 'stableBalanced4243',
@@ -189,6 +265,51 @@ function pickStarterMotif(template, generator) {
   return pickRandom(motifs, generator);
 }
 
+function weightedMotifPick(motifs, generator) {
+  if (!motifs.length) return ['43', '42', '44', '44'];
+  const total = motifs.reduce((sum, motif) => sum + motif.weight, 0);
+  let cursor = generator() * total;
+  for (const motif of motifs) {
+    cursor -= motif.weight;
+    if (cursor <= 0) return motif.sequence;
+  }
+  return motifs[motifs.length - 1]?.sequence || ['43', '42', '44', '44'];
+}
+
+function pickHybridStarterMotif(template, generator, region, patchEra) {
+  const motifMap = new Map();
+
+  for (const starter of template.starterMotifs || [template.starterSequence || ['43', '42', '44', '44']]) {
+    const key = starter.join(' ');
+    motifMap.set(key, { sequence: starter, weight: 24 });
+  }
+
+  const regionTri = BACKEND_SERVER_TRI_MOTIFS[region] || {};
+  for (const [motif, weight] of Object.entries(regionTri)) {
+    motifMap.set(motif, {
+      sequence: motif.split(' '),
+      weight: (motifMap.get(motif)?.weight || 0) + weight * 0.18,
+    });
+  }
+
+  const patchTri = BACKEND_PATCH_MOTIFS[patchEra] || {};
+  for (const [motif, weight] of Object.entries(patchTri)) {
+    motifMap.set(motif, {
+      sequence: motif.split(' '),
+      weight: (motifMap.get(motif)?.weight || 0) + weight * 0.12,
+    });
+  }
+
+  for (const [motif, weight] of Object.entries(BACKEND_GLOBAL_TRI_MOTIFS)) {
+    motifMap.set(motif, {
+      sequence: motif.split(' '),
+      weight: (motifMap.get(motif)?.weight || 0) + weight * 0.05,
+    });
+  }
+
+  return weightedMotifPick([...motifMap.values()], generator);
+}
+
 function normalizeRegion(region = 'America') {
   const value = String(region || '').trim().toLowerCase();
   if (value === 'eu' || value === 'europe') return 'Europe';
@@ -213,9 +334,154 @@ function getTrailingRun(history) {
   return { value, length };
 }
 
+function countWindow(window) {
+  const counts = { '41': 0, '42': 0, '43': 0, '44': 0 };
+  for (const value of window) {
+    if (counts[value] !== undefined) counts[value] += 1;
+  }
+  return counts;
+}
+
+function pickTopTwoRolls(window, fallbackCommons = ['42', '43']) {
+  const counts = Object.entries(countWindow(window))
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0]);
+    })
+    .filter(([, count]) => count > 0)
+    .slice(0, 2)
+    .map(([roll]) => roll);
+
+  if (counts.length >= 2) return counts;
+  return fallbackCommons;
+}
+
+function sameRollPair(left = [], right = []) {
+  return (left?.[0] || '') === (right?.[0] || '') && (left?.[1] || '') === (right?.[1] || '');
+}
+
+function detectAlternatingWindow(window) {
+  if (window.length < 4) return false;
+  const [a, b, c, d] = window.slice(-4);
+  return a === c && b === d && a !== b;
+}
+
+function detectWaveWindow(window) {
+  if (window.length < 4) return false;
+  const [a, b, c, d] = window.slice(-4);
+  return a === b && c === d && a !== c;
+}
+
+function resolvePhase(historyLength = 0) {
+  if (historyLength < 5) return 'opening';
+  if (historyLength < 11) return 'mid';
+  if (historyLength < 18) return 'late';
+  return 'volatile';
+}
+
+function deriveDynamicState(profile, nextHistory) {
+  const recentWindow = nextHistory.slice(-6);
+  const counts = countWindow(recentWindow);
+  const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const topCount = sortedCounts[0]?.[1] || 0;
+  const secondCount = sortedCounts[1]?.[1] || 0;
+  const dominantRoll = sortedCounts[0]?.[0] || null;
+  const dominantGap = topCount - secondCount;
+  const candidateCommons = pickTopTwoRolls(recentWindow, profile.baseCommons || profile.commons);
+  const candidateNoise = ['41', '42', '43', '44'].filter((roll) => !candidateCommons.includes(roll));
+  const trailingRun = getTrailingRun(nextHistory);
+  const last = nextHistory[nextHistory.length - 1] || null;
+  const noiseHit = profile.noise?.includes(last);
+  let noisePressure = Math.max(0, (profile.noisePressure || 0) + (noiseHit ? 0.55 : -0.25));
+
+  if (trailingRun.length >= 2 && profile.noise?.includes(trailingRun.value)) {
+    noisePressure += 0.28;
+  }
+  if (trailingRun.length >= 3 && candidateCommons.includes(trailingRun.value)) {
+    noisePressure += 0.12;
+  }
+
+  const phase = resolvePhase(nextHistory.length);
+  let candidateFamily = profile.family || profile.baseFamily;
+
+  if (noisePressure >= 2.4) {
+    candidateFamily = dominantRoll === '44' ? 'sticky' : 'noise-recovery';
+  } else if (dominantGap >= 2 && topCount >= 3) {
+    candidateFamily = 'dominance';
+  } else if (detectAlternatingWindow(recentWindow)) {
+    candidateFamily = 'balanced';
+  } else if (detectWaveWindow(recentWindow)) {
+    candidateFamily = 'wave';
+  } else if (phase === 'volatile') {
+    candidateFamily = 'transition-based';
+  } else {
+    candidateFamily = profile.baseFamily || profile.family;
+  }
+
+  const currentSignature = `${profile.family || profile.baseFamily}|${(profile.commons || profile.baseCommons || []).join('/')}`;
+  const candidateSignature = `${candidateFamily}|${candidateCommons.join('/')}`;
+  const strongShift =
+    noisePressure >= 5.25 ||
+    (phase === 'volatile' && noisePressure >= 4.2) ||
+    (dominantGap >= 3 && topCount >= 5);
+
+  let nextFamily = profile.family || profile.baseFamily;
+  let nextCommons = profile.commons || profile.baseCommons || candidateCommons;
+  let nextNoise = profile.noise || profile.baseNoise || candidateNoise;
+  let pendingShiftSignature = profile.pendingShiftSignature || null;
+  let pendingShiftCount = profile.pendingShiftCount || 0;
+  let regimeShiftCount = profile.regimeShiftCount || 0;
+  let stableTicks = (profile.stableTicks || 0) + 1;
+
+  if (candidateSignature === currentSignature) {
+    pendingShiftSignature = null;
+    pendingShiftCount = 0;
+  } else if (strongShift) {
+    nextFamily = candidateFamily;
+    nextCommons = candidateCommons;
+    nextNoise = candidateNoise;
+    pendingShiftSignature = null;
+    pendingShiftCount = 0;
+    regimeShiftCount += 1;
+    stableTicks = 0;
+  } else {
+    pendingShiftCount = pendingShiftSignature === candidateSignature ? pendingShiftCount + 1 : 1;
+    pendingShiftSignature = candidateSignature;
+    const minVotes = phase === 'opening' ? 4 : phase === 'mid' ? 3 : 3;
+    const canCommit =
+      pendingShiftCount >= minVotes &&
+      nextHistory.length >= 7 &&
+      (profile.stableTicks || 0) >= 3;
+
+    if (canCommit) {
+      nextFamily = candidateFamily;
+      nextCommons = candidateCommons;
+      nextNoise = candidateNoise;
+      pendingShiftSignature = null;
+      pendingShiftCount = 0;
+      regimeShiftCount += 1;
+      stableTicks = 0;
+    }
+  }
+
+  return {
+    phase,
+    noisePressure: Number(Math.min(noisePressure, 6.5).toFixed(2)),
+    family: nextFamily,
+    commons: nextCommons,
+    noise: nextNoise,
+    dominantRoll,
+    stableTicks,
+    pendingShiftSignature,
+    pendingShiftCount,
+    regimeShiftCount,
+  };
+}
+
 function createWeights(profile, history) {
   const last = history[history.length - 1] || null;
   const previous = history[history.length - 2] || null;
+  const lastTwo = history.length >= 2 ? `${history[history.length - 2]} ${history[history.length - 1]}` : null;
   const trailingRun = getTrailingRun(history);
   const transitionBase = last ? (EMPIRICAL_TRANSITIONS[last] || EMPIRICAL_TRANSITIONS['44']) : null;
   const weights = transitionBase
@@ -295,11 +561,44 @@ function createWeights(profile, history) {
     }
   }
 
+  if (lastTwo && BACKEND_GLOBAL_PAIR_MOTIFS[lastTwo]) {
+    const lastWeight = BACKEND_GLOBAL_PAIR_MOTIFS[lastTwo];
+    weights[last] += lastWeight * 0.012;
+  }
+
+  if (history.length >= 3) {
+    const tri = history.slice(-3).join(' ');
+    const globalTriWeight = BACKEND_GLOBAL_TRI_MOTIFS[tri] || 0;
+    const regionTriWeight = BACKEND_SERVER_TRI_MOTIFS[profile.region]?.[tri] || 0;
+    const patchTriWeight = BACKEND_PATCH_MOTIFS[profile.patchEra]?.[tri] || 0;
+    if (globalTriWeight || regionTriWeight || patchTriWeight) {
+      const motifBias = globalTriWeight * 0.01 + regionTriWeight * 0.03 + patchTriWeight * 0.02;
+      weights[last] += motifBias;
+    }
+  }
+
   const regionPrior = REGION_VALUE_PRIORS[profile.region] || REGION_VALUE_PRIORS.America;
   const patchPrior = PATCH_ERA_PRIORS[profile.patchEra] || PATCH_ERA_PRIORS.recent;
   for (const roll of ['41', '42', '43', '44']) {
     weights[roll] += (regionPrior[roll] || 25) * 0.35;
     weights[roll] += (patchPrior[roll] || 25) * 0.2;
+  }
+
+  if (profile.phase === 'opening') {
+    for (const common of profile.commons) weights[common] += 10;
+  }
+  if (profile.phase === 'late') {
+    for (const noise of profile.noise) weights[noise] += 6;
+  }
+  if (profile.phase === 'volatile') {
+    for (const noise of profile.noise) weights[noise] += 10;
+    for (const common of profile.commons) weights[common] += 4;
+  }
+  if ((profile.noisePressure || 0) >= 1.8) {
+    for (const noise of profile.noise) weights[noise] += 8;
+  }
+  if (profile.dominantRoll) {
+    weights[profile.dominantRoll] += profile.family === 'dominance' ? 10 : 4;
   }
 
   if (last) {
@@ -308,6 +607,16 @@ function createWeights(profile, history) {
       for (const [roll, bonus] of Object.entries(regionTransition)) {
         weights[roll] += bonus;
       }
+    }
+  }
+
+  if (trailingRun.value) {
+    const targetRun = BACKEND_RUN_TARGETS[trailingRun.value] || 1.32;
+    if (trailingRun.length > Math.ceil(targetRun)) {
+      weights[trailingRun.value] *= 0.78;
+    }
+    if (trailingRun.length >= Math.ceil(targetRun) + 2) {
+      weights[trailingRun.value] *= 0.55;
     }
   }
 
@@ -320,16 +629,28 @@ export function createPatternProfile(mood = 'mixed', region = 'America', patch =
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
   const template = PROFILE_LIBRARY[chosenId];
-  const starterSequence = pickStarterMotif(template, generator);
   const normalizedRegion = normalizeRegion(region);
   const patchEra = resolvePatchEra(patch);
+  const starterSequence = pickHybridStarterMotif(template, generator, normalizedRegion, patchEra);
   return {
     ...template,
+    baseFamily: template.family,
+    baseCommons: [...template.commons],
+    baseNoise: [...template.noise],
     seed,
     region: normalizedRegion,
     patch,
     patchEra,
     starterSequence,
+    commons: [...template.commons],
+    noise: [...template.noise],
+    phase: 'opening',
+    noisePressure: 0,
+    dominantRoll: null,
+    regimeShiftCount: 0,
+    stableTicks: 0,
+    pendingShiftSignature: null,
+    pendingShiftCount: 0,
     history: [],
   };
 }
@@ -352,15 +673,27 @@ export function createBucketPatternProfile(mood = 'mixed', bucketKey = getFiveMi
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
   const template = PROFILE_LIBRARY[chosenId];
-  const starterSequence = pickStarterMotif(template, generator);
+  const starterSequence = pickHybridStarterMotif(template, generator, normalizedRegion, patchEra);
   return {
     ...template,
+    baseFamily: template.family,
+    baseCommons: [...template.commons],
+    baseNoise: [...template.noise],
     seed,
     region: normalizedRegion,
     patch,
     patchEra,
     bucketKey,
     starterSequence,
+    commons: [...template.commons],
+    noise: [...template.noise],
+    phase: 'opening',
+    noisePressure: 0,
+    dominantRoll: null,
+    regimeShiftCount: 0,
+    stableTicks: 0,
+    pendingShiftSignature: null,
+    pendingShiftCount: 0,
     history: [],
   };
 }
@@ -381,16 +714,19 @@ export function getVisibleRollForUpgrade(patternProfile, upgradeIndex) {
 
 export function advancePatternProfile(patternProfile, visibleRoll) {
   if (!patternProfile) return patternProfile;
+  const nextHistory = [...(patternProfile.history || []), visibleRoll].slice(-24);
+  const dynamicState = deriveDynamicState(patternProfile, nextHistory);
   return {
     ...patternProfile,
-    history: [...(patternProfile.history || []), visibleRoll].slice(-24),
+    ...dynamicState,
+    history: nextHistory,
   };
 }
 
 export function describePatternProfile(patternProfile) {
   if (!patternProfile) return 'No learned pattern loaded yet.';
   const motif = (patternProfile.starterSequence || []).join(' ');
-  return `${patternProfile.family} profile (${patternProfile.region} / ${patternProfile.patchEra}): commons ${patternProfile.commons.join(' / ')}, noise ${patternProfile.noise.join(' / ')}. Starter motif ${motif}. ${patternProfile.note}`;
+  return `${patternProfile.family} profile (${patternProfile.region} / ${patternProfile.patchEra}, ${patternProfile.phase}, noise ${patternProfile.noisePressure || 0}): commons ${patternProfile.commons.join(' / ')}, noise ${patternProfile.noise.join(' / ')}. Starter motif ${motif}. ${patternProfile.note}`;
 }
 
 export function getPatternLibrary() {
