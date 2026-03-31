@@ -380,19 +380,13 @@ export async function getCavernData() {
   const cached = getCachedData();
   if (cached) {
     const trimmed = trimDataToCurrentWeek(cached);
-    if (!trimmed.changed) {
-      return { data: trimmed.data, allBlobs: [] };
-    }
+    return { data: trimmed.data, allBlobs: [] };
   }
 
   if (hasSupabaseConfig()) {
     try {
       const { data, allBlobs } = await getAllSupabaseEntries();
       const trimmed = trimDataToCurrentWeek(data);
-      if (trimmed.changed) {
-        await replaceAllSupabaseEntries(trimmed.data);
-        return { data: trimmed.data, allBlobs };
-      }
       return { data: trimmed.data, allBlobs };
     } catch (error) {
       console.error('[Cavern API] Supabase read error:', error);
@@ -402,10 +396,6 @@ export async function getCavernData() {
 
   const blobPayload = await getBlobCavernData();
   const trimmed = trimDataToCurrentWeek(blobPayload.data);
-  if (trimmed.changed) {
-    await saveBlobCavernData(trimmed.data, blobPayload.allBlobs);
-    return { data: trimmed.data, allBlobs: [] };
-  }
   return { data: trimmed.data, allBlobs: blobPayload.allBlobs };
 }
 
