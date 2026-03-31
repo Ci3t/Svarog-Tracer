@@ -1452,17 +1452,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   className="flex items-center gap-2 px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse"
                 >
                   <Trophy className="w-3 h-3" /> Admin Mode Active
-                </div>
-                <button
-                  onClick={() => {
-                    if (window.confirm('🚨 WARNING: This will permanently EXTERMINATE ALL ARCHIVE RECORDS. Proceed?')) {
-                      handleDelete({ admin: 'true' }, true);
-                    }
-                  }}
-                  className="px-3 py-1 bg-red-600/20 hover:bg-red-600 border border-red-500/30 text-red-500 hover:text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
-                >
-                  Nuke All
-                </button>
+                </div>
               </div>
             )}
             <p className="max-w-xl text-slate-400 text-sm md:text-base font-medium leading-relaxed mt-2">
@@ -3500,3 +3490,4 @@ const TeamCarouselCard = ({ card, cardIndex, isGlacial = false, getCharData, han
     </div>
   );
 };
+

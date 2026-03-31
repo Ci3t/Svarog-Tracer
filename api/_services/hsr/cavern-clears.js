@@ -8,11 +8,17 @@ import {
 } from '../zone/shared.js';
 
 const BLOB_PREFIX = 'hsr-cavern-clears-';
+const BLOB_ARCHIVE_PREFIX = 'hsr-cavern-archive-';
+const BLOB_AUDIT_PREFIX = 'hsr-cavern-audit-';
 const INITIAL_DATA = [];
 const CACHE_TTL_MS = 15_000;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_CAVERN_TABLE = process.env.SUPABASE_CAVERN_TABLE || 'cavern_clears';
+const SUPABASE_CAVERN_ARCHIVE_TABLE = process.env.SUPABASE_CAVERN_ARCHIVE_TABLE || 'cavern_clears_archive';
+const CAVERN_ARCHIVE_WEEKS = 3;
+const SUPABASE_CAVERN_AUDIT_TABLE = process.env.SUPABASE_CAVERN_AUDIT_TABLE || 'cavern_audit_log';
+const CAVERN_AUDIT_WEEKS = 2;
 
 let lambdaDataCache = null;
 let lambdaCacheTime = 0;
@@ -46,6 +52,22 @@ function getCurrentWeeklyResetBoundary(now = new Date()) {
   }
   boundary.setUTCDate(boundary.getUTCDate() - diff);
   return boundary;
+}
+
+function getNextWeeklyResetBoundary(boundary = getCurrentWeeklyResetBoundary()) {
+  const next = new Date(boundary);
+  next.setUTCDate(next.getUTCDate() + 7);
+  return next;
+}
+
+function getArchiveWeekKey(boundary = getCurrentWeeklyResetBoundary()) {
+  return boundary.toISOString().slice(0, 10);
+}
+
+function getAuditRetentionCutoff(now = new Date(), keepWeeks = CAVERN_AUDIT_WEEKS) {
+  const cutoff = new Date(now);
+  cutoff.setUTCDate(cutoff.getUTCDate() - keepWeeks * 7);
+  return cutoff;
 }
 
 function normalizeIsoDate(value) {
@@ -235,6 +257,34 @@ function buildTablePath(filters = {}, includeSelect = true) {
   return `${SUPABASE_CAVERN_TABLE}?${params.toString()}`;
 }
 
+function buildArchiveTablePath(filters = {}, includeSelect = true) {
+  const params = new URLSearchParams();
+
+  if (includeSelect) {
+    params.set('select', '*');
+  }
+
+  Object.entries(filters).forEach(([key, value]) => {
+    params.set(key, value);
+  });
+
+  return `${SUPABASE_CAVERN_ARCHIVE_TABLE}?${params.toString()}`;
+}
+
+function buildAuditTablePath(filters = {}, includeSelect = true) {
+  const params = new URLSearchParams();
+
+  if (includeSelect) {
+    params.set('select', '*');
+  }
+
+  Object.entries(filters).forEach(([key, value]) => {
+    params.set(key, value);
+  });
+
+  return `${SUPABASE_CAVERN_AUDIT_TABLE}?${params.toString()}`;
+}
+
 async function getAllSupabaseEntries() {
   const rows = await supabaseRequest(buildTablePath());
   const data = ensureArray(rows).map(toEntry);
@@ -311,6 +361,59 @@ async function deleteAllSupabaseEntries() {
   invalidateCache();
 }
 
+async function archiveCurrentWeekSupabaseEntries(data, boundary = getCurrentWeeklyResetBoundary(), reason = 'weekly_reset') {
+  const snapshot = ensureArray(data);
+  if (snapshot.length === 0) return null;
+
+  const weekStart = new Date(boundary);
+  const weekEnd = getNextWeeklyResetBoundary(boundary);
+  const payload = {
+    week_key: getArchiveWeekKey(boundary),
+    week_start: weekStart.toISOString(),
+    week_end: weekEnd.toISOString(),
+    archived_at: new Date().toISOString(),
+    reason,
+    source_count: snapshot.length,
+    payload: snapshot,
+  };
+
+  const rows = await supabaseRequest(
+    `${SUPABASE_CAVERN_ARCHIVE_TABLE}?on_conflict=week_key`,
+    {
+      method: 'POST',
+      body: payload,
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    }
+  );
+  return rows;
+}
+
+async function pruneSupabaseArchives(now = new Date(), keepWeeks = CAVERN_ARCHIVE_WEEKS) {
+  const boundary = getCurrentWeeklyResetBoundary(now);
+  const cutoff = new Date(boundary);
+  cutoff.setUTCDate(cutoff.getUTCDate() - keepWeeks * 7);
+  await supabaseRequest(
+    buildArchiveTablePath({ week_start: `lt.${cutoff.toISOString()}` }, false),
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+}
+
+async function writeSupabaseAuditEvent(event) {
+  await supabaseRequest(SUPABASE_CAVERN_AUDIT_TABLE, {
+    method: 'POST',
+    body: event,
+    prefer: 'return=minimal',
+  });
+}
+
+async function pruneSupabaseAuditEvents(now = new Date(), keepWeeks = CAVERN_AUDIT_WEEKS) {
+  const cutoff = getAuditRetentionCutoff(now, keepWeeks);
+  await supabaseRequest(
+    buildAuditTablePath({ created_at: `lt.${cutoff.toISOString()}` }, false),
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+}
+
 async function replaceAllSupabaseEntries(newData) {
   await deleteAllSupabaseEntries();
 
@@ -376,6 +479,76 @@ async function saveBlobCavernData(newData, allBlobs) {
   }
 }
 
+async function archiveCurrentWeekBlobEntries(data, boundary = getCurrentWeeklyResetBoundary(), reason = 'weekly_reset') {
+  const snapshot = ensureArray(data);
+  if (snapshot.length === 0) return;
+
+  const weekKey = getArchiveWeekKey(boundary);
+  const archiveName = `${BLOB_ARCHIVE_PREFIX}${weekKey}.json`;
+  const archivePayload = {
+    weekKey,
+    weekStart: boundary.toISOString(),
+    weekEnd: getNextWeeklyResetBoundary(boundary).toISOString(),
+    archivedAt: new Date().toISOString(),
+    reason,
+    sourceCount: snapshot.length,
+    payload: snapshot,
+  };
+
+  await blobPut(archiveName, JSON.stringify(archivePayload, null, 2), {
+    access: 'public',
+    contentType: 'application/json',
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
+}
+
+async function pruneBlobArchives(now = new Date(), keepWeeks = CAVERN_ARCHIVE_WEEKS) {
+  const { blobs } = await blobList({ prefix: BLOB_ARCHIVE_PREFIX });
+  if (!Array.isArray(blobs) || blobs.length === 0) return;
+
+  const cutoff = getCurrentWeeklyResetBoundary(now);
+  cutoff.setUTCDate(cutoff.getUTCDate() - keepWeeks * 7);
+
+  const oldUrls = blobs
+    .filter((blob) => {
+      const uploadedAt = new Date(blob.uploadedAt).getTime();
+      return Number.isFinite(uploadedAt) && uploadedAt < cutoff.getTime();
+    })
+    .map((blob) => blob.url);
+
+  if (oldUrls.length > 0) {
+    await blobDel(oldUrls);
+  }
+}
+
+async function writeBlobAuditEvent(event) {
+  const name = `${BLOB_AUDIT_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;
+  await blobPut(name, JSON.stringify(event, null, 2), {
+    access: 'public',
+    contentType: 'application/json',
+    addRandomSuffix: false,
+    allowOverwrite: false,
+  });
+}
+
+async function pruneBlobAuditEvents(now = new Date(), keepWeeks = CAVERN_AUDIT_WEEKS) {
+  const { blobs } = await blobList({ prefix: BLOB_AUDIT_PREFIX });
+  if (!Array.isArray(blobs) || blobs.length === 0) return;
+
+  const cutoff = getAuditRetentionCutoff(now, keepWeeks);
+  const oldUrls = blobs
+    .filter((blob) => {
+      const uploadedAt = new Date(blob.uploadedAt).getTime();
+      return Number.isFinite(uploadedAt) && uploadedAt < cutoff.getTime();
+    })
+    .map((blob) => blob.url);
+
+  if (oldUrls.length > 0) {
+    await blobDel(oldUrls);
+  }
+}
+
 export async function getCavernData() {
   const cached = getCachedData();
   if (cached) {
@@ -405,6 +578,41 @@ export async function saveCavernData(newData, allBlobs) {
   }
 
   return saveBlobCavernData(newData, allBlobs);
+}
+
+export async function archiveCurrentWeekSnapshot(data, boundary = getCurrentWeeklyResetBoundary(), reason = 'weekly_reset') {
+  if (hasSupabaseConfig()) {
+    await archiveCurrentWeekSupabaseEntries(data, boundary, reason);
+    await pruneSupabaseArchives(new Date(), CAVERN_ARCHIVE_WEEKS);
+    return;
+  }
+
+  await archiveCurrentWeekBlobEntries(data, boundary, reason);
+  await pruneBlobArchives(new Date(), CAVERN_ARCHIVE_WEEKS);
+}
+
+export async function writeCavernAuditEvent(event = {}) {
+  const payload = {
+    event_type: String(event.event_type || 'unknown'),
+    route: String(event.route || ''),
+    method: String(event.method || ''),
+    actor_type: String(event.actor_type || 'unknown'),
+    actor_id: event.actor_id ? String(event.actor_id) : null,
+    week_key: event.week_key ? String(event.week_key) : getArchiveWeekKey(getCurrentWeeklyResetBoundary()),
+    rows_before: Number.isFinite(event.rows_before) ? event.rows_before : null,
+    rows_after: Number.isFinite(event.rows_after) ? event.rows_after : null,
+    details: event.details && typeof event.details === 'object' ? event.details : {},
+    created_at: new Date().toISOString(),
+  };
+
+  if (hasSupabaseConfig()) {
+    await writeSupabaseAuditEvent(payload);
+    await pruneSupabaseAuditEvents(new Date(), CAVERN_AUDIT_WEEKS);
+    return;
+  }
+
+  await writeBlobAuditEvent(payload);
+  await pruneBlobAuditEvents(new Date(), CAVERN_AUDIT_WEEKS);
 }
 
 async function resolveAdminAccess(req, { key, apiKey }) {
@@ -668,18 +876,14 @@ export async function handler(req, res) {
       const { isAdmin, isSuperAdmin } = await resolveAdminAccess(req, { key, apiKey });
 
       if (!reportId && !relicId) {
-        if (!isAdmin && !isSuperAdmin) {
-          return res.status(401).json({ error: 'Unauthorized: Admin access required for full purge.' });
-        }
-
-        if (hasSupabaseConfig()) {
-          await deleteAllSupabaseEntries();
-        } else {
-          const { allBlobs } = await getCavernData();
-          await saveCavernData([], allBlobs);
-        }
-
-        return res.status(200).json({ success: true, message: 'Archive completely purged.' });
+        await writeCavernAuditEvent({
+          event_type: 'full_purge_blocked',
+          route: '/api/hsr/cavern-clears',
+          method: req.method,
+          actor_type: isAdmin || isSuperAdmin ? 'admin' : 'unknown',
+          details: { reason: 'full_purge_disabled' },
+        });
+        return res.status(403).json({ error: 'Full archive purge is disabled.' });
       }
 
       if (hasSupabaseConfig()) {
@@ -706,6 +910,22 @@ export async function handler(req, res) {
           } else {
             await updateSupabaseEntry(entry);
           }
+
+          await writeCavernAuditEvent({
+            event_type: 'report_delete',
+            route: '/api/hsr/cavern-clears',
+            method: req.method,
+            actor_type: isAdmin || isSuperAdmin ? 'admin' : 'user',
+            actor_id: reportId,
+            rows_before: 1,
+            rows_after: entry.reports.length > 0 ? 1 : 0,
+            details: {
+              report_id: reportId,
+              relic_id: entry.relicId,
+              clear_time: entry.clearTime,
+              remaining_reports: entry.reports.length,
+            },
+          });
 
           return res.status(200).json({ success: true, message: 'Archive record expunged.' });
         }
@@ -745,6 +965,20 @@ export async function handler(req, res) {
           }
 
           await deleteSupabaseEntryById(entry.id);
+          await writeCavernAuditEvent({
+            event_type: 'variant_delete',
+            route: '/api/hsr/cavern-clears',
+            method: req.method,
+            actor_type: 'admin',
+            rows_before: 1,
+            rows_after: 0,
+            details: {
+              relic_id: entry.relicId,
+              clear_time: entry.clearTime,
+              characters: ensureArray(entry.characters),
+              substats: ensureArray(entry.substats),
+            },
+          });
           return res.status(200).json({ success: true, message: 'Archive record expunged.' });
         }
 
@@ -753,6 +987,7 @@ export async function handler(req, res) {
 
       const { data, allBlobs } = await getCavernData();
       let found = false;
+      let auditEvent = null;
 
       if (reportId) {
         for (let i = 0; i < data.length; i += 1) {
@@ -774,6 +1009,22 @@ export async function handler(req, res) {
           if (entry.reports.length === 0) {
             data.splice(i, 1);
           }
+
+          auditEvent = {
+            event_type: 'report_delete',
+            route: '/api/hsr/cavern-clears',
+            method: req.method,
+            actor_type: isAdmin || isSuperAdmin ? 'admin' : 'user',
+            actor_id: reportId,
+            rows_before: 1,
+            rows_after: entry.reports.length > 0 ? 1 : 0,
+            details: {
+              report_id: reportId,
+              relic_id: entry.relicId,
+              clear_time: entry.clearTime,
+              remaining_reports: entry.reports.length,
+            },
+          };
 
           found = true;
           break;
@@ -830,7 +1081,22 @@ export async function handler(req, res) {
         }
 
         if (entryIndex !== -1) {
+          const removed = data[entryIndex];
           data.splice(entryIndex, 1);
+          auditEvent = {
+            event_type: 'variant_delete',
+            route: '/api/hsr/cavern-clears',
+            method: req.method,
+            actor_type: 'admin',
+            rows_before: 1,
+            rows_after: 0,
+            details: {
+              relic_id: removed?.relicId,
+              clear_time: removed?.clearTime,
+              characters: ensureArray(removed?.characters),
+              substats: ensureArray(removed?.substats),
+            },
+          };
           found = true;
         }
       }
@@ -840,6 +1106,9 @@ export async function handler(req, res) {
       }
 
       await saveCavernData(data, allBlobs);
+      if (auditEvent) {
+        await writeCavernAuditEvent(auditEvent);
+      }
       return res.status(200).json({ success: true, message: 'Archive record expunged.' });
     } catch (error) {
       console.error('[Cavern API] DELETE error:', error);

@@ -1,4 +1,10 @@
-import { getCavernData, saveCavernData, normalizeKey } from './cavern-clears.js';
+import {
+  archiveCurrentWeekSnapshot,
+  getCavernData,
+  saveCavernData,
+  normalizeKey,
+  writeCavernAuditEvent,
+} from './cavern-clears.js';
 
 function getUtcWindowState(now = new Date()) {
   const utcDay = now.getUTCDay(); // 0=Sun, 1=Mon
@@ -35,6 +41,18 @@ export async function handler(req, res) {
 
   if (!timeState.inScheduledWindow && !force) {
     console.warn('[Cron Wipe] Refused outside scheduled Monday 06:00 UTC window.', timeState);
+    await writeCavernAuditEvent({
+      event_type: 'weekly_reset_blocked',
+      route: '/api/hsr/cron-wipe',
+      method: req.method,
+      actor_type: isVercelCron ? 'cron' : 'admin',
+      week_key: timeState.iso.slice(0, 10),
+      details: {
+        forced: force,
+        now_utc: timeState.iso,
+        reason: 'outside_scheduled_window',
+      },
+    });
     return res.status(409).json({
       error: 'Refused outside scheduled weekly wipe window.',
       scheduled_window: 'Monday 06:00-06:59 UTC',
@@ -49,8 +67,23 @@ export async function handler(req, res) {
       viaCronSecret: Boolean(isVercelCron),
     });
     
-    // 2. Fetch all current blobs to delete them
-    const { allBlobs } = await getCavernData();
+    // 2. Snapshot outgoing week before clearing the live table
+    const { data, allBlobs } = await getCavernData();
+    await archiveCurrentWeekSnapshot(data, undefined, force ? 'manual_forced_reset' : 'weekly_reset');
+    await writeCavernAuditEvent({
+      event_type: force ? 'weekly_reset_forced' : 'weekly_reset',
+      route: '/api/hsr/cron-wipe',
+      method: req.method,
+      actor_type: isVercelCron ? 'cron' : 'admin',
+      week_key: timeState.iso.slice(0, 10),
+      rows_before: Array.isArray(data) ? data.length : 0,
+      rows_after: 0,
+      details: {
+        forced: force,
+        via_cron_secret: Boolean(isVercelCron),
+        now_utc: timeState.iso,
+      },
+    });
     
     // 3. Save empty array (Nuke everything)
     await saveCavernData([], allBlobs);
