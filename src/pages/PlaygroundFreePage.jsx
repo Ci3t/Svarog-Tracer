@@ -53,6 +53,8 @@ const SEED_MOODS = {
 };
 
 const RELIC_PIECES = ['Head', 'Hands', 'Body', 'Feet'];
+const FREE_MODE_REGION = 'America';
+const FREE_MODE_PATCH = '4.1';
 
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -524,7 +526,8 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
 export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
-  const createProfileForBucket = (mood, nextBucketKey) => createBucketPatternProfile(mood, nextBucketKey);
+  const createProfileForBucket = (mood, nextBucketKey) =>
+    createBucketPatternProfile(mood, nextBucketKey, FREE_MODE_REGION, FREE_MODE_PATCH);
   const [seedMood, setSeedMood] = useState('mixed');
   const [bucketKey, setBucketKey] = useState(() => getFiveMinuteBucketKey());
   const [patternProfile, setPatternProfile] = useState(() => createProfileForBucket('mixed', getFiveMinuteBucketKey()));
@@ -544,7 +547,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const hintText = useMemo(() => describeHint(relic, patternProfile), [relic, patternProfile]);
   const predictorEntries = useMemo(() => buildEntryRows(sessionRolls), [sessionRolls]);
   const translatedRolls = useMemo(() => sessionRolls.map((entry) => entry.translated), [sessionRolls]);
-  const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: 'America' }), [translatedRolls]);
+  const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: FREE_MODE_REGION }), [translatedRolls]);
   const helperLineOverride = forceRelic.isPrimed
     ? forceRelic.forcedLine
     : relic.lastLine || testRelic.lastLine || null;
@@ -880,7 +883,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
           
           {/* COLUMN 1: FAR LEFT (3/12) - PREDICTOR */}
           <aside className="gsap-fade-up flex flex-col gap-6 lg:col-span-3">
-             <ModernPairPredictorCard entries={predictorEntries} region="America" />
+             <ModernPairPredictorCard entries={predictorEntries} region={FREE_MODE_REGION} />
           </aside>
 
           {/* COLUMN 2: CENTER (6/12) - RELICS & ACTIVITY */}
@@ -964,8 +967,8 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
                   prediction2={prediction2}
                   prediction3={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
                   prediction4={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
-                  currentRegion="America"
-                  currentPatch="4.1"
+                  currentRegion={FREE_MODE_REGION}
+                  currentPatch={FREE_MODE_PATCH}
                   forcedLineOverride={helperLineOverride}
                 />
              </div>

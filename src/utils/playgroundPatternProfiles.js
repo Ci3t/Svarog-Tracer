@@ -38,6 +38,38 @@ const EMPIRICAL_REPEAT_LIMITS = {
   '44': { soft: 2, hard: 5 },
 };
 
+const REGION_VALUE_PRIORS = {
+  America: { '41': 24.8, '42': 24.0, '43': 25.9, '44': 25.3 },
+  Europe: { '41': 25.7, '42': 24.2, '43': 25.3, '44': 24.8 },
+  Asia: { '41': 23.9, '42': 25.7, '43': 24.8, '44': 25.6 },
+};
+
+const REGION_TRANSITION_BONUS = {
+  America: {
+    '41': { '41': 6, '44': 4, '43': 3 },
+    '42': { '42': 5, '43': 5, '44': 3 },
+    '43': { '44': 6, '42': 4 },
+    '44': { '44': 5, '41': 5 },
+  },
+  Europe: {
+    '41': { '41': 6, '42': 4 },
+    '42': { '43': 6, '44': 4 },
+    '43': { '41': 5, '43': 4, '42': 4 },
+    '44': { '43': 5, '44': 4 },
+  },
+  Asia: {
+    '41': { '42': 5, '41': 4 },
+    '42': { '41': 5, '44': 4 },
+    '43': { '43': 5, '42': 4 },
+    '44': { '41': 5, '42': 4, '44': 4 },
+  },
+};
+
+const PATCH_ERA_PRIORS = {
+  legacy: { '41': 25.4, '42': 24.9, '43': 24.9, '44': 24.8 },
+  recent: { '41': 24.6, '42': 24.8, '43': 25.7, '44': 24.9 },
+};
+
 const PROFILE_LIBRARY = {
   stableBalanced4243: {
     id: 'stableBalanced4243',
@@ -157,6 +189,19 @@ function pickStarterMotif(template, generator) {
   return pickRandom(motifs, generator);
 }
 
+function normalizeRegion(region = 'America') {
+  const value = String(region || '').trim().toLowerCase();
+  if (value === 'eu' || value === 'europe') return 'Europe';
+  if (value === 'asia' || value === 'asia ') return 'Asia';
+  return 'America';
+}
+
+function resolvePatchEra(patch = '4.1') {
+  const numeric = Number.parseFloat(String(patch || '').replace(/[^0-9.]/g, ''));
+  if (Number.isFinite(numeric) && numeric < 3.6) return 'legacy';
+  return 'recent';
+}
+
 function getTrailingRun(history) {
   if (!history.length) return { value: null, length: 0 };
   const value = history[history.length - 1];
@@ -250,19 +295,40 @@ function createWeights(profile, history) {
     }
   }
 
+  const regionPrior = REGION_VALUE_PRIORS[profile.region] || REGION_VALUE_PRIORS.America;
+  const patchPrior = PATCH_ERA_PRIORS[profile.patchEra] || PATCH_ERA_PRIORS.recent;
+  for (const roll of ['41', '42', '43', '44']) {
+    weights[roll] += (regionPrior[roll] || 25) * 0.35;
+    weights[roll] += (patchPrior[roll] || 25) * 0.2;
+  }
+
+  if (last) {
+    const regionTransition = REGION_TRANSITION_BONUS[profile.region]?.[last] || null;
+    if (regionTransition) {
+      for (const [roll, bonus] of Object.entries(regionTransition)) {
+        weights[roll] += bonus;
+      }
+    }
+  }
+
   return weights;
 }
 
-export function createPatternProfile(mood = 'mixed') {
+export function createPatternProfile(mood = 'mixed', region = 'America', patch = '4.1') {
   const seed = Math.floor(Math.random() * 1000000);
   const generator = createGenerator(seed);
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
   const template = PROFILE_LIBRARY[chosenId];
   const starterSequence = pickStarterMotif(template, generator);
+  const normalizedRegion = normalizeRegion(region);
+  const patchEra = resolvePatchEra(patch);
   return {
     ...template,
     seed,
+    region: normalizedRegion,
+    patch,
+    patchEra,
     starterSequence,
     history: [],
   };
@@ -278,8 +344,10 @@ export function getFiveMinuteBucketKey(date = new Date()) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-export function createBucketPatternProfile(mood = 'mixed', bucketKey = getFiveMinuteBucketKey()) {
-  const seed = hashString(`${mood}:${bucketKey}`);
+export function createBucketPatternProfile(mood = 'mixed', bucketKey = getFiveMinuteBucketKey(), region = 'America', patch = '4.1') {
+  const normalizedRegion = normalizeRegion(region);
+  const patchEra = resolvePatchEra(patch);
+  const seed = hashString(`${mood}:${normalizedRegion}:${patchEra}:${bucketKey}`);
   const generator = createGenerator(seed);
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
@@ -288,6 +356,9 @@ export function createBucketPatternProfile(mood = 'mixed', bucketKey = getFiveMi
   return {
     ...template,
     seed,
+    region: normalizedRegion,
+    patch,
+    patchEra,
     bucketKey,
     starterSequence,
     history: [],
@@ -319,7 +390,7 @@ export function advancePatternProfile(patternProfile, visibleRoll) {
 export function describePatternProfile(patternProfile) {
   if (!patternProfile) return 'No learned pattern loaded yet.';
   const motif = (patternProfile.starterSequence || []).join(' ');
-  return `${patternProfile.family} profile: commons ${patternProfile.commons.join(' / ')}, noise ${patternProfile.noise.join(' / ')}. Starter motif ${motif}. ${patternProfile.note}`;
+  return `${patternProfile.family} profile (${patternProfile.region} / ${patternProfile.patchEra}): commons ${patternProfile.commons.join(' / ')}, noise ${patternProfile.noise.join(' / ')}. Starter motif ${motif}. ${patternProfile.note}`;
 }
 
 export function getPatternLibrary() {
