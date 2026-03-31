@@ -24,6 +24,20 @@ function hashString(value = '') {
   return hash >>> 0;
 }
 
+const EMPIRICAL_TRANSITIONS = {
+  '41': { '41': 0.198, '42': 0.428, '43': 0.173, '44': 0.201 },
+  '42': { '41': 0.239, '42': 0.131, '43': 0.464, '44': 0.166 },
+  '43': { '41': 0.255, '42': 0.204, '43': 0.137, '44': 0.405 },
+  '44': { '41': 0.306, '42': 0.229, '43': 0.226, '44': 0.239 },
+};
+
+const EMPIRICAL_REPEAT_LIMITS = {
+  '41': { soft: 2, hard: 4 },
+  '42': { soft: 1, hard: 3 },
+  '43': { soft: 1, hard: 3 },
+  '44': { soft: 2, hard: 5 },
+};
+
 const PROFILE_LIBRARY = {
   stableBalanced4243: {
     id: 'stableBalanced4243',
@@ -31,7 +45,11 @@ const PROFILE_LIBRARY = {
     mood: 'stable',
     commons: ['42', '43'],
     noise: ['41'],
-    starterSequence: ['43', '42', '44', '44'],
+    starterMotifs: [
+      ['43', '42', '42', '41'],
+      ['43', '42', '43', '43'],
+      ['44', '42', '43', '44'],
+    ],
     repeatBias: 0.12,
     noiseChance: 0.16,
     note: 'Balanced 42/43 lane with a late upward wrap.',
@@ -42,7 +60,11 @@ const PROFILE_LIBRARY = {
     mood: 'stable',
     commons: ['41', '42'],
     noise: ['44'],
-    starterSequence: ['42', '41', '44', '42'],
+    starterMotifs: [
+      ['41', '41', '42', '42'],
+      ['41', '42', '43', '41'],
+      ['42', '41', '44', '42'],
+    ],
     repeatBias: 0.18,
     noiseChance: 0.18,
     note: '41/42 commons that stay readable and recover fast.',
@@ -53,7 +75,11 @@ const PROFILE_LIBRARY = {
     mood: 'mixed',
     commons: ['43', '42'],
     noise: ['41', '44'],
-    starterSequence: ['43', '42', '44', '44'],
+    starterMotifs: [
+      ['43', '42', '42', '41'],
+      ['43', '42', '41', '44'],
+      ['44', '42', '43', '44'],
+    ],
     repeatBias: 0.22,
     noiseChance: 0.24,
     note: 'Transition-heavy 43/42 lane with a noisy tail.',
@@ -64,7 +90,11 @@ const PROFILE_LIBRARY = {
     mood: 'mixed',
     commons: ['41', '43'],
     noise: ['42', '44'],
-    starterSequence: ['43', '41', '43', '42'],
+    starterMotifs: [
+      ['43', '41', '42', '43'],
+      ['43', '44', '41', '41'],
+      ['41', '41', '44', '44'],
+    ],
     repeatBias: 0.18,
     noiseChance: 0.22,
     note: 'Noise breaks show up, but the session often comes back to 41/43.',
@@ -75,7 +105,11 @@ const PROFILE_LIBRARY = {
     mood: 'chaotic',
     commons: ['44', '42'],
     noise: ['41', '43'],
-    starterSequence: ['44', '42', '44', '41'],
+    starterMotifs: [
+      ['44', '44', '43', '44'],
+      ['44', '44', '41', '44'],
+      ['44', '42', '43', '44'],
+    ],
     repeatBias: 0.42,
     noiseChance: 0.28,
     note: 'Sticky dominant 44/42 lane with hard outsider pressure.',
@@ -86,7 +120,11 @@ const PROFILE_LIBRARY = {
     mood: 'chaotic',
     commons: ['43', '41'],
     noise: ['42', '44'],
-    starterSequence: ['43', '41', '44', '43'],
+    starterMotifs: [
+      ['43', '41', '42', '43'],
+      ['43', '43', '41', '42'],
+      ['43', '41', '43', '42'],
+    ],
     repeatBias: 0.48,
     noiseChance: 0.26,
     note: 'Dominant 43/41 session where outsiders still threaten to flip the read.',
@@ -114,54 +152,103 @@ function weightedPick(weightMap, nextRand) {
   return entries[entries.length - 1]?.[0] || '44';
 }
 
+function pickStarterMotif(template, generator) {
+  const motifs = template.starterMotifs || [template.starterSequence || ['43', '42', '44', '44']];
+  return pickRandom(motifs, generator);
+}
+
+function getTrailingRun(history) {
+  if (!history.length) return { value: null, length: 0 };
+  const value = history[history.length - 1];
+  let length = 1;
+  for (let index = history.length - 2; index >= 0; index -= 1) {
+    if (history[index] !== value) break;
+    length += 1;
+  }
+  return { value, length };
+}
+
 function createWeights(profile, history) {
   const last = history[history.length - 1] || null;
   const previous = history[history.length - 2] || null;
-  const weights = { 41: 1, 42: 1, 43: 1, 44: 1 };
+  const trailingRun = getTrailingRun(history);
+  const transitionBase = last ? (EMPIRICAL_TRANSITIONS[last] || EMPIRICAL_TRANSITIONS['44']) : null;
+  const weights = transitionBase
+    ? {
+        '41': transitionBase['41'] * 100,
+        '42': transitionBase['42'] * 100,
+        '43': transitionBase['43'] * 100,
+        '44': transitionBase['44'] * 100,
+      }
+    : { 41: 25, 42: 25, 43: 25, 44: 25 };
 
   for (const common of profile.commons) {
-    weights[common] += profile.mood === 'stable' ? 3.4 : profile.mood === 'mixed' ? 2.8 : 2.2;
+    weights[common] += profile.mood === 'stable' ? 24 : profile.mood === 'mixed' ? 18 : 12;
   }
   for (const noise of profile.noise) {
-    weights[noise] += profile.noiseChance * 3.5;
+    weights[noise] += profile.noiseChance * 12;
   }
 
   if (profile.family === 'sticky' && last) {
-    weights[last] += 2.6;
+    weights[last] += 16;
   }
 
   if (profile.family === 'dominance') {
-    weights[profile.commons[0]] += 3.2;
-    weights[profile.commons[1]] += 1.4;
+    weights[profile.commons[0]] += 20;
+    weights[profile.commons[1]] += 8;
   }
 
   if (profile.family === 'balanced' && last && profile.commons.includes(last)) {
     const other = profile.commons.find((value) => value !== last);
-    if (other) weights[other] += 1.8;
+    if (other) weights[other] += 14;
   }
 
   if (profile.family === 'wave' && last && previous) {
     if (last === previous) {
       const alt = profile.commons.find((value) => value !== last) || profile.noise[0] || last;
-      weights[alt] += 2.1;
+      weights[alt] += 18;
     } else if (profile.commons.includes(last)) {
-      weights[last] += 0.8;
+      weights[last] += 6;
     }
   }
 
   if (profile.family === 'transition-based' && last) {
     if (profile.noise.includes(last)) {
-      for (const common of profile.commons) weights[common] += 1.6;
+      for (const common of profile.commons) weights[common] += 15;
     } else {
-      for (const noise of profile.noise) weights[noise] += 0.8;
+      for (const noise of profile.noise) weights[noise] += 8;
     }
   }
 
   if (profile.family === 'noise-recovery' && last && profile.noise.includes(last)) {
-    for (const common of profile.commons) weights[common] += 2.4;
+    for (const common of profile.commons) weights[common] += 20;
   }
 
-  if (last) weights[last] += profile.repeatBias;
+  if (last) {
+    weights[last] += profile.repeatBias * 20;
+  }
+
+  if (trailingRun.value) {
+    const limits = EMPIRICAL_REPEAT_LIMITS[trailingRun.value] || { soft: 1, hard: 3 };
+    if (trailingRun.length >= limits.soft) {
+      weights[trailingRun.value] *= 0.55;
+    }
+    if (trailingRun.length >= limits.hard) {
+      weights[trailingRun.value] *= 0.18;
+    }
+  }
+
+  if (profile.family === 'sticky' && trailingRun.value === '44' && trailingRun.length < 3) {
+    weights['44'] += 10;
+  }
+
+  if (profile.family === 'dominance' && history.length >= 3) {
+    const recentWindow = history.slice(-4);
+    const dominantHits = recentWindow.filter((value) => value === profile.commons[0]).length;
+    if (dominantHits >= 2) {
+      weights[profile.commons[0]] += 12;
+    }
+  }
 
   return weights;
 }
@@ -172,9 +259,11 @@ export function createPatternProfile(mood = 'mixed') {
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
   const template = PROFILE_LIBRARY[chosenId];
+  const starterSequence = pickStarterMotif(template, generator);
   return {
     ...template,
     seed,
+    starterSequence,
     history: [],
   };
 }
@@ -195,10 +284,12 @@ export function createBucketPatternProfile(mood = 'mixed', bucketKey = getFiveMi
   const profileIds = MOOD_PROFILE_IDS[mood] || MOOD_PROFILE_IDS.mixed;
   const chosenId = pickRandom(profileIds, generator);
   const template = PROFILE_LIBRARY[chosenId];
+  const starterSequence = pickStarterMotif(template, generator);
   return {
     ...template,
     seed,
     bucketKey,
+    starterSequence,
     history: [],
   };
 }
