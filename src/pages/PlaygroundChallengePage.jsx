@@ -26,6 +26,7 @@ import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import relicSets from '../data/relics.json';
 import { CHALLENGE_CONTRACT_ORDER, getChallengeContract, getNextChallengeContractId } from '../data/challengeContracts';
+import { createChallengeScenario } from '../data/challengeScenarioFactory';
 import {
   createBucketPatternProfile,
   getVisibleRollForUpgrade,
@@ -603,7 +604,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const navigate = useNavigate();
   const [currentContractId, setCurrentContractId] = useState('easy01');
   const [completedContracts, setCompletedContracts] = useState([]);
-  const currentContract = useMemo(() => getChallengeContract(currentContractId), [currentContractId]);
+  const [selectedTier, setSelectedTier] = useState('beginner');
+  const [generatedScenario, setGeneratedScenario] = useState(null);
+  const currentContract = useMemo(
+    () => generatedScenario || getChallengeContract(currentContractId),
+    [currentContractId, generatedScenario]
+  );
   const seedMood = currentContract.mood;
   const bucketKey = currentContract.seedLabel;
   const [patternProfile, setPatternProfile] = useState(() => createChallengePatternProfile(currentContract));
@@ -719,7 +725,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       text: 'This contract has no valid success evaluator yet.',
     };
   }, [currentContract.progressText, currentContract.success, lineHitsByStat, relic.level]);
-  const nextContractId = useMemo(() => getNextChallengeContractId(currentContract.id), [currentContract.id]);
+  const nextContractId = useMemo(
+    () => (generatedScenario ? null : getNextChallengeContractId(currentContract.id)),
+    [currentContract.id, generatedScenario]
+  );
   const canOpenContract = (contractId) => {
     if (contractId === currentContractId) return true;
     const targetIndex = CHALLENGE_CONTRACT_ORDER.indexOf(contractId);
@@ -727,6 +736,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     const previousId = CHALLENGE_CONTRACT_ORDER[targetIndex - 1];
     return completedContracts.includes(previousId);
   };
+  const maxTries = currentContract?.attempts?.maxTries ?? null;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -739,8 +749,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (challengeStatus.tone !== 'clear') return;
+    if (generatedScenario) return;
     setCompletedContracts((existing) => (existing.includes(currentContract.id) ? existing : [...existing, currentContract.id]));
-  }, [challengeStatus.tone, currentContract.id]);
+  }, [challengeStatus.tone, currentContract.id, generatedScenario]);
 
   useEffect(() => {
     const lastSessionRoll = patternProfile?.history?.[patternProfile.history.length - 1] || '-';
@@ -856,6 +867,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const handleStartSession = () => {
     setTimerRunning(true);
+  };
+
+  const handleOpenHandcraftedContract = (contractId) => {
+    setGeneratedScenario(null);
+    setCurrentContractId(contractId);
+  };
+
+  const handleGenerateScenario = () => {
+    const nextScenario = createChallengeScenario({ tier: selectedTier, generated: true });
+    setGeneratedScenario(nextScenario);
   };
 
   const updateRelicState = (kind, updater) => {
@@ -1030,7 +1051,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 key={contractId}
                 type="button"
                 disabled={!isUnlocked}
-                onClick={() => setCurrentContractId(contractId)}
+                onClick={() => handleOpenHandcraftedContract(contractId)}
                 className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
                   isCurrent
                     ? 'border-amber-400/35 bg-amber-500/15 text-amber-100'
@@ -1044,6 +1065,55 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               </button>
             );
           })}
+        </div>
+
+        <div className="gsap-fade-up mb-6 rounded-[1.1rem] border border-white/5 bg-slate-950/35 p-4">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Generated Challenge</div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                Pick a tier, then generate a full challenge with seed, relics, hints, and success rules already attached.
+              </p>
+            </div>
+            {generatedScenario ? (
+              <button
+                type="button"
+                onClick={() => setGeneratedScenario(null)}
+                className="rounded-full border border-white/5 bg-black/30 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/10 hover:text-white"
+              >
+                Back To Ladder
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {['new_player', 'beginner', 'intermediate', 'veteran', 'expert'].map((tier) => {
+              const isSelected = selectedTier === tier;
+              return (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => setSelectedTier(tier)}
+                  className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
+                    isSelected
+                      ? 'border-cyan-400/30 bg-cyan-500/14 text-cyan-100'
+                      : 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
+                  }`}
+                >
+                  {tier.replace('_', ' ')}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={handleGenerateScenario}
+              className="ml-auto inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
+            >
+              Generate Challenge
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* 3-COLUMN TACTICAL COMMAND CENTER: 3-6-3 SPLIT */}
@@ -1114,8 +1184,15 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 </div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <div className="text-lg font-black uppercase tracking-tight text-amber-300">{currentContract.title}</div>
-                  <div className="rounded-full border border-white/5 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
-                    {currentContract.difficulty}
+                  <div className="flex items-center gap-2">
+                    {generatedScenario ? (
+                      <div className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100">
+                        Generated
+                      </div>
+                    ) : null}
+                    <div className="rounded-full border border-white/5 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
+                      {currentContract.difficulty}
+                    </div>
                   </div>
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-300 mb-3">{currentContract.goal}</p>
@@ -1149,7 +1226,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Tries</div>
-                      <div className="mt-1 text-xl font-black text-amber-200">{triesUsed}</div>
+                      <div className="mt-1 text-xl font-black text-amber-200">
+                        {triesUsed}
+                        {maxTries ? <span className="text-sm text-slate-500"> / {maxTries}</span> : null}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
@@ -1169,10 +1249,20 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 {challengeStatus.tone === 'clear' && nextContractId ? (
                   <button
                     type="button"
-                    onClick={() => setCurrentContractId(nextContractId)}
+                    onClick={() => handleOpenHandcraftedContract(nextContractId)}
                     className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
                   >
                     Next Contract
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : null}
+                {challengeStatus.tone === 'clear' && generatedScenario ? (
+                  <button
+                    type="button"
+                    onClick={handleGenerateScenario}
+                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
+                  >
+                    Generate Next Challenge
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 ) : null}
