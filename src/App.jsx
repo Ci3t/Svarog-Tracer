@@ -32,6 +32,11 @@ import TutorialPage from "./pages/TutorialPage";
 import TutorialLevelTwoPage from "./pages/TutorialLevelTwoPage";
 import TutorialLevelThreePage from "./pages/TutorialLevelThreePage";
 import PlaygroundPage from "./pages/PlaygroundPage";
+import PlaygroundFreePage from "./pages/PlaygroundFreePage";
+import PlaygroundChallengePage from "./pages/PlaygroundChallengePage";
+import PlaygroundChallengeAdminPage from "./pages/PlaygroundChallengeAdminPage";
+import PlaygroundDrillsPage from "./pages/PlaygroundDrillsPage";
+import PlaygroundPatternLabPage from "./pages/PlaygroundPatternLabPage";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
@@ -1190,6 +1195,18 @@ export default function App() {
             <Route path="/tutorial/level-2" element={<TutorialLevelTwoPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/level-3" element={<TutorialLevelThreePage sessionTheme={sessionTheme} />} />
             <Route path="/playground" element={<PlaygroundPage sessionTheme={sessionTheme} />} />
+            <Route path="/playground/free" element={<PlaygroundFreePage sessionTheme={sessionTheme} />} />
+            <Route path="/playground/challenge" element={<PlaygroundChallengePage sessionTheme={sessionTheme} />} />
+            <Route path="/playground/drills" element={<PlaygroundDrillsPage sessionTheme={sessionTheme} />} />
+            <Route path="/playground/pattern-lab" element={<PlaygroundPatternLabPage sessionTheme={sessionTheme} />} />
+            <Route
+              path="/playground/challenge/admin"
+              element={
+                <RequireAuth>
+                  <PlaygroundChallengeAdminPage />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/zone-tracker"
               element={

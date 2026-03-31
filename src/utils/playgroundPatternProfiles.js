@@ -655,6 +655,36 @@ export function createPatternProfile(mood = 'mixed', region = 'America', patch =
   };
 }
 
+export function createPatternProfileFromId(profileId, region = 'America', patch = '4.1', seedOverride = null) {
+  const normalizedRegion = normalizeRegion(region);
+  const patchEra = resolvePatchEra(patch);
+  const template = PROFILE_LIBRARY[profileId] || PROFILE_LIBRARY.mixedRecovery4143;
+  const seed = Number.isFinite(seedOverride) ? seedOverride : Math.floor(Math.random() * 1000000);
+  const generator = createGenerator(seed);
+  const starterSequence = pickHybridStarterMotif(template, generator, normalizedRegion, patchEra);
+  return {
+    ...template,
+    baseFamily: template.family,
+    baseCommons: [...template.commons],
+    baseNoise: [...template.noise],
+    seed,
+    region: normalizedRegion,
+    patch,
+    patchEra,
+    starterSequence,
+    commons: [...template.commons],
+    noise: [...template.noise],
+    phase: 'opening',
+    noisePressure: 0,
+    dominantRoll: null,
+    regimeShiftCount: 0,
+    stableTicks: 0,
+    pendingShiftSignature: null,
+    pendingShiftCount: 0,
+    history: [],
+  };
+}
+
 export function getFiveMinuteBucketKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
