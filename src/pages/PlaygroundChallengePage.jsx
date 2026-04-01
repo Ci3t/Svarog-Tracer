@@ -1154,6 +1154,35 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     }
   }, [getAuthHeader, roomCode]);
 
+  const handleRerollPvpMatch = useCallback(async () => {
+    if (!roomCode) return;
+    try {
+      setPvpLoading(true);
+      const response = await fetchWithTimeout(buildApiUrl('/api/pvp'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          action: 'reroll-restart',
+          code: roomCode,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to reroll match.');
+      }
+      setPvpRoom(body.room || null);
+      setShowPvpResults(false);
+      setPvpError('');
+    } catch (error) {
+      setPvpError(getPvpFetchErrorMessage(error, 'Failed to reroll match.'));
+    } finally {
+      setPvpLoading(false);
+    }
+  }, [getAuthHeader, roomCode]);
+
   const handleSubmitPvpAttempt = useCallback(() => {
     if (!isPvpMode) return;
     if (pvpAttemptsUsed > 3) return;
@@ -2270,14 +2299,24 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               </div>
               <div className="flex items-center gap-3">
                 {pvpViewerRole === 'host' ? (
-                  <button
-                    type="button"
-                    onClick={handleRestartPvpMatch}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:bg-emerald-500/20"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Restart Match
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleRerollPvpMatch}
+                      className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-100 transition hover:bg-fuchsia-500/20"
+                    >
+                      <Dice5 className="h-4 w-4" />
+                      Reroll Relics & Restart
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRestartPvpMatch}
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:bg-emerald-500/20"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Restart Same Match
+                    </button>
+                  </>
                 ) : null}
                 <button
                   type="button"

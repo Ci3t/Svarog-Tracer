@@ -13,6 +13,7 @@ import {
   detectRelicScoreProfile,
   scoreRelicWithProfile,
 } from '../../../src/utils/relicScoring.js';
+import { predictWithPairs } from '../../../src/utils/pairTransitionPredictor.js';
 import {
   extractDiscordDisplayName,
   HttpError,
@@ -27,11 +28,11 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
 const BOT_TIER_CONFIG = {
-  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false },
-  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false },
-  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true },
-  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true },
-  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true },
+  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15 },
+  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, forceBonus: 2, helpfulBonus: 6, junkPenalty: 5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4 },
+  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 3, helpfulBonus: 7, junkPenalty: 6, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75 },
+  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 4, helpfulBonus: 8, junkPenalty: 7, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15 },
+  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 5, helpfulBonus: 9, junkPenalty: 8, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5 },
 };
 
 function readBody(req) {
@@ -240,14 +241,17 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
     const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
     const previousLine = carryLine || relic.lastLine || 4;
+    const predictor = config.pairAware
+      ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+      : null;
     const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
     const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
     const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
     const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
     const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
-    const defaultChoiceScore = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false);
-    const forcedChoiceScore = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true);
+    const defaultChoiceScore = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false, predictor);
+    const forcedChoiceScore = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true, predictor);
     const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
@@ -327,19 +331,19 @@ function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
   };
 }
 
-function getActionCandidateScore(candidateRelic, stat, success, profile, config, usedForce) {
+function getActionCandidateScore(candidateRelic, stat, success, profile, config, usedForce, predictor) {
   const relicScore = scoreRelicWithProfile(candidateRelic, detectRelicScoreProfile(candidateRelic));
   const isHelpful = isHelpfulStatForScenario(stat, success);
   const junkStats = Array.isArray(success?.junk) ? success.junk : [];
   const isJunk = junkStats.includes(stat);
   let score = relicScore.score;
 
-  if (isHelpful) score += 8;
-  if (isJunk) score -= 6;
+  if (isHelpful) score += config.helpfulBonus || 8;
+  if (isJunk) score -= config.junkPenalty || 6;
 
   if (config.scoreBias) {
-    if (usedForce && isHelpful) score += 3;
-    if (usedForce && isJunk) score -= 3;
+    if (usedForce && isHelpful) score += config.forceBonus || 3;
+    if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
   }
 
   if (config.trendAware) {
@@ -347,10 +351,41 @@ function getActionCandidateScore(candidateRelic, stat, success, profile, config,
     const noise = Array.isArray(profile?.noise) ? profile.noise : [];
     const dominantRoll = String(profile?.dominantRoll || '');
     const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
-    if (commons.includes(visibleRoll)) score += 1.5;
-    if (noise.includes(visibleRoll)) score -= 1.25;
-    if (dominantRoll === visibleRoll) score += 1;
-    if (Number(profile?.noisePressure || 0) > 3 && !usedForce) score -= 0.75;
+    if (commons.includes(visibleRoll)) score += config.commonsBonus || 1.5;
+    if (noise.includes(visibleRoll)) score -= config.noisePenalty || 1.25;
+    if (dominantRoll === visibleRoll) score += config.dominantBonus || 1;
+    if (Number(profile?.noisePressure || 0) > 3 && !usedForce) score -= (config.noisePenalty || 1.25) * 0.75;
+  }
+
+  if (config.historyAware) {
+    const history = Array.isArray(profile?.history) ? profile.history.slice(-6) : [];
+    const recentMatches = history.filter((roll) => String(roll) === String(candidateRelic.lastVisibleRoll || '')).length;
+    const uniqueCount = new Set(history).size;
+    score += recentMatches * 0.45;
+    if (uniqueCount <= 2 && isHelpful) score += 1.25;
+    if (uniqueCount >= 4 && isJunk) score -= 1.1;
+  }
+
+  if (config.pairAware) {
+    const commons = Array.isArray(profile?.commons) ? profile.commons : [];
+    const noise = Array.isArray(profile?.noise) ? profile.noise : [];
+    const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
+    const currentLine = Number(candidateRelic.lastLine || 0);
+    if (commons.includes(visibleRoll) && currentLine > 0) score += 0.5;
+    if (noise.includes(visibleRoll) && currentLine > 0 && isJunk) score -= 1.5;
+  }
+
+  if (predictor && config.pairAware) {
+    const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
+    const trustedPair = Array.isArray(predictor?.trustedPair) ? predictor.trustedPair : [];
+    const noiseValues = Array.isArray(predictor?.noise) ? predictor.noise : [];
+    const noiseRisk = Number(predictor?.noiseRisk || 0);
+    const pairSafety = String(predictor?.pairSafety || '');
+    if (trustedPair.includes(visibleRoll)) score += 2.5;
+    if (noiseValues.includes(visibleRoll)) score -= 2;
+    if (noiseRisk >= 60 && !usedForce) score -= 1.5;
+    if (pairSafety === 'safe' && trustedPair.includes(visibleRoll)) score += 1;
+    if (pairSafety === 'danger' && noiseValues.includes(visibleRoll)) score -= 1.25;
   }
 
   return score;
@@ -359,8 +394,11 @@ function getActionCandidateScore(candidateRelic, stat, success, profile, config,
 function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
   if (!attempt) return false;
   if (attemptsUsed >= MAX_RACE_TRIES) return true;
-  if (attempt.helpfulHits >= config.minHelpful && attempt.score >= config.minScore) return true;
-  if (attempt.grade === 'SSS' || attempt.grade === 'SS' || attempt.grade === 'S') return true;
+  if (attempt.goalSatisfied && attempt.helpfulHits >= config.minHelpful && attempt.score >= config.minScore) return true;
+  if (attempt.grade === 'SSS' || attempt.grade === 'SS') return true;
+  if (String(config.historyAware || false) === 'true' || config.historyAware) {
+    if (attempt.goalSatisfied && attempt.grade === 'S') return true;
+  }
   return false;
 }
 
@@ -1000,6 +1038,36 @@ async function rerollRoomForUser(user, code) {
   return toClientRoom(updated || room, user.id);
 }
 
+async function rerollAndRestartRoomForUser(user, code) {
+  const room = await loadRoomByCode(code);
+  if (!room) {
+    throw new HttpError(404, 'Room not found.');
+  }
+  const role = ensureRoomParticipant(room, user.id);
+  if (role !== 'host') {
+    throw new HttpError(403, 'Only the host can reroll the match.');
+  }
+  if (!room.guest_user_id) {
+    throw new HttpError(409, 'Room needs an opponent before it can reroll and restart.');
+  }
+
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true });
+  const startedAt = new Date().toISOString();
+  const updated = await patchRoom(code, {
+    status: 'active',
+    difficulty: scenario.difficulty || room.tier,
+    seed_label: scenario.seedLabel || '',
+    scenario,
+    started_at: startedAt,
+    finished_at: null,
+    winner_user_id: null,
+    host_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, createPlayerState(room.host_name)),
+    guest_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, createPlayerState(room.guest_name || 'Opponent')),
+    updated_at: startedAt,
+  });
+  return toClientRoom(updated || room, user.id);
+}
+
 async function devFillRoomForUser(req, user, code) {
   if (!isLocalDevRequest(req)) {
     throw new HttpError(403, 'Dev fill is only available on local development.');
@@ -1119,6 +1187,12 @@ export async function handler(req, res) {
     if (action === 'reroll') {
       if (!code) throw new HttpError(400, 'Room code is required.');
       const room = await rerollRoomForUser(user, code);
+      return res.status(200).json({ room });
+    }
+
+    if (action === 'reroll-restart') {
+      if (!code) throw new HttpError(400, 'Room code is required.');
+      const room = await rerollAndRestartRoomForUser(user, code);
       return res.status(200).json({ room });
     }
 
