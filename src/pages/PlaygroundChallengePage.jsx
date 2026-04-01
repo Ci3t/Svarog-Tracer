@@ -933,6 +933,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const relicScore = useMemo(() => scoreRelicWithProfile(relic, detectRelicScoreProfile(relic)), [relic]);
   const scoreGuide = useMemo(() => describeRelicScoreGuide(relic), [relic]);
   const contractTargets = useMemo(() => describeContractTargets(currentContract.success), [currentContract.success]);
+  const localDisplayedPvpLevel = useMemo(
+    () => (currentContract.requiresSessionBuilder ? Math.max(relic.level || 0, testRelic.level || 0) : relic.level || 0),
+    [currentContract.requiresSessionBuilder, relic.level, testRelic.level]
+  );
   const currentPvpAttempt = useMemo(() => ({
     score: relicScore.score,
     grade: relicScore.grade,
@@ -1086,7 +1090,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
     return {
       status,
-      currentLevel: relic.level,
+      currentLevel: localDisplayedPvpLevel,
       helpfulHits,
       hp: playerHp,
       tries: isPvpMode ? pvpAttemptsUsed : triesUsed,
@@ -1108,6 +1112,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       finalStatBreakdown: pvpSubmittedAttempt?.statBreakdown || {},
       finalRelicSnapshot: pvpSubmittedAttempt?.relicSnapshot || null,
       finalRelicSummary: pvpSubmittedAttempt?.summary || '',
+      sessionEntriesBuilt: sessionRolls.length,
+      sessionEntries: sessionRolls,
       bestScore: Math.max(0, Number(bestPvpAttempt?.score || 0)),
       bestGrade: String(bestPvpAttempt?.grade || relicScore.grade),
       bestRollCount: Math.max(0, Number(bestPvpAttempt?.rollCount || 0)),
@@ -1131,6 +1137,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     pvpViewerRole,
     helpfulHits,
     isPvpMode,
+    localDisplayedPvpLevel,
     bestPvpAttempt,
     pvpAttempts.length,
     pvpAttemptsUsed,
@@ -1141,6 +1148,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     relicScore.grade,
     relicScore.rollCount,
     relicScore.score,
+    sessionRolls.length,
     secondsLeft,
     triesUsed,
   ]);
@@ -1160,6 +1168,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const localBestRelicSnapshot = localPvpState?.finalRelicSnapshot || localPvpState?.bestRelicSnapshot || bestPvpAttempt?.relicSnapshot || null;
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
+  const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionEntries) ? pvpOpponent.state.sessionEntries : [];
   const activePvpScenario = pvpRoom?.scenario || currentContract;
   const botTraceExport = useMemo(() => JSON.stringify({
     roomCode: pvpRoom?.code || roomCode || null,
@@ -1172,6 +1181,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     targetRelic: activePvpScenario?.targetRelic || null,
     botState: pvpOpponent?.state || null,
     botBestRelic: opponentBestRelicSnapshot || null,
+    botSessionEntries: opponentSessionEntries,
     botDebugLog: opponentDebugLog,
   }, null, 2), [
     activePvpScenario?.seedLabel,
@@ -1179,6 +1189,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     activePvpScenario?.targetRelic,
     activePvpScenario?.targetStatGuide,
     opponentBestRelicSnapshot,
+    opponentSessionEntries,
     opponentDebugLog,
     pvpOpponent?.state,
     pvpRoom?.code,
@@ -1582,7 +1593,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     if (!isPvpMode) return;
 
     const previous = pvpTrackerRef.current;
-    const currentLocalLevel = relic.level || 0;
+    const currentLocalLevel = Number(localPvpState.currentLevel || 0);
     const currentLocalStatus = localPvpState.status || '';
     const currentLocalAttemptsUsed = Number(localPvpState.attemptsUsed || 0);
     const currentLocalSubmitted = Number(localPvpState.submittedAttempts || 0);
@@ -1652,7 +1663,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     pvpOpponent?.state?.submittedAttempts,
     pvpRoom?.winnerUserId,
     pushPvpFeed,
-    relic.level,
+    localPvpState.currentLevel,
     user?.id,
   ]);
 
@@ -1896,8 +1907,13 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       {formatPvpStatusLabel(localPvpState.status)}
                     </span>
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
-                      +{relic.level}
+                      +{localDisplayedPvpLevel}
                     </span>
+                    {currentContract.requiresSessionBuilder ? (
+                      <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-violet-200">
+                        Session {sessionRolls.length}
+                      </span>
+                    ) : null}
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-amber-200">
                       Attempts {pvpAttemptsUsed}/3
                     </span>
@@ -1952,6 +1968,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
                       +{pvpOpponent?.state?.currentLevel ?? 0}
                     </span>
+                    {currentContract.requiresSessionBuilder ? (
+                      <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-violet-200">
+                        Session {pvpOpponent?.state?.sessionEntriesBuilt ?? 0}
+                      </span>
+                    ) : null}
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-amber-200">
                       Attempts {pvpOpponent?.state?.attemptsUsed ?? 0}/3
                     </span>
@@ -1974,7 +1995,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-300">Race Tracker</div>
                 </div>
                 {[
-                  { label: 'You', color: 'cyan', level: relic.level, status: localPvpState.status },
+                  { label: 'You', color: 'cyan', level: localDisplayedPvpLevel, status: localPvpState.status },
                   { label: pvpOpponent?.name || 'Opponent', color: 'rose', level: Number(pvpOpponent?.state?.currentLevel || 0), status: pvpOpponent?.state?.status || 'idle' },
                 ].map((lane) => {
                   const checkpoints = [3, 6, 9, 12, 15];
@@ -2021,12 +2042,13 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 })}
               </div>
 
-              <div className="rounded-[1.3rem] border border-white/5 bg-slate-950/35 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-rose-300" />
-                  <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-300">Match Feed</div>
-                </div>
-                <div className="space-y-2">
+              <div className="space-y-4">
+                <div className="rounded-[1.3rem] border border-white/5 bg-slate-950/35 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-rose-300" />
+                    <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-300">Match Feed</div>
+                  </div>
+                  <div className="space-y-2">
                   {pvpFeed.length === 0 ? (
                     <div className="rounded-xl border border-white/5 bg-black/25 px-4 py-3 text-sm text-slate-500">
                       Waiting for the duel to develop.
@@ -2046,6 +2068,35 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     })
                   )}
                 </div>
+                </div>
+                {currentContract.requiresSessionBuilder ? (
+                  <div className="rounded-[1.3rem] border border-violet-400/15 bg-violet-500/6 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <History className="h-4 w-4 text-violet-300" />
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">Opponent Session Data</div>
+                      </div>
+                      <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
+                        {opponentSessionEntries.length} entries
+                      </div>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                      {opponentSessionEntries.length > 0 ? (
+                        <div className="space-y-2">
+                          {opponentSessionEntries.slice(-12).map((entry, index) => (
+                            <div key={`${entry.id || index}-${entry.raw || index}`} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
+                              <span className="text-slate-400">#{opponentSessionEntries.length - Math.min(12, opponentSessionEntries.length) + index + 1}</span>
+                              <span>{entry.raw || '--'}</span>
+                              <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] leading-relaxed text-slate-400">No opponent session entries recorded yet.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
