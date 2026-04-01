@@ -116,6 +116,7 @@ function createPlayerState(name = '') {
     bestRelicSnapshot: null,
     bestRelicSummary: '',
     relicSummary: '',
+    debugLog: [],
     displayName: String(name || ''),
     updatedAt: nowIso,
   };
@@ -217,6 +218,8 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
   let relic = options?.startRelic ? cloneRelic(options.startRelic) : createBotTargetRelic(scenario);
   let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
   let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
+  const debugLog = Array.isArray(options?.debugLog) ? options.debugLog : null;
+  const attemptNumber = Number(options?.attemptNumber || 1);
   const actions = Math.max(0, Math.min(5, Number(totalActions) || 0));
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   const forceBaseLines = Math.max(1, Math.min(3, Number(scenario?.forceRelic?.baseLines || 0) || 0));
@@ -224,6 +227,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
 
   for (let index = 0; index < actions; index += 1) {
     if (!relic.hasFourthLine) {
+      pushBotDebug(debugLog, `Try ${attemptNumber}: activated 4th line ${relic.fourthLine?.stat || 'LINE 4'} at +3.`);
       relic = {
         ...relic,
         hasFourthLine: true,
@@ -262,6 +266,11 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const defaultChoiceScore = defaultImmediate * 0.4 + defaultFuture * 0.6;
     const forcedChoiceScore = forcedImmediate * 0.4 + forcedFuture * 0.6;
     const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
+
+    pushBotDebug(
+      debugLog,
+      `Try ${attemptNumber}: roll ${visibleRoll}, prev L${previousLine}, commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, predictor ${Array.isArray(predictor?.trustedPair) ? predictor.trustedPair.join('/') : '-'} vs noise ${Array.isArray(predictor?.noise) ? predictor.noise.join('/') : '-'} (${Number(predictor?.noiseRisk || 0)}%). Default ${defaultStat}=${defaultChoiceScore.toFixed(2)}, force L${forceLine} -> ${forcedStat}=${forcedChoiceScore.toFixed(2)}. Chose ${shouldForce ? `force ${forcedStat}` : `default ${defaultStat}`}.`
+    );
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
     profile = nextProfile;
@@ -323,6 +332,14 @@ function getBotConfig(tier, seedHash) {
 
 function cloneRelic(relic) {
   return JSON.parse(JSON.stringify(relic));
+}
+
+function pushBotDebug(debugLog, line) {
+  if (!Array.isArray(debugLog)) return;
+  debugLog.push(line);
+  if (debugLog.length > 120) {
+    debugLog.splice(0, debugLog.length - 120);
+  }
 }
 
 function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
@@ -580,6 +597,7 @@ function buildBotState(room) {
   const seedLabel = String(scenario.seedLabel || room.seed_label || room.code || '');
   const seedHash = hashString(seedLabel);
   const config = getBotConfig(room?.tier, seedHash);
+  const debugLog = [];
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   let remainingSeconds = elapsedSeconds;
   let attemptsUsed = 1;
@@ -589,9 +607,11 @@ function buildBotState(room) {
   let currentRelic = createBotTargetRelic(scenario);
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
+    pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
     const actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
 
     if (actionsThisAttempt <= 0) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: not enough elapsed time to act yet.`);
       break;
     }
 
@@ -600,6 +620,8 @@ function buildBotState(room) {
       startProfile: currentProfile,
       startCarryLine: currentCarryLine,
       config,
+      debugLog,
+      attemptNumber: attemptsUsed,
     });
 
     currentRelic = simulation.relic;
@@ -633,9 +655,11 @@ function buildBotState(room) {
 
     if (!bestAttempt || compareAttemptPayload(attempt, bestAttempt) > 0) {
       bestAttempt = attempt;
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: new best attempt => ${attempt.grade} ${attempt.score} with helpful ${attempt.helpfulHits}, junk ${attempt.mistakes}.`);
     }
 
     if (currentRelic.level < 15) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: still building at +${currentRelic.level}. Waiting for more time before next decision.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'attempting',
@@ -660,12 +684,14 @@ function buildBotState(room) {
         bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
         bestRelicSummary: bestAttempt?.relicSummary || '',
         relicSummary: `Bot is building try ${attemptsUsed} at +${currentRelic.level}.`,
+        debugLog,
         displayName: room.guest_name || 'Svarog Bot',
         updatedAt: new Date().toISOString(),
       };
     }
 
     if (shouldBotSubmitAttempt(attempt, attemptsUsed, config)) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: submitted. Reason => score ${attempt.score}, grade ${attempt.grade}, helpful ${attempt.helpfulHits}, goal=${attempt.goalSatisfied ? 'yes' : 'no'}.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'submitted',
@@ -698,12 +724,14 @@ function buildBotState(room) {
         bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
         bestRelicSummary: bestAttempt?.relicSummary || '',
         relicSummary: `Bot submitted its final relic on try ${attemptsUsed}.`,
+        debugLog,
         displayName: room.guest_name || 'Svarog Bot',
         updatedAt: new Date().toISOString(),
       };
     }
 
     if (attemptsUsed >= MAX_RACE_TRIES) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: busted. Failed to find a submit-worthy relic before exhausting retries.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'busted',
@@ -728,12 +756,14 @@ function buildBotState(room) {
         bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
         bestRelicSummary: bestAttempt?.relicSummary || '',
         relicSummary: `Bot busted after failing to improve through ${MAX_RACE_TRIES} tries.`,
+        debugLog,
         displayName: room.guest_name || 'Svarog Bot',
         updatedAt: new Date().toISOString(),
       };
     }
 
     if (remainingSeconds < config.retryDelay) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: reached +15 but is holding. Waiting for retry window before deciding reset.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'maxed',
@@ -758,11 +788,13 @@ function buildBotState(room) {
         bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
         bestRelicSummary: bestAttempt?.relicSummary || '',
         relicSummary: `Bot is deciding whether to reset try ${attemptsUsed}.`,
+        debugLog,
         displayName: room.guest_name || 'Svarog Bot',
         updatedAt: new Date().toISOString(),
       };
     }
 
+    pushBotDebug(debugLog, `Try ${attemptsUsed}: rejected final relic (${attempt.grade} ${attempt.score}). Resetting into try ${attemptsUsed + 1}.`);
     remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
     attemptsUsed += 1;
     currentRelic = createBotTargetRelic(scenario);
@@ -782,6 +814,7 @@ function buildBotState(room) {
     bestStatBreakdown: bestAttempt?.statBreakdown || {},
     bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
     bestRelicSummary: bestAttempt?.relicSummary || '',
+    debugLog,
     displayName: room.guest_name || 'Svarog Bot',
     updatedAt: new Date().toISOString(),
   };
@@ -849,6 +882,9 @@ function normalizePlayerState(input, currentState = {}) {
     : (next.bestRelicSnapshot && typeof next.bestRelicSnapshot === 'object' ? next.bestRelicSnapshot : null);
   next.bestRelicSummary = String(input?.bestRelicSummary || next.bestRelicSummary || '').slice(0, 240);
   next.relicSummary = String(input?.relicSummary || next.relicSummary || '').slice(0, 240);
+  next.debugLog = Array.isArray(input?.debugLog)
+    ? input.debugLog.map((entry) => String(entry).slice(0, 500)).slice(-120)
+    : (Array.isArray(next.debugLog) ? next.debugLog.slice(-120) : []);
   next.displayName = String(input?.displayName || next.displayName || '').slice(0, 80);
   next.updatedAt = nowIso;
   return next;

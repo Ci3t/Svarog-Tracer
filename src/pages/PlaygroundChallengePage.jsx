@@ -1088,6 +1088,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   }, [isPvpMode, pvpOpponent?.state?.currentLevel, pvpRoom?.status, pvpRoom?.winnerUserId, relic.level, user?.id]);
   const localBestRelicSnapshot = localPvpState?.finalRelicSnapshot || localPvpState?.bestRelicSnapshot || bestPvpAttempt?.relicSnapshot || null;
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
+  const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
 
   const pushPvpFeed = useCallback((tone, text) => {
     setPvpFeed((current) => {
@@ -2406,6 +2407,29 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 <ResultRelicCard relic={opponentBestRelicSnapshot} title="Best Target Relic" accent="rose" />
               </div>
             </div>
+
+            {opponentDebugLog.length > 0 ? (
+              <div className="mt-5 rounded-[1.35rem] border border-violet-400/15 bg-violet-500/6 p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200">Bot Decision Trace</div>
+                    <div className="mt-1 text-sm text-slate-300">Expert debug log of what the bot looked at and why it moved.</div>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
+                    {opponentDebugLog.length} steps
+                  </div>
+                </div>
+                <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                  <div className="space-y-2">
+                    {opponentDebugLog.map((entry, index) => (
+                      <div key={`${index}-${entry.slice(0, 24)}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                        {entry}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
