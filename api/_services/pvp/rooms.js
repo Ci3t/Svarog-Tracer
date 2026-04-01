@@ -32,9 +32,9 @@ const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
   intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
-  veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true, submitMargin: 3, maxMistakesToSubmit: 1, analysisDelaySteps: 1 },
-  expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true, submitMargin: 5, maxMistakesToSubmit: 1, analysisDelaySteps: 1 },
-  expert_v2: { baseStep: 3, jitter: 1, minScore: 36, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 6, forceBonus: 5, helpfulBonus: 19, junkPenalty: 13, neutralPenalty: 4.5, noisePenalty: 2.5, commonsBonus: 2.4, dominantBonus: 1.6, scoreWeight: 0.45, strictGoal: true, submitMargin: 6, maxMistakesToSubmit: 0, analysisDelaySteps: 2 },
+  veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true, submitMargin: 3, maxMistakesToSubmit: 1, analysisDelaySteps: 1, forceGap: 6, ceilingMargin: 6 },
+  expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true, submitMargin: 5, maxMistakesToSubmit: 1, analysisDelaySteps: 1, forceGap: 9, ceilingMargin: 5 },
+  expert_v2: { baseStep: 3, jitter: 1, minScore: 36, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 6, forceBonus: 5, helpfulBonus: 19, junkPenalty: 13, neutralPenalty: 4.5, noisePenalty: 2.5, commonsBonus: 2.4, dominantBonus: 1.6, scoreWeight: 0.45, strictGoal: true, submitMargin: 6, maxMistakesToSubmit: 0, analysisDelaySteps: 2, forceGap: 11, ceilingMargin: 4 },
 };
 
 function readBody(req) {
@@ -88,6 +88,7 @@ function createPlayerState(name = '') {
   const nowIso = new Date().toISOString();
   return {
     status: 'ready',
+    phase: 'idle',
     currentLevel: 0,
     helpfulHits: 0,
     hp: 100,
@@ -357,7 +358,8 @@ function simulateBotSessionBuilder(scenario, options = {}) {
   const debugLog = Array.isArray(options?.debugLog) ? options.debugLog : null;
   const attemptNumber = Number(options?.attemptNumber || 1);
   const actions = Math.max(0, Number(options?.actions || 0) || 0);
-  const targetEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
+  const rawTargetEntries = options?.targetEntries ?? scenario?.minSessionEntries ?? 5;
+  const targetEntries = Math.max(1, Number(rawTargetEntries) || 5);
   let usedActions = 0;
 
   while (usedActions < actions && sessionEntries.length < targetEntries) {
@@ -485,17 +487,28 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
     const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
     const nextProfile = advancePatternProfile(profile, visibleRoll);
+    const currentAssessment = evaluateBotRelicState(relic, scenario, profile, config);
     const defaultImmediate = getActionCandidateScore(defaultCandidate, defaultStat, scenario, profile, config, false, predictor);
     const forcedImmediate = getActionCandidateScore(forcedCandidate, forcedStat, scenario, profile, config, true, predictor);
     const defaultFuture = config.searchDepth > 0
       ? searchBestBotFuture(defaultCandidate, nextProfile, defaultCandidate.lastLine || null, scenario, config, config.searchDepth)
-      : defaultImmediate;
+      : defaultImmediate.totalScore;
     const forcedFuture = config.searchDepth > 0
       ? searchBestBotFuture(forcedCandidate, nextProfile, forcedCandidate.lastLine || null, scenario, config, config.searchDepth)
-      : forcedImmediate;
-    const defaultChoiceScore = defaultImmediate * 0.4 + defaultFuture * 0.6;
-    const forcedChoiceScore = forcedImmediate * 0.4 + forcedFuture * 0.6;
-    const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
+      : forcedImmediate.totalScore;
+    const defaultChoiceScore = defaultImmediate.totalScore * 0.4 + defaultFuture * 0.6;
+    const forcedChoiceScore = forcedImmediate.totalScore * 0.4 + forcedFuture * 0.6;
+    const forceDecision = decideForceRoute({
+      defaultEval: { ...defaultImmediate, totalScore: defaultChoiceScore },
+      forcedEval: { ...forcedImmediate, totalScore: forcedChoiceScore },
+      defaultStat,
+      forcedStat,
+      predictor,
+      scenario,
+      config,
+      currentGoalSatisfied: currentAssessment.goalProgress?.goalSatisfied,
+    });
+    const shouldForce = relic.hasFourthLine && forceDecision.shouldForce;
 
     pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
     pushBotDebug(debugLog, summarizeRecentHistory(profile));
@@ -503,6 +516,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     pushBotDebug(debugLog, summarizePredictor(predictor));
     pushBotDebug(debugLog, summarizeTrendRead(predictor));
     pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, forcedStat, forcedChoiceScore, shouldForce, forceLine, config, scenario));
+    pushBotDebug(debugLog, `Decision note: ${forceDecision.reason}`);
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
     profile = nextProfile;
@@ -640,6 +654,98 @@ function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, sho
   return `I compared staying on the current line into ${defaultStat || 'unknown'} [${formatScenarioTierLabel(defaultStat, scenario)}] (${defaultScore.toFixed(2)}) against forcing line ${forceLine} into ${forcedStat || 'unknown'} [${formatScenarioTierLabel(forcedStat, scenario)}] (${forcedScore.toFixed(2)}). ${searchNote} I chose ${shouldForce ? `the forced route because it projected the stronger outcome` : `the default route because it projected the stronger outcome`}.`;
 }
 
+function getDesiredCarryLinesForScenario(scenario) {
+  const targetRelic = scenario?.targetRelic && typeof scenario.targetRelic === 'object' ? scenario.targetRelic : {};
+  const slots = [
+    { slot: 1, stat: targetRelic?.lines?.[0] || '' },
+    { slot: 2, stat: targetRelic?.lines?.[1] || '' },
+    { slot: 3, stat: targetRelic?.lines?.[2] || '' },
+    { slot: 4, stat: targetRelic?.fourthLine || '' },
+  ];
+  const requiredStats = getRequiredStatsForScenario(scenario?.success || {});
+  const requiredSlots = slots.filter((entry) => requiredStats.includes(String(entry.stat || ''))).map((entry) => entry.slot);
+  if (requiredSlots.length > 0) return requiredSlots;
+  const sSlots = slots.filter((entry) => getScenarioStatTier(entry.stat, scenario) === 'S').map((entry) => entry.slot);
+  if (sSlots.length > 0) return sSlots;
+  return [1, 2, 3, 4];
+}
+
+function evaluateBuilderReadVerdict(scenario, profile, carryLine, config, sessionEntriesCount = 0) {
+  const predictor = config?.pairAware
+    ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+    : null;
+  const trustedResolved = Array.isArray(predictor?.trustedPair) && predictor.trustedPair.length >= 2;
+  const pairSafety = String(predictor?.pairSafety || 'unknown');
+  const noisePressure = Number(profile?.noisePressure || 0);
+  const commonsCount = Array.isArray(profile?.commons) ? profile.commons.length : 0;
+  const noiseCount = Array.isArray(profile?.noise) ? profile.noise.length : 0;
+  const noiseDominates = noisePressure >= 4 || noiseCount > commonsCount;
+  const desiredCarryLines = getDesiredCarryLinesForScenario(scenario);
+  const carryLineGood = desiredCarryLines.includes(Number(carryLine || 0));
+  const minEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
+  const confidenceScore = [trustedResolved, pairSafety !== 'danger', !noiseDominates].filter(Boolean).length;
+  const shouldCommit = sessionEntriesCount >= minEntries && trustedResolved && pairSafety !== 'danger' && !noiseDominates && carryLineGood;
+  const shouldAbort = sessionEntriesCount >= minEntries && confidenceScore <= 1;
+  const shouldKeepBuilding = !shouldCommit && !shouldAbort;
+  return {
+    predictor,
+    trustedResolved,
+    pairSafety,
+    noiseDominates,
+    carryLineGood,
+    desiredCarryLines,
+    confidenceScore,
+    shouldCommit,
+    shouldAbort,
+    shouldKeepBuilding,
+    summary: `Builder verdict: trusted=${trustedResolved ? 'yes' : 'no'}, safety=${pairSafety}, noiseDominates=${noiseDominates ? 'yes' : 'no'}, carryLine=${carryLine || '-'}${carryLineGood ? ' (good)' : ` (want ${desiredCarryLines.join('/')})`}.`,
+  };
+}
+
+function getGoalViabilityAssessment(candidateBreakdown, stat, scenario) {
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
+  const goalProgress = getScenarioGoalProgress(scenario, candidateBreakdown);
+  const statPriority = getScenarioStatPriority(stat, scenario);
+  const statTier = getScenarioStatTier(stat, scenario);
+  let goalViabilityScore = 0;
+  let goalBlocking = false;
+
+  if (statPriority === 'REQUIRED') goalViabilityScore += 26;
+  if (goalProgress.requiredCoverage > 0) goalViabilityScore += goalProgress.requiredCoverage * 12;
+  if (goalProgress.requiredHitTotal > 0) goalViabilityScore += goalProgress.requiredHitTotal * 10;
+  goalViabilityScore -= goalProgress.missingRequiredCount * 18;
+  goalViabilityScore -= goalProgress.missingGoalHits * 16;
+  goalViabilityScore -= goalProgress.junkHitCount * 10;
+  if (goalProgress.goalSatisfied) goalViabilityScore += 28;
+
+  if (success.type === 'monoLine') {
+    const target = String(success.target || '');
+    const minHits = Math.max(1, Number(success?.minHits || 1) || 1);
+    const targetHits = Math.max(0, Number(candidateBreakdown?.[target] || 0));
+    if (String(stat || '') === target) {
+      goalViabilityScore += 18 + (targetHits * 6);
+    } else if (targetHits < minHits) {
+      goalViabilityScore -= 22 + ((minHits - targetHits) * 8);
+      goalBlocking = true;
+    }
+  }
+
+  if (!goalProgress.goalSatisfied && (statTier === 'TRASH' || statTier === 'NEUTRAL') && statPriority !== 'REQUIRED') {
+    goalViabilityScore -= statTier === 'TRASH' ? 22 : 12;
+    goalBlocking = true;
+  }
+
+  if (!goalProgress.goalSatisfied && goalProgress.missingGoalHits > 0 && statPriority !== 'REQUIRED' && goalProgress.junkHitCount > 0) {
+    goalBlocking = true;
+  }
+
+  return {
+    goalViabilityScore,
+    goalBlocking,
+    goalProgress,
+  };
+}
+
 function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
   const updatedLines = [...relic.lines, relic.fourthLine].map((line) => (
     line.slot === targetSlot ? applyUpgradeRoll(line) : { ...line, justHit: false }
@@ -662,58 +768,53 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     acc[line.stat] = Math.max(0, Number(line.hits || 0));
     return acc;
   }, {});
-  const goalProgress = getScenarioGoalProgress(scenario, candidateBreakdown);
+  const goalAssessment = getGoalViabilityAssessment(candidateBreakdown, stat, scenario);
+  const goalProgress = goalAssessment.goalProgress;
   const isHelpful = isHelpfulStatForScenario(stat, success);
   const junkStats = Array.isArray(success?.junk) ? success.junk : [];
   const isJunk = junkStats.includes(stat);
   const isNeutral = isNeutralStatForScenario(stat, success);
   const statTier = getScenarioStatTier(stat, scenario);
   const statPriority = getScenarioStatPriority(stat, scenario);
-  let score = relicScore.score * Number(config.scoreWeight || 1);
+  let qualityScore = relicScore.score * Number(config.scoreWeight || 1);
 
-  if (isHelpful) score += config.helpfulBonus || 8;
-  if (isJunk) score -= config.junkPenalty || 6;
-  if (isNeutral) score -= config.neutralPenalty || 0;
-  if (statPriority === 'REQUIRED') score += (config.helpfulBonus || 8) * 1.85;
-  if (statTier === 'S') score += (config.helpfulBonus || 8) * 1.15;
-  if (statTier === 'A') score += (config.helpfulBonus || 8) * 0.45;
-  if (statTier === 'TRASH') score -= (config.junkPenalty || 6) * 1.35;
-  if (statTier === 'NEUTRAL') score -= (config.neutralPenalty || 0) * 0.75;
+  if (isHelpful) qualityScore += config.helpfulBonus || 8;
+  if (isJunk) qualityScore -= config.junkPenalty || 6;
+  if (isNeutral) qualityScore -= config.neutralPenalty || 0;
+  if (statPriority === 'REQUIRED') qualityScore += (config.helpfulBonus || 8) * 1.2;
+  if (statTier === 'S') qualityScore += (config.helpfulBonus || 8) * 1.0;
+  if (statTier === 'A') qualityScore += (config.helpfulBonus || 8) * 0.35;
+  if (statTier === 'TRASH') qualityScore -= (config.junkPenalty || 6) * 1.35;
+  if (statTier === 'NEUTRAL') qualityScore -= (config.neutralPenalty || 0) * 0.75;
 
   if (config.strictGoal) {
     const monoLineTarget = success.type === 'monoLine' ? String(success.target || '') : '';
     const monoLineMinHits = Math.max(1, Number(success?.minHits || 1) || 1);
-    if (statPriority === 'REQUIRED') score += 34;
-    if (statTier === 'S' && statPriority !== 'REQUIRED') score += 6;
-    if (statTier === 'A') score += 4;
-    if (statTier === 'NEUTRAL') score -= 10;
-    if (statTier === 'TRASH') score -= 28;
-    score += goalProgress.requiredHitTotal * ((config.helpfulBonus || 8) * 1.45);
-    score += goalProgress.requiredCoverage * ((config.helpfulBonus || 8) * 1.2);
-    score -= goalProgress.missingRequiredCount * ((config.junkPenalty || 6) * 2.2);
-    score -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.85);
-    if (!goalProgress.goalSatisfied) score -= 8;
-    if (goalProgress.goalSatisfied) score += 18;
+    if (statPriority === 'REQUIRED') qualityScore += 12;
+    if (statTier === 'S' && statPriority !== 'REQUIRED') qualityScore += 4;
+    if (statTier === 'A') qualityScore += 2;
+    if (statTier === 'NEUTRAL') qualityScore -= 7;
+    if (statTier === 'TRASH') qualityScore -= 18;
     if (statPriority !== 'REQUIRED' && goalProgress.missingGoalHits > 0) {
-      score -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.2);
+      qualityScore -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 0.9);
     }
     if (success.type === 'monoLine' && monoLineTarget) {
       const targetHits = Math.max(0, Number(candidateBreakdown?.[monoLineTarget] || 0));
       if (String(stat || '') === monoLineTarget) {
-        score += 16 + (targetHits * 6);
+        qualityScore += 16 + (targetHits * 6);
       } else if (targetHits < monoLineMinHits) {
-        score -= 14 + ((monoLineMinHits - targetHits) * 5);
+        qualityScore -= 14 + ((monoLineMinHits - targetHits) * 5);
       }
     }
   }
 
   if (config.scoreBias) {
-    if (usedForce && isHelpful) score += config.forceBonus || 3;
-    if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
-    if (usedForce && isNeutral) score -= 0.5;
-    if (usedForce && statPriority === 'REQUIRED') score += 4;
-    if (usedForce && statTier === 'S') score += 1.5;
-    if (usedForce && statTier === 'TRASH') score -= 1.5;
+    if (usedForce && isHelpful) qualityScore += config.forceBonus || 3;
+    if (usedForce && isJunk) qualityScore -= Math.max(1, (config.forceBonus || 3) - 1);
+    if (usedForce && isNeutral) qualityScore -= 0.5;
+    if (usedForce && statPriority === 'REQUIRED') qualityScore += 4;
+    if (usedForce && statTier === 'S') qualityScore += 1.5;
+    if (usedForce && statTier === 'TRASH') qualityScore -= 1.5;
   }
 
   if (config.trendAware) {
@@ -721,19 +822,19 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     const noise = Array.isArray(profile?.noise) ? profile.noise : [];
     const dominantRoll = String(profile?.dominantRoll || '');
     const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
-    if (commons.includes(visibleRoll)) score += config.commonsBonus || 1.5;
-    if (noise.includes(visibleRoll)) score -= config.noisePenalty || 1.25;
-    if (dominantRoll === visibleRoll) score += config.dominantBonus || 1;
-    if (Number(profile?.noisePressure || 0) > 3 && !usedForce) score -= (config.noisePenalty || 1.25) * 0.75;
+    if (commons.includes(visibleRoll)) qualityScore += config.commonsBonus || 1.5;
+    if (noise.includes(visibleRoll)) qualityScore -= config.noisePenalty || 1.25;
+    if (dominantRoll === visibleRoll) qualityScore += config.dominantBonus || 1;
+    if (Number(profile?.noisePressure || 0) > 3 && !usedForce) qualityScore -= (config.noisePenalty || 1.25) * 0.75;
   }
 
   if (config.historyAware) {
     const history = Array.isArray(profile?.history) ? profile.history.slice(-6) : [];
     const recentMatches = history.filter((roll) => String(roll) === String(candidateRelic.lastVisibleRoll || '')).length;
     const uniqueCount = new Set(history).size;
-    score += recentMatches * 0.45;
-    if (uniqueCount <= 2 && isHelpful) score += 1.25;
-    if (uniqueCount >= 4 && isJunk) score -= 1.1;
+    qualityScore += recentMatches * 0.45;
+    if (uniqueCount <= 2 && isHelpful) qualityScore += 1.25;
+    if (uniqueCount >= 4 && isJunk) qualityScore -= 1.1;
   }
 
   if (config.pairAware) {
@@ -741,8 +842,8 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     const noise = Array.isArray(profile?.noise) ? profile.noise : [];
     const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
     const currentLine = Number(candidateRelic.lastLine || 0);
-    if (commons.includes(visibleRoll) && currentLine > 0) score += 0.5;
-    if (noise.includes(visibleRoll) && currentLine > 0 && isJunk) score -= 1.5;
+    if (commons.includes(visibleRoll) && currentLine > 0) qualityScore += 0.5;
+    if (noise.includes(visibleRoll) && currentLine > 0 && isJunk) qualityScore -= 1.5;
   }
 
   if (predictor && config.pairAware) {
@@ -751,22 +852,35 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     const noiseValues = Array.isArray(predictor?.noise) ? predictor.noise : [];
     const noiseRisk = Number(predictor?.noiseRisk || 0);
     const pairSafety = String(predictor?.pairSafety || '');
-    if (trustedPair.includes(visibleRoll)) score += 2.5;
-    if (noiseValues.includes(visibleRoll)) score -= 2;
-    if (noiseRisk >= 60 && !usedForce) score -= 1.5;
-    if (pairSafety === 'safe' && trustedPair.includes(visibleRoll)) score += 1;
-    if (pairSafety === 'danger' && noiseValues.includes(visibleRoll)) score -= 1.25;
-    if (config.strictGoal && noiseRisk >= 60 && (statTier === 'NEUTRAL' || statTier === 'TRASH')) score -= 7;
-    if (config.strictGoal && noiseRisk >= 60 && statPriority !== 'REQUIRED') score -= 4;
-    if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') score -= 5;
-    if (config.strictGoal && pairSafety === 'danger' && statPriority !== 'REQUIRED') score -= 5;
-    if (config.strictGoal && pairSafety === 'caution' && statPriority !== 'REQUIRED' && statTier === 'NEUTRAL') score -= 2.5;
-    if (config.strictGoal && pairSafety === 'danger' && noiseRisk >= 60 && statPriority !== 'REQUIRED') score -= 9;
-    if (config.strictGoal && pairSafety === 'safe' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) score += 5;
-    if (config.strictGoal && pairSafety === 'caution' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) score += 2.5;
+    if (trustedPair.includes(visibleRoll)) qualityScore += 2.5;
+    if (noiseValues.includes(visibleRoll)) qualityScore -= 2;
+    if (noiseRisk >= 60 && !usedForce) qualityScore -= 1.5;
+    if (pairSafety === 'safe' && trustedPair.includes(visibleRoll)) qualityScore += 1;
+    if (pairSafety === 'danger' && noiseValues.includes(visibleRoll)) qualityScore -= 1.25;
+    if (config.strictGoal && noiseRisk >= 60 && (statTier === 'NEUTRAL' || statTier === 'TRASH')) qualityScore -= 7;
+    if (config.strictGoal && noiseRisk >= 60 && statPriority !== 'REQUIRED') qualityScore -= 4;
+    if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') qualityScore -= 5;
+    if (config.strictGoal && pairSafety === 'danger' && statPriority !== 'REQUIRED') qualityScore -= 5;
+    if (config.strictGoal && pairSafety === 'caution' && statPriority !== 'REQUIRED' && statTier === 'NEUTRAL') qualityScore -= 2.5;
+    if (config.strictGoal && pairSafety === 'danger' && noiseRisk >= 60 && statPriority !== 'REQUIRED') qualityScore -= 9;
+    if (config.strictGoal && pairSafety === 'safe' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) qualityScore += 5;
+    if (config.strictGoal && pairSafety === 'caution' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) qualityScore += 2.5;
   }
 
-  return score;
+  let totalScore = goalAssessment.goalViabilityScore + qualityScore;
+  if (config.strictGoal && goalAssessment.goalBlocking) {
+    totalScore = Math.min(totalScore, goalAssessment.goalViabilityScore + Math.min(qualityScore, 8));
+  }
+
+  return {
+    totalScore,
+    goalViabilityScore: goalAssessment.goalViabilityScore,
+    qualityScore,
+    goalBlocking: goalAssessment.goalBlocking,
+    goalProgress,
+    statPriority,
+    statTier,
+  };
 }
 
 function evaluateBotRelicState(relic, scenario, profile, config) {
@@ -834,6 +948,55 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
   };
 }
 
+function decideForceRoute({
+  defaultEval,
+  forcedEval,
+  defaultStat,
+  forcedStat,
+  predictor,
+  scenario,
+  config,
+  currentGoalSatisfied,
+}) {
+  const defaultPriority = defaultEval?.statPriority || getScenarioStatPriority(defaultStat, scenario);
+  const forcedPriority = forcedEval?.statPriority || getScenarioStatPriority(forcedStat, scenario);
+  const defaultTier = defaultEval?.statTier || getScenarioStatTier(defaultStat, scenario);
+  const forcedTier = forcedEval?.statTier || getScenarioStatTier(forcedStat, scenario);
+  const pairSafety = String(predictor?.pairSafety || '');
+  const noiseRisk = Number(predictor?.noiseRisk || 0);
+  const gapRequired = Math.max(0, Number(config?.forceGap || 0) || 0)
+    + (pairSafety === 'danger' ? 4 : pairSafety === 'caution' ? 2 : 0)
+    + (noiseRisk >= 60 ? 2 : 0);
+  const scoreGap = Number(forcedEval?.totalScore || 0) - Number(defaultEval?.totalScore || 0);
+  const goalStillOpen = !currentGoalSatisfied;
+
+  if (goalStillOpen && defaultPriority === 'REQUIRED' && forcedPriority !== 'REQUIRED') {
+    return { shouldForce: false, reason: 'default lands on a required goal stat, so forcing is blocked.' };
+  }
+
+  if (goalStillOpen && forcedPriority === 'REQUIRED' && defaultPriority !== 'REQUIRED' && !forcedEval?.goalBlocking) {
+    return { shouldForce: true, reason: 'forced path lands on the required goal stat while default does not.' };
+  }
+
+  if (goalStillOpen && (forcedTier === 'TRASH' || forcedTier === 'NEUTRAL') && defaultPriority !== 'TRASH') {
+    return { shouldForce: false, reason: 'forced path lands on a non-goal stat while the contract is still unmet.' };
+  }
+
+  if (goalStillOpen && forcedEval?.goalBlocking && !defaultEval?.goalBlocking) {
+    return { shouldForce: false, reason: 'forced path is goal-blocking while default still preserves the contract path.' };
+  }
+
+  if (goalStillOpen && !forcedEval?.goalBlocking && defaultEval?.goalBlocking) {
+    return { shouldForce: true, reason: 'default path is goal-blocking while forced keeps the contract alive.' };
+  }
+
+  if (scoreGap > gapRequired) {
+    return { shouldForce: true, reason: `forced path projected a meaningful edge (+${scoreGap.toFixed(2)}) over default.` };
+  }
+
+  return { shouldForce: false, reason: `forced path did not clear the required decision gap (+${scoreGap.toFixed(2)} vs ${gapRequired.toFixed(2)}).` };
+}
+
 function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth) {
   const snapshot = evaluateBotRelicState(relic, scenario, profile, config);
   if (depth <= 0 || relic.level >= 15) {
@@ -866,34 +1029,53 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
   const defaultRelic = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
   const defaultImmediate = getActionCandidateScore(defaultRelic, defaultStat, scenario, profile, config, false, predictor);
   const defaultFuture = searchBestBotFuture(defaultRelic, nextProfile, defaultRelic.lastLine || null, scenario, config, depth - 1);
-  let bestScore = defaultImmediate * 0.45 + defaultFuture * 0.55;
+  let bestScore = defaultImmediate.totalScore * 0.45 + defaultFuture * 0.55;
 
   if (relic.hasFourthLine) {
     const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
     const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
     const forcedRelic = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
     const forcedImmediate = getActionCandidateScore(forcedRelic, forcedStat, scenario, profile, config, true, predictor);
-    const forcedFuture = searchBestBotFuture(forcedRelic, nextProfile, forcedRelic.lastLine || null, scenario, config, depth - 1);
-    const forcedScore = forcedImmediate * 0.45 + forcedFuture * 0.55;
-    if (forcedScore > bestScore) bestScore = forcedScore;
+    const forceDecision = decideForceRoute({
+      defaultEval: defaultImmediate,
+      forcedEval: forcedImmediate,
+      defaultStat,
+      forcedStat,
+      predictor,
+      scenario,
+      config,
+      currentGoalSatisfied: snapshot.goalProgress?.goalSatisfied,
+    });
+    if (forceDecision.shouldForce) {
+      const forcedFuture = searchBestBotFuture(forcedRelic, nextProfile, forcedRelic.lastLine || null, scenario, config, depth - 1);
+      const forcedScore = forcedImmediate.totalScore * 0.45 + forcedFuture * 0.55;
+      if (forcedScore > bestScore) bestScore = forcedScore;
+    }
   }
 
   return bestScore;
 }
 
-function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
+function shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling = null) {
   if (!attempt) return false;
-  if (attemptsUsed >= MAX_RACE_TRIES) return true;
   if (config.strictGoal && !attempt.goalSatisfied) return false;
   const effectiveScore = Math.max(0, Number(attempt?.score || 0)) - (Math.max(0, Number(attempt?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
   const submitMargin = Math.max(0, Number(config?.submitMargin || 0) || 0);
+  const ceilingMargin = Math.max(0, Number(config?.ceilingMargin || 0) || 0);
   const maxMistakesToSubmit = Math.max(0, Number(config?.maxMistakesToSubmit ?? 1) || 0);
   const goalProgress = attempt?.goalProgress && typeof attempt.goalProgress === 'object' ? attempt.goalProgress : null;
   const perfectGoalCoverage = goalProgress ? goalProgress.missingGoalHits === 0 && goalProgress.missingRequiredCount === 0 : attempt.goalSatisfied;
+  const decisionTotal = Number(attempt?.decisionTotal || 0);
+  const closeToCeiling = Number.isFinite(Number(retryCeiling)) ? decisionTotal >= (Number(retryCeiling) - ceilingMargin) : false;
   if (
     attempt.goalSatisfied
     && attempt.helpfulHits >= config.minHelpful
     && effectiveScore >= (config.minScore + submitMargin)
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+  ) return true;
+  if (
+    attempt.goalSatisfied
+    && closeToCeiling
     && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
   ) return true;
   if (
@@ -929,6 +1111,19 @@ function compareAttemptPayload(left = {}, right = {}) {
   const leftRolls = Math.max(0, Number(left?.rollCount || 0));
   const rightRolls = Math.max(0, Number(right?.rollCount || 0));
   return leftRolls - rightRolls;
+}
+
+function estimateRetryCeiling(scenario, profile, carryLine, config) {
+  const freshRelic = createBotTargetRelic(scenario);
+  const startLine = Number.isInteger(carryLine) ? carryLine : 4;
+  return searchBestBotFuture(
+    freshRelic,
+    profile,
+    startLine,
+    scenario,
+    config,
+    Math.max(2, Math.min(4, Number(config?.searchDepth || 2) || 2))
+  );
 }
 
 function compareStatesForWinner(hostState, guestState) {
@@ -1026,6 +1221,93 @@ function buildBotState(room) {
   let currentSessionEntries = [];
   let sessionArchive = [];
   let hasTakenAnyAction = false;
+  let currentPhase = 'idle';
+
+  const buildSubmittedStateFromAttempt = (chosenAttempt, summaryText) => {
+    const finalAttempt = chosenAttempt || bestAttempt || null;
+    const finalRelic = finalAttempt?.relicSnapshot ? cloneRelic(finalAttempt.relicSnapshot) : null;
+    const finalScore = Math.max(0, Number(finalAttempt?.score || 0));
+    const finalHelpfulHits = Math.max(0, Number(finalAttempt?.helpfulHits || 0));
+    const finalMistakes = Math.max(0, Number(finalAttempt?.mistakes || 0));
+    const finalRollCount = Math.max(0, Number(finalAttempt?.rollCount || 0));
+    const finalGoalSatisfied = Boolean(finalAttempt?.goalSatisfied);
+    return {
+      ...createPlayerState(room.guest_name || 'Svarog Bot'),
+      status: 'submitted',
+      phase: 'submitted_final',
+      currentLevel: Math.max(0, Number(finalRelic?.level || 15)),
+      helpfulHits: finalHelpfulHits,
+      hp: Math.max(0, 100 - finalHelpfulHits * 25),
+      tries: attemptsUsed,
+      mistakes: finalMistakes,
+      score: finalScore,
+      grade: String(finalAttempt?.grade || 'F'),
+      rollCount: finalRollCount,
+      statBreakdown: finalAttempt?.statBreakdown || {},
+      goalSatisfied: finalGoalSatisfied,
+      attemptsUsed,
+      submittedAttempts: 1,
+      sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+      sessionEntries: currentSessionEntries,
+      sessionArchive,
+      botTick: nextBotTick,
+      finalScore,
+      finalGrade: String(finalAttempt?.grade || 'F'),
+      finalRollCount,
+      finalHelpfulHits,
+      finalMistakes,
+      finalGoalSatisfied,
+      finalStatBreakdown: finalAttempt?.statBreakdown || {},
+      finalRelicSnapshot: finalRelic,
+      finalRelicSummary: finalAttempt?.relicSummary || summaryText,
+      bestScore: Math.max(0, Number(bestAttempt?.score || finalScore)),
+      bestGrade: String(bestAttempt?.grade || finalAttempt?.grade || 'F'),
+      bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || finalRollCount)),
+      bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || finalHelpfulHits)),
+      bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || finalMistakes)),
+      bestStatBreakdown: bestAttempt?.statBreakdown || finalAttempt?.statBreakdown || {},
+      bestRelicSnapshot: bestAttempt?.relicSnapshot || finalRelic,
+      bestRelicSummary: bestAttempt?.relicSummary || finalAttempt?.relicSummary || summaryText,
+      relicSummary: summaryText,
+      debugLog,
+      displayName: room.guest_name || 'Svarog Bot',
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
+  const buildBustedState = (attempt, summaryText) => ({
+    ...createPlayerState(room.guest_name || 'Svarog Bot'),
+    status: 'busted',
+    phase: 'busted',
+    currentLevel: Math.max(0, Number(attempt?.relicSnapshot?.level || currentRelic.level || 0)),
+    helpfulHits: Math.max(0, Number(attempt?.helpfulHits || 0)),
+    hp: Math.max(0, 100 - (Math.max(0, Number(attempt?.helpfulHits || 0)) * 25)),
+    tries: MAX_RACE_TRIES + 1,
+    mistakes: Math.max(0, Number(attempt?.mistakes || 0)),
+    score: Math.max(0, Number(attempt?.score || 0)),
+    grade: String(attempt?.grade || 'F'),
+    rollCount: Math.max(0, Number(attempt?.rollCount || 0)),
+    statBreakdown: attempt?.statBreakdown || {},
+    goalSatisfied: Boolean(attempt?.goalSatisfied),
+    attemptsUsed: MAX_RACE_TRIES + 1,
+    submittedAttempts: 0,
+    sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+    sessionEntries: currentSessionEntries,
+    sessionArchive,
+    botTick: nextBotTick,
+    bestScore: Math.max(0, Number(bestAttempt?.score || attempt?.score || 0)),
+    bestGrade: String(bestAttempt?.grade || attempt?.grade || 'F'),
+    bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || attempt?.rollCount || 0)),
+    bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || attempt?.helpfulHits || 0)),
+    bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || attempt?.mistakes || 0)),
+    bestStatBreakdown: bestAttempt?.statBreakdown || attempt?.statBreakdown || {},
+    bestRelicSnapshot: bestAttempt?.relicSnapshot || attempt?.relicSnapshot || null,
+    bestRelicSummary: bestAttempt?.relicSummary || attempt?.relicSummary || '',
+    relicSummary: summaryText,
+    debugLog,
+    displayName: room.guest_name || 'Svarog Bot',
+    updatedAt: new Date().toISOString(),
+  });
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
@@ -1045,34 +1327,97 @@ function buildBotState(room) {
     let actionsThisAttempt = Math.max(0, Math.min(5, totalActionsAvailable));
 
     if (scenario?.requiresSessionBuilder) {
-      const builderSimulation = simulateBotSessionBuilder(scenario, {
-        startRelic: currentBuilderRelic,
-        startProfile: currentProfile,
-        startCarryLine: currentCarryLine,
-        config,
-        debugLog,
-        attemptNumber: attemptsUsed,
-        actions: totalActionsAvailable,
-      });
-      currentBuilderRelic = builderSimulation.relic;
-      currentProfile = builderSimulation.profile;
-      currentCarryLine = builderSimulation.carryLine;
-      currentSessionEntries = builderSimulation.sessionEntries;
-      sessionArchive = [...sessionArchive, ...builderSimulation.sessionEntries].slice(-96);
-      hasTakenAnyAction = hasTakenAnyAction || builderSimulation.usedActions > 0;
-      remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
-      if (builderSimulation.usedActions > 0 && Number(config?.analysisDelaySteps || 0) > 0) {
-        remainingSeconds = Math.max(0, remainingSeconds - (Number(config.analysisDelaySteps) * config.stepSeconds));
-        pushBotDebug(debugLog, `Try ${attemptsUsed}: after building session data, I paused to read commons, noise, trends, and Svarog eye before touching the target relic.`);
-      }
-      actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
+      const minSessionEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
+      const maxBuilderEntries = Math.max(minSessionEntries + 3, 8);
+      let builderVerdict = null;
 
-      if (actionsThisAttempt <= 0) {
-        const builtEntries = Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0;
-        pushBotDebug(debugLog, `Try ${attemptsUsed}: I spent this window building session data before committing to the target relic.`);
+      while (actionsThisAttempt > 0) {
+        const targetEntries = currentSessionEntries.length < minSessionEntries
+          ? minSessionEntries
+          : Math.min(maxBuilderEntries, currentSessionEntries.length + 1);
+        const builderSimulation = simulateBotSessionBuilder(scenario, {
+          startRelic: currentBuilderRelic,
+          startProfile: currentProfile,
+          startCarryLine: currentCarryLine,
+          sessionEntries: currentSessionEntries,
+          targetEntries,
+          config,
+          debugLog,
+          attemptNumber: attemptsUsed,
+          actions: actionsThisAttempt,
+        });
+        if (builderSimulation.usedActions <= 0) break;
+        currentBuilderRelic = builderSimulation.relic;
+        currentProfile = builderSimulation.profile;
+        currentCarryLine = builderSimulation.carryLine;
+        currentSessionEntries = builderSimulation.sessionEntries;
+        sessionArchive = [...sessionArchive, ...builderSimulation.sessionEntries].slice(-96);
+        hasTakenAnyAction = true;
+        currentPhase = 'building_read';
+        remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
+        if (builderSimulation.usedActions > 0 && Number(config?.analysisDelaySteps || 0) > 0) {
+          remainingSeconds = Math.max(0, remainingSeconds - (Number(config.analysisDelaySteps) * config.stepSeconds));
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: after building session data, I paused to read commons, noise, trends, and Svarog eye before touching the target relic.`);
+          currentPhase = 'analyzing_read';
+        }
+        builderVerdict = evaluateBuilderReadVerdict(scenario, currentProfile, currentCarryLine, config, currentSessionEntries.length);
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: ${builderVerdict.summary}`);
+        actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
+
+        if (builderVerdict.shouldCommit || builderVerdict.shouldAbort) break;
+        if (!builderVerdict.shouldKeepBuilding) break;
+        if (currentSessionEntries.length >= maxBuilderEntries) {
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: I reached the builder evidence cap with a weak read, so I will not waste target actions on this session.`);
+          break;
+        }
+        if (actionsThisAttempt > 0) {
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: the read is still not trustworthy enough, so I am spending the remaining budget on more builder evidence instead of touching the target relic.`);
+        }
+      }
+
+      builderVerdict = builderVerdict || evaluateBuilderReadVerdict(scenario, currentProfile, currentCarryLine, config, currentSessionEntries.length);
+
+      if (builderVerdict.shouldAbort && attemptsUsed < MAX_RACE_TRIES) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: builder verdict says abort. The read is not trustworthy enough, so I am resetting before touching the target relic.`);
+        remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+        attemptsUsed += 1;
+        currentRelic = createBotTargetRelic(scenario);
+        currentBuilderRelic = createBotBuilderRelic(scenario);
+        currentSessionEntries = [];
+        currentCarryLine = null;
+        currentPhase = 'building_read';
+        continue;
+      }
+
+      if (!builderVerdict.shouldCommit) {
+        if (currentSessionEntries.length >= maxBuilderEntries) {
+          if (attemptsUsed < MAX_RACE_TRIES) {
+            pushBotDebug(debugLog, `Try ${attemptsUsed}: the builder read never became safe enough, so I am burning this try before target play and moving on.`);
+            remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+            attemptsUsed += 1;
+            currentRelic = createBotTargetRelic(scenario);
+            currentBuilderRelic = createBotBuilderRelic(scenario);
+            currentSessionEntries = [];
+            currentCarryLine = null;
+            currentPhase = 'building_read';
+            continue;
+          }
+          if (bestAttempt) {
+            pushBotDebug(debugLog, `Try ${attemptsUsed}: final builder read stayed bad, so I am locking the best attempt I found earlier instead of entering the target on a bad read.`);
+            return buildSubmittedStateFromAttempt(
+              bestAttempt,
+              `Bot locked its best earlier attempt from try ${bestAttempt?.attemptNumber || '?'}.`
+            );
+          }
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: final builder read never became trustworthy and there is no prior attempt worth submitting.`);
+          return buildBustedState(null, `Bot busted because the final builder read never became trustworthy enough to enter target play.`);
+        }
+        const builtEntries = Math.max(currentSessionEntries.length, sessionArchive.length);
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: I am still investigating the session and will not touch the target relic yet.`);
         return {
           ...createPlayerState(room.guest_name || 'Svarog Bot'),
           status: 'attempting',
+          phase: currentPhase,
           currentLevel: currentBuilderRelic.level,
           helpfulHits: 0,
           hp: 100,
@@ -1094,14 +1439,14 @@ function buildBotState(room) {
           bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
           bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
           bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
-          bestStatBreakdown: bestAttempt?.statBreakdown || {},
-          bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
-          bestRelicSummary: bestAttempt?.relicSummary || '',
-          relicSummary: `Bot is building session data for try ${attemptsUsed} (${builtEntries}/${Math.max(1, Number(scenario?.minSessionEntries || 5) || 5)} entries).`,
-          debugLog,
-          displayName: room.guest_name || 'Svarog Bot',
-          updatedAt: new Date().toISOString(),
-        };
+            bestStatBreakdown: bestAttempt?.statBreakdown || {},
+            bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+            bestRelicSummary: bestAttempt?.relicSummary || '',
+            relicSummary: `Bot is still building and validating the session read for try ${attemptsUsed} (${builtEntries} entries captured).`,
+            debugLog,
+            displayName: room.guest_name || 'Svarog Bot',
+            updatedAt: new Date().toISOString(),
+          };
       }
     }
 
@@ -1118,6 +1463,7 @@ function buildBotState(room) {
     currentProfile = simulation.profile;
     currentCarryLine = simulation.carryLine;
     hasTakenAnyAction = hasTakenAnyAction || simulation.usedActions > 0;
+    currentPhase = 'upgrading_target';
     remainingSeconds = Math.max(0, remainingSeconds - (simulation.usedActions * config.stepSeconds));
 
     const statBreakdown = simulation.statBreakdown;
@@ -1131,7 +1477,9 @@ function buildBotState(room) {
     const goalSatisfied = evaluateScenarioSuccess(scenario, statBreakdown);
     const goalProgress = getScenarioGoalProgress(scenario, statBreakdown);
     const relicScore = scoreRelicWithProfile(currentRelic, detectRelicScoreProfile(currentRelic));
+    const evaluatedAttempt = evaluateBotRelicState(currentRelic, scenario, currentProfile, config);
     const attempt = {
+      attemptNumber: attemptsUsed,
       score: relicScore.score,
       grade: relicScore.grade,
       helpfulHits,
@@ -1140,6 +1488,7 @@ function buildBotState(room) {
       statBreakdown,
       goalSatisfied,
       goalProgress,
+      decisionTotal: evaluatedAttempt.total,
       relicSnapshot: cloneRelic(currentRelic),
       relicSummary: currentRelic.level >= 15
         ? `Bot finished try ${attemptsUsed} at +15.`
@@ -1156,6 +1505,7 @@ function buildBotState(room) {
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'attempting',
+        phase: currentPhase,
         currentLevel: currentRelic.level || (scenario?.requiresSessionBuilder ? currentBuilderRelic.level : 0),
         helpfulHits,
         hp: Math.max(0, 100 - helpfulHits * 25),
@@ -1168,7 +1518,7 @@ function buildBotState(room) {
         goalSatisfied,
         attemptsUsed,
         submittedAttempts: 0,
-        sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
+        sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
         sessionEntries: currentSessionEntries,
         sessionArchive,
         botTick: nextBotTick,
@@ -1189,85 +1539,29 @@ function buildBotState(room) {
       };
     }
 
-    if (shouldBotSubmitAttempt(attempt, attemptsUsed, config)) {
-      pushBotDebug(debugLog, `Try ${attemptsUsed}: submitted. Reason => score ${attempt.score}, grade ${attempt.grade}, helpful ${attempt.helpfulHits}, goal=${attempt.goalSatisfied ? 'yes' : 'no'}.`);
-      return {
-        ...createPlayerState(room.guest_name || 'Svarog Bot'),
-        status: 'submitted',
-        currentLevel: currentRelic.level,
-        helpfulHits,
-        hp: Math.max(0, 100 - helpfulHits * 25),
-        tries: attemptsUsed,
-        mistakes,
-        score: relicScore.score,
-        grade: relicScore.grade,
-        rollCount: relicScore.rollCount,
-        statBreakdown,
-        goalSatisfied,
-        attemptsUsed,
-        submittedAttempts: 1,
-        sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
-        sessionEntries: currentSessionEntries,
-        sessionArchive,
-        botTick: nextBotTick,
-        finalScore: relicScore.score,
-        finalGrade: relicScore.grade,
-        finalRollCount: relicScore.rollCount,
-        finalHelpfulHits: helpfulHits,
-        finalMistakes: mistakes,
-        finalGoalSatisfied: goalSatisfied,
-        finalStatBreakdown: statBreakdown,
-        finalRelicSnapshot: cloneRelic(currentRelic),
-        finalRelicSummary: `Bot submitted try ${attemptsUsed} at +15.`,
-        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
-        bestGrade: String(bestAttempt?.grade || 'F'),
-        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
-        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
-        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
-        bestStatBreakdown: bestAttempt?.statBreakdown || {},
-        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
-        bestRelicSummary: bestAttempt?.relicSummary || '',
-        relicSummary: `Bot submitted its final relic on try ${attemptsUsed}.`,
-        debugLog,
-        displayName: room.guest_name || 'Svarog Bot',
-        updatedAt: new Date().toISOString(),
-      };
+    const retryCeiling = attemptsUsed < MAX_RACE_TRIES ? estimateRetryCeiling(scenario, currentProfile, currentCarryLine, config) : null;
+    if (attemptsUsed >= MAX_RACE_TRIES) {
+      if (attempt.goalSatisfied) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: last try satisfied the contract, so I am submitting this final relic.`);
+        return buildSubmittedStateFromAttempt(attempt, `Bot submitted its final relic on try ${attemptsUsed}.`);
+      }
+      const finalAttempt = bestAttempt && compareAttemptPayload(bestAttempt, attempt) >= 0 ? bestAttempt : attempt;
+      if (finalAttempt) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: last try missed the contract, so I am submitting the best attempt I found overall (try ${finalAttempt?.attemptNumber || attemptsUsed}, goal=${finalAttempt?.goalSatisfied ? 'yes' : 'no'}).`);
+        return buildSubmittedStateFromAttempt(
+          finalAttempt,
+          finalAttempt === attempt
+            ? `Bot had to lock its final try ${attemptsUsed} even though the contract was not cleared.`
+            : `Bot locked its best earlier attempt from try ${finalAttempt?.attemptNumber || '?'}.`
+        );
+      }
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: no valid attempt exists to lock on the final try, so the bot busts.`);
+      return buildBustedState(attempt, `Bot busted after failing to find any submission-worthy relic across ${MAX_RACE_TRIES} tries.`);
     }
 
-    if (attemptsUsed >= MAX_RACE_TRIES) {
-      pushBotDebug(debugLog, `Try ${attemptsUsed}: busted. Failed to find a submit-worthy relic before exhausting retries.`);
-      return {
-        ...createPlayerState(room.guest_name || 'Svarog Bot'),
-        status: 'busted',
-        currentLevel: currentRelic.level,
-        helpfulHits,
-        hp: Math.max(0, 100 - helpfulHits * 25),
-        tries: MAX_RACE_TRIES + 1,
-        mistakes,
-        score: relicScore.score,
-        grade: relicScore.grade,
-        rollCount: relicScore.rollCount,
-        statBreakdown,
-        goalSatisfied,
-        attemptsUsed: MAX_RACE_TRIES + 1,
-        submittedAttempts: 0,
-        sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
-        sessionEntries: currentSessionEntries,
-        sessionArchive,
-        botTick: nextBotTick,
-        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
-        bestGrade: String(bestAttempt?.grade || 'F'),
-        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
-        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
-        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
-        bestStatBreakdown: bestAttempt?.statBreakdown || {},
-        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
-        bestRelicSummary: bestAttempt?.relicSummary || '',
-        relicSummary: `Bot busted after failing to improve through ${MAX_RACE_TRIES} tries.`,
-        debugLog,
-        displayName: room.guest_name || 'Svarog Bot',
-        updatedAt: new Date().toISOString(),
-      };
+    if (shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling)) {
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: submitted. Reason => score ${attempt.score}, grade ${attempt.grade}, helpful ${attempt.helpfulHits}, goal=${attempt.goalSatisfied ? 'yes' : 'no'}.`);
+      return buildSubmittedStateFromAttempt(attempt, `Bot submitted its final relic on try ${attemptsUsed}.`);
     }
 
     if (remainingSeconds < config.retryDelay) {
@@ -1275,6 +1569,7 @@ function buildBotState(room) {
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
         status: 'maxed',
+        phase: 'analyzing_read',
         currentLevel: currentRelic.level,
         helpfulHits,
         hp: Math.max(0, 100 - helpfulHits * 25),
@@ -1287,7 +1582,7 @@ function buildBotState(room) {
         goalSatisfied,
         attemptsUsed,
         submittedAttempts: 0,
-        sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
+        sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
         sessionEntries: currentSessionEntries,
         sessionArchive,
         botTick: nextBotTick,
@@ -1312,15 +1607,18 @@ function buildBotState(room) {
     currentRelic = createBotTargetRelic(scenario);
     currentBuilderRelic = createBotBuilderRelic(scenario);
     currentSessionEntries = [];
+    currentCarryLine = null;
+    currentPhase = scenario?.requiresSessionBuilder ? 'building_read' : 'upgrading_target';
   }
 
   return {
     ...createPlayerState(room.guest_name || 'Svarog Bot'),
     status: hasTakenAnyAction ? 'attempting' : 'ready',
+    phase: currentPhase,
     currentLevel: hasTakenAnyAction ? (currentRelic.level || (scenario?.requiresSessionBuilder ? currentBuilderRelic.level : 0)) : 0,
     attemptsUsed: hasTakenAnyAction ? attemptsUsed : 0,
     tries: hasTakenAnyAction ? attemptsUsed : 1,
-    sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
+    sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
     sessionEntries: currentSessionEntries,
     sessionArchive,
     botTick: nextBotTick,
@@ -1351,6 +1649,7 @@ function normalizePlayerState(input, currentState = {}) {
   const status = String(input?.status || next.status || 'attempting').trim().toLowerCase();
   const allowedStatuses = new Set(['ready', 'attempting', 'maxed', 'submitted', 'busted', 'timeout', 'disconnected']);
   next.status = allowedStatuses.has(status) ? status : 'attempting';
+  next.phase = String(input?.phase || next.phase || 'idle').slice(0, 32);
   next.currentLevel = Math.max(0, Math.min(15, Number(input?.currentLevel ?? next.currentLevel ?? 0) || 0));
   next.helpfulHits = Math.max(0, Math.min(10, Number(input?.helpfulHits ?? next.helpfulHits ?? 0) || 0));
   next.hp = Math.max(0, Math.min(100, Number(input?.hp ?? next.hp ?? 100) || 0));
