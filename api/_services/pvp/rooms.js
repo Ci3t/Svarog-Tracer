@@ -355,8 +355,10 @@ function simulateBotSessionBuilder(scenario, options = {}) {
   let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
   let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
   let sessionEntries = Array.isArray(options?.sessionEntries) ? options.sessionEntries.map((entry) => ({ ...entry })) : [];
+  const initialEntryCount = sessionEntries.length;
   const debugLog = Array.isArray(options?.debugLog) ? options.debugLog : null;
   const attemptNumber = Number(options?.attemptNumber || 1);
+  const stepOffset = Math.max(0, Number(options?.stepOffset || 0) || 0);
   const actions = Math.max(0, Number(options?.actions || 0) || 0);
   const rawTargetEntries = options?.targetEntries ?? scenario?.minSessionEntries ?? 5;
   const targetEntries = Math.max(1, Number(rawTargetEntries) || 5);
@@ -380,9 +382,10 @@ function simulateBotSessionBuilder(scenario, options = {}) {
       profile = advancePatternProfile(profile, '44');
       carryLine = 4;
       usedActions += 1;
+      const globalStep = stepOffset + usedActions;
       sessionEntries.push(createBotSessionEntry('44', '44', {
         attempt: attemptNumber,
-        step: usedActions,
+        step: globalStep,
         carryLine,
         commons: Array.isArray(profile?.commons) ? profile.commons : [],
         noise: Array.isArray(profile?.noise) ? profile.noise : [],
@@ -393,7 +396,7 @@ function simulateBotSessionBuilder(scenario, options = {}) {
         trustedPair: Array.isArray(predictor?.trustedPair) ? predictor.trustedPair : [],
         trendSummary: buildCompactTrendSummary(predictor),
       }));
-      pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I opened line 4, recorded raw 44, and used it as the first session entry.`);
+      pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${globalStep}: I opened line 4, recorded raw 44, and used it as the first session entry.`);
       continue;
     }
 
@@ -420,9 +423,10 @@ function simulateBotSessionBuilder(scenario, options = {}) {
     profile = advancePatternProfile(profile, visibleRoll);
     carryLine = relic.lastLine || carryLine;
     usedActions += 1;
+    const globalStep = stepOffset + usedActions;
     sessionEntries.push(createBotSessionEntry(resolution.rawPair, visibleRoll, {
       attempt: attemptNumber,
-      step: usedActions,
+      step: globalStep,
       carryLine,
       commons: Array.isArray(profile?.commons) ? profile.commons : [],
       noise: Array.isArray(profile?.noise) ? profile.noise : [],
@@ -433,7 +437,7 @@ function simulateBotSessionBuilder(scenario, options = {}) {
       trustedPair: Array.isArray(predictor?.trustedPair) ? predictor.trustedPair : [],
       trendSummary: buildCompactTrendSummary(predictor),
     }));
-    pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I used the session builder, recorded raw ${resolution.rawPair}, translated it to ${visibleRoll}, and moved my sitting line to L${carryLine || '-'}.`);
+    pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${globalStep}: I used the session builder, recorded raw ${resolution.rawPair}, translated it to ${visibleRoll}, and moved my sitting line to L${carryLine || '-'}.`);
   }
 
   return {
@@ -441,6 +445,7 @@ function simulateBotSessionBuilder(scenario, options = {}) {
     profile,
     carryLine,
     sessionEntries: sessionEntries.slice(-32),
+    newEntries: sessionEntries.slice(initialEntryCount).slice(-32),
     usedActions,
   };
 }
@@ -1340,6 +1345,7 @@ function buildBotState(room) {
           startProfile: currentProfile,
           startCarryLine: currentCarryLine,
           sessionEntries: currentSessionEntries,
+          stepOffset: currentSessionEntries.length,
           targetEntries,
           config,
           debugLog,
@@ -1351,7 +1357,7 @@ function buildBotState(room) {
         currentProfile = builderSimulation.profile;
         currentCarryLine = builderSimulation.carryLine;
         currentSessionEntries = builderSimulation.sessionEntries;
-        sessionArchive = [...sessionArchive, ...builderSimulation.sessionEntries].slice(-96);
+        sessionArchive = [...sessionArchive, ...(Array.isArray(builderSimulation.newEntries) ? builderSimulation.newEntries : [])].slice(-96);
         hasTakenAnyAction = true;
         currentPhase = 'building_read';
         remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
@@ -1376,6 +1382,22 @@ function buildBotState(room) {
       }
 
       builderVerdict = builderVerdict || evaluateBuilderReadVerdict(scenario, currentProfile, currentCarryLine, config, currentSessionEntries.length);
+      const softCommitAllowed = (
+        currentSessionEntries.length >= maxBuilderEntries
+        && builderVerdict.trustedResolved
+        && builderVerdict.pairSafety === 'caution'
+        && !builderVerdict.noiseDominates
+        && (builderVerdict.carryLineGood || attemptsUsed >= MAX_RACE_TRIES)
+      );
+      if (!builderVerdict.shouldCommit && softCommitAllowed) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: the builder read never became perfect, but it is trusted enough to commit with a caution-grade read instead of burning the entire try.`);
+        builderVerdict = {
+          ...builderVerdict,
+          shouldCommit: true,
+          shouldAbort: false,
+          shouldKeepBuilding: false,
+        };
+      }
 
       if (builderVerdict.shouldAbort && attemptsUsed < MAX_RACE_TRIES) {
         pushBotDebug(debugLog, `Try ${attemptsUsed}: builder verdict says abort. The read is not trustworthy enough, so I am resetting before touching the target relic.`);
