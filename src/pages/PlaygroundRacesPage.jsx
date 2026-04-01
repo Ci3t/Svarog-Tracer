@@ -18,7 +18,20 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 
-const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert'];
+const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
+const TARGET_SUB_OPTIONS = [
+  'CRIT RATE',
+  'CRIT DMG',
+  'SPD',
+  'ATK%',
+  'HP%',
+  'DEF%',
+  'BREAK EFFECT',
+  'EFFECT HIT RATE',
+  'EFFECT RES',
+  'FLAT HP',
+  'FLAT ATK',
+];
 const REQUEST_TIMEOUT_MS = 8000;
 const LOCAL_REQUEST_TIMEOUT_MS = 30000;
 
@@ -126,6 +139,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const { getAuthHeader } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
   const [selectedSetName, setSelectedSetName] = useState('');
+  const [selectedTargetSubs, setSelectedTargetSubs] = useState([]);
   const [joinCode, setJoinCode] = useState('');
   const [room, setRoom] = useState(null);
   const [busyAction, setBusyAction] = useState('');
@@ -151,6 +165,24 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
     if (!currentSetName) return;
     setSelectedSetName(currentSetName);
   }, [room?.scenario?.targetRelic?.setNameHint, room?.scenario?.targetRelic?.setName]);
+
+  useEffect(() => {
+    if (!room?.scenario?.targetRelic) return;
+    const targetRelic = room.scenario.targetRelic;
+    const nextSubs = [...(Array.isArray(targetRelic.lines) ? targetRelic.lines : []), targetRelic.fourthLine].filter(Boolean).slice(0, 4);
+    if (nextSubs.length >= 3) {
+      setSelectedTargetSubs(nextSubs);
+    }
+  }, [room?.scenario?.targetRelic]);
+
+  const targetRelicOverride = useMemo(() => {
+    if (selectedTargetSubs.length < 3) return null;
+    return {
+      lines: selectedTargetSubs.slice(0, 3),
+      fourthLine: selectedTargetSubs[3] || '',
+      hasFourthLine: selectedTargetSubs.length >= 4,
+    };
+  }, [selectedTargetSubs]);
 
   const fetchRoom = useCallback(async (code) => {
     const normalized = String(code || roomCode || '').trim().toUpperCase();
@@ -194,7 +226,12 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ action: 'create', tier: selectedTier, selectedSetName: selectedSetName || null }),
+        body: JSON.stringify({
+          action: 'create',
+          tier: selectedTier,
+          selectedSetName: selectedSetName || null,
+          targetRelicOverride,
+        }),
       });
       const payload = await parseResponse(response);
       setRoom(payload.room || null);
@@ -268,7 +305,12 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ action: 'reroll', code: roomCode, selectedSetName: selectedSetName || null }),
+        body: JSON.stringify({
+          action: 'reroll',
+          code: roomCode,
+          selectedSetName: selectedSetName || null,
+          targetRelicOverride,
+        }),
       });
       const payload = await parseResponse(response);
       setRoom(payload.room || null);
@@ -316,6 +358,18 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const openBoard = () => {
     if (!roomCode) return;
     navigate(`/playground/challenge?room=${encodeURIComponent(roomCode)}`);
+  };
+
+  const toggleTargetSub = (stat) => {
+    setSelectedTargetSubs((current) => {
+      if (current.includes(stat)) {
+        return current.filter((entry) => entry !== stat);
+      }
+      if (current.length >= 4) {
+        return [...current.slice(0, 3), stat];
+      }
+      return [...current, stat];
+    });
   };
 
   return (
@@ -442,6 +496,51 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
 
               <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                 {selectedSetName ? `Selected set: ${selectedSetName}` : 'Selected set: Random from room pool'}
+              </div>
+            </div>
+
+            <div className="mb-5 min-w-0 rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Target Relic Subs</div>
+              <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                Testing override for PvP. Pick 3 or 4 substats for the target relic and the room will use them directly.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {TARGET_SUB_OPTIONS.map((stat) => {
+                  const active = selectedTargetSubs.includes(stat);
+                  return (
+                    <button
+                      key={stat}
+                      type="button"
+                      onClick={() => toggleTargetSub(stat)}
+                      className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                        active
+                          ? 'border-cyan-400/30 bg-cyan-500/14 text-cyan-100'
+                          : 'border-white/5 bg-black/25 text-slate-300 hover:border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {stat}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedTargetSubs.length > 0 ? selectedTargetSubs.map((stat, index) => (
+                  <div
+                    key={`${stat}-${index}`}
+                    className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100"
+                  >
+                    {index < 3 ? `L${index + 1}` : 'L4'} {stat}
+                  </div>
+                )) : (
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    No override selected. Room will generate subs normally.
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                {selectedTargetSubs.length >= 3
+                  ? 'Override active for PvP target relic.'
+                  : 'Pick at least 3 subs to enable the override.'}
               </div>
             </div>
 

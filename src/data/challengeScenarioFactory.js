@@ -41,6 +41,13 @@ const TIER_RULES = {
     maxTries: 5,
     expectedMistakes: 4,
   },
+  expert_v2: {
+    difficulty: 'Expert v2',
+    templateIds: ['dualCritFourLine', 'monoSpd'],
+    hintPack: 'lateNoise',
+    maxTries: 5,
+    expectedMistakes: 4,
+  },
 };
 
 const SUCCESS_PRESETS = {
@@ -448,7 +455,9 @@ export function createChallengeScenario({
     patch: seed.patch,
     seedLabel: seed.seedLabel,
     pvpRollTier: pickPvpRollTier(seedRandom),
-    starterRolls: [...seed.starterRolls],
+    starterRolls: tier === 'expert_v2' ? [] : [...seed.starterRolls],
+    requiresSessionBuilder: tier === 'expert_v2',
+    minSessionEntries: tier === 'expert_v2' ? 5 : 0,
     tags: [...(seed.tags || [])],
     expectedStyle: seed.expectedStyle,
     goal: buildGoalText(seed.expectedStyle, template, success),

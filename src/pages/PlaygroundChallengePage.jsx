@@ -311,6 +311,40 @@ function createChallengePatternProfile(contract) {
   );
 }
 
+const PVP_MISTAKE_SCORE_PENALTY = 4;
+
+function getPvpEffectiveScore(attempt = null) {
+  if (!attempt) return 0;
+  return Math.max(0, Number(attempt.score || 0)) - (Math.max(0, Number(attempt.mistakes || 0)) * PVP_MISTAKE_SCORE_PENALTY);
+}
+
+function describeContractTargets(success = {}) {
+  if (success.type === 'monoLine') {
+    return [
+      `${success.target}: at least ${success.minHits || 1} hit${(success.minHits || 1) > 1 ? 's' : ''}`,
+      ...(typeof success.maxJunk === 'number' ? [`Junk lines: max ${success.maxJunk}`] : []),
+    ];
+  }
+
+  if (success.type === 'dualCrit') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : [];
+    return [
+      ...required.map((stat) => `${stat}: at least ${success.minEach || 1}`),
+      ...(typeof success.maxJunk === 'number' ? [`Junk lines: max ${success.maxJunk}`] : []),
+    ];
+  }
+
+  if (success.type === 'dualCritCombined') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : [];
+    return [
+      `${required.join(' + ')}: combined ${success.minCombined || 2}`,
+      ...(typeof success.maxJunk === 'number' ? [`Junk lines: max ${success.maxJunk}`] : []),
+    ];
+  }
+
+  return [];
+}
+
 function getLineHitsByStat(relic) {
   return [...relic.lines, relic.fourthLine].reduce((acc, line) => {
     acc[line.stat] = line.hits;
@@ -367,7 +401,7 @@ function comparePvpAttempts(left = null, right = null) {
   if (!left) return -1;
   if (!right) return 1;
   if (Boolean(left.goalSatisfied) !== Boolean(right.goalSatisfied)) return left.goalSatisfied ? 1 : -1;
-  if ((left.score || 0) !== (right.score || 0)) return (left.score || 0) - (right.score || 0);
+  if (getPvpEffectiveScore(left) !== getPvpEffectiveScore(right)) return getPvpEffectiveScore(left) - getPvpEffectiveScore(right);
   if ((left.helpfulHits || 0) !== (right.helpfulHits || 0)) return (left.helpfulHits || 0) - (right.helpfulHits || 0);
   if ((left.mistakes || 0) !== (right.mistakes || 0)) return (right.mistakes || 0) - (left.mistakes || 0);
   return (left.rollCount || 0) - (right.rollCount || 0);
@@ -898,6 +932,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   );
   const relicScore = useMemo(() => scoreRelicWithProfile(relic, detectRelicScoreProfile(relic)), [relic]);
   const scoreGuide = useMemo(() => describeRelicScoreGuide(relic), [relic]);
+  const contractTargets = useMemo(() => describeContractTargets(currentContract.success), [currentContract.success]);
   const currentPvpAttempt = useMemo(() => ({
     score: relicScore.score,
     grade: relicScore.grade,
@@ -1717,11 +1752,34 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
             rollTierMode: currentContract?.pvpRollTier || null,
           })
         : testRelic;
-    const nextRelic = handleBaseUpgrade(startingRelic, patternProfile);
+    let nextRelic = handleBaseUpgrade(startingRelic, patternProfile);
+    const previousLevel = startingRelic.level;
+    let sessionEntry = null;
+    let sessionVisibleRoll = '';
+
+    if (currentContract.requiresSessionBuilder && nextRelic.level > previousLevel) {
+      if (!startingRelic.hasFourthLine && nextRelic.level === 3) {
+        sessionEntry = createSessionEntry('44');
+        sessionVisibleRoll = '44';
+        nextRelic = {
+          ...nextRelic,
+          lastLine: 4,
+          lastRawPair: '44',
+          lastVisibleRoll: '44',
+        };
+      } else if (nextRelic.lastRawPair) {
+        sessionEntry = createSessionEntry(nextRelic.lastRawPair);
+        sessionVisibleRoll = sessionEntry?.translated || nextRelic.lastVisibleRoll || '';
+      }
+    }
+
     setTestRelic(nextRelic);
 
-    const previousLevel = startingRelic.level;
-    if (nextRelic.level > previousLevel && nextRelic.lastVisibleRoll) {
+    if (sessionEntry) {
+      setSessionRolls((existing) => [...existing, sessionEntry]);
+      setPatternProfile((current) => advancePatternProfile(current, sessionVisibleRoll));
+      setSharedCarryLine(nextRelic.lastLine || null);
+    } else if (nextRelic.level > previousLevel && nextRelic.lastVisibleRoll) {
       setPatternProfile((current) => advancePatternProfile(current, nextRelic.lastVisibleRoll));
       setSharedCarryLine(nextRelic.lastLine || null);
     }
@@ -2175,10 +2233,27 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Win Condition</div>
                   <p className="text-[10px] leading-relaxed text-slate-300">
                     {isPvpMode
-                      ? 'If one side clears the contract and the other fails, the clear wins. If both clear, higher score wins. If both fail, the duel is a draw.'
+                      ? `If one side clears the contract and the other fails, the clear wins. If both clear, higher score wins. Mistakes reduce duel score by ${PVP_MISTAKE_SCORE_PENALTY} each. If both fail, the duel is a draw.`
                       : currentContract.win}
                   </p>
                 </div>
+                {isPvpMode && contractTargets.length > 0 ? (
+                  <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-3 mb-3">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Contract Target</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {contractTargets.map((target) => (
+                        <span key={target} className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
+                          {target}
+                        </span>
+                      ))}
+                    </div>
+                    {currentContract.requiresSessionBuilder ? (
+                      <p className="mt-3 text-[10px] leading-relaxed text-amber-100/85">
+                        Expert v2 rule: no starter session data is given. Use the session builder relic first and let it record raw pairs into the session table.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {isPvpMode ? (
                   <div className="rounded-xl border border-fuchsia-400/15 bg-fuchsia-500/5 p-3 mb-3">
                     <div className="flex items-center justify-between gap-3">

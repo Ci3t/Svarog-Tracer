@@ -27,12 +27,14 @@ const PVP_ROOMS_TABLE = env.SUPABASE_PVP_ROOMS_TABLE || 'pvp_rooms';
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
+const MISTAKE_SCORE_PENALTY = 4;
 const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
   intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
   veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true },
   expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true },
+  expert_v2: { baseStep: 3, jitter: 1, minScore: 36, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 6, forceBonus: 5, helpfulBonus: 19, junkPenalty: 13, neutralPenalty: 4.5, noisePenalty: 2.5, commonsBonus: 2.4, dominantBonus: 1.6, scoreWeight: 0.45, strictGoal: true },
 };
 
 function readBody(req) {
@@ -280,6 +282,31 @@ function createBotTargetRelic(scenario) {
   };
 }
 
+function createBotBuilderRelic(scenario) {
+  const builderRelic = scenario?.builderRelic && typeof scenario.builderRelic === 'object' ? scenario.builderRelic : {};
+  const lineStats = Array.isArray(builderRelic.lines) ? builderRelic.lines.slice(0, 3) : [];
+  const rollTierMode = scenario?.pvpRollTier || null;
+  return {
+    id: `bot-builder-${String(scenario?.seedLabel || 'seed').slice(0, 24)}`,
+    setName: builderRelic.setNameHint || 'Builder Set',
+    setImage: builderRelic.setImage || '',
+    pieceLabel: builderRelic.pieceLabel || 'Relic',
+    mainStat: builderRelic.mainStat || 'FLAT HP',
+    orderMode: 'fixed',
+    level: 0,
+    hasFourthLine: Boolean(builderRelic.hasFourthLine),
+    lastLine: null,
+    lastRawPair: '',
+    lastVisibleRoll: '',
+    lines: [
+      createRelicLine(1, lineStats[0] || 'LINE 1', { active: true, rollTierMode }),
+      createRelicLine(2, lineStats[1] || 'LINE 2', { active: true, rollTierMode }),
+      createRelicLine(3, lineStats[2] || 'LINE 3', { active: true, rollTierMode }),
+    ],
+    fourthLine: createRelicLine(4, builderRelic.fourthLine || 'LINE 4', { active: Boolean(builderRelic.hasFourthLine), rollTierMode }),
+  };
+}
+
 function createScenarioPatternProfile(scenario) {
   const starterRolls = Array.isArray(scenario?.starterRolls) ? scenario.starterRolls : [];
   return starterRolls.reduce(
@@ -291,6 +318,66 @@ function createScenarioPatternProfile(scenario) {
       scenario?.patch || '4.1'
     )
   );
+}
+
+function simulateBotSessionBuilder(scenario, options = {}) {
+  let relic = options?.startRelic ? cloneRelic(options.startRelic) : createBotBuilderRelic(scenario);
+  let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
+  let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
+  const debugLog = Array.isArray(options?.debugLog) ? options.debugLog : null;
+  const attemptNumber = Number(options?.attemptNumber || 1);
+  const actions = Math.max(0, Number(options?.actions || 0) || 0);
+  const targetEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
+  let usedActions = 0;
+
+  while (usedActions < actions && ((Array.isArray(profile?.history) ? profile.history.length : 0) < targetEntries)) {
+    if (!relic.hasFourthLine) {
+      relic = {
+        ...relic,
+        level: 3,
+        hasFourthLine: true,
+        lastLine: 4,
+        lastRawPair: '44',
+        lastVisibleRoll: '44',
+        lines: relic.lines.map((line) => ({ ...line, justHit: false })),
+        fourthLine: activateRelicLine(relic.fourthLine),
+      };
+      profile = advancePatternProfile(profile, '44');
+      carryLine = 4;
+      usedActions += 1;
+      pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I opened line 4, recorded raw 44, and used it as the first session entry.`);
+      continue;
+    }
+
+    if (relic.level >= 15) {
+      relic = {
+        ...createBotBuilderRelic(scenario),
+        hasFourthLine: true,
+        level: 3,
+        lastLine: carryLine || relic.lastLine || 4,
+        lastRawPair: '',
+        lastVisibleRoll: '',
+        fourthLine: activateRelicLine(createBotBuilderRelic(scenario).fourthLine),
+      };
+    }
+
+    const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
+    const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
+    const previousLine = carryLine || relic.lastLine || 4;
+    const resolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
+    relic = applyBotUpgradeToSlot(relic, resolution.targetSlot, resolution.rawPair, visibleRoll);
+    profile = advancePatternProfile(profile, visibleRoll);
+    carryLine = relic.lastLine || carryLine;
+    usedActions += 1;
+    pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I used the session builder, recorded raw ${resolution.rawPair}, translated it to ${visibleRoll}, and moved my sitting line to L${carryLine || '-'}.`);
+  }
+
+  return {
+    relic,
+    profile,
+    carryLine,
+    usedActions,
+  };
 }
 
 function simulateBotTargetRelic(scenario, totalActions, options = {}) {
@@ -709,8 +796,8 @@ function compareAttemptPayload(left = {}, right = {}) {
   const rightGoal = Boolean(right?.goalSatisfied);
   if (leftGoal !== rightGoal) return leftGoal ? 1 : -1;
 
-  const leftScore = Math.max(0, Number(left?.score || 0));
-  const rightScore = Math.max(0, Number(right?.score || 0));
+  const leftScore = Math.max(0, Number(left?.score || 0)) - (Math.max(0, Number(left?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
+  const rightScore = Math.max(0, Number(right?.score || 0)) - (Math.max(0, Number(right?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
   if (leftScore !== rightScore) return leftScore - rightScore;
 
   const leftHelpful = Math.max(0, Number(left?.helpfulHits || 0));
@@ -812,6 +899,7 @@ function buildBotState(room) {
   let currentProfile = createScenarioPatternProfile(scenario);
   let currentCarryLine = null;
   let currentRelic = createBotTargetRelic(scenario);
+  let currentBuilderRelic = createBotBuilderRelic(scenario);
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
@@ -821,11 +909,60 @@ function buildBotState(room) {
       const trashTier = Array.isArray(scenario.targetStatGuide.trash) && scenario.targetStatGuide.trash.length > 0 ? scenario.targetStatGuide.trash.join(', ') : 'none';
       pushBotDebug(debugLog, `For this relic, I rate S-tier stats as ${sTier}; A-tier stats as ${aTier}; and trash stats as ${trashTier}.`);
     }
-    const actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
+    let actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
 
     if (actionsThisAttempt <= 0) {
       pushBotDebug(debugLog, `Try ${attemptsUsed}: not enough elapsed time to act yet.`);
       break;
+    }
+
+    if (scenario?.requiresSessionBuilder) {
+      const builderSimulation = simulateBotSessionBuilder(scenario, {
+        startRelic: currentBuilderRelic,
+        startProfile: currentProfile,
+        startCarryLine: currentCarryLine,
+        config,
+        debugLog,
+        attemptNumber: attemptsUsed,
+        actions: actionsThisAttempt,
+      });
+      currentBuilderRelic = builderSimulation.relic;
+      currentProfile = builderSimulation.profile;
+      currentCarryLine = builderSimulation.carryLine;
+      actionsThisAttempt = Math.max(0, actionsThisAttempt - builderSimulation.usedActions);
+      remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
+
+      if (actionsThisAttempt <= 0) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: I spent this window building session data before committing to the target relic.`);
+        return {
+          ...createPlayerState(room.guest_name || 'Svarog Bot'),
+          status: 'attempting',
+          currentLevel: currentRelic.level,
+          helpfulHits: 0,
+          hp: 100,
+          tries: attemptsUsed,
+          mistakes: 0,
+          score: 0,
+          grade: 'F',
+          rollCount: 0,
+          statBreakdown: {},
+          goalSatisfied: false,
+          attemptsUsed,
+          submittedAttempts: 0,
+          bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+          bestGrade: String(bestAttempt?.grade || 'F'),
+          bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+          bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+          bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+          bestStatBreakdown: bestAttempt?.statBreakdown || {},
+          bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+          bestRelicSummary: bestAttempt?.relicSummary || '',
+          relicSummary: `Bot is building session data for try ${attemptsUsed}.`,
+          debugLog,
+          displayName: room.guest_name || 'Svarog Bot',
+          updatedAt: new Date().toISOString(),
+        };
+      }
     }
 
     const simulation = simulateBotTargetRelic(scenario, actionsThisAttempt, {
@@ -1012,6 +1149,7 @@ function buildBotState(room) {
     remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
     attemptsUsed += 1;
     currentRelic = createBotTargetRelic(scenario);
+    currentBuilderRelic = createBotBuilderRelic(scenario);
   }
 
   return {
