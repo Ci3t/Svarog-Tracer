@@ -28,11 +28,11 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
 const BOT_TIER_CONFIG = {
-  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15 },
-  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, forceBonus: 2, helpfulBonus: 6, junkPenalty: 5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4 },
-  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 3, helpfulBonus: 7, junkPenalty: 6, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75 },
-  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 4, helpfulBonus: 8, junkPenalty: 7, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15 },
-  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, forceBonus: 5, helpfulBonus: 9, junkPenalty: 8, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5 },
+  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15 },
+  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 6, junkPenalty: 5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4 },
+  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 1, forceBonus: 3, helpfulBonus: 7, junkPenalty: 6, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75 },
+  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 4, helpfulBonus: 8, junkPenalty: 7, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15 },
+  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 5, helpfulBonus: 9, junkPenalty: 8, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5 },
 };
 
 function readBody(req) {
@@ -250,12 +250,21 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
     const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
-    const defaultChoiceScore = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false, predictor);
-    const forcedChoiceScore = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true, predictor);
+    const nextProfile = advancePatternProfile(profile, visibleRoll);
+    const defaultImmediate = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false, predictor);
+    const forcedImmediate = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true, predictor);
+    const defaultFuture = config.searchDepth > 0
+      ? searchBestBotFuture(defaultCandidate, nextProfile, defaultCandidate.lastLine || null, scenario, config, config.searchDepth)
+      : defaultImmediate;
+    const forcedFuture = config.searchDepth > 0
+      ? searchBestBotFuture(forcedCandidate, nextProfile, forcedCandidate.lastLine || null, scenario, config, config.searchDepth)
+      : forcedImmediate;
+    const defaultChoiceScore = defaultImmediate * 0.4 + defaultFuture * 0.6;
+    const forcedChoiceScore = forcedImmediate * 0.4 + forcedFuture * 0.6;
     const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
-    profile = advancePatternProfile(profile, visibleRoll);
+    profile = nextProfile;
     carryLine = relic.lastLine || carryLine || null;
   }
 
@@ -389,6 +398,84 @@ function getActionCandidateScore(candidateRelic, stat, success, profile, config,
   }
 
   return score;
+}
+
+function evaluateBotRelicState(relic, scenario, profile, config) {
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
+  const statBreakdown = [...relic.lines, relic.fourthLine].reduce((acc, line) => {
+    acc[line.stat] = Number(line.hits || 0);
+    return acc;
+  }, {});
+  const helpfulHits = success.type === 'monoLine'
+    ? Math.max(0, Number(statBreakdown?.[success.target] || 0))
+    : Array.isArray(success.required)
+      ? success.required.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0)
+      : 0;
+  const junkStats = Array.isArray(success.junk) ? success.junk : [];
+  const junkHits = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0);
+  const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
+  let total = relicScore.score + helpfulHits * (config.helpfulBonus || 8) - junkHits * (config.junkPenalty || 6);
+  if (evaluateScenarioSuccess(scenario, statBreakdown)) total += 12;
+  if (config.trendAware) {
+    const commons = Array.isArray(profile?.commons) ? profile.commons : [];
+    const dominantRoll = String(profile?.dominantRoll || '');
+    if (commons.includes(String(relic.lastVisibleRoll || ''))) total += config.commonsBonus || 1.5;
+    if (dominantRoll === String(relic.lastVisibleRoll || '')) total += config.dominantBonus || 1;
+  }
+  return {
+    total,
+    statBreakdown,
+    helpfulHits,
+    junkHits,
+    relicScore,
+  };
+}
+
+function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth) {
+  const snapshot = evaluateBotRelicState(relic, scenario, profile, config);
+  if (depth <= 0 || relic.level >= 15) {
+    return snapshot.total;
+  }
+
+  if (!relic.hasFourthLine) {
+    const activatedRelic = {
+      ...relic,
+      hasFourthLine: true,
+      level: 3,
+      lastLine: 4,
+      fourthLine: activateRelicLine(relic.fourthLine),
+    };
+    return searchBestBotFuture(activatedRelic, profile, 4, scenario, config, depth - 1);
+  }
+
+  const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
+  const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
+  const previousLine = carryLine || relic.lastLine || 4;
+  const forceBaseLines = Math.max(1, Math.min(3, Number(scenario?.forceRelic?.baseLines || 0) || 0));
+  const forceLine = Math.min(forceBaseLines + 1, 4);
+  const predictor = config.pairAware
+    ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+    : null;
+  const nextProfile = advancePatternProfile(profile, visibleRoll);
+
+  const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
+  const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
+  const defaultRelic = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
+  const defaultImmediate = getActionCandidateScore(defaultRelic, defaultStat, scenario?.success || {}, profile, config, false, predictor);
+  const defaultFuture = searchBestBotFuture(defaultRelic, nextProfile, defaultRelic.lastLine || null, scenario, config, depth - 1);
+  let bestScore = defaultImmediate * 0.45 + defaultFuture * 0.55;
+
+  if (relic.hasFourthLine) {
+    const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
+    const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
+    const forcedRelic = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
+    const forcedImmediate = getActionCandidateScore(forcedRelic, forcedStat, scenario?.success || {}, profile, config, true, predictor);
+    const forcedFuture = searchBestBotFuture(forcedRelic, nextProfile, forcedRelic.lastLine || null, scenario, config, depth - 1);
+    const forcedScore = forcedImmediate * 0.45 + forcedFuture * 0.55;
+    if (forcedScore > bestScore) bestScore = forcedScore;
+  }
+
+  return bestScore;
 }
 
 function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
