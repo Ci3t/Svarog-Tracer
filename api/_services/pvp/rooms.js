@@ -267,10 +267,12 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const forcedChoiceScore = forcedImmediate * 0.4 + forcedFuture * 0.6;
     const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
 
-    pushBotDebug(
-      debugLog,
-      `Try ${attemptNumber}: roll ${visibleRoll}, prev L${previousLine}, commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, predictor ${Array.isArray(predictor?.trustedPair) ? predictor.trustedPair.join('/') : '-'} vs noise ${Array.isArray(predictor?.noise) ? predictor.noise.join('/') : '-'} (${Number(predictor?.noiseRisk || 0)}%). Default ${defaultStat}=${defaultChoiceScore.toFixed(2)}, force L${forceLine} -> ${forcedStat}=${forcedChoiceScore.toFixed(2)}. Chose ${shouldForce ? `force ${forcedStat}` : `default ${defaultStat}`}.`
-    );
+    pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
+    pushBotDebug(debugLog, summarizeRecentHistory(profile));
+    pushBotDebug(debugLog, `My own board read said commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, dominant roll ${String(profile?.dominantRoll || 'none')}, and noise pressure ${Number(profile?.noisePressure || 0).toFixed(2)}.`);
+    pushBotDebug(debugLog, summarizePredictor(predictor));
+    pushBotDebug(debugLog, summarizeTrendRead(predictor));
+    pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, forcedStat, forcedChoiceScore, shouldForce, forceLine, config));
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
     profile = nextProfile;
@@ -340,6 +342,57 @@ function pushBotDebug(debugLog, line) {
   if (debugLog.length > 120) {
     debugLog.splice(0, debugLog.length - 120);
   }
+}
+
+function emitBotDebugToConsole(roomCode, debugLog) {
+  if (!Array.isArray(debugLog) || debugLog.length === 0) return;
+  console.info(`[PvP Bot ${roomCode}] decision trace start`);
+  debugLog.slice(-20).forEach((entry) => console.info(`[PvP Bot ${roomCode}] ${entry}`));
+  console.info(`[PvP Bot ${roomCode}] decision trace end`);
+}
+
+function summarizeRecentHistory(profile) {
+  const history = Array.isArray(profile?.history) ? profile.history.slice(-8) : [];
+  if (history.length === 0) return 'I had no meaningful history yet.';
+  const uniqueCount = new Set(history).size;
+  const counts = history.reduce((acc, roll) => {
+    acc[roll] = (acc[roll] || 0) + 1;
+    return acc;
+  }, {});
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || history[history.length - 1];
+  return `I checked the recent history ${history.join(' ')}. It used ${uniqueCount} unique values, and ${dominant} was the most repeated roll.`;
+}
+
+function summarizePredictor(predictor) {
+  if (!predictor) return 'I did not use Svarog eye on this tier.';
+  const trustedPair = Array.isArray(predictor?.trustedPair) ? predictor.trustedPair.join('/') : 'unknown';
+  const noisePair = Array.isArray(predictor?.noise) ? predictor.noise.join('/') : 'unknown';
+  const pairSafety = String(predictor?.pairSafety || 'unknown');
+  const noiseRisk = Number(predictor?.noiseRisk || 0);
+  return `Svarog eye trusted ${trustedPair}, marked ${noisePair} as noise, pair safety was ${pairSafety}, and noise risk was ${noiseRisk}%.`;
+}
+
+function summarizeTrendRead(predictor) {
+  const trends = predictor?.trends && typeof predictor.trends === 'object' ? predictor.trends : null;
+  if (!trends) return 'I did not use trend analysis here.';
+  const summary = ['41', '42', '43', '44']
+    .map((value) => {
+      const trend = trends[value];
+      if (!trend) return null;
+      const direction = String(trend.direction || 'stable');
+      const trust = Math.round(Number(trend.trustScore || 0) * 100);
+      return `${value}=${direction}/${trust}`;
+    })
+    .filter(Boolean)
+    .join(', ');
+  return `Trend check: ${summary}.`;
+}
+
+function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, shouldForce, forceLine, config) {
+  const searchNote = config.searchDepth > 0
+    ? `I also searched ${config.searchDepth} move${config.searchDepth > 1 ? 's' : ''} ahead before picking.`
+    : 'I judged the move from the immediate board state only.';
+  return `I compared staying on the current line into ${defaultStat || 'unknown'} (${defaultScore.toFixed(2)}) against forcing line ${forceLine} into ${forcedStat || 'unknown'} (${forcedScore.toFixed(2)}). ${searchNote} I chose ${shouldForce ? `the forced route because it projected the stronger outcome` : `the default route because it projected the stronger outcome`}.`;
 }
 
 function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
@@ -952,6 +1005,8 @@ async function syncBotRoomIfNeeded(room) {
     updated_at: new Date().toISOString(),
   };
 
+  emitBotDebugToConsole(room.code, nextGuestState.debugLog);
+
   const outcome = resolveRoomOutcome(room, room.host_state || createPlayerState(room.host_name), nextGuestState);
   if (outcome) {
     patch.status = outcome.status;
@@ -1007,10 +1062,11 @@ function ensureRoomParticipant(room, userId) {
 
 async function createRoomForUser(user, body) {
   const tier = String(body?.tier || 'beginner').trim().toLowerCase();
+  const selectedSetName = String(body?.selectedSetName || '').trim() || null;
   const scenario = sanitizeScenario(
     body?.scenario && typeof body.scenario === 'object'
       ? body.scenario
-      : createChallengeScenario({ tier, generated: true })
+      : createChallengeScenario({ tier, generated: true, mode: 'pvp', selectedSetName })
   );
   const displayName = normalizeName(user);
 
@@ -1133,7 +1189,7 @@ async function restartRoomForUser(user, code) {
   return toClientRoom(updated || room, user.id);
 }
 
-async function rerollRoomForUser(user, code) {
+async function rerollRoomForUser(user, code, body = {}) {
   const room = await loadRoomByCode(code);
   if (!room) {
     throw new HttpError(404, 'Room not found.');
@@ -1146,7 +1202,8 @@ async function rerollRoomForUser(user, code) {
     throw new HttpError(409, 'You can only reroll relics before the duel starts.');
   }
 
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true });
+  const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName });
   const updated = await patchRoom(code, {
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
@@ -1161,7 +1218,7 @@ async function rerollRoomForUser(user, code) {
   return toClientRoom(updated || room, user.id);
 }
 
-async function rerollAndRestartRoomForUser(user, code) {
+async function rerollAndRestartRoomForUser(user, code, body = {}) {
   const room = await loadRoomByCode(code);
   if (!room) {
     throw new HttpError(404, 'Room not found.');
@@ -1174,7 +1231,8 @@ async function rerollAndRestartRoomForUser(user, code) {
     throw new HttpError(409, 'Room needs an opponent before it can reroll and restart.');
   }
 
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true });
+  const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName });
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
     status: 'active',
@@ -1309,13 +1367,13 @@ export async function handler(req, res) {
 
     if (action === 'reroll') {
       if (!code) throw new HttpError(400, 'Room code is required.');
-      const room = await rerollRoomForUser(user, code);
+      const room = await rerollRoomForUser(user, code, body);
       return res.status(200).json({ room });
     }
 
     if (action === 'reroll-restart') {
       if (!code) throw new HttpError(400, 'Room code is required.');
-      const room = await rerollAndRestartRoomForUser(user, code);
+      const room = await rerollAndRestartRoomForUser(user, code, body);
       return res.status(200).json({ room });
     }
 

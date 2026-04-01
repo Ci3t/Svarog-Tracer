@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl } from '../utils/apiBase';
+import relicSets from '../data/relics.json';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert'];
 const REQUEST_TIMEOUT_MS = 8000;
@@ -63,12 +64,68 @@ function formatTierLabel(tier) {
   return String(tier || '').replace(/_/g, ' ');
 }
 
+function formatRollTierLabel(tier) {
+  if (tier === 'high') return 'All High Rolls';
+  if (tier === 'mid') return 'All Mid Rolls';
+  if (tier === 'low') return 'All Low Rolls';
+  return 'Mixed Rolls';
+}
+
+function formatSetShortName(name = '') {
+  const value = String(name || '').trim();
+  if (!value) return 'Random Set';
+  return value.length > 28 ? `${value.slice(0, 28)}...` : value;
+}
+
+function LobbyRelicPreview({ title, relic, accent = 'cyan' }) {
+  if (!relic) return null;
+  const accentClasses = accent === 'rose'
+    ? 'border-rose-400/15 bg-rose-500/6 text-rose-100'
+    : accent === 'violet'
+      ? 'border-violet-400/15 bg-violet-500/6 text-violet-100'
+      : 'border-cyan-400/15 bg-cyan-500/6 text-cyan-100';
+  const lines = [...(Array.isArray(relic.lines) ? relic.lines : []), relic.fourthLine].filter(Boolean);
+
+  return (
+    <div className={`rounded-2xl border p-4 ${accentClasses}`}>
+      <div className="flex items-start gap-3">
+        {relic.setImage ? (
+          <img src={relic.setImage} alt={relic.setNameHint || relic.setName || title} className="h-12 w-12 rounded-xl border border-white/10 bg-black/30 object-cover" />
+        ) : (
+          <div className="h-12 w-12 rounded-xl border border-white/10 bg-black/30" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</div>
+          <div className="mt-1 text-sm font-black uppercase tracking-[0.08em] text-white">
+            {relic.pieceLabel || 'Relic'}
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">
+            {relic.setNameHint || relic.setName || 'Unknown Set'}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 rounded-xl border border-white/5 bg-black/25 px-3 py-2">
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">Main Stat</div>
+        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-white">{relic.mainStat || 'N/A'}</div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {lines.map((stat, index) => (
+          <span key={`${title}-${stat}-${index}`} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-slate-200">
+            {stat}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const location = useLocation();
   const { getAuthHeader } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
+  const [selectedSetName, setSelectedSetName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [room, setRoom] = useState(null);
   const [busyAction, setBusyAction] = useState('');
@@ -84,6 +141,16 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
     if (!room) return null;
     return room.viewerRole === 'host' ? room.guest : room.host;
   }, [room]);
+  const relicSetOptions = useMemo(
+    () => (Array.isArray(relicSets) ? relicSets.filter((entry) => Number(entry?.numId || 0) >= 101 && Number(entry?.numId || 0) < 200) : []),
+    []
+  );
+
+  useEffect(() => {
+    const currentSetName = room?.scenario?.targetRelic?.setNameHint || room?.scenario?.targetRelic?.setName || '';
+    if (!currentSetName) return;
+    setSelectedSetName(currentSetName);
+  }, [room?.scenario?.targetRelic?.setNameHint, room?.scenario?.targetRelic?.setName]);
 
   const fetchRoom = useCallback(async (code) => {
     const normalized = String(code || roomCode || '').trim().toUpperCase();
@@ -127,7 +194,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ action: 'create', tier: selectedTier }),
+        body: JSON.stringify({ action: 'create', tier: selectedTier, selectedSetName: selectedSetName || null }),
       });
       const payload = await parseResponse(response);
       setRoom(payload.room || null);
@@ -201,7 +268,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ action: 'reroll', code: roomCode }),
+        body: JSON.stringify({ action: 'reroll', code: roomCode, selectedSetName: selectedSetName || null }),
       });
       const payload = await parseResponse(response);
       setRoom(payload.room || null);
@@ -284,7 +351,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
         ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[2rem] border border-white/5 bg-slate-950/35 p-6">
+          <div className="min-w-0 rounded-[2rem] border border-white/5 bg-slate-950/35 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Swords className="h-4 w-4 text-cyan-300" />
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Host A Duel</div>
@@ -313,6 +380,71 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               })}
             </div>
 
+            <div className="mb-5 min-w-0 rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">Target Set</div>
+                  <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                    Pick a relic set to test. PvP will build the target relic around that set's preferred stats instead of generic crit/spd defaults.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSetName('')}
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
+                    selectedSetName
+                      ? 'border-white/10 bg-black/30 text-slate-300 hover:border-white/15 hover:text-white'
+                      : 'border-fuchsia-400/25 bg-fuchsia-500/12 text-fuchsia-100'
+                  }`}
+                >
+                  Random Set
+                </button>
+              </div>
+
+              <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain pb-2">
+                <div className="inline-flex w-max gap-2 pr-2">
+                  {relicSetOptions.map((entry) => {
+                    const active = selectedSetName === entry.name;
+                    return (
+                      <button
+                        key={entry.numId || entry.name}
+                        type="button"
+                        onClick={() => setSelectedSetName(entry.name)}
+                        className={`group flex w-[13.5rem] shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all ${
+                          active
+                            ? 'border-fuchsia-400/30 bg-fuchsia-500/14 text-fuchsia-50 shadow-[0_0_0_1px_rgba(244,114,182,0.12)]'
+                            : 'border-white/5 bg-black/25 text-slate-300 hover:border-white/10 hover:text-white'
+                        }`}
+                        title={entry.name}
+                      >
+                        {entry.image ? (
+                          <img
+                            src={entry.image}
+                            alt={entry.name}
+                            className="h-10 w-10 rounded-lg border border-white/10 bg-black/30 object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-lg border border-white/10 bg-black/30" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="truncate text-[10px] font-black uppercase tracking-[0.12em]">
+                            {entry.name}
+                          </div>
+                          <div className="mt-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-500 transition-colors group-hover:text-slate-400">
+                            {active ? 'Pinned For Room' : 'Use This Set'}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                {selectedSetName ? `Selected set: ${selectedSetName}` : 'Selected set: Random from room pool'}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleCreateRoom}
@@ -324,7 +456,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
             </button>
           </div>
 
-          <div className="rounded-[2rem] border border-white/5 bg-slate-950/35 p-6">
+          <div className="min-w-0 rounded-[2rem] border border-white/5 bg-slate-950/35 p-6">
             <div className="mb-4 flex items-center gap-2">
               <DoorOpen className="h-4 w-4 text-amber-300" />
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">Join By Code</div>
@@ -461,6 +593,9 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                   <div className="text-lg font-black uppercase tracking-tight text-white">{room.scenario?.title || 'Shared Contract'}</div>
                   <p className="mt-2 text-sm leading-relaxed text-slate-400">{room.scenario?.goal || 'Scenario loading...'}</p>
                   <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em]">
+                    <div className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-fuchsia-100">
+                      Target Set {formatSetShortName(room.scenario?.targetRelic?.setNameHint || room.scenario?.targetRelic?.setName || selectedSetName)}
+                    </div>
                     <div className="rounded-full border border-white/5 bg-white/5 px-3 py-1 text-slate-300">
                       Seed {room.seedLabel || room.scenario?.seedLabel}
                     </div>
@@ -470,6 +605,14 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                     <div className="rounded-full border border-white/5 bg-white/5 px-3 py-1 text-slate-300">
                       {room.scenario?.mood || 'mixed'}
                     </div>
+                    <div className="rounded-full border border-white/5 bg-white/5 px-3 py-1 text-slate-300">
+                      {formatRollTierLabel(room.scenario?.pvpRollTier)}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    <LobbyRelicPreview title="Target Relic" relic={room.scenario?.targetRelic} accent="cyan" />
+                    <LobbyRelicPreview title="Setup / Builder" relic={room.scenario?.builderRelic} accent="violet" />
+                    <LobbyRelicPreview title="Force Relic" relic={room.scenario?.forceRelic} accent="rose" />
                   </div>
                 </div>
               </div>

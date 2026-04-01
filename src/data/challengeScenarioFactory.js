@@ -2,6 +2,7 @@ import { getChallengeHintPack } from './challengeHintPacks.js';
 import { CHALLENGE_RELIC_TEMPLATES, getChallengeRelicTemplate } from './challengeRelicTemplates.js';
 import { getChallengeSeedPool } from './challengeSeedPools.js';
 import relicSets from './relics.json' with { type: 'json' };
+import { getSetBisGuide } from './setBisGuides.js';
 import { getSetScoreProfile } from '../utils/relicScoring.js';
 
 const TIER_RULES = {
@@ -178,10 +179,30 @@ function pickPvpRollTier(generator) {
   return 'high';
 }
 
+function isPlanarPieceLabel(pieceLabel = '') {
+  const normalized = String(pieceLabel || '').trim().toLowerCase();
+  return normalized.includes('sphere') || normalized.includes('rope') || normalized.includes('planar');
+}
+
+function getSetPoolForPiece(pieceLabel = '') {
+  const source = Array.isArray(relicSets) ? relicSets : [];
+  if (isPlanarPieceLabel(pieceLabel)) {
+    return source.filter((entry) => {
+      const numId = Number(entry?.numId || 0);
+      return numId >= 301 && numId < 400;
+    });
+  }
+  return source.filter((entry) => {
+    const numId = Number(entry?.numId || 0);
+    return numId >= 101 && numId < 200;
+  });
+}
+
 function randomizeRelicSet(spec, preferredProfiles, generator) {
   const profiles = Array.isArray(preferredProfiles) ? preferredProfiles : [];
-  const candidates = (Array.isArray(relicSets) ? relicSets : []).filter((entry) => profiles.includes(getSetScoreProfile(entry?.name || '')));
-  const pool = candidates.length > 0 ? candidates : (Array.isArray(relicSets) ? relicSets : []);
+  const allowedPool = getSetPoolForPiece(spec?.pieceLabel);
+  const candidates = allowedPool.filter((entry) => profiles.includes(getSetScoreProfile(entry?.name || '')));
+  const pool = candidates.length > 0 ? candidates : allowedPool;
   const chosen = pickRandom(pool, generator);
   if (!chosen) return { ...spec };
   return {
@@ -205,11 +226,117 @@ function randomizeTemplateSets(template, generator) {
   };
 }
 
+function shuffleList(list, generator) {
+  const copy = [...list];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(generator() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+}
+
+function normalizeGuideStat(stat = '') {
+  const normalized = String(stat || '').trim().toUpperCase();
+  if (normalized === 'CRIT RATE') return 'CRIT RATE';
+  if (normalized === 'CRIT DMG') return 'CRIT DMG';
+  if (normalized === 'BREAK EFFECT') return 'BREAK EFFECT';
+  if (normalized === 'EFFECT HIT RATE') return 'EFFECT HIT RATE';
+  if (normalized === 'EFFECT RES') return 'EFFECT RES';
+  return normalized;
+}
+
+function buildPvpSuccessFromGuide(guide, generator) {
+  const s = (guide?.s || []).map(normalizeGuideStat).filter(Boolean);
+  const a = (guide?.a || []).map(normalizeGuideStat).filter(Boolean);
+  const zero = (guide?.zero || []).map(normalizeGuideStat).filter(Boolean);
+  const required = (s.length >= 2 ? s.slice(0, 2) : [s[0], a[0]].filter(Boolean)).slice(0, 2);
+  if (required.length >= 2) {
+    return {
+      type: 'dualCritCombined',
+      required,
+      minCombined: generator() < 0.5 ? 2 : 3,
+      junk: zero.slice(0, 3),
+      maxJunk: 1,
+    };
+  }
+  return {
+    type: 'monoLine',
+    target: s[0] || a[0] || 'SPD',
+    minHits: 3,
+    junk: zero.slice(0, 3),
+    maxJunk: 1,
+  };
+}
+
+function buildTargetRelicFromGuide(spec, setInfo, guide, generator) {
+  const s = shuffleList((guide?.s || []).map(normalizeGuideStat).filter(Boolean), generator);
+  const a = shuffleList((guide?.a || []).map(normalizeGuideStat).filter(Boolean), generator);
+  const zero = shuffleList((guide?.zero || []).map(normalizeGuideStat).filter(Boolean), generator);
+  const selected = [];
+
+  if (s.length >= 2 && (generator() < 0.65 || a.length === 0)) {
+    selected.push(s[0], s[1]);
+  } else {
+    if (s[0]) selected.push(s[0]);
+    if (a[0]) selected.push(a[0]);
+  }
+
+  const pool = [...s.slice(2), ...a.slice(1), ...zero];
+  while (selected.length < 3 && pool.length > 0) {
+    const next = pool.shift();
+    if (next && !selected.includes(next)) selected.push(next);
+  }
+
+  const fourthCandidates = [...a, ...zero, ...s].filter((stat) => stat && !selected.includes(stat));
+  const fourthLine = fourthCandidates[0] || selected[2] || 'ATK%';
+  const ordered = shuffleList(selected.slice(0, 3), generator);
+
+  return {
+    ...spec,
+    setNameHint: setInfo.name,
+    setImage: setInfo.image || '',
+    lines: ordered,
+    fourthLine,
+    hasFourthLine: false,
+  };
+}
+
+function applySelectedTargetSet(randomizedTemplate, selectedSetName, generator) {
+  const normalizedSelected = String(selectedSetName || '').trim();
+  if (!normalizedSelected) return { template: randomizedTemplate, successOverride: null };
+  const allowedPool = getSetPoolForPiece(randomizedTemplate?.targetRelic?.pieceLabel);
+  const setInfo = allowedPool.find((entry) => entry?.name === normalizedSelected);
+  if (!setInfo) return { template: randomizedTemplate, successOverride: null };
+  const guide = getSetBisGuide(setInfo.name);
+  if (!guide) {
+    return {
+      template: {
+        ...randomizedTemplate,
+        targetRelic: {
+          ...randomizedTemplate.targetRelic,
+          setNameHint: setInfo.name,
+          setImage: setInfo.image || '',
+        },
+      },
+      successOverride: null,
+    };
+  }
+  return {
+    template: {
+      ...randomizedTemplate,
+      targetRelic: buildTargetRelicFromGuide(randomizedTemplate.targetRelic, setInfo, guide, generator),
+    },
+    successOverride: buildPvpSuccessFromGuide(guide, generator),
+  };
+}
+
 export function createChallengeScenario({
   tier = 'beginner',
   seedId = null,
   templateId = null,
   generated = true,
+  mode = 'challenge',
+  selectedSetName = null,
 } = {}) {
   const tierRules = TIER_RULES[tier] || TIER_RULES.beginner;
   const seedPool = getChallengeSeedPool(tier);
@@ -229,7 +356,13 @@ export function createChallengeScenario({
     ? getChallengeRelicTemplate(templateId)
     : pickRandom(availableTemplates, seedRandom);
   const randomizedTemplate = randomizeTemplateSets(template, seedRandom);
-  const success = { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
+  const selectedSetResult = mode === 'pvp'
+    ? applySelectedTargetSet(randomizedTemplate, selectedSetName, seedRandom)
+    : { template: randomizedTemplate, successOverride: null };
+  const finalTemplate = selectedSetResult.template;
+  const success = selectedSetResult.successOverride
+    ? { ...selectedSetResult.successOverride }
+    : { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
   const hintPackId = seed.hintPackId || tierRules.hintPack || inferHintPack(seed.expectedStyle, template);
   const hints = getChallengeHintPack(hintPackId);
   const style = STYLE_COPY[seed.expectedStyle] || STYLE_COPY.clean_detour;
@@ -256,9 +389,9 @@ export function createChallengeScenario({
     progressText: style.progressText,
     hints: [...hints],
     success,
-    targetRelic: { ...randomizedTemplate.targetRelic },
-    builderRelic: { ...randomizedTemplate.builderRelic },
-    forceRelic: { ...randomizedTemplate.forceRelic },
+    targetRelic: { ...finalTemplate.targetRelic },
+    builderRelic: { ...finalTemplate.builderRelic },
+    forceRelic: { ...finalTemplate.forceRelic },
     attempts: {
       maxTries: tierRules.maxTries,
       expectedMistakes: tierRules.expectedMistakes,
