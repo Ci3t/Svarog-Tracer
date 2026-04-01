@@ -1061,7 +1061,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       rollCount: isPvpMode ? Math.max(0, Number((pvpSubmittedAttempt?.rollCount ?? bestPvpAttempt?.rollCount) || 0)) : relicScore.rollCount,
       hintStep,
       statBreakdown: isPvpMode ? (pvpSubmittedAttempt?.statBreakdown || bestPvpAttempt?.statBreakdown || {}) : lineHitsByStat,
-      goalSatisfied: isPvpMode ? Boolean(pvpSubmittedAttempt) : challengeStatus.tone === 'clear',
+      goalSatisfied: isPvpMode ? Boolean(pvpSubmittedAttempt?.goalSatisfied ?? bestPvpAttempt?.goalSatisfied) : challengeStatus.tone === 'clear',
       attemptsUsed: pvpAttemptsUsed,
       submittedAttempts: pvpSubmittedAttempt ? 1 : 0,
       finalScore: Math.max(0, Number(pvpSubmittedAttempt?.score || 0)),
@@ -1069,6 +1069,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       finalRollCount: Math.max(0, Number(pvpSubmittedAttempt?.rollCount || 0)),
       finalHelpfulHits: Math.max(0, Number(pvpSubmittedAttempt?.helpfulHits || 0)),
       finalMistakes: Math.max(0, Number(pvpSubmittedAttempt?.mistakes || 0)),
+      finalGoalSatisfied: Boolean(pvpSubmittedAttempt?.goalSatisfied || false),
       finalStatBreakdown: pvpSubmittedAttempt?.statBreakdown || {},
       finalRelicSnapshot: pvpSubmittedAttempt?.relicSnapshot || null,
       finalRelicSummary: pvpSubmittedAttempt?.summary || '',
@@ -1077,6 +1078,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       bestRollCount: Math.max(0, Number(bestPvpAttempt?.rollCount || 0)),
       bestHelpfulHits: Math.max(0, Number(bestPvpAttempt?.helpfulHits || 0)),
       bestMistakes: Math.max(0, Number(bestPvpAttempt?.mistakes || 0)),
+      bestGoalSatisfied: Boolean(bestPvpAttempt?.goalSatisfied || false),
       bestStatBreakdown: bestPvpAttempt?.statBreakdown || {},
       bestRelicSnapshot: bestPvpAttempt?.relicSnapshot || null,
       bestRelicSummary: bestPvpAttempt?.summary || '',
@@ -2166,14 +2168,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-300 mb-3">
                   {isPvpMode
-                    ? 'You both get the same seed, target relic, and setup tools. Use up to 3 attempts and the best submitted relic score wins.'
+                    ? 'You both get the same seed, target relic, and setup tools. Clear the contract first. If both sides fail the contract, the duel ends in a draw.'
                     : currentContract.goal}
                 </p>
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
                   <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Win Condition</div>
                   <p className="text-[10px] leading-relaxed text-slate-300">
                     {isPvpMode
-                      ? 'Best submitted relic score after 3 attempts wins. Tiebreakers: better helpful hits, then fewer mistakes.'
+                      ? 'If one side clears the contract and the other fails, the clear wins. If both clear, higher score wins. If both fail, the duel is a draw.'
                       : currentContract.win}
                   </p>
                 </div>
@@ -2364,9 +2366,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 <p className="mt-2 text-sm text-slate-300">
                   {pvpRoom?.winnerUserId
                     ? (pvpRoom?.winnerUserId === String(user?.id || '')
-                      ? 'Your best submitted relic outscored the opponent.'
-                      : `${pvpOpponent?.name || 'Opponent'} posted the stronger best attempt.`)
-                    : 'Both sides finished their 3 attempts too close to call, so the duel ended in a draw.'}
+                      ? 'Your submitted relic satisfied the duel rules better than the opponent.'
+                      : `${pvpOpponent?.name || 'Opponent'} satisfied the duel rules better than you did.`)
+                    : 'Neither side cleared the contract, so the duel ended in a draw.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">

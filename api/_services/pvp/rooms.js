@@ -30,9 +30,9 @@ const BOT_RETRY_DELAY_SECONDS = 2;
 const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
-  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 1, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
-  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.25, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.68, strictGoal: true },
-  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 3.5, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.52, strictGoal: true },
+  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
+  veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true },
+  expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true },
 };
 
 function readBody(req) {
@@ -104,6 +104,7 @@ function createPlayerState(name = '') {
     finalRollCount: 0,
     finalHelpfulHits: 0,
     finalMistakes: 0,
+    finalGoalSatisfied: false,
     finalStatBreakdown: {},
     finalRelicSnapshot: null,
     finalRelicSummary: '',
@@ -185,6 +186,51 @@ function getRequiredStatsForScenario(success = {}) {
   return [];
 }
 
+function getScenarioGoalProgress(scenario, breakdown = {}) {
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
+  const requiredStats = getRequiredStatsForScenario(success);
+  const junkStats = Array.isArray(success?.junk) ? success.junk : [];
+  const junkHitCount = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(breakdown?.[stat] || 0)), 0);
+  const requiredHitTotal = requiredStats.reduce((sum, stat) => sum + Math.max(0, Number(breakdown?.[stat] || 0)), 0);
+  const requiredCoverage = requiredStats.reduce((sum, stat) => sum + (Math.max(0, Number(breakdown?.[stat] || 0)) > 0 ? 1 : 0), 0);
+  const targetHits = success?.type === 'monoLine' ? Math.max(0, Number(breakdown?.[success.target] || 0)) : 0;
+  const minCombined = Math.max(0, Number(success?.minCombined || 0) || 0);
+  const minEach = Math.max(1, Number(success?.minEach || 1) || 1);
+  const minHits = Math.max(1, Number(success?.minHits || 1) || 1);
+  const missingRequiredCount = Math.max(0, requiredStats.length - requiredCoverage);
+
+  let missingGoalHits = 0;
+  if (success.type === 'monoLine') {
+    missingGoalHits = Math.max(0, minHits - targetHits);
+  } else if (success.type === 'dualCrit') {
+    missingGoalHits = requiredStats.reduce((sum, stat) => (
+      sum + Math.max(0, minEach - Math.max(0, Number(breakdown?.[stat] || 0)))
+    ), 0);
+  } else if (success.type === 'dualCritCombined') {
+    missingGoalHits = Math.max(0, minCombined - requiredHitTotal);
+  }
+
+  return {
+    requiredStats,
+    junkStats,
+    junkHitCount,
+    requiredHitTotal,
+    requiredCoverage,
+    targetHits,
+    missingRequiredCount,
+    missingGoalHits,
+    goalSatisfied: evaluateScenarioSuccess(scenario, breakdown),
+  };
+}
+
+function getScenarioStatPriority(stat, scenario) {
+  const normalizedStat = String(stat || '');
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
+  const requiredStats = getRequiredStatsForScenario(success);
+  if (requiredStats.includes(normalizedStat)) return 'REQUIRED';
+  return getScenarioStatTier(normalizedStat, scenario);
+}
+
 function getScenarioStatTier(stat, scenario) {
   const tierByStat = scenario?.targetStatGuide?.tierByStat && typeof scenario.targetStatGuide.tierByStat === 'object'
     ? scenario.targetStatGuide.tierByStat
@@ -193,6 +239,8 @@ function getScenarioStatTier(stat, scenario) {
 }
 
 function formatScenarioTierLabel(stat, scenario) {
+  const priority = getScenarioStatPriority(stat, scenario);
+  if (priority === 'REQUIRED') return 'goal';
   const tier = getScenarioStatTier(stat, scenario);
   if (tier === 'S') return 'S-tier';
   if (tier === 'A') return 'A-tier';
@@ -445,32 +493,47 @@ function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
 function getActionCandidateScore(candidateRelic, stat, scenario, profile, config, usedForce, predictor) {
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   const relicScore = scoreRelicWithProfile(candidateRelic, detectRelicScoreProfile(candidateRelic));
+  const candidateBreakdown = [...candidateRelic.lines, candidateRelic.fourthLine].reduce((acc, line) => {
+    acc[line.stat] = Math.max(0, Number(line.hits || 0));
+    return acc;
+  }, {});
+  const goalProgress = getScenarioGoalProgress(scenario, candidateBreakdown);
   const isHelpful = isHelpfulStatForScenario(stat, success);
   const junkStats = Array.isArray(success?.junk) ? success.junk : [];
   const isJunk = junkStats.includes(stat);
   const isNeutral = isNeutralStatForScenario(stat, success);
   const statTier = getScenarioStatTier(stat, scenario);
+  const statPriority = getScenarioStatPriority(stat, scenario);
   let score = relicScore.score * Number(config.scoreWeight || 1);
 
   if (isHelpful) score += config.helpfulBonus || 8;
   if (isJunk) score -= config.junkPenalty || 6;
   if (isNeutral) score -= config.neutralPenalty || 0;
+  if (statPriority === 'REQUIRED') score += (config.helpfulBonus || 8) * 1.85;
   if (statTier === 'S') score += (config.helpfulBonus || 8) * 1.15;
   if (statTier === 'A') score += (config.helpfulBonus || 8) * 0.45;
   if (statTier === 'TRASH') score -= (config.junkPenalty || 6) * 1.35;
   if (statTier === 'NEUTRAL') score -= (config.neutralPenalty || 0) * 0.75;
 
   if (config.strictGoal) {
-    if (statTier === 'S') score += 20;
-    if (statTier === 'A') score += 7;
-    if (statTier === 'NEUTRAL') score -= 6;
-    if (statTier === 'TRASH') score -= 24;
+    if (statPriority === 'REQUIRED') score += 34;
+    if (statTier === 'S' && statPriority !== 'REQUIRED') score += 6;
+    if (statTier === 'A') score += 4;
+    if (statTier === 'NEUTRAL') score -= 10;
+    if (statTier === 'TRASH') score -= 28;
+    score += goalProgress.requiredHitTotal * ((config.helpfulBonus || 8) * 1.45);
+    score += goalProgress.requiredCoverage * ((config.helpfulBonus || 8) * 1.2);
+    score -= goalProgress.missingRequiredCount * ((config.junkPenalty || 6) * 2.2);
+    score -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.85);
+    if (!goalProgress.goalSatisfied) score -= 8;
+    if (goalProgress.goalSatisfied) score += 18;
   }
 
   if (config.scoreBias) {
     if (usedForce && isHelpful) score += config.forceBonus || 3;
     if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
     if (usedForce && isNeutral) score -= 0.5;
+    if (usedForce && statPriority === 'REQUIRED') score += 4;
     if (usedForce && statTier === 'S') score += 1.5;
     if (usedForce && statTier === 'TRASH') score -= 1.5;
   }
@@ -515,8 +578,11 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     if (noiseRisk >= 60 && !usedForce) score -= 1.5;
     if (pairSafety === 'safe' && trustedPair.includes(visibleRoll)) score += 1;
     if (pairSafety === 'danger' && noiseValues.includes(visibleRoll)) score -= 1.25;
-    if (config.strictGoal && noiseRisk >= 60 && (statTier === 'NEUTRAL' || statTier === 'TRASH')) score -= 5;
-    if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') score -= 3;
+    if (config.strictGoal && noiseRisk >= 60 && (statTier === 'NEUTRAL' || statTier === 'TRASH')) score -= 7;
+    if (config.strictGoal && noiseRisk >= 60 && statPriority !== 'REQUIRED') score -= 4;
+    if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') score -= 5;
+    if (config.strictGoal && pairSafety === 'danger' && statPriority !== 'REQUIRED') score -= 5;
+    if (config.strictGoal && pairSafety === 'caution' && statPriority !== 'REQUIRED' && statTier === 'NEUTRAL') score -= 2.5;
   }
 
   return score;
@@ -529,20 +595,20 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
     acc[line.stat] = Number(line.hits || 0);
     return acc;
   }, {});
-  const helpfulHits = success.type === 'monoLine'
-    ? Math.max(0, Number(statBreakdown?.[success.target] || 0))
-    : Array.isArray(success.required)
-      ? success.required.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0)
-      : 0;
-  const junkStats = Array.isArray(success.junk) ? success.junk : [];
-  const junkHits = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0);
-  const requiredCoverage = requiredStats.reduce((sum, stat) => sum + (Number(statBreakdown?.[stat] || 0) > 0 ? 1 : 0), 0);
+  const goalProgress = getScenarioGoalProgress(scenario, statBreakdown);
+  const helpfulHits = goalProgress.requiredHitTotal;
+  const junkHits = goalProgress.junkHitCount;
+  const requiredCoverage = goalProgress.requiredCoverage;
   const neutralHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
     isNeutralStatForScenario(stat, success) ? sum + Math.max(0, Number(count || 0)) : sum
   ), 0);
   const sHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
     getScenarioStatTier(stat, scenario) === 'S' ? sum + Math.max(0, Number(count || 0)) : sum
   ), 0);
+  const requiredSHits = requiredStats.reduce((sum, stat) => (
+    getScenarioStatTier(stat, scenario) === 'S' ? sum + Math.max(0, Number(statBreakdown?.[stat] || 0)) : sum
+  ), 0);
+  const nonRequiredSHits = Math.max(0, sHits - requiredSHits);
   const aHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
     getScenarioStatTier(stat, scenario) === 'A' ? sum + Math.max(0, Number(count || 0)) : sum
   ), 0);
@@ -554,13 +620,16 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
     + helpfulHits * (config.helpfulBonus || 8)
     - junkHits * (config.junkPenalty || 6)
     - neutralHits * (config.neutralPenalty || 0);
-  total += sHits * ((config.helpfulBonus || 8) * 0.9);
+  total += requiredSHits * ((config.helpfulBonus || 8) * 1.35);
+  total += nonRequiredSHits * ((config.helpfulBonus || 8) * 0.35);
   total += aHits * ((config.helpfulBonus || 8) * 0.35);
   total -= trashHits * ((config.junkPenalty || 6) * 0.9);
-  if (requiredCoverage > 0) total += requiredCoverage * ((config.helpfulBonus || 8) * 0.7);
+  if (requiredCoverage > 0) total += requiredCoverage * ((config.helpfulBonus || 8) * 1.35);
   if (requiredCoverage === requiredStats.length && requiredStats.length > 1) total += config.forceBonus || 3;
-  if (evaluateScenarioSuccess(scenario, statBreakdown)) total += 16;
-  if (config.strictGoal && requiredStats.length > 0 && requiredCoverage === 0) total -= 10;
+  total -= goalProgress.missingRequiredCount * ((config.junkPenalty || 6) * 2.1);
+  total -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.65);
+  if (goalProgress.goalSatisfied) total += 24;
+  if (config.strictGoal && requiredStats.length > 0 && requiredCoverage === 0) total -= 16;
   if (config.trendAware) {
     const commons = Array.isArray(profile?.commons) ? profile.commons : [];
     const dominantRoll = String(profile?.dominantRoll || '');
@@ -662,9 +731,12 @@ function compareStatesForWinner(hostState, guestState) {
   const guestSubmitted = String(guestState?.status || '') === 'submitted';
   const hostBusted = String(hostState?.status || '') === 'busted';
   const guestBusted = String(guestState?.status || '') === 'busted';
+  const hostGoal = Boolean(hostState?.finalGoalSatisfied ?? hostState?.goalSatisfied);
+  const guestGoal = Boolean(guestState?.finalGoalSatisfied ?? guestState?.goalSatisfied);
 
-  if (hostSubmitted && guestBusted) return 'host';
-  if (guestSubmitted && hostBusted) return 'guest';
+  if (hostGoal && !guestGoal) return 'host';
+  if (guestGoal && !hostGoal) return 'guest';
+  if (!hostGoal && !guestGoal && ((hostSubmitted || hostBusted) && (guestSubmitted || guestBusted))) return null;
 
   if (hostSubmitted && guestSubmitted) {
     const comparison = compareAttemptPayload({
@@ -672,11 +744,13 @@ function compareStatesForWinner(hostState, guestState) {
       helpfulHits: hostState?.finalHelpfulHits,
       mistakes: hostState?.finalMistakes,
       rollCount: hostState?.finalRollCount,
+      goalSatisfied: hostState?.finalGoalSatisfied ?? hostState?.goalSatisfied,
     }, {
       score: guestState?.finalScore,
       helpfulHits: guestState?.finalHelpfulHits,
       mistakes: guestState?.finalMistakes,
       rollCount: guestState?.finalRollCount,
+      goalSatisfied: guestState?.finalGoalSatisfied ?? guestState?.goalSatisfied,
     });
     if (comparison > 0) return 'host';
     if (comparison < 0) return 'guest';
@@ -851,6 +925,7 @@ function buildBotState(room) {
         finalRollCount: relicScore.rollCount,
         finalHelpfulHits: helpfulHits,
         finalMistakes: mistakes,
+        finalGoalSatisfied: goalSatisfied,
         finalStatBreakdown: statBreakdown,
         finalRelicSnapshot: cloneRelic(currentRelic),
         finalRelicSummary: `Bot submitted try ${attemptsUsed} at +15.`,
@@ -995,6 +1070,7 @@ function normalizePlayerState(input, currentState = {}) {
   next.finalRollCount = Math.max(0, Number(input?.finalRollCount ?? next.finalRollCount ?? 0) || 0);
   next.finalHelpfulHits = Math.max(0, Number(input?.finalHelpfulHits ?? next.finalHelpfulHits ?? 0) || 0);
   next.finalMistakes = Math.max(0, Number(input?.finalMistakes ?? next.finalMistakes ?? 0) || 0);
+  next.finalGoalSatisfied = Boolean(input?.finalGoalSatisfied ?? next.finalGoalSatisfied ?? false);
   next.finalStatBreakdown = input?.finalStatBreakdown && typeof input.finalStatBreakdown === 'object'
     ? Object.entries(input.finalStatBreakdown).reduce((acc, [stat, count]) => {
         acc[String(stat)] = Math.max(0, Number(count) || 0);
