@@ -127,7 +127,7 @@ function createPlayerState(name = '') {
   };
 }
 
-function createBotSessionEntry(rawPair, translated) {
+function createBotSessionEntry(rawPair, translated, extra = {}) {
   return {
     id: `bot-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     raw: String(rawPair || ''),
@@ -137,6 +137,17 @@ function createBotSessionEntry(rawPair, translated) {
     s4: '',
     s5: '',
     time: new Date().toISOString(),
+    attempt: Math.max(1, Number(extra?.attempt || 1) || 1),
+    step: Math.max(1, Number(extra?.step || 1) || 1),
+    carryLine: Number.isInteger(extra?.carryLine) ? extra.carryLine : null,
+    commons: Array.isArray(extra?.commons) ? extra.commons.join('/') : '',
+    noise: Array.isArray(extra?.noise) ? extra.noise.join('/') : '',
+    dominantRoll: String(extra?.dominantRoll || ''),
+    noisePressure: Number.isFinite(Number(extra?.noisePressure)) ? Number(extra.noisePressure) : 0,
+    pairSafety: String(extra?.pairSafety || ''),
+    noiseRisk: Number.isFinite(Number(extra?.noiseRisk)) ? Number(extra.noiseRisk) : 0,
+    trustedPair: Array.isArray(extra?.trustedPair) ? extra.trustedPair.join('/') : '',
+    trendSummary: String(extra?.trendSummary || ''),
   };
 }
 
@@ -346,8 +357,11 @@ function simulateBotSessionBuilder(scenario, options = {}) {
   const targetEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
   let usedActions = 0;
 
-  while (usedActions < actions && ((Array.isArray(profile?.history) ? profile.history.length : 0) < targetEntries)) {
+  while (usedActions < actions && sessionEntries.length < targetEntries) {
     if (!relic.hasFourthLine) {
+      const predictor = config.pairAware
+        ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+        : null;
       relic = {
         ...relic,
         level: 3,
@@ -361,7 +375,19 @@ function simulateBotSessionBuilder(scenario, options = {}) {
       profile = advancePatternProfile(profile, '44');
       carryLine = 4;
       usedActions += 1;
-      sessionEntries.push(createBotSessionEntry('44', '44'));
+      sessionEntries.push(createBotSessionEntry('44', '44', {
+        attempt: attemptNumber,
+        step: usedActions,
+        carryLine,
+        commons: Array.isArray(profile?.commons) ? profile.commons : [],
+        noise: Array.isArray(profile?.noise) ? profile.noise : [],
+        dominantRoll: profile?.dominantRoll || '',
+        noisePressure: profile?.noisePressure ?? 0,
+        pairSafety: predictor?.pairSafety || '',
+        noiseRisk: predictor?.noiseRisk ?? 0,
+        trustedPair: Array.isArray(predictor?.trustedPair) ? predictor.trustedPair : [],
+        trendSummary: buildCompactTrendSummary(predictor),
+      }));
       pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I opened line 4, recorded raw 44, and used it as the first session entry.`);
       continue;
     }
@@ -381,12 +407,27 @@ function simulateBotSessionBuilder(scenario, options = {}) {
     const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
     const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
     const previousLine = carryLine || relic.lastLine || 4;
+    const predictor = config.pairAware
+      ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+      : null;
     const resolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
     relic = applyBotUpgradeToSlot(relic, resolution.targetSlot, resolution.rawPair, visibleRoll);
     profile = advancePatternProfile(profile, visibleRoll);
     carryLine = relic.lastLine || carryLine;
     usedActions += 1;
-    sessionEntries.push(createBotSessionEntry(resolution.rawPair, visibleRoll));
+    sessionEntries.push(createBotSessionEntry(resolution.rawPair, visibleRoll, {
+      attempt: attemptNumber,
+      step: usedActions,
+      carryLine,
+      commons: Array.isArray(profile?.commons) ? profile.commons : [],
+      noise: Array.isArray(profile?.noise) ? profile.noise : [],
+      dominantRoll: profile?.dominantRoll || '',
+      noisePressure: profile?.noisePressure ?? 0,
+      pairSafety: predictor?.pairSafety || '',
+      noiseRisk: predictor?.noiseRisk ?? 0,
+      trustedPair: Array.isArray(predictor?.trustedPair) ? predictor.trustedPair : [],
+      trendSummary: buildCompactTrendSummary(predictor),
+    }));
     pushBotDebug(debugLog, `Try ${attemptNumber}, builder step ${usedActions}: I used the session builder, recorded raw ${resolution.rawPair}, translated it to ${visibleRoll}, and moved my sitting line to L${carryLine || '-'}.`);
   }
 
@@ -572,6 +613,21 @@ function summarizeTrendRead(predictor) {
     .filter(Boolean)
     .join(', ');
   return `Trend check: ${summary}.`;
+}
+
+function buildCompactTrendSummary(predictor) {
+  const trends = predictor?.trends && typeof predictor.trends === 'object' ? predictor.trends : null;
+  if (!trends) return '';
+  return ['41', '42', '43', '44']
+    .map((value) => {
+      const trend = trends[value];
+      if (!trend) return null;
+      const direction = String(trend.direction || 'stable');
+      const trust = Math.round(Number(trend.trustScore || 0) * 100);
+      return `${value}:${direction}/${trust}`;
+    })
+    .filter(Boolean)
+    .join(', ');
 }
 
 function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, shouldForce, forceLine, config, scenario) {
@@ -1186,6 +1242,7 @@ function buildBotState(room) {
     attemptsUsed += 1;
     currentRelic = createBotTargetRelic(scenario);
     currentBuilderRelic = createBotBuilderRelic(scenario);
+    currentSessionEntries = [];
   }
 
   return {
@@ -1268,6 +1325,17 @@ function normalizePlayerState(input, currentState = {}) {
         s4: '',
         s5: '',
         time: String(entry?.time || '').slice(0, 40),
+        attempt: Math.max(1, Number(entry?.attempt || 1) || 1),
+        step: Math.max(1, Number(entry?.step || 1) || 1),
+        carryLine: Number.isInteger(entry?.carryLine) ? entry.carryLine : null,
+        commons: String(entry?.commons || '').slice(0, 20),
+        noise: String(entry?.noise || '').slice(0, 20),
+        dominantRoll: String(entry?.dominantRoll || '').slice(0, 8),
+        noisePressure: Number.isFinite(Number(entry?.noisePressure)) ? Number(entry.noisePressure) : 0,
+        pairSafety: String(entry?.pairSafety || '').slice(0, 16),
+        noiseRisk: Number.isFinite(Number(entry?.noiseRisk)) ? Number(entry.noiseRisk) : 0,
+        trustedPair: String(entry?.trustedPair || '').slice(0, 20),
+        trendSummary: String(entry?.trendSummary || '').slice(0, 120),
       })).slice(-32)
     : (Array.isArray(next.sessionEntries) ? next.sessionEntries.slice(-32) : []);
   next.bestScore = Math.max(0, Number(input?.bestScore ?? next.bestScore ?? 0) || 0);

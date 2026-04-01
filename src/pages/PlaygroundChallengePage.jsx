@@ -1169,6 +1169,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
   const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionEntries) ? pvpOpponent.state.sessionEntries : [];
+  const opponentSessionEntriesNewestFirst = useMemo(
+    () => [...opponentSessionEntries].reverse(),
+    [opponentSessionEntries]
+  );
+  const opponentDebugLogNewestFirst = useMemo(
+    () => [...opponentDebugLog].reverse(),
+    [opponentDebugLog]
+  );
   const activePvpScenario = pvpRoom?.scenario || currentContract;
   const botTraceExport = useMemo(() => JSON.stringify({
     roomCode: pvpRoom?.code || roomCode || null,
@@ -1181,16 +1189,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     targetRelic: activePvpScenario?.targetRelic || null,
     botState: pvpOpponent?.state || null,
     botBestRelic: opponentBestRelicSnapshot || null,
-    botSessionEntries: opponentSessionEntries,
-    botDebugLog: opponentDebugLog,
+    botSessionEntries: opponentSessionEntriesNewestFirst,
+    botDebugLog: opponentDebugLogNewestFirst,
   }, null, 2), [
     activePvpScenario?.seedLabel,
     activePvpScenario?.success,
     activePvpScenario?.targetRelic,
     activePvpScenario?.targetStatGuide,
     opponentBestRelicSnapshot,
-    opponentSessionEntries,
-    opponentDebugLog,
+    opponentSessionEntriesNewestFirst,
+    opponentDebugLogNewestFirst,
     pvpOpponent?.state,
     pvpRoom?.code,
     pvpRoom?.difficulty,
@@ -1331,7 +1339,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       return;
     }
 
-    const hasProgress = relic.level > 0 || relic.hasFourthLine || mistakes > 0;
+    const hasProgress = relic.level > 0
+      || relic.hasFourthLine
+      || mistakes > 0
+      || (currentContract.requiresSessionBuilder && (testRelic.level > 0 || sessionRolls.length > 0));
     if (!hasProgress) return;
 
     setPvpAttempts((current) => [...current, currentPvpAttempt].slice(0, 3));
@@ -1355,10 +1366,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       ...currentContract.forceRelic,
       baseLines: currentContract.forceRelic.baseLines,
     }, { rollTierMode: currentContract?.pvpRollTier || null }));
+    if (currentContract.requiresSessionBuilder) {
+      setSessionRolls([]);
+      setSharedCarryLine(null);
+    }
     setMistakes(0);
     setHintStep(0);
     setHintVisible(false);
-  }, [currentContract, currentPvpAttempt, isPvpMode, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt]);
+  }, [currentContract, currentPvpAttempt, isPvpMode, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt, sessionRolls.length, testRelic.level]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -2080,14 +2095,21 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                         {opponentSessionEntries.length} entries
                       </div>
                     </div>
-                    <div className="max-h-56 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
-                      {opponentSessionEntries.length > 0 ? (
+                    <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                      {opponentSessionEntriesNewestFirst.length > 0 ? (
                         <div className="space-y-2">
-                          {opponentSessionEntries.slice(-12).map((entry, index) => (
-                            <div key={`${entry.id || index}-${entry.raw || index}`} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
-                              <span className="text-slate-400">#{opponentSessionEntries.length - Math.min(12, opponentSessionEntries.length) + index + 1}</span>
-                              <span>{entry.raw || '--'}</span>
-                              <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
+                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
+                            <div key={`${entry.id || index}-${entry.raw || index}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-200">
+                              <div className="flex items-center justify-between gap-3 font-black uppercase tracking-[0.12em]">
+                                <span className="text-slate-400">A{entry.attempt || 1} • #{entry.step || 1}</span>
+                                <span>{entry.raw || '--'}</span>
+                                <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
+                              </div>
+                              <div className="mt-2 grid gap-1 text-[9px] uppercase tracking-[0.1em] text-slate-400">
+                                <div>Carry L{entry.carryLine || '-'} • Commons {entry.commons || '-'} • Noise {entry.noise || '-'}</div>
+                                <div>Dominant {entry.dominantRoll || '-'} • Noise {Number(entry.noisePressure || 0).toFixed(2)} • Eye {entry.trustedPair || '-'} / {entry.pairSafety || '-'}</div>
+                                <div>Risk {entry.noiseRisk || 0}%{entry.trendSummary ? ` • Trends ${entry.trendSummary}` : ''}</div>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -2628,9 +2650,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </div>
                   </div>
                 </div>
-                <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
                   <div className="space-y-2">
-                    {opponentDebugLog.map((entry, index) => (
+                    {opponentDebugLogNewestFirst.map((entry, index) => (
                       <div key={`${index}-${entry.slice(0, 24)}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
                         {entry}
                       </div>
