@@ -1168,7 +1168,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const localBestRelicSnapshot = localPvpState?.finalRelicSnapshot || localPvpState?.bestRelicSnapshot || bestPvpAttempt?.relicSnapshot || null;
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
-  const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionEntries) ? pvpOpponent.state.sessionEntries : [];
+  const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionArchive)
+    ? pvpOpponent.state.sessionArchive
+    : (Array.isArray(pvpOpponent?.state?.sessionEntries) ? pvpOpponent.state.sessionEntries : []);
   const opponentSessionEntriesNewestFirst = useMemo(
     () => [...opponentSessionEntries].reverse(),
     [opponentSessionEntries]
@@ -2106,6 +2108,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                                 <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
                               </div>
                               <div className="mt-2 grid gap-1 text-[9px] uppercase tracking-[0.1em] text-slate-400">
+                                <div>Try {entry.attempt || 1}</div>
                                 <div>Carry L{entry.carryLine || '-'} • Commons {entry.commons || '-'} • Noise {entry.noise || '-'}</div>
                                 <div>Dominant {entry.dominantRoll || '-'} • Noise {Number(entry.noisePressure || 0).toFixed(2)} • Eye {entry.trustedPair || '-'} / {entry.pairSafety || '-'}</div>
                                 <div>Risk {entry.noiseRisk || 0}%{entry.trendSummary ? ` • Trends ${entry.trendSummary}` : ''}</div>

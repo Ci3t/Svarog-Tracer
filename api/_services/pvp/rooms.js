@@ -32,9 +32,9 @@ const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
   intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
-  veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true },
-  expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true },
-  expert_v2: { baseStep: 3, jitter: 1, minScore: 36, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 6, forceBonus: 5, helpfulBonus: 19, junkPenalty: 13, neutralPenalty: 4.5, noisePenalty: 2.5, commonsBonus: 2.4, dominantBonus: 1.6, scoreWeight: 0.45, strictGoal: true },
+  veteran: { baseStep: 4, jitter: 1, minScore: 30, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.5, noisePenalty: 1.75, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.66, strictGoal: true, submitMargin: 3, maxMistakesToSubmit: 1, analysisDelaySteps: 1 },
+  expert: { baseStep: 3, jitter: 1, minScore: 35, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 5, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 4.25, noisePenalty: 2.35, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.48, strictGoal: true, submitMargin: 5, maxMistakesToSubmit: 1, analysisDelaySteps: 1 },
+  expert_v2: { baseStep: 3, jitter: 1, minScore: 36, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 6, forceBonus: 5, helpfulBonus: 19, junkPenalty: 13, neutralPenalty: 4.5, noisePenalty: 2.5, commonsBonus: 2.4, dominantBonus: 1.6, scoreWeight: 0.45, strictGoal: true, submitMargin: 6, maxMistakesToSubmit: 0, analysisDelaySteps: 2 },
 };
 
 function readBody(req) {
@@ -112,6 +112,7 @@ function createPlayerState(name = '') {
     finalRelicSummary: '',
     sessionEntriesBuilt: 0,
     sessionEntries: [],
+    sessionArchive: [],
     botTick: 0,
     bestScore: 0,
     bestGrade: 'F',
@@ -348,6 +349,7 @@ function createScenarioPatternProfile(scenario) {
 }
 
 function simulateBotSessionBuilder(scenario, options = {}) {
+  const config = options?.config || BOT_TIER_CONFIG.beginner;
   let relic = options?.startRelic ? cloneRelic(options.startRelic) : createBotBuilderRelic(scenario);
   let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
   let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
@@ -679,6 +681,8 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
   if (statTier === 'NEUTRAL') score -= (config.neutralPenalty || 0) * 0.75;
 
   if (config.strictGoal) {
+    const monoLineTarget = success.type === 'monoLine' ? String(success.target || '') : '';
+    const monoLineMinHits = Math.max(1, Number(success?.minHits || 1) || 1);
     if (statPriority === 'REQUIRED') score += 34;
     if (statTier === 'S' && statPriority !== 'REQUIRED') score += 6;
     if (statTier === 'A') score += 4;
@@ -690,6 +694,17 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     score -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.85);
     if (!goalProgress.goalSatisfied) score -= 8;
     if (goalProgress.goalSatisfied) score += 18;
+    if (statPriority !== 'REQUIRED' && goalProgress.missingGoalHits > 0) {
+      score -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.2);
+    }
+    if (success.type === 'monoLine' && monoLineTarget) {
+      const targetHits = Math.max(0, Number(candidateBreakdown?.[monoLineTarget] || 0));
+      if (String(stat || '') === monoLineTarget) {
+        score += 16 + (targetHits * 6);
+      } else if (targetHits < monoLineMinHits) {
+        score -= 14 + ((monoLineMinHits - targetHits) * 5);
+      }
+    }
   }
 
   if (config.scoreBias) {
@@ -746,6 +761,9 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') score -= 5;
     if (config.strictGoal && pairSafety === 'danger' && statPriority !== 'REQUIRED') score -= 5;
     if (config.strictGoal && pairSafety === 'caution' && statPriority !== 'REQUIRED' && statTier === 'NEUTRAL') score -= 2.5;
+    if (config.strictGoal && pairSafety === 'danger' && noiseRisk >= 60 && statPriority !== 'REQUIRED') score -= 9;
+    if (config.strictGoal && pairSafety === 'safe' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) score += 5;
+    if (config.strictGoal && pairSafety === 'caution' && statPriority === 'REQUIRED' && trustedPair.includes(visibleRoll)) score += 2.5;
   }
 
   return score;
@@ -779,6 +797,7 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
     getScenarioStatTier(stat, scenario) === 'TRASH' ? sum + Math.max(0, Number(count || 0)) : sum
   ), 0);
   const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
+  const effectiveScore = relicScore.score - (junkHits * MISTAKE_SCORE_PENALTY);
   let total = relicScore.score * Number(config.scoreWeight || 1)
     + helpfulHits * (config.helpfulBonus || 8)
     - junkHits * (config.junkPenalty || 6)
@@ -793,6 +812,11 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
   total -= goalProgress.missingGoalHits * ((config.junkPenalty || 6) * 1.65);
   if (goalProgress.goalSatisfied) total += 24;
   if (config.strictGoal && requiredStats.length > 0 && requiredCoverage === 0) total -= 16;
+  if (config.strictGoal && !goalProgress.goalSatisfied) total -= 10;
+  if (config.strictGoal && success.type === 'monoLine') {
+    const minHits = Math.max(1, Number(success?.minHits || 1) || 1);
+    if (helpfulHits < minHits) total -= (minHits - helpfulHits) * 12;
+  }
   if (config.trendAware) {
     const commons = Array.isArray(profile?.commons) ? profile.commons : [];
     const dominantRoll = String(profile?.dominantRoll || '');
@@ -804,6 +828,8 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
     statBreakdown,
     helpfulHits,
     junkHits,
+    goalProgress,
+    effectiveScore,
     relicScore,
   };
 }
@@ -859,10 +885,26 @@ function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
   if (!attempt) return false;
   if (attemptsUsed >= MAX_RACE_TRIES) return true;
   if (config.strictGoal && !attempt.goalSatisfied) return false;
-  if (attempt.goalSatisfied && attempt.helpfulHits >= config.minHelpful && attempt.score >= config.minScore) return true;
-  if (attempt.grade === 'SSS' || attempt.grade === 'SS') return true;
+  const effectiveScore = Math.max(0, Number(attempt?.score || 0)) - (Math.max(0, Number(attempt?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
+  const submitMargin = Math.max(0, Number(config?.submitMargin || 0) || 0);
+  const maxMistakesToSubmit = Math.max(0, Number(config?.maxMistakesToSubmit ?? 1) || 0);
+  const goalProgress = attempt?.goalProgress && typeof attempt.goalProgress === 'object' ? attempt.goalProgress : null;
+  const perfectGoalCoverage = goalProgress ? goalProgress.missingGoalHits === 0 && goalProgress.missingRequiredCount === 0 : attempt.goalSatisfied;
+  if (
+    attempt.goalSatisfied
+    && attempt.helpfulHits >= config.minHelpful
+    && effectiveScore >= (config.minScore + submitMargin)
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+  ) return true;
+  if (
+    attempt.goalSatisfied
+    && perfectGoalCoverage
+    && attempt.helpfulHits >= (config.minHelpful + 1)
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+  ) return true;
+  if (attempt.goalSatisfied && (attempt.grade === 'SSS' || attempt.grade === 'SS' || attempt.grade === 'SSS+')) return true;
   if (String(config.historyAware || false) === 'true' || config.historyAware) {
-    if (attempt.goalSatisfied && attempt.grade === 'S') return true;
+    if (attempt.goalSatisfied && (attempt.grade === 'S' || attempt.grade === 'S+')) return true;
   }
   return false;
 }
@@ -982,6 +1024,7 @@ function buildBotState(room) {
   let currentRelic = createBotTargetRelic(scenario);
   let currentBuilderRelic = createBotBuilderRelic(scenario);
   let currentSessionEntries = [];
+  let sessionArchive = [];
   let hasTakenAnyAction = false;
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
@@ -1015,8 +1058,13 @@ function buildBotState(room) {
       currentProfile = builderSimulation.profile;
       currentCarryLine = builderSimulation.carryLine;
       currentSessionEntries = builderSimulation.sessionEntries;
+      sessionArchive = [...sessionArchive, ...builderSimulation.sessionEntries].slice(-96);
       hasTakenAnyAction = hasTakenAnyAction || builderSimulation.usedActions > 0;
       remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
+      if (builderSimulation.usedActions > 0 && Number(config?.analysisDelaySteps || 0) > 0) {
+        remainingSeconds = Math.max(0, remainingSeconds - (Number(config.analysisDelaySteps) * config.stepSeconds));
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: after building session data, I paused to read commons, noise, trends, and Svarog eye before touching the target relic.`);
+      }
       actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
 
       if (actionsThisAttempt <= 0) {
@@ -1039,6 +1087,7 @@ function buildBotState(room) {
           submittedAttempts: 0,
           sessionEntriesBuilt: builtEntries,
           sessionEntries: currentSessionEntries,
+          sessionArchive,
           botTick: nextBotTick,
           bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
           bestGrade: String(bestAttempt?.grade || 'F'),
@@ -1080,6 +1129,7 @@ function buildBotState(room) {
     const junkStats = Array.isArray(success.junk) ? success.junk : [];
     const mistakes = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0);
     const goalSatisfied = evaluateScenarioSuccess(scenario, statBreakdown);
+    const goalProgress = getScenarioGoalProgress(scenario, statBreakdown);
     const relicScore = scoreRelicWithProfile(currentRelic, detectRelicScoreProfile(currentRelic));
     const attempt = {
       score: relicScore.score,
@@ -1089,6 +1139,7 @@ function buildBotState(room) {
       rollCount: relicScore.rollCount,
       statBreakdown,
       goalSatisfied,
+      goalProgress,
       relicSnapshot: cloneRelic(currentRelic),
       relicSummary: currentRelic.level >= 15
         ? `Bot finished try ${attemptsUsed} at +15.`
@@ -1119,6 +1170,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        sessionArchive,
         botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
@@ -1156,6 +1208,7 @@ function buildBotState(room) {
         submittedAttempts: 1,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        sessionArchive,
         botTick: nextBotTick,
         finalScore: relicScore.score,
         finalGrade: relicScore.grade,
@@ -1200,6 +1253,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        sessionArchive,
         botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
@@ -1235,6 +1289,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        sessionArchive,
         botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
@@ -1267,6 +1322,7 @@ function buildBotState(room) {
     tries: hasTakenAnyAction ? attemptsUsed : 1,
     sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
     sessionEntries: currentSessionEntries,
+    sessionArchive,
     botTick: nextBotTick,
     bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
     bestGrade: String(bestAttempt?.grade || 'F'),
@@ -1353,6 +1409,29 @@ function normalizePlayerState(input, currentState = {}) {
         trendSummary: String(entry?.trendSummary || '').slice(0, 120),
       })).slice(-32)
     : (Array.isArray(next.sessionEntries) ? next.sessionEntries.slice(-32) : []);
+  next.sessionArchive = Array.isArray(input?.sessionArchive)
+    ? input.sessionArchive.map((entry, index) => ({
+        id: String(entry?.id || `session-archive-${index}`).slice(0, 80),
+        raw: String(entry?.raw || '').slice(0, 8),
+        translated: String(entry?.translated || '').slice(0, 8),
+        s2: String(entry?.s2 || entry?.translated || '').slice(0, 8),
+        s3: '',
+        s4: '',
+        s5: '',
+        time: String(entry?.time || '').slice(0, 40),
+        attempt: Math.max(1, Number(entry?.attempt || 1) || 1),
+        step: Math.max(1, Number(entry?.step || 1) || 1),
+        carryLine: Number.isInteger(entry?.carryLine) ? entry.carryLine : null,
+        commons: String(entry?.commons || '').slice(0, 20),
+        noise: String(entry?.noise || '').slice(0, 20),
+        dominantRoll: String(entry?.dominantRoll || '').slice(0, 8),
+        noisePressure: Number.isFinite(Number(entry?.noisePressure)) ? Number(entry.noisePressure) : 0,
+        pairSafety: String(entry?.pairSafety || '').slice(0, 16),
+        noiseRisk: Number.isFinite(Number(entry?.noiseRisk)) ? Number(entry.noiseRisk) : 0,
+        trustedPair: String(entry?.trustedPair || '').slice(0, 20),
+        trendSummary: String(entry?.trendSummary || '').slice(0, 120),
+      })).slice(-96)
+    : (Array.isArray(next.sessionArchive) ? next.sessionArchive.slice(-96) : []);
   next.botTick = Math.max(0, Number(input?.botTick ?? next.botTick ?? 0) || 0);
   next.bestScore = Math.max(0, Number(input?.bestScore ?? next.bestScore ?? 0) || 0);
   next.bestGrade = String(input?.bestGrade || next.bestGrade || 'F').slice(0, 12);
@@ -1394,7 +1473,13 @@ async function patchRoom(code, patch) {
 async function syncBotRoomIfNeeded(room) {
   if (!room || !isDevBotUserId(room.guest_user_id)) return room;
 
-  const nextGuestState = buildBotState(room);
+  let nextGuestState = null;
+  try {
+    nextGuestState = buildBotState(room);
+  } catch (error) {
+    console.error(`[PvP Bot ${room.code || 'unknown'}] sync failed`, error);
+    return room;
+  }
   if (!nextGuestState) return room;
 
   const currentGuestState = room.guest_state && typeof room.guest_state === 'object' ? room.guest_state : {};
