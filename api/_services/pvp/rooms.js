@@ -460,6 +460,13 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
   if (statTier === 'TRASH') score -= (config.junkPenalty || 6) * 1.35;
   if (statTier === 'NEUTRAL') score -= (config.neutralPenalty || 0) * 0.75;
 
+  if (config.strictGoal) {
+    if (statTier === 'S') score += 20;
+    if (statTier === 'A') score += 7;
+    if (statTier === 'NEUTRAL') score -= 6;
+    if (statTier === 'TRASH') score -= 24;
+  }
+
   if (config.scoreBias) {
     if (usedForce && isHelpful) score += config.forceBonus || 3;
     if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
@@ -508,6 +515,8 @@ function getActionCandidateScore(candidateRelic, stat, scenario, profile, config
     if (noiseRisk >= 60 && !usedForce) score -= 1.5;
     if (pairSafety === 'safe' && trustedPair.includes(visibleRoll)) score += 1;
     if (pairSafety === 'danger' && noiseValues.includes(visibleRoll)) score -= 1.25;
+    if (config.strictGoal && noiseRisk >= 60 && (statTier === 'NEUTRAL' || statTier === 'TRASH')) score -= 5;
+    if (config.strictGoal && pairSafety === 'danger' && statTier !== 'S') score -= 3;
   }
 
   return score;
@@ -627,6 +636,10 @@ function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
 }
 
 function compareAttemptPayload(left = {}, right = {}) {
+  const leftGoal = Boolean(left?.goalSatisfied);
+  const rightGoal = Boolean(right?.goalSatisfied);
+  if (leftGoal !== rightGoal) return leftGoal ? 1 : -1;
+
   const leftScore = Math.max(0, Number(left?.score || 0));
   const rightScore = Math.max(0, Number(right?.score || 0));
   if (leftScore !== rightScore) return leftScore - rightScore;

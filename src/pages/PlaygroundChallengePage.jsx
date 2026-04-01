@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import {
   ArrowLeft,
+  Copy,
   Lightbulb,
   RefreshCw,
   Target,
@@ -331,10 +332,41 @@ function getHelpfulHitsForContract(hitMap, success) {
   return 0;
 }
 
+function evaluateContractSuccess(hitMap, success) {
+  if (!success || typeof success !== 'object') return false;
+  const junkHitCount = Array.isArray(success.junk)
+    ? success.junk.reduce((sum, stat) => sum + Math.max(0, Number(hitMap?.[stat] || 0)), 0)
+    : 0;
+  const passedJunkGate = typeof success.maxJunk === 'number' ? junkHitCount <= success.maxJunk : true;
+
+  if (success.type === 'monoLine') {
+    return Math.max(0, Number(hitMap?.[success.target] || 0)) >= (success.minHits || 1) && passedJunkGate;
+  }
+
+  if (success.type === 'dualCrit') {
+    const requiredStats = Array.isArray(success.required) && success.required.length >= 2
+      ? success.required.slice(0, 2)
+      : [];
+    if (requiredStats.length < 2) return false;
+    return requiredStats.every((stat) => Math.max(0, Number(hitMap?.[stat] || 0)) >= (success.minEach || 1)) && passedJunkGate;
+  }
+
+  if (success.type === 'dualCritCombined') {
+    const requiredStats = Array.isArray(success.required) && success.required.length >= 2
+      ? success.required.slice(0, 2)
+      : [];
+    const combinedHits = requiredStats.reduce((sum, stat) => sum + Math.max(0, Number(hitMap?.[stat] || 0)), 0);
+    return combinedHits >= (success.minCombined || 2) && passedJunkGate;
+  }
+
+  return false;
+}
+
 function comparePvpAttempts(left = null, right = null) {
   if (!left && !right) return 0;
   if (!left) return -1;
   if (!right) return 1;
+  if (Boolean(left.goalSatisfied) !== Boolean(right.goalSatisfied)) return left.goalSatisfied ? 1 : -1;
   if ((left.score || 0) !== (right.score || 0)) return (left.score || 0) - (right.score || 0);
   if ((left.helpfulHits || 0) !== (right.helpfulHits || 0)) return (left.helpfulHits || 0) - (right.helpfulHits || 0);
   if ((left.mistakes || 0) !== (right.mistakes || 0)) return (right.mistakes || 0) - (left.mistakes || 0);
@@ -807,6 +839,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [pvpAttemptsUsed, setPvpAttemptsUsed] = useState(1);
   const [pvpSubmittedAttempt, setPvpSubmittedAttempt] = useState(null);
   const [pvpBusted, setPvpBusted] = useState(false);
+  const [copiedBotTrace, setCopiedBotTrace] = useState(false);
   const currentContract = useMemo(
     () => generatedScenario || getChallengeContract(currentContractId),
     [currentContractId, generatedScenario]
@@ -871,10 +904,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     rollCount: relicScore.rollCount,
     helpfulHits,
     mistakes,
+    goalSatisfied: evaluateContractSuccess(lineHitsByStat, currentContract.success),
     statBreakdown: lineHitsByStat,
     relicSnapshot: JSON.parse(JSON.stringify(relic)),
     summary: `${relic.setName || 'Relic'} ${relic.pieceLabel || ''} | ${relicScore.grade} ${relicScore.score}`,
-  }), [helpfulHits, lineHitsByStat, mistakes, relic, relic.pieceLabel, relic.setName, relicScore.grade, relicScore.rollCount, relicScore.score]);
+  }), [currentContract.success, helpfulHits, lineHitsByStat, mistakes, relic, relic.pieceLabel, relic.setName, relicScore.grade, relicScore.rollCount, relicScore.score]);
   const bestPvpAttempt = useMemo(
     () => pvpAttempts.reduce((best, attempt) => (comparePvpAttempts(attempt, best) > 0 ? attempt : best), null),
     [pvpAttempts]
@@ -1089,6 +1123,33 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const localBestRelicSnapshot = localPvpState?.finalRelicSnapshot || localPvpState?.bestRelicSnapshot || bestPvpAttempt?.relicSnapshot || null;
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
+  const activePvpScenario = pvpRoom?.scenario || currentContract;
+  const botTraceExport = useMemo(() => JSON.stringify({
+    roomCode: pvpRoom?.code || roomCode || null,
+    tier: pvpRoom?.tier || null,
+    difficulty: pvpRoom?.difficulty || null,
+    seedLabel: pvpRoom?.seedLabel || activePvpScenario?.seedLabel || null,
+    targetSet: activePvpScenario?.targetRelic?.setName || activePvpScenario?.targetRelic?.setNameHint || null,
+    targetStatGuide: activePvpScenario?.targetStatGuide || null,
+    success: activePvpScenario?.success || null,
+    targetRelic: activePvpScenario?.targetRelic || null,
+    botState: pvpOpponent?.state || null,
+    botBestRelic: opponentBestRelicSnapshot || null,
+    botDebugLog: opponentDebugLog,
+  }, null, 2), [
+    activePvpScenario?.seedLabel,
+    activePvpScenario?.success,
+    activePvpScenario?.targetRelic,
+    activePvpScenario?.targetStatGuide,
+    opponentBestRelicSnapshot,
+    opponentDebugLog,
+    pvpOpponent?.state,
+    pvpRoom?.code,
+    pvpRoom?.difficulty,
+    pvpRoom?.seedLabel,
+    pvpRoom?.tier,
+    roomCode,
+  ]);
 
   const pushPvpFeed = useCallback((tone, text) => {
     setPvpFeed((current) => {
@@ -1100,6 +1161,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       return [entry, ...current].slice(0, 8);
     });
   }, []);
+
+  const handleCopyBotTrace = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(botTraceExport);
+      setCopiedBotTrace(true);
+      window.setTimeout(() => setCopiedBotTrace(false), 1400);
+    } catch {
+      setCopiedBotTrace(false);
+    }
+  }, [botTraceExport]);
 
   const fetchPvpRoom = useCallback(async ({ silent = false } = {}) => {
     if (!isPvpMode || !roomCode) return null;
@@ -2415,8 +2486,18 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200">Bot Decision Trace</div>
                     <div className="mt-1 text-sm text-slate-300">Expert debug log of what the bot looked at and why it moved.</div>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
-                    {opponentDebugLog.length} steps
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyBotTrace}
+                      className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100 transition hover:bg-violet-500/20"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copiedBotTrace ? 'Copied' : 'Copy Trace'}
+                    </button>
+                    <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
+                      {opponentDebugLog.length} steps
+                    </div>
                   </div>
                 </div>
                 <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
