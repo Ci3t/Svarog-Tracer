@@ -689,8 +689,8 @@ function evaluateBuilderReadVerdict(scenario, profile, carryLine, config, sessio
   const carryLineGood = desiredCarryLines.includes(Number(carryLine || 0));
   const minEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
   const confidenceScore = [trustedResolved, pairSafety !== 'danger', !noiseDominates].filter(Boolean).length;
-  const shouldCommit = sessionEntriesCount >= minEntries && trustedResolved && pairSafety !== 'danger' && !noiseDominates && carryLineGood;
-  const shouldAbort = sessionEntriesCount >= minEntries && confidenceScore <= 1;
+  const shouldCommit = sessionEntriesCount >= minEntries && trustedResolved && pairSafety !== 'danger' && !noiseDominates;
+  const shouldAbort = sessionEntriesCount >= minEntries && !trustedResolved && noiseDominates;
   const shouldKeepBuilding = !shouldCommit && !shouldAbort;
   return {
     predictor,
@@ -1061,13 +1061,19 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
   return bestScore;
 }
 
-function shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling = null) {
+function shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling = null, scenario = null) {
   if (!attempt) return false;
   if (config.strictGoal && !attempt.goalSatisfied) return false;
   const effectiveScore = Math.max(0, Number(attempt?.score || 0)) - (Math.max(0, Number(attempt?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
   const submitMargin = Math.max(0, Number(config?.submitMargin || 0) || 0);
   const ceilingMargin = Math.max(0, Number(config?.ceilingMargin || 0) || 0);
   const maxMistakesToSubmit = Math.max(0, Number(config?.maxMistakesToSubmit ?? 1) || 0);
+  const scenarioMaxJunk = typeof scenario?.success?.maxJunk === 'number'
+    ? Math.max(0, Number(scenario.success.maxJunk) || 0)
+    : null;
+  const allowedMistakes = scenarioMaxJunk === null
+    ? maxMistakesToSubmit
+    : Math.max(maxMistakesToSubmit, scenarioMaxJunk);
   const goalProgress = attempt?.goalProgress && typeof attempt.goalProgress === 'object' ? attempt.goalProgress : null;
   const perfectGoalCoverage = goalProgress ? goalProgress.missingGoalHits === 0 && goalProgress.missingRequiredCount === 0 : attempt.goalSatisfied;
   const decisionTotal = Number(attempt?.decisionTotal || 0);
@@ -1076,18 +1082,24 @@ function shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling = nu
     attempt.goalSatisfied
     && attempt.helpfulHits >= config.minHelpful
     && effectiveScore >= (config.minScore + submitMargin)
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
   ) return true;
   if (
     attempt.goalSatisfied
     && closeToCeiling
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
   ) return true;
   if (
     attempt.goalSatisfied
     && perfectGoalCoverage
     && attempt.helpfulHits >= (config.minHelpful + 1)
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= maxMistakesToSubmit
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
+  ) return true;
+  if (
+    attempt.goalSatisfied
+    && attemptsUsed < MAX_RACE_TRIES
+    && (attempt.grade === 'A' || attempt.grade === 'A+' || attempt.grade === 'S' || attempt.grade === 'S+' || attempt.grade === 'SS' || attempt.grade === 'SS+' || attempt.grade === 'SSS' || attempt.grade === 'SSS+')
+    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
   ) return true;
   if (attempt.goalSatisfied && (attempt.grade === 'SSS' || attempt.grade === 'SS' || attempt.grade === 'SSS+')) return true;
   if (String(config.historyAware || false) === 'true' || config.historyAware) {
@@ -1385,9 +1397,16 @@ function buildBotState(room) {
       const softCommitAllowed = (
         currentSessionEntries.length >= maxBuilderEntries
         && builderVerdict.trustedResolved
-        && builderVerdict.pairSafety === 'caution'
+        && (builderVerdict.pairSafety === 'caution' || (attemptsUsed >= MAX_RACE_TRIES && builderVerdict.pairSafety === 'danger'))
         && !builderVerdict.noiseDominates
         && (builderVerdict.carryLineGood || attemptsUsed >= MAX_RACE_TRIES)
+      );
+      const riskyLastTryCommitAllowed = (
+        attemptsUsed >= MAX_RACE_TRIES
+        && currentSessionEntries.length >= maxBuilderEntries
+        && builderVerdict.trustedResolved
+        && builderVerdict.carryLineGood
+        && !builderVerdict.noiseDominates
       );
       if (!builderVerdict.shouldCommit && softCommitAllowed) {
         pushBotDebug(debugLog, `Try ${attemptsUsed}: the builder read never became perfect, but it is trusted enough to commit with a caution-grade read instead of burning the entire try.`);
@@ -1397,18 +1416,37 @@ function buildBotState(room) {
           shouldAbort: false,
           shouldKeepBuilding: false,
         };
+      } else if (!builderVerdict.shouldCommit && riskyLastTryCommitAllowed) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: this is the last try and the builder read is still risky, but trusted with the correct carry line, so I am committing instead of auto-busting the room.`);
+        builderVerdict = {
+          ...builderVerdict,
+          shouldCommit: true,
+          shouldAbort: false,
+          shouldKeepBuilding: false,
+        };
       }
 
-      if (builderVerdict.shouldAbort && attemptsUsed < MAX_RACE_TRIES) {
-        pushBotDebug(debugLog, `Try ${attemptsUsed}: builder verdict says abort. The read is not trustworthy enough, so I am resetting before touching the target relic.`);
-        remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
-        attemptsUsed += 1;
-        currentRelic = createBotTargetRelic(scenario);
-        currentBuilderRelic = createBotBuilderRelic(scenario);
-        currentSessionEntries = [];
-        currentCarryLine = null;
-        currentPhase = 'building_read';
-        continue;
+      if (builderVerdict.shouldAbort) {
+        if (attemptsUsed < MAX_RACE_TRIES) {
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: builder verdict says abort. The read is not trustworthy enough, so I am resetting before touching the target relic.`);
+          remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+          attemptsUsed += 1;
+          currentRelic = createBotTargetRelic(scenario);
+          currentBuilderRelic = createBotBuilderRelic(scenario);
+          currentSessionEntries = [];
+          currentCarryLine = null;
+          currentPhase = 'building_read';
+          continue;
+        }
+        if (bestAttempt) {
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: final builder verdict says abort, so I am locking the best earlier attempt instead of waiting forever on a dead read.`);
+          return buildSubmittedStateFromAttempt(
+            bestAttempt,
+            `Bot locked its best earlier attempt from try ${bestAttempt?.attemptNumber || '?'}.`
+          );
+        }
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: final builder verdict says abort and there is no earlier attempt worth locking, so the bot busts now.`);
+        return buildBustedState(null, `Bot busted because the final builder verdict never became safe enough to allow target play.`);
       }
 
       if (!builderVerdict.shouldCommit) {
@@ -1434,13 +1472,24 @@ function buildBotState(room) {
           pushBotDebug(debugLog, `Try ${attemptsUsed}: final builder read never became trustworthy and there is no prior attempt worth submitting.`);
           return buildBustedState(null, `Bot busted because the final builder read never became trustworthy enough to enter target play.`);
         }
+        if (attemptsUsed >= MAX_RACE_TRIES && actionsThisAttempt <= 0) {
+          if (bestAttempt) {
+            pushBotDebug(debugLog, `Try ${attemptsUsed}: final try ran out of builder budget without a commit-worthy read, so I am locking the best earlier attempt instead of staying idle.`);
+            return buildSubmittedStateFromAttempt(
+              bestAttempt,
+              `Bot locked its best earlier attempt from try ${bestAttempt?.attemptNumber || '?'}.`
+            );
+          }
+          pushBotDebug(debugLog, `Try ${attemptsUsed}: final try ran out of builder budget without a commit-worthy read, so the bot busts instead of idling.`);
+          return buildBustedState(null, `Bot busted because the final try never produced a commit-worthy builder read.`);
+        }
         const builtEntries = Math.max(currentSessionEntries.length, sessionArchive.length);
         pushBotDebug(debugLog, `Try ${attemptsUsed}: I am still investigating the session and will not touch the target relic yet.`);
         return {
           ...createPlayerState(room.guest_name || 'Svarog Bot'),
           status: 'attempting',
           phase: currentPhase,
-          currentLevel: currentBuilderRelic.level,
+          currentLevel: currentRelic.level,
           helpfulHits: 0,
           hp: 100,
           tries: attemptsUsed,
@@ -1581,7 +1630,7 @@ function buildBotState(room) {
       return buildBustedState(attempt, `Bot busted after failing to find any submission-worthy relic across ${MAX_RACE_TRIES} tries.`);
     }
 
-    if (shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling)) {
+    if (shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling, scenario)) {
       pushBotDebug(debugLog, `Try ${attemptsUsed}: submitted. Reason => score ${attempt.score}, grade ${attempt.grade}, helpful ${attempt.helpfulHits}, goal=${attempt.goalSatisfied ? 'yes' : 'no'}.`);
       return buildSubmittedStateFromAttempt(attempt, `Bot submitted its final relic on try ${attemptsUsed}.`);
     }
@@ -1637,7 +1686,7 @@ function buildBotState(room) {
     ...createPlayerState(room.guest_name || 'Svarog Bot'),
     status: hasTakenAnyAction ? 'attempting' : 'ready',
     phase: currentPhase,
-    currentLevel: hasTakenAnyAction ? (currentRelic.level || (scenario?.requiresSessionBuilder ? currentBuilderRelic.level : 0)) : 0,
+    currentLevel: hasTakenAnyAction ? currentRelic.level : 0,
     attemptsUsed: hasTakenAnyAction ? attemptsUsed : 0,
     tries: hasTakenAnyAction ? attemptsUsed : 1,
     sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
