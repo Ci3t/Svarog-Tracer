@@ -452,12 +452,16 @@ function simulateBotSessionBuilder(scenario, options = {}) {
 
 function simulateBotTargetRelic(scenario, totalActions, options = {}) {
   const config = options?.config || BOT_TIER_CONFIG.beginner;
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   let relic = options?.startRelic ? cloneRelic(options.startRelic) : createBotTargetRelic(scenario);
   let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
   let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
+  let builderRelic = options?.startBuilderRelic ? cloneRelic(options.startBuilderRelic) : createBotBuilderRelic(scenario);
+  let sessionEntries = Array.isArray(options?.sessionEntries) ? options.sessionEntries.map((entry) => ({ ...entry })) : [];
+  const initialSessionEntryCount = sessionEntries.length;
   const debugLog = Array.isArray(options?.debugLog) ? options.debugLog : null;
   const attemptNumber = Number(options?.attemptNumber || 1);
-  const actions = Math.max(0, Math.min(5, Number(totalActions) || 0));
+  const actions = Math.max(0, Number(totalActions) || 0);
 
   for (let index = 0; index < actions; index += 1) {
     if (!relic.hasFourthLine) {
@@ -479,11 +483,44 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
     const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
     const previousLine = carryLine || relic.lastLine || 4;
+    const monoReachability = success.type === 'monoLine'
+      ? getMonoReachabilityForVisibleRoll(relic, scenario, visibleRoll, previousLine)
+      : null;
+    if (
+      scenario?.requiresSessionBuilder
+      && success.type === 'monoLine'
+      && monoReachability
+      && !monoReachability.reachable
+    ) {
+      pushBotDebug(
+        debugLog,
+        `Try ${attemptNumber}, step ${index + 1}: visible roll ${visibleRoll} cannot reach the mono target on slot ${monoReachability.targetSlot} from line ${previousLine}, so I am burning this roll on the builder relic to advance the seed and carry line.`
+      );
+      const builderSimulation = simulateBotSessionBuilder(scenario, {
+        startRelic: builderRelic,
+        startProfile: profile,
+        startCarryLine: carryLine,
+        sessionEntries,
+        stepOffset: sessionEntries.length,
+        targetEntries: sessionEntries.length + 1,
+        config,
+        debugLog,
+        attemptNumber,
+        actions: 1,
+      });
+      if (builderSimulation.usedActions > 0) {
+        builderRelic = builderSimulation.relic;
+        profile = builderSimulation.profile;
+        carryLine = builderSimulation.carryLine;
+        sessionEntries = builderSimulation.sessionEntries;
+      }
+      continue;
+    }
     const predictor = config.pairAware
       ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
       : null;
     const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
-    const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
+    const defaultStat = getRelicStatBySlot(relic, defaultResolution.targetSlot);
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
     const nextProfile = advancePatternProfile(profile, visibleRoll);
     const currentAssessment = evaluateBotRelicState(relic, scenario, profile, config);
@@ -491,20 +528,33 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const defaultFuture = config.searchDepth > 0
       ? searchBestBotFuture(defaultCandidate, nextProfile, defaultCandidate.lastLine || null, scenario, config, config.searchDepth)
       : defaultImmediate.totalScore;
-    const defaultChoiceScore = defaultImmediate.totalScore * 0.4 + defaultFuture * 0.6;
-    const forceLineCandidates = getBotForceLineCandidates(relic, scenario);
+    const defaultMonoNextBonus = success.type === 'monoLine'
+      ? getMonoNextStepPositionScore(defaultCandidate, nextProfile, scenario)
+      : 0;
+    const defaultChoiceScore = defaultImmediate.totalScore * 0.4 + defaultFuture * 0.6 + defaultMonoNextBonus;
+    const forceLineCandidates = getBotForceLineCandidates(relic, scenario, visibleRoll);
+    const allForcedOptions = [];
     let preferredForcedOption = null;
     let chosenForcedOption = null;
 
     forceLineCandidates.forEach((forceLine) => {
       const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
-      const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
+      if (
+        forcedResolution?.rawPair === defaultResolution?.rawPair
+        && Number(forcedResolution?.targetSlot || 0) === Number(defaultResolution?.targetSlot || 0)
+      ) {
+        return;
+      }
+      const forcedStat = getRelicStatBySlot(relic, forcedResolution.targetSlot);
       const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
       const forcedImmediate = getActionCandidateScore(forcedCandidate, forcedStat, scenario, profile, config, true, predictor);
       const forcedFuture = config.searchDepth > 0
         ? searchBestBotFuture(forcedCandidate, nextProfile, forcedCandidate.lastLine || null, scenario, config, config.searchDepth)
         : forcedImmediate.totalScore;
-      const forcedChoiceScore = forcedImmediate.totalScore * 0.4 + forcedFuture * 0.6;
+      const forcedMonoNextBonus = success.type === 'monoLine'
+        ? getMonoNextStepPositionScore(forcedCandidate, nextProfile, scenario)
+        : 0;
+      const forcedChoiceScore = forcedImmediate.totalScore * 0.4 + forcedFuture * 0.6 + forcedMonoNextBonus;
       const forceDecision = decideForceRoute({
         defaultEval: { ...defaultImmediate, totalScore: defaultChoiceScore },
         forcedEval: { ...forcedImmediate, totalScore: forcedChoiceScore },
@@ -524,6 +574,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
         forcedChoiceScore,
         forceDecision,
       };
+      allForcedOptions.push(option);
       if (!preferredForcedOption || forcedChoiceScore > preferredForcedOption.forcedChoiceScore) {
         preferredForcedOption = option;
       }
@@ -536,15 +587,20 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const shouldForce = Boolean(chosenForcedOption);
     const comparedForcedStat = comparedForcedOption?.forcedStat || '';
     const comparedForcedScore = comparedForcedOption?.forcedChoiceScore ?? defaultChoiceScore;
-    const comparedForceLine = comparedForcedOption?.forceLine ?? getBotForceLineCandidates(relic, scenario)[0] ?? 2;
+    const comparedForceLine = comparedForcedOption?.forceLine ?? getBotForceLineCandidates(relic, scenario, visibleRoll)[0] ?? 2;
     const decisionReason = comparedForcedOption?.forceDecision?.reason || 'no useful force route beat the default line.';
 
     pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
+    pushBotDebug(debugLog, summarizeVisibleRollLineHelper(visibleRoll));
     pushBotDebug(debugLog, summarizeRecentHistory(profile));
     pushBotDebug(debugLog, `My own board read said commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, dominant roll ${String(profile?.dominantRoll || 'none')}, and noise pressure ${Number(profile?.noisePressure || 0).toFixed(2)}.`);
     pushBotDebug(debugLog, summarizePredictor(predictor));
     pushBotDebug(debugLog, summarizeTrendRead(predictor));
+    pushBotDebug(debugLog, summarizeForceCandidateOptions(allForcedOptions, scenario));
     pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, comparedForcedStat, comparedForcedScore, shouldForce, comparedForceLine, config, scenario));
+    if (shouldForce && chosenForcedOption?.forcedResolution?.rawPair) {
+      pushBotDebug(debugLog, summarizeChosenForceRoute(chosenForcedOption, visibleRoll, scenario));
+    }
     pushBotDebug(debugLog, `Decision note: ${decisionReason}`);
 
     relic = shouldForce ? chosenForcedOption.forcedCandidate : defaultCandidate;
@@ -562,6 +618,9 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     statBreakdown,
     profile,
     carryLine,
+    builderRelic,
+    sessionEntries,
+    newSessionEntries: sessionEntries.slice(initialSessionEntryCount).slice(-32),
     usedActions: actions,
   };
 }
@@ -708,7 +767,67 @@ function getMonoTargetSlotForRelic(relic, scenario) {
   return lines.find((line) => String(line?.stat || '') === targetStat)?.slot || null;
 }
 
-function getBotForceLineCandidates(relic, scenario) {
+function getRelicStatBySlot(relic, slot) {
+  const lines = [...(Array.isArray(relic?.lines) ? relic.lines : []), relic?.fourthLine].filter(Boolean);
+  return lines.find((line) => Number(line?.slot || 0) === Number(slot || 0))?.stat || '';
+}
+
+function getVisibleRollLineHelper(visibleRoll) {
+  const normalizedRoll = String(visibleRoll || '');
+  if (!/^4[1-4]$/.test(normalizedRoll)) return [];
+  const entries = [];
+  for (let previousLine = 1; previousLine <= 4; previousLine += 1) {
+    const resolution = resolveNextSlotFromVisibleRoll(previousLine, normalizedRoll);
+    if (resolution?.targetSlot) {
+      entries.push({
+        previousLine,
+        targetSlot: resolution.targetSlot,
+        rawPair: resolution.rawPair,
+      });
+    }
+  }
+  return entries;
+}
+
+function summarizeVisibleRollLineHelper(visibleRoll) {
+  const entries = getVisibleRollLineHelper(visibleRoll);
+  if (!entries.length) return `Line helper had no valid mapping for visible roll ${String(visibleRoll || 'unknown')}.`;
+  const summary = entries
+    .map((entry) => `L${entry.targetSlot}<=${entry.rawPair}`)
+    .join(', ');
+  return `Line helper for ${visibleRoll}: ${summary}.`;
+}
+
+function summarizeForceCandidateOptions(options = [], scenario) {
+  if (!Array.isArray(options) || !options.length) {
+    return 'I had no usable force-line options on this move.';
+  }
+  const summary = options
+    .map((option) => (
+      `F${option.forceLine}->${option.forcedStat || 'unknown'} `
+      + `[${formatScenarioTierLabel(option.forcedStat, scenario)}] `
+      + `via ${option.forcedResolution?.rawPair || '--'} `
+      + `(${Number(option.forcedChoiceScore || 0).toFixed(2)})`
+    ))
+    .join(' | ');
+  return `I compared these force-line routes: ${summary}.`;
+}
+
+function summarizeChosenForceRoute(option, visibleRoll, scenario) {
+  if (!option?.forcedResolution?.rawPair) return '';
+  const tierLabel = formatScenarioTierLabel(option.forcedStat, scenario);
+  return `For visible roll ${visibleRoll}, I forced line ${option.forceLine}. That creates raw pair ${option.forcedResolution.rawPair}, which lands on slot ${option.forcedResolution.targetSlot} for ${option.forcedStat || 'unknown'} [${tierLabel}].`;
+}
+
+function getCarryLinesThatResolveToTargetSlot(visibleRoll, targetSlot) {
+  const normalizedTargetSlot = Math.max(1, Math.min(4, Number(targetSlot || 0) || 0));
+  if (normalizedTargetSlot <= 0) return [];
+  return getVisibleRollLineHelper(visibleRoll)
+    .filter((entry) => entry.targetSlot === normalizedTargetSlot)
+    .map((entry) => entry.previousLine);
+}
+
+function getBotForceLineCandidates(relic, scenario, visibleRoll = '') {
   if (!relic?.hasFourthLine) return [];
   const configuredForceLine = Math.min(
     Math.max(2, (Math.max(1, Math.min(3, Number(scenario?.forceRelic?.baseLines || 0) || 0)) + 1)),
@@ -716,14 +835,63 @@ function getBotForceLineCandidates(relic, scenario) {
   );
   const monoTargetSlot = getMonoTargetSlotForRelic(relic, scenario);
   const candidates = [];
-  if (Number.isInteger(monoTargetSlot) && monoTargetSlot >= 2 && monoTargetSlot <= 4) {
-    candidates.push(monoTargetSlot);
+  if (Number.isInteger(monoTargetSlot)) {
+    const helperCarryLines = getCarryLinesThatResolveToTargetSlot(visibleRoll, monoTargetSlot);
+    candidates.push(...helperCarryLines);
   }
   candidates.push(configuredForceLine);
   if (scenario?.success?.type === 'monoLine') {
     candidates.push(2, 3, 4);
   }
   return [...new Set(candidates.filter((line) => Number.isInteger(line) && line >= 2 && line <= 4))];
+}
+
+function getMonoNextStepPositionScore(candidateRelic, nextProfile, scenario) {
+  const targetSlot = getMonoTargetSlotForRelic(candidateRelic, scenario);
+  if (!targetSlot || !nextProfile) return 0;
+  const nextSequenceIndex = Array.isArray(nextProfile?.history) ? nextProfile.history.length : 0;
+  const nextVisibleRoll = getVisibleRollForUpgrade(nextProfile, nextSequenceIndex);
+  const carryLine = Number(candidateRelic?.lastLine || 0);
+  const defaultNextResolution = carryLine > 0 ? resolveNextSlotFromVisibleRoll(carryLine, nextVisibleRoll) : null;
+  if (defaultNextResolution?.targetSlot === targetSlot) return 16;
+
+  const monoForceCandidates = getBotForceLineCandidates(candidateRelic, scenario, nextVisibleRoll);
+  const canForceIntoTarget = monoForceCandidates.some((forceLine) => {
+    const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, nextVisibleRoll);
+    return forcedResolution?.targetSlot === targetSlot;
+  });
+  if (canForceIntoTarget) return 8;
+
+  const targetCarryLines = getCarryLinesThatResolveToTargetSlot(nextVisibleRoll, targetSlot);
+  if (targetCarryLines.length > 0 && targetCarryLines.includes(carryLine)) return 5;
+
+  return -10;
+}
+
+function getMonoReachabilityForVisibleRoll(relic, scenario, visibleRoll, previousLine) {
+  const targetSlot = getMonoTargetSlotForRelic(relic, scenario);
+  if (!targetSlot) {
+    return {
+      targetSlot: null,
+      defaultHitsTarget: false,
+      forceHitsTarget: [],
+      reachable: false,
+    };
+  }
+  const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
+  const defaultHitsTarget = Number(defaultResolution?.targetSlot || 0) === Number(targetSlot);
+  const forceHitsTarget = getBotForceLineCandidates(relic, scenario, visibleRoll)
+    .map((forceLine) => ({
+      forceLine,
+      resolution: resolveNextSlotFromVisibleRoll(forceLine, visibleRoll),
+    }))
+    .filter((entry) => Number(entry?.resolution?.targetSlot || 0) === Number(targetSlot));
+  return {
+    targetSlot,
+    defaultHitsTarget,
+    forceHitsTarget,
+    reachable: defaultHitsTarget || forceHitsTarget.length > 0,
+  };
 }
 
 function evaluateBuilderReadVerdict(scenario, profile, carryLine, config, sessionEntriesCount = 0) {
@@ -736,7 +904,21 @@ function evaluateBuilderReadVerdict(scenario, profile, carryLine, config, sessio
   const commonsCount = Array.isArray(profile?.commons) ? profile.commons.length : 0;
   const noiseCount = Array.isArray(profile?.noise) ? profile.noise.length : 0;
   const noiseDominates = noisePressure >= 4 || noiseCount > commonsCount;
-  const desiredCarryLines = getDesiredCarryLinesForScenario(scenario);
+  const desiredCarryLines = (() => {
+    const monoTargetSlot = getMonoTargetSlotForRelic(scenario?.targetRelic ? {
+      lines: Array.isArray(scenario.targetRelic.lines)
+        ? scenario.targetRelic.lines.map((stat, index) => ({ slot: index + 1, stat }))
+        : [],
+      fourthLine: scenario.targetRelic?.fourthLine ? { slot: 4, stat: scenario.targetRelic.fourthLine } : null,
+    } : null, scenario);
+    if (monoTargetSlot) {
+      const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
+      const nextVisibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
+      const nextCarryTargets = getCarryLinesThatResolveToTargetSlot(nextVisibleRoll, monoTargetSlot);
+      if (nextCarryTargets.length > 0) return nextCarryTargets;
+    }
+    return getDesiredCarryLinesForScenario(scenario);
+  })();
   const carryLineGood = desiredCarryLines.includes(Number(carryLine || 0));
   const minEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
   const confidenceScore = [trustedResolved, pairSafety !== 'danger', !noiseDominates].filter(Boolean).length;
@@ -1079,16 +1261,25 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
   const nextProfile = advancePatternProfile(profile, visibleRoll);
 
   const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
-  const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
+  const defaultStat = getRelicStatBySlot(relic, defaultResolution.targetSlot);
   const defaultRelic = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
   const defaultImmediate = getActionCandidateScore(defaultRelic, defaultStat, scenario, profile, config, false, predictor);
   const defaultFuture = searchBestBotFuture(defaultRelic, nextProfile, defaultRelic.lastLine || null, scenario, config, depth - 1);
-  let bestScore = defaultImmediate.totalScore * 0.45 + defaultFuture * 0.55;
+  const defaultMonoNextBonus = scenario?.success?.type === 'monoLine'
+    ? getMonoNextStepPositionScore(defaultRelic, nextProfile, scenario)
+    : 0;
+  let bestScore = defaultImmediate.totalScore * 0.45 + defaultFuture * 0.55 + defaultMonoNextBonus;
 
-  const forceLineCandidates = getBotForceLineCandidates(relic, scenario);
+  const forceLineCandidates = getBotForceLineCandidates(relic, scenario, visibleRoll);
   for (const forceLine of forceLineCandidates) {
     const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
-    const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
+    if (
+      forcedResolution?.rawPair === defaultResolution?.rawPair
+      && Number(forcedResolution?.targetSlot || 0) === Number(defaultResolution?.targetSlot || 0)
+    ) {
+      continue;
+    }
+    const forcedStat = getRelicStatBySlot(relic, forcedResolution.targetSlot);
     const forcedRelic = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
     const forcedImmediate = getActionCandidateScore(forcedRelic, forcedStat, scenario, profile, config, true, predictor);
     const forceDecision = decideForceRoute({
@@ -1103,7 +1294,10 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
     });
     if (forceDecision.shouldForce) {
       const forcedFuture = searchBestBotFuture(forcedRelic, nextProfile, forcedRelic.lastLine || null, scenario, config, depth - 1);
-      const forcedScore = forcedImmediate.totalScore * 0.45 + forcedFuture * 0.55;
+      const forcedMonoNextBonus = scenario?.success?.type === 'monoLine'
+        ? getMonoNextStepPositionScore(forcedRelic, nextProfile, scenario)
+        : 0;
+      const forcedScore = forcedImmediate.totalScore * 0.45 + forcedFuture * 0.55 + forcedMonoNextBonus;
       if (forcedScore > bestScore) bestScore = forcedScore;
     }
   }
@@ -1391,7 +1585,7 @@ function buildBotState(room) {
       break;
     }
 
-    let actionsThisAttempt = Math.max(0, Math.min(5, totalActionsAvailable));
+    let actionsThisAttempt = Math.max(0, totalActionsAvailable);
 
     if (scenario?.requiresSessionBuilder) {
       const minSessionEntries = Math.max(1, Number(scenario?.minSessionEntries || 5) || 5);
@@ -1430,7 +1624,7 @@ function buildBotState(room) {
         }
         builderVerdict = evaluateBuilderReadVerdict(scenario, currentProfile, currentCarryLine, config, currentSessionEntries.length);
         pushBotDebug(debugLog, `Try ${attemptsUsed}: ${builderVerdict.summary}`);
-        actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
+        actionsThisAttempt = Math.max(0, Math.floor(remainingSeconds / config.stepSeconds));
 
         if (builderVerdict.shouldCommit || builderVerdict.shouldAbort) break;
         if (!builderVerdict.shouldKeepBuilding) break;
@@ -1575,6 +1769,8 @@ function buildBotState(room) {
       startRelic: currentRelic,
       startProfile: currentProfile,
       startCarryLine: currentCarryLine,
+      startBuilderRelic: currentBuilderRelic,
+      sessionEntries: currentSessionEntries,
       config,
       debugLog,
       attemptNumber: attemptsUsed,
@@ -1583,6 +1779,9 @@ function buildBotState(room) {
     currentRelic = simulation.relic;
     currentProfile = simulation.profile;
     currentCarryLine = simulation.carryLine;
+    currentBuilderRelic = simulation.builderRelic || currentBuilderRelic;
+    currentSessionEntries = simulation.sessionEntries || currentSessionEntries;
+    sessionArchive = [...sessionArchive, ...(Array.isArray(simulation.newSessionEntries) ? simulation.newSessionEntries : [])].slice(-96);
     hasTakenAnyAction = hasTakenAnyAction || simulation.usedActions > 0;
     currentPhase = 'upgrading_target';
     remainingSeconds = Math.max(0, remainingSeconds - (simulation.usedActions * config.stepSeconds));
@@ -1622,6 +1821,11 @@ function buildBotState(room) {
     }
 
     if (currentRelic.level < 15) {
+      const moreActionsAvailable = remainingSeconds >= config.stepSeconds;
+      if (moreActionsAvailable) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: reached +${currentRelic.level} but still has action budget, so I am continuing this attempt instead of waiting.`);
+        continue;
+      }
       pushBotDebug(debugLog, `Try ${attemptsUsed}: still building at +${currentRelic.level}. Waiting for more time before next decision.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
