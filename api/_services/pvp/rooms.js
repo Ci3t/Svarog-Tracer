@@ -495,6 +495,14 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
       ? inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLine)
       : null;
     const visibleRoll = String(inferredRoll?.visibleRoll || actualVisibleRoll);
+    const fairConfidenceGap = Number(inferredRoll?.confidenceGap || 0);
+    const fairConfidenceLabel = !config.fairMode
+      ? ''
+      : fairConfidenceGap >= 10
+        ? 'high'
+        : fairConfidenceGap >= 5
+          ? 'medium'
+          : 'low';
     const monoReachability = success.type === 'monoLine'
       ? getMonoReachabilityForVisibleRoll(relic, scenario, visibleRoll, previousLine)
       : null;
@@ -564,6 +572,13 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
         ? getMonoNextStepPositionScore(forcedCandidate, nextProfile, scenario)
         : 0;
       const forcedChoiceScore = forcedImmediate.totalScore * 0.4 + forcedFuture * 0.6 + forcedMonoNextBonus;
+      const decisionConfig = config.fairMode
+        ? {
+          ...config,
+          forceGap: Number(config?.forceGap || 0)
+            + (fairConfidenceGap < 3 ? 10 : fairConfidenceGap < 6 ? 5 : fairConfidenceGap < 9 ? 2 : 0),
+        }
+        : config;
       const forceDecision = decideForceRoute({
         defaultEval: { ...defaultImmediate, totalScore: defaultChoiceScore },
         forcedEval: { ...forcedImmediate, totalScore: forcedChoiceScore },
@@ -571,7 +586,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
         forcedStat,
         predictor,
         scenario,
-        config,
+        config: decisionConfig,
         currentGoalSatisfied: currentAssessment.goalProgress?.goalSatisfied,
       });
       const option = {
@@ -601,6 +616,13 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
 
     if (config.fairMode) {
       pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: I inferred the next roll as ${visibleRoll} from predictor/history while sitting on line ${previousLine}. The actual hidden roll was ${actualVisibleRoll}.`);
+      if (Array.isArray(inferredRoll?.ranked) && inferredRoll.ranked.length > 0) {
+        const topChoices = inferredRoll.ranked
+          .slice(0, 3)
+          .map((entry) => `${entry.roll}=${Number(entry.score || 0).toFixed(2)}`)
+          .join(' | ');
+        pushBotDebug(debugLog, `Fair-read confidence was ${fairConfidenceLabel} (gap ${fairConfidenceGap.toFixed(2)}). My top inferred roll options were ${topChoices}.`);
+      }
     } else {
       pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
     }
@@ -608,6 +630,12 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     pushBotDebug(debugLog, summarizeRecentHistory(profile));
     pushBotDebug(debugLog, `My own board read said commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, dominant roll ${String(profile?.dominantRoll || 'none')}, and noise pressure ${Number(profile?.noisePressure || 0).toFixed(2)}.`);
     pushBotDebug(debugLog, summarizePredictor(predictor));
+    if (config.fairMode && predictor) {
+      pushBotDebug(
+        debugLog,
+        `Svarog analyzer leaned ${String(predictor?.analyzerPrediction || '-')}${predictor?.analyzerAlt ? ` with alt ${predictor.analyzerAlt}` : ''}. Pair gap ${Math.max(0, Number(predictor?.pairScoreGap || 0))} | regime ${String(predictor?.regime || 'unknown')}${predictor?.freshOutsider?.value ? ` | outsider ${predictor.freshOutsider.value}` : ''}.`
+      );
+    }
     pushBotDebug(debugLog, summarizeTrendRead(predictor));
     pushBotDebug(debugLog, summarizeForceCandidateOptions(allForcedOptions, scenario));
     pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, comparedForcedStat, comparedForcedScore, shouldForce, comparedForceLine, config, scenario));
@@ -757,11 +785,66 @@ function buildCompactTrendSummary(predictor) {
 }
 
 function inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLine) {
+  const history = Array.isArray(profile?.history)
+    ? profile.history.filter((value) => /^4[1-4]$/.test(String(value || '')))
+    : [];
+  const localHistory = history.slice(-10);
   const trustedPair = Array.isArray(predictor?.trustedPair) ? predictor.trustedPair.filter(Boolean) : [];
   const commons = Array.isArray(profile?.commons) ? profile.commons.filter(Boolean) : [];
   const noise = new Set(Array.isArray(profile?.noise) ? profile.noise.filter(Boolean) : []);
   const dominantRoll = String(profile?.dominantRoll || '');
   const trends = predictor?.trends && typeof predictor.trends === 'object' ? predictor.trends : {};
+  const analyzerPrediction = String(predictor?.analyzerPrediction || '');
+  const analyzerAlt = String(predictor?.analyzerAlt || '');
+  const pairScoreGap = Math.max(0, Number(predictor?.pairScoreGap || 0));
+  const pairSafety = String(predictor?.pairSafety || '');
+  const regime = String(predictor?.regime || '');
+  const freshOutsider = predictor?.freshOutsider && typeof predictor.freshOutsider === 'object'
+    ? predictor.freshOutsider
+    : null;
+  const pairMatrix = predictor?.pairMatrix && typeof predictor.pairMatrix === 'object'
+    ? predictor.pairMatrix
+    : {};
+  const pairMatrix2gram = predictor?.pairMatrix2gram && typeof predictor.pairMatrix2gram === 'object'
+    ? predictor.pairMatrix2gram
+    : {};
+  const predictorLastRoll = String(predictor?.lastRoll || '');
+  const predictorLast2Rolls = String(predictor?.last2Rolls || '');
+  const recent4 = history.slice(-4);
+  const recent8 = history.slice(-8);
+  const recentBoundary = recent8.filter((value) => value === '42' || value === '44');
+  const lastObserved = history[history.length - 1] || '';
+  const previousObserved = history[history.length - 2] || '';
+  const pairTransitionCounts = {};
+  const tripleTransitionCounts = {};
+  for (let index = 0; index < localHistory.length - 1; index += 1) {
+    const from = localHistory[index];
+    const to = localHistory[index + 1];
+    if (!pairTransitionCounts[from]) pairTransitionCounts[from] = {};
+    pairTransitionCounts[from][to] = (pairTransitionCounts[from][to] || 0) + 1;
+  }
+  for (let index = 0; index < localHistory.length - 2; index += 1) {
+    const key = `${localHistory[index]}|${localHistory[index + 1]}`;
+    const to = localHistory[index + 2];
+    if (!tripleTransitionCounts[key]) tripleTransitionCounts[key] = {};
+    tripleTransitionCounts[key][to] = (tripleTransitionCounts[key][to] || 0) + 1;
+  }
+  let tailStreak = 0;
+  if (lastObserved) {
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      if (history[index] !== lastObserved) break;
+      tailStreak += 1;
+    }
+  }
+  let boundaryAlternations = 0;
+  let boundaryRepeats = 0;
+  for (let index = 1; index < recentBoundary.length; index += 1) {
+    if (recentBoundary[index] === recentBoundary[index - 1]) boundaryRepeats += 1;
+    else boundaryAlternations += 1;
+  }
+  const boundaryAmbiguous = recentBoundary.length >= 4 && boundaryAlternations >= boundaryRepeats && boundaryAlternations >= 2;
+  const boundaryPairTrusted = trustedPair.includes('42') && trustedPair.includes('44');
+  const boundaryWindowActive = boundaryPairTrusted || commons.includes('42') || commons.includes('44');
   const candidatePool = [...new Set([
     ...trustedPair,
     ...commons,
@@ -773,34 +856,101 @@ function inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLin
 
   let bestRoll = candidatePool[0] || '44';
   let bestScore = -Infinity;
+  let secondBestScore = -Infinity;
+  const candidateScored = [];
   candidatePool.forEach((candidateRoll) => {
     let score = 0;
-    if (trustedPair.includes(candidateRoll)) score += 10;
-    if (commons.includes(candidateRoll)) score += 6;
-    if (candidateRoll === dominantRoll) score += 3;
-    if (noise.has(candidateRoll)) score -= 7;
+    if (trustedPair.includes(candidateRoll)) score += 8;
+    if (commons.includes(candidateRoll)) score += 5;
+    if (candidateRoll === dominantRoll) score += 2;
+    if (noise.has(candidateRoll)) score -= 6;
+    if (lastObserved && candidateRoll === lastObserved) score += 2 + Math.min(10, tailStreak * 3.2);
+    const recent4Hits = recent4.filter((value) => value === candidateRoll).length;
+    const recent8Hits = recent8.filter((value) => value === candidateRoll).length;
+    score += recent4Hits * 2.75;
+    score += Math.max(0, recent8Hits - recent4Hits) * 0.9;
+    if (lastObserved && pairTransitionCounts[lastObserved]?.[candidateRoll]) {
+      score += pairTransitionCounts[lastObserved][candidateRoll] * 5.5;
+    }
+    if (previousObserved && lastObserved) {
+      const key = `${previousObserved}|${lastObserved}`;
+      if (tripleTransitionCounts[key]?.[candidateRoll]) {
+        score += tripleTransitionCounts[key][candidateRoll] * 8.5;
+      }
+    }
+    const matrix1 = Number(pairMatrix?.[predictorLastRoll || lastObserved]?.[candidateRoll]?.pct || 0);
+    const matrix2 = Number(pairMatrix2gram?.[predictorLast2Rolls || `${previousObserved}${lastObserved}`]?.[candidateRoll]?.pct || 0);
+    const matrix1Reliable = Boolean(pairMatrix?.[predictorLastRoll || lastObserved]?.[candidateRoll]?.reliable);
+    const matrix2Reliable = Boolean(pairMatrix2gram?.[predictorLast2Rolls || `${previousObserved}${lastObserved}`]?.[candidateRoll]?.reliable);
+    score += matrix1 * 0.22;
+    score += matrix2 * 0.36;
+    if (matrix1Reliable) score += 2.5;
+    if (matrix2Reliable) score += 4.5;
+    if (candidateRoll === analyzerPrediction) {
+      score += 8 + Math.min(10, pairScoreGap * 0.22);
+    }
+    if (candidateRoll === analyzerAlt) {
+      score += 2.5;
+    }
+    if (freshOutsider?.value === candidateRoll) {
+      score += (
+        (freshOutsider.recent2Hits >= 1 ? 6 : 0)
+        + (freshOutsider.recent4Hits >= 2 ? 5 : freshOutsider.recent4Hits >= 1 ? 2.5 : 0)
+        + (String(freshOutsider.direction || '') === 'rising' ? 4 : 0)
+      );
+    }
+    if (pairSafety === 'safe' && trustedPair.includes(candidateRoll)) score += 4;
+    if (pairSafety === 'danger' && !trustedPair.includes(candidateRoll) && candidateRoll !== analyzerPrediction) score -= 3.5;
+    if (predictor?.mixedWindow && candidateRoll === analyzerAlt) score += 2;
+    if ((regime === 'transition' || regime === 'noise-burst') && candidateRoll === analyzerPrediction) score += 3;
+    if (boundaryWindowActive && (candidateRoll === '42' || candidateRoll === '44')) {
+      const boundaryTrend = candidateRoll === lastObserved ? -1 : 1;
+      if (boundaryAmbiguous) {
+        score += boundaryTrend * (pairSafety === 'safe' ? 4 : 8);
+        if (candidateRoll === analyzerAlt) score += 3;
+        if (candidateRoll === analyzerPrediction && pairScoreGap <= 12) score -= 5;
+      } else if (tailStreak >= 3 && candidateRoll === lastObserved) {
+        score += 6;
+      }
+      if (lastObserved === '44' && candidateRoll === '42' && (pairSafety === 'danger' || regime === 'transition')) score += 4;
+      if (lastObserved === '42' && candidateRoll === '44' && (pairSafety === 'danger' || regime === 'transition')) score += 4;
+      if (candidateRoll === lastObserved && tailStreak <= 2 && pairSafety === 'danger') score -= 4;
+    }
     const trend = trends[candidateRoll];
     if (trend) {
       const trust = Math.round(Number(trend.trustScore || 0) * 100) / 100;
-      if (String(trend.direction || '') === 'rising') score += 4 + trust;
-      else if (String(trend.direction || '') === 'falling') score -= 3;
-      else score += trust;
+      if (String(trend.direction || '') === 'rising') score += 1.5 + (trust * 0.75);
+      else if (String(trend.direction || '') === 'falling') score -= 1.25 + (trust * 0.35);
+      else score += trust * 0.45;
     }
     if (scenario?.success?.type === 'monoLine') {
       const monoReachability = getMonoReachabilityForVisibleRoll(relic, scenario, candidateRoll, previousLine);
-      if (monoReachability?.defaultHitsTarget) score += 12;
-      if (Array.isArray(monoReachability?.forceHitsTarget) && monoReachability.forceHitsTarget.length > 0) score += 7;
-      if (!monoReachability?.reachable) score -= 8;
+      if (monoReachability?.defaultHitsTarget) score += 0.9;
+      if (Array.isArray(monoReachability?.forceHitsTarget) && monoReachability.forceHitsTarget.length > 0) score += 0.45;
+      if (!monoReachability?.reachable) score -= 0.8;
     }
+    candidateScored.push({ roll: candidateRoll, score });
     if (score > bestScore) {
+      secondBestScore = bestScore;
       bestScore = score;
       bestRoll = candidateRoll;
+    } else if (score > secondBestScore) {
+      secondBestScore = score;
     }
   });
   return {
     visibleRoll: bestRoll,
     score: bestScore,
     candidates: candidatePool,
+    confidenceGap: (() => {
+      const rawGap = Number.isFinite(secondBestScore) ? Math.max(0, bestScore - secondBestScore) : bestScore;
+      const topTwo = candidateScored.sort((left, right) => right.score - left.score).slice(0, 2).map((entry) => entry.roll);
+      if (boundaryAmbiguous && topTwo.includes('42') && topTwo.includes('44')) {
+        return rawGap * 0.45;
+      }
+      return rawGap;
+    })(),
+    ranked: candidateScored.sort((left, right) => right.score - left.score),
   };
 }
 
@@ -1381,42 +1531,58 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
 function shouldBotSubmitAttempt(attempt, attemptsUsed, config, retryCeiling = null, scenario = null) {
   if (!attempt) return false;
   if (config.strictGoal && !attempt.goalSatisfied) return false;
-  const effectiveScore = Math.max(0, Number(attempt?.score || 0)) - (Math.max(0, Number(attempt?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
+  const mistakesCount = Math.max(0, Number(attempt?.mistakes || 0));
+  const effectiveScore = Math.max(0, Number(attempt?.score || 0)) - (mistakesCount * MISTAKE_SCORE_PENALTY);
   const submitMargin = Math.max(0, Number(config?.submitMargin || 0) || 0);
   const ceilingMargin = Math.max(0, Number(config?.ceilingMargin || 0) || 0);
   const maxMistakesToSubmit = Math.max(0, Number(config?.maxMistakesToSubmit ?? 1) || 0);
   const scenarioMaxJunk = typeof scenario?.success?.maxJunk === 'number'
     ? Math.max(0, Number(scenario.success.maxJunk) || 0)
     : null;
-  const allowedMistakes = scenarioMaxJunk === null
+  const allowedMistakes = config?.fairMode
+    ? maxMistakesToSubmit
+    : scenarioMaxJunk === null
     ? maxMistakesToSubmit
     : Math.max(maxMistakesToSubmit, scenarioMaxJunk);
   const goalProgress = attempt?.goalProgress && typeof attempt.goalProgress === 'object' ? attempt.goalProgress : null;
   const perfectGoalCoverage = goalProgress ? goalProgress.missingGoalHits === 0 && goalProgress.missingRequiredCount === 0 : attempt.goalSatisfied;
   const decisionTotal = Number(attempt?.decisionTotal || 0);
   const closeToCeiling = Number.isFinite(Number(retryCeiling)) ? decisionTotal >= (Number(retryCeiling) - ceilingMargin) : false;
+  if (config?.fairMode && attemptsUsed < MAX_RACE_TRIES) {
+    const strongCleanGrade = new Set(['A', 'A+', 'S', 'S+', 'SS', 'SS+', 'SSS', 'SSS+']);
+    if (
+      attempt.goalSatisfied
+      && mistakesCount <= allowedMistakes
+      && (
+        closeToCeiling
+        || (perfectGoalCoverage && effectiveScore >= (config.minScore + Math.max(0, submitMargin - 2)))
+        || (attempt.helpfulHits >= (config.minHelpful + 1) && strongCleanGrade.has(String(attempt.grade || '')))
+      )
+    ) return true;
+    return false;
+  }
   if (
     attempt.goalSatisfied
     && attempt.helpfulHits >= config.minHelpful
     && effectiveScore >= (config.minScore + submitMargin)
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
+    && mistakesCount <= allowedMistakes
   ) return true;
   if (
     attempt.goalSatisfied
     && closeToCeiling
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
+    && mistakesCount <= allowedMistakes
   ) return true;
   if (
     attempt.goalSatisfied
     && perfectGoalCoverage
     && attempt.helpfulHits >= (config.minHelpful + 1)
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
+    && mistakesCount <= allowedMistakes
   ) return true;
   if (
     attempt.goalSatisfied
     && attemptsUsed < MAX_RACE_TRIES
     && (attempt.grade === 'A' || attempt.grade === 'A+' || attempt.grade === 'S' || attempt.grade === 'S+' || attempt.grade === 'SS' || attempt.grade === 'SS+' || attempt.grade === 'SSS' || attempt.grade === 'SSS+')
-    && Math.max(0, Number(attempt?.mistakes || 0)) <= allowedMistakes
+    && mistakesCount <= allowedMistakes
   ) return true;
   if (attempt.goalSatisfied && (attempt.grade === 'SSS' || attempt.grade === 'SS' || attempt.grade === 'SSS+')) return true;
   if (String(config.historyAware || false) === 'true' || config.historyAware) {
@@ -1582,7 +1748,7 @@ function buildBotState(room) {
       goalSatisfied: finalGoalSatisfied,
       attemptsUsed,
       submittedAttempts: 1,
-      sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+      sessionEntriesBuilt: currentSessionEntries.length,
       sessionEntries: currentSessionEntries,
       sessionArchive,
       botTick: nextBotTick,
@@ -1626,7 +1792,7 @@ function buildBotState(room) {
     goalSatisfied: Boolean(attempt?.goalSatisfied),
     attemptsUsed: MAX_RACE_TRIES + 1,
     submittedAttempts: 0,
-    sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+    sessionEntriesBuilt: currentSessionEntries.length,
     sessionEntries: currentSessionEntries,
     sessionArchive,
     botTick: nextBotTick,
@@ -1655,11 +1821,11 @@ function buildBotState(room) {
       const trashTier = Array.isArray(scenario.targetStatGuide.trash) && scenario.targetStatGuide.trash.length > 0 ? scenario.targetStatGuide.trash.join(', ') : 'none';
       pushBotDebug(debugLog, `For this relic, I rate S-tier stats as ${sTier}; A-tier stats as ${aTier}; and trash stats as ${trashTier}.`);
     }
-    const totalActionsAvailable = Math.max(0, Math.floor(remainingSeconds / config.stepSeconds));
+    let totalActionsAvailable = Math.max(0, Math.floor(remainingSeconds / config.stepSeconds));
 
     if (totalActionsAvailable <= 0) {
-      pushBotDebug(debugLog, `Try ${attemptsUsed}: not enough elapsed time to act yet.`);
-      break;
+      totalActionsAvailable = 1;
+      pushBotDebug(debugLog, `Try ${attemptsUsed}: no action budget was left from timing math, so I am taking one synthetic test tick to keep the bot moving locally.`);
     }
 
     let actionsThisAttempt = Math.max(0, totalActionsAvailable);
@@ -1750,7 +1916,9 @@ function buildBotState(room) {
       if (builderVerdict.shouldAbort) {
         if (attemptsUsed < MAX_RACE_TRIES) {
           pushBotDebug(debugLog, `Try ${attemptsUsed}: builder verdict says abort. The read is not trustworthy enough, so I am resetting before touching the target relic.`);
-          remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+          remainingSeconds = fairMode
+            ? elapsedSeconds
+            : Math.max(0, remainingSeconds - config.retryDelay);
           attemptsUsed += 1;
           currentRelic = createBotTargetRelic(scenario);
           currentBuilderRelic = createBotBuilderRelic(scenario);
@@ -1774,7 +1942,9 @@ function buildBotState(room) {
         if (currentSessionEntries.length >= maxBuilderEntries) {
           if (attemptsUsed < MAX_RACE_TRIES) {
             pushBotDebug(debugLog, `Try ${attemptsUsed}: the builder read never became safe enough, so I am burning this try before target play and moving on.`);
-            remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+            remainingSeconds = fairMode
+              ? elapsedSeconds
+              : Math.max(0, remainingSeconds - config.retryDelay);
             attemptsUsed += 1;
             currentRelic = createBotTargetRelic(scenario);
             currentBuilderRelic = createBotBuilderRelic(scenario);
@@ -1822,7 +1992,7 @@ function buildBotState(room) {
           goalSatisfied: false,
           attemptsUsed,
           submittedAttempts: 0,
-          sessionEntriesBuilt: builtEntries,
+          sessionEntriesBuilt: currentSessionEntries.length,
           sessionEntries: currentSessionEntries,
           sessionArchive,
           botTick: nextBotTick,
@@ -1920,7 +2090,7 @@ function buildBotState(room) {
         goalSatisfied,
         attemptsUsed,
         submittedAttempts: 0,
-        sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+        sessionEntriesBuilt: currentSessionEntries.length,
         sessionEntries: currentSessionEntries,
         sessionArchive,
         botTick: nextBotTick,
@@ -1966,7 +2136,7 @@ function buildBotState(room) {
       return buildSubmittedStateFromAttempt(attempt, `Bot submitted its final relic on try ${attemptsUsed}.`);
     }
 
-    if (remainingSeconds < config.retryDelay) {
+    if (!fairMode && remainingSeconds < config.retryDelay) {
       pushBotDebug(debugLog, `Try ${attemptsUsed}: reached +15 but is holding. Waiting for retry window before deciding reset.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
@@ -1984,7 +2154,7 @@ function buildBotState(room) {
         goalSatisfied,
         attemptsUsed,
         submittedAttempts: 0,
-        sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+        sessionEntriesBuilt: currentSessionEntries.length,
         sessionEntries: currentSessionEntries,
         sessionArchive,
         botTick: nextBotTick,
@@ -2004,7 +2174,9 @@ function buildBotState(room) {
     }
 
     pushBotDebug(debugLog, `Try ${attemptsUsed}: rejected final relic (${attempt.grade} ${attempt.score}). Resetting into try ${attemptsUsed + 1}.`);
-    remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+    remainingSeconds = fairMode
+      ? elapsedSeconds
+      : Math.max(0, remainingSeconds - config.retryDelay);
     attemptsUsed += 1;
     currentRelic = createBotTargetRelic(scenario);
     currentBuilderRelic = createBotBuilderRelic(scenario);
@@ -2020,7 +2192,7 @@ function buildBotState(room) {
     currentLevel: hasTakenAnyAction ? currentRelic.level : 0,
     attemptsUsed: hasTakenAnyAction ? attemptsUsed : 0,
     tries: hasTakenAnyAction ? attemptsUsed : 1,
-    sessionEntriesBuilt: Math.max(currentSessionEntries.length, sessionArchive.length),
+    sessionEntriesBuilt: currentSessionEntries.length,
     sessionEntries: currentSessionEntries,
     sessionArchive,
     botTick: nextBotTick,
