@@ -155,7 +155,12 @@ function createBotSessionEntry(rawPair, translated, extra = {}) {
 }
 
 function isDevBotUserId(value) {
-  return String(value || '').startsWith('dev-bot:');
+  const normalized = String(value || '');
+  return normalized.startsWith('dev-bot:') || normalized.startsWith('dev-bot-fair:');
+}
+
+function isFairBotUserId(value) {
+  return String(value || '').startsWith('dev-bot-fair:');
 }
 
 function hashString(value = '') {
@@ -481,8 +486,15 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     }
 
     const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
-    const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
+    const actualVisibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
     const previousLine = carryLine || relic.lastLine || 4;
+    const predictor = config.pairAware
+      ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
+      : null;
+    const inferredRoll = config.fairMode
+      ? inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLine)
+      : null;
+    const visibleRoll = String(inferredRoll?.visibleRoll || actualVisibleRoll);
     const monoReachability = success.type === 'monoLine'
       ? getMonoReachabilityForVisibleRoll(relic, scenario, visibleRoll, previousLine)
       : null;
@@ -494,7 +506,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     ) {
       pushBotDebug(
         debugLog,
-        `Try ${attemptNumber}, step ${index + 1}: visible roll ${visibleRoll} cannot reach the mono target on slot ${monoReachability.targetSlot} from line ${previousLine}, so I am burning this roll on the builder relic to advance the seed and carry line.`
+        `Try ${attemptNumber}, step ${index + 1}: ${config.fairMode ? `I inferred` : `visible`} roll ${visibleRoll} cannot reach the mono target on slot ${monoReachability.targetSlot} from line ${previousLine}, so I am burning this roll on the builder relic to advance the seed and carry line.`
       );
       const builderSimulation = simulateBotSessionBuilder(scenario, {
         startRelic: builderRelic,
@@ -516,9 +528,6 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
       }
       continue;
     }
-    const predictor = config.pairAware
-      ? predictWithPairs(Array.isArray(profile?.history) ? profile.history : [], { region: scenario?.region || 'America' })
-      : null;
     const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
     const defaultStat = getRelicStatBySlot(relic, defaultResolution.targetSlot);
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
@@ -590,7 +599,11 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const comparedForceLine = comparedForcedOption?.forceLine ?? getBotForceLineCandidates(relic, scenario, visibleRoll)[0] ?? 2;
     const decisionReason = comparedForcedOption?.forceDecision?.reason || 'no useful force route beat the default line.';
 
-    pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
+    if (config.fairMode) {
+      pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: I inferred the next roll as ${visibleRoll} from predictor/history while sitting on line ${previousLine}. The actual hidden roll was ${actualVisibleRoll}.`);
+    } else {
+      pushBotDebug(debugLog, `Try ${attemptNumber}, step ${index + 1}: the visible roll was ${visibleRoll} and I was sitting on line ${previousLine}.`);
+    }
     pushBotDebug(debugLog, summarizeVisibleRollLineHelper(visibleRoll));
     pushBotDebug(debugLog, summarizeRecentHistory(profile));
     pushBotDebug(debugLog, `My own board read said commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, dominant roll ${String(profile?.dominantRoll || 'none')}, and noise pressure ${Number(profile?.noisePressure || 0).toFixed(2)}.`);
@@ -603,9 +616,14 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     }
     pushBotDebug(debugLog, `Decision note: ${decisionReason}`);
 
-    relic = shouldForce ? chosenForcedOption.forcedCandidate : defaultCandidate;
-    profile = nextProfile;
+    const chosenLine = shouldForce ? Number(chosenForcedOption?.forceLine || previousLine) : previousLine;
+    const appliedResolution = resolveNextSlotFromVisibleRoll(chosenLine, actualVisibleRoll);
+    relic = applyBotUpgradeToSlot(relic, appliedResolution.targetSlot, appliedResolution.rawPair, actualVisibleRoll);
+    profile = advancePatternProfile(profile, actualVisibleRoll);
     carryLine = relic.lastLine || carryLine || null;
+    if (config.fairMode) {
+      pushBotDebug(debugLog, `Actual resolution: with hidden roll ${actualVisibleRoll}, line ${chosenLine} produced raw pair ${appliedResolution.rawPair} and landed on slot ${appliedResolution.targetSlot} for ${getRelicStatBySlot(relic, appliedResolution.targetSlot) || 'unknown'}.`);
+    }
   }
 
   const statBreakdown = [...relic.lines, relic.fourthLine].reduce((acc, line) => {
@@ -655,10 +673,13 @@ function evaluateScenarioSuccess(scenario, breakdown = {}) {
   return false;
 }
 
-function getBotConfig(tier, seedHash) {
+function getBotConfig(tier, seedHash, options = {}) {
   const base = BOT_TIER_CONFIG[String(tier || '').toLowerCase()] || BOT_TIER_CONFIG.beginner;
+  const fairMode = Boolean(options?.fairMode);
   return {
     ...base,
+    fairMode,
+    searchDepth: fairMode ? 0 : base.searchDepth,
     stepSeconds: base.baseStep + (seedHash % Math.max(1, base.jitter + 1)),
     retryDelay: BOT_RETRY_DELAY_SECONDS,
   };
@@ -733,6 +754,54 @@ function buildCompactTrendSummary(predictor) {
     })
     .filter(Boolean)
     .join(', ');
+}
+
+function inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLine) {
+  const trustedPair = Array.isArray(predictor?.trustedPair) ? predictor.trustedPair.filter(Boolean) : [];
+  const commons = Array.isArray(profile?.commons) ? profile.commons.filter(Boolean) : [];
+  const noise = new Set(Array.isArray(profile?.noise) ? profile.noise.filter(Boolean) : []);
+  const dominantRoll = String(profile?.dominantRoll || '');
+  const trends = predictor?.trends && typeof predictor.trends === 'object' ? predictor.trends : {};
+  const candidatePool = [...new Set([
+    ...trustedPair,
+    ...commons,
+    '41',
+    '42',
+    '43',
+    '44',
+  ].filter((value) => /^4[1-4]$/.test(String(value || ''))))];
+
+  let bestRoll = candidatePool[0] || '44';
+  let bestScore = -Infinity;
+  candidatePool.forEach((candidateRoll) => {
+    let score = 0;
+    if (trustedPair.includes(candidateRoll)) score += 10;
+    if (commons.includes(candidateRoll)) score += 6;
+    if (candidateRoll === dominantRoll) score += 3;
+    if (noise.has(candidateRoll)) score -= 7;
+    const trend = trends[candidateRoll];
+    if (trend) {
+      const trust = Math.round(Number(trend.trustScore || 0) * 100) / 100;
+      if (String(trend.direction || '') === 'rising') score += 4 + trust;
+      else if (String(trend.direction || '') === 'falling') score -= 3;
+      else score += trust;
+    }
+    if (scenario?.success?.type === 'monoLine') {
+      const monoReachability = getMonoReachabilityForVisibleRoll(relic, scenario, candidateRoll, previousLine);
+      if (monoReachability?.defaultHitsTarget) score += 12;
+      if (Array.isArray(monoReachability?.forceHitsTarget) && monoReachability.forceHitsTarget.length > 0) score += 7;
+      if (!monoReachability?.reachable) score -= 8;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestRoll = candidateRoll;
+    }
+  });
+  return {
+    visibleRoll: bestRoll,
+    score: bestScore,
+    candidates: candidatePool,
+  };
 }
 
 function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, shouldForce, forceLine, config, scenario) {
@@ -912,10 +981,14 @@ function evaluateBuilderReadVerdict(scenario, profile, carryLine, config, sessio
       fourthLine: scenario.targetRelic?.fourthLine ? { slot: 4, stat: scenario.targetRelic.fourthLine } : null,
     } : null, scenario);
     if (monoTargetSlot) {
-      const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
-      const nextVisibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
-      const nextCarryTargets = getCarryLinesThatResolveToTargetSlot(nextVisibleRoll, monoTargetSlot);
-      if (nextCarryTargets.length > 0) return nextCarryTargets;
+      if (!config?.fairMode) {
+        const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
+        const nextVisibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
+        const nextCarryTargets = getCarryLinesThatResolveToTargetSlot(nextVisibleRoll, monoTargetSlot);
+        if (nextCarryTargets.length > 0) return nextCarryTargets;
+      } else {
+        return [monoTargetSlot];
+      }
     }
     return getDesiredCarryLinesForScenario(scenario);
   })();
@@ -1464,7 +1537,8 @@ function buildBotState(room) {
   const scenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
   const seedLabel = String(scenario.seedLabel || room.seed_label || room.code || '');
   const seedHash = hashString(seedLabel);
-  const config = getBotConfig(room?.tier, seedHash);
+  const fairMode = isFairBotUserId(guestUserId);
+  const config = getBotConfig(room?.tier, seedHash, { fairMode });
   const currentBotTick = Math.max(0, Number(room?.guest_state?.botTick || 0) || 0);
   const nextBotTick = currentBotTick + 1;
   const elapsedSeconds = isDevBotUserId(guestUserId)
@@ -1572,6 +1646,9 @@ function buildBotState(room) {
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
+    if (fairMode) {
+      pushBotDebug(debugLog, `This is Svarog #2 Fair. I only decide from observed session data, predictor, trends, commons/noise, and carry line. I do not use exact hidden future rolls for my choices.`);
+    }
     if (scenario?.targetStatGuide) {
       const sTier = Array.isArray(scenario.targetStatGuide.s) && scenario.targetStatGuide.s.length > 0 ? scenario.targetStatGuide.s.join(', ') : 'none';
       const aTier = Array.isArray(scenario.targetStatGuide.a) && scenario.targetStatGuide.a.length > 0 ? scenario.targetStatGuide.a.join(', ') : 'none';
@@ -2407,7 +2484,7 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
   return toClientRoom(updated || room, user.id);
 }
 
-async function devFillRoomForUser(req, user, code) {
+async function devFillRoomForUser(req, user, code, body = {}) {
   if (!isLocalDevRequest(req)) {
     throw new HttpError(403, 'Dev fill is only available on local development.');
   }
@@ -2424,9 +2501,11 @@ async function devFillRoomForUser(req, user, code) {
     return toClientRoom(room, user.id);
   }
 
-  const botName = 'Svarog Bot';
+  const botKind = String(body?.botKind || 'oracle').trim().toLowerCase();
+  const isFairBot = botKind === 'fair';
+  const botName = isFairBot ? 'Svarog #2 Fair' : 'Svarog Bot';
   const updated = await patchRoom(code, {
-    guest_user_id: `dev-bot:${room.code}`,
+    guest_user_id: isFairBot ? `dev-bot-fair:${room.code}` : `dev-bot:${room.code}`,
     guest_name: botName,
     guest_state: createPlayerState(botName),
     updated_at: new Date().toISOString(),
@@ -2537,7 +2616,7 @@ export async function handler(req, res) {
 
     if (action === 'dev-fill') {
       if (!code) throw new HttpError(400, 'Room code is required.');
-      const room = await devFillRoomForUser(req, user, code);
+      const room = await devFillRoomForUser(req, user, code, body);
       return res.status(200).json({ room });
     }
 

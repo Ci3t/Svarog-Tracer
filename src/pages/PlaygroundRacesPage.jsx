@@ -332,7 +332,29 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ action: 'dev-fill', code: roomCode }),
+        body: JSON.stringify({ action: 'dev-fill', code: roomCode, botKind: 'oracle' }),
+      });
+      const payload = await parseResponse(response);
+      setRoom(payload.room || null);
+      setError('');
+    } catch (fillError) {
+      setError(getFetchErrorMessage(fillError, 'Failed to add dev opponent.'));
+    } finally {
+      setBusyAction('');
+    }
+  };
+
+  const handleDevFillFair = async () => {
+    if (!roomCode) return;
+    setBusyAction('dev-fill-fair');
+    try {
+      const response = await fetchWithTimeout(buildApiUrl('/api/pvp'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ action: 'dev-fill', code: roomCode, botKind: 'fair' }),
       });
       const payload = await parseResponse(response);
       setRoom(payload.room || null);
@@ -614,15 +636,26 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                 {room.status === 'lobby' && isHost ? (
                   <>
                     {canDevFill ? (
-                      <button
-                        type="button"
-                        onClick={handleDevFill}
-                        disabled={busyAction !== ''}
-                        className="inline-flex items-center gap-2 rounded-xl border border-violet-400/25 bg-violet-500/12 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-violet-100 transition-all hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {busyAction === 'dev-fill' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                        Fill Opponent
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleDevFill}
+                          disabled={busyAction !== ''}
+                          className="inline-flex items-center gap-2 rounded-xl border border-violet-400/25 bg-violet-500/12 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-violet-100 transition-all hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busyAction === 'dev-fill' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                          Fill Svarog Bot
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDevFillFair}
+                          disabled={busyAction !== ''}
+                          className="inline-flex items-center gap-2 rounded-xl border border-sky-400/25 bg-sky-500/12 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-sky-100 transition-all hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busyAction === 'dev-fill-fair' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                          Fill Svarog #2 Fair
+                        </button>
+                      </>
                     ) : null}
                     <button
                       type="button"
