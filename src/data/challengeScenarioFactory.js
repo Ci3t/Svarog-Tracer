@@ -150,17 +150,24 @@ function buildGoalText(styleId, template, success) {
     return `Route the board back into ${success.target} and keep it there across repeated upgrades. ${style.goal}`;
   }
   if (success.type === 'dualCritCombined') {
-    return `Turn the board into a real dual-crit finish, not a one-sided crit dump. ${style.goal}`;
+    const pairLabel = Array.isArray(success.required) ? success.required.join(' + ') : 'the real target pair';
+    return `Turn the board into a real ${pairLabel} finish, not a one-sided dump into the wrong line. ${style.goal}`;
   }
-  return `Hit both crit lines, not just one, and avoid drifting into junk. ${style.goal}`;
+  if (success.type === 'dualCrit') {
+    const pairLabel = Array.isArray(success.required) ? success.required.join(' + ') : 'the real target pair';
+    return `Hit both ${pairLabel} lines, not just one, and avoid drifting into junk. ${style.goal}`;
+  }
+  return `Finish the relic around the room's actual target stats and avoid drifting into junk. ${style.goal}`;
 }
 
 function buildWinText(success) {
   if (success.type === 'dualCrit') {
-    return `Finish with at least ${success.minEach} hit on CRIT RATE and ${success.minEach} hit on CRIT DMG.`;
+    const requiredStats = Array.isArray(success.required) ? success.required.slice(0, 2) : ['the first target stat', 'the second target stat'];
+    return `Finish with at least ${success.minEach} hit on ${requiredStats[0]} and ${success.minEach} hit on ${requiredStats[1]}.`;
   }
   if (success.type === 'dualCritCombined') {
-    return `Finish with at least ${success.minCombined} combined hits on CRIT RATE and CRIT DMG while keeping junk low.`;
+    const requiredStats = Array.isArray(success.required) ? success.required.slice(0, 2) : ['the target pair'];
+    return `Finish with at least ${success.minCombined} combined hits on ${requiredStats.join(' and ')} while keeping junk low.`;
   }
   if (success.type === 'monoLine') {
     return `Land at least ${success.minHits} hits on ${success.target}.`;
@@ -245,25 +252,38 @@ function normalizeGuideStat(stat = '') {
   return normalized;
 }
 
-function buildPvpSuccessFromGuide(guide, generator) {
+function buildPvpSuccessFromGuide(guide, targetRelic, generator) {
   const s = (guide?.s || []).map(normalizeGuideStat).filter(Boolean);
   const a = (guide?.a || []).map(normalizeGuideStat).filter(Boolean);
   const zero = (guide?.zero || []).map(normalizeGuideStat).filter(Boolean);
-  const required = (s.length >= 2 ? s.slice(0, 2) : [s[0], a[0]].filter(Boolean)).slice(0, 2);
+  const selectedLines = [...(Array.isArray(targetRelic?.lines) ? targetRelic.lines : []), targetRelic?.fourthLine]
+    .map(normalizeGuideStat)
+    .filter(Boolean);
+  const selectedS = selectedLines.filter((stat) => s.includes(stat));
+  const selectedA = selectedLines.filter((stat) => a.includes(stat));
+  const selectedZero = selectedLines.filter((stat) => zero.includes(stat));
+  const required = (
+    selectedS.length >= 2
+      ? selectedS.slice(0, 2)
+      : selectedS.length === 1
+        ? [...selectedS, ...selectedA.slice(0, 1)]
+        : selectedA.slice(0, 2)
+  ).slice(0, 2);
+
   if (required.length >= 2) {
     return {
       type: 'dualCritCombined',
       required,
       minCombined: generator() < 0.5 ? 2 : 3,
-      junk: zero.slice(0, 3),
+      junk: selectedZero.slice(0, 3),
       maxJunk: 1,
     };
   }
   return {
     type: 'monoLine',
-    target: s[0] || a[0] || 'SPD',
+    target: selectedS[0] || selectedA[0] || s[0] || a[0] || 'SPD',
     minHits: 3,
-    junk: zero.slice(0, 3),
+    junk: selectedZero.slice(0, 3),
     maxJunk: 1,
   };
 }
@@ -285,6 +305,11 @@ function buildTargetRelicFromGuide(spec, setInfo, guide, generator) {
   while (selected.length < 3 && pool.length > 0) {
     const next = pool.shift();
     if (next && !selected.includes(next)) selected.push(next);
+  }
+
+  if (selected.length >= 3 && s.length > 0 && !selected.some((stat) => s.includes(stat))) {
+    const replaceIndex = selected.findIndex((stat) => !a.includes(stat));
+    selected[Math.max(0, replaceIndex)] = s[0];
   }
 
   const fourthCandidates = [...a, ...zero, ...s].filter((stat) => stat && !selected.includes(stat));
@@ -326,7 +351,7 @@ function applySelectedTargetSet(randomizedTemplate, selectedSetName, generator) 
       ...randomizedTemplate,
       targetRelic: buildTargetRelicFromGuide(randomizedTemplate.targetRelic, setInfo, guide, generator),
     },
-    successOverride: buildPvpSuccessFromGuide(guide, generator),
+    successOverride: null,
   };
 }
 
@@ -362,7 +387,9 @@ export function createChallengeScenario({
   const finalTemplate = selectedSetResult.template;
   const success = selectedSetResult.successOverride
     ? { ...selectedSetResult.successOverride }
-    : { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
+    : mode === 'pvp' && selectedSetName
+      ? { ...(buildPvpSuccessFromGuide(getSetBisGuide(selectedSetName), finalTemplate.targetRelic, seedRandom)) }
+      : { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
   const hintPackId = seed.hintPackId || tierRules.hintPack || inferHintPack(seed.expectedStyle, template);
   const hints = getChallengeHintPack(hintPackId);
   const style = STYLE_COPY[seed.expectedStyle] || STYLE_COPY.clean_detour;

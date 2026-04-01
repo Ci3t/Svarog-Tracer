@@ -28,11 +28,11 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
 const BOT_TIER_CONFIG = {
-  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15 },
-  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 6, junkPenalty: 5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4 },
-  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 1, forceBonus: 3, helpfulBonus: 7, junkPenalty: 6, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75 },
-  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 4, helpfulBonus: 8, junkPenalty: 7, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15 },
-  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 5, helpfulBonus: 9, junkPenalty: 8, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5 },
+  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
+  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
+  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 1, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
+  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.25, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.68, strictGoal: true },
+  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 5, helpfulBonus: 16, junkPenalty: 12, neutralPenalty: 3, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.58, strictGoal: true },
 };
 
 function readBody(req) {
@@ -173,6 +173,23 @@ function isHelpfulStatForScenario(stat, success) {
     return success.required.includes(stat);
   }
   return false;
+}
+
+function getRequiredStatsForScenario(success = {}) {
+  if (success?.type === 'monoLine') {
+    return [String(success.target || '')].filter(Boolean);
+  }
+  if (Array.isArray(success?.required)) {
+    return success.required.filter(Boolean);
+  }
+  return [];
+}
+
+function isNeutralStatForScenario(stat, success) {
+  if (!stat) return false;
+  if (isHelpfulStatForScenario(stat, success)) return false;
+  const junkStats = Array.isArray(success?.junk) ? success.junk : [];
+  return !junkStats.includes(stat);
 }
 
 function createBotTargetRelic(scenario) {
@@ -415,14 +432,17 @@ function getActionCandidateScore(candidateRelic, stat, success, profile, config,
   const isHelpful = isHelpfulStatForScenario(stat, success);
   const junkStats = Array.isArray(success?.junk) ? success.junk : [];
   const isJunk = junkStats.includes(stat);
-  let score = relicScore.score;
+  const isNeutral = isNeutralStatForScenario(stat, success);
+  let score = relicScore.score * Number(config.scoreWeight || 1);
 
   if (isHelpful) score += config.helpfulBonus || 8;
   if (isJunk) score -= config.junkPenalty || 6;
+  if (isNeutral) score -= config.neutralPenalty || 0;
 
   if (config.scoreBias) {
     if (usedForce && isHelpful) score += config.forceBonus || 3;
     if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
+    if (usedForce && isNeutral) score -= 0.5;
   }
 
   if (config.trendAware) {
@@ -472,6 +492,7 @@ function getActionCandidateScore(candidateRelic, stat, success, profile, config,
 
 function evaluateBotRelicState(relic, scenario, profile, config) {
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
+  const requiredStats = getRequiredStatsForScenario(success);
   const statBreakdown = [...relic.lines, relic.fourthLine].reduce((acc, line) => {
     acc[line.stat] = Number(line.hits || 0);
     return acc;
@@ -483,9 +504,19 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
       : 0;
   const junkStats = Array.isArray(success.junk) ? success.junk : [];
   const junkHits = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0);
+  const requiredCoverage = requiredStats.reduce((sum, stat) => sum + (Number(statBreakdown?.[stat] || 0) > 0 ? 1 : 0), 0);
+  const neutralHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
+    isNeutralStatForScenario(stat, success) ? sum + Math.max(0, Number(count || 0)) : sum
+  ), 0);
   const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
-  let total = relicScore.score + helpfulHits * (config.helpfulBonus || 8) - junkHits * (config.junkPenalty || 6);
-  if (evaluateScenarioSuccess(scenario, statBreakdown)) total += 12;
+  let total = relicScore.score * Number(config.scoreWeight || 1)
+    + helpfulHits * (config.helpfulBonus || 8)
+    - junkHits * (config.junkPenalty || 6)
+    - neutralHits * (config.neutralPenalty || 0);
+  if (requiredCoverage > 0) total += requiredCoverage * ((config.helpfulBonus || 8) * 0.7);
+  if (requiredCoverage === requiredStats.length && requiredStats.length > 1) total += config.forceBonus || 3;
+  if (evaluateScenarioSuccess(scenario, statBreakdown)) total += 16;
+  if (config.strictGoal && requiredStats.length > 0 && requiredCoverage === 0) total -= 10;
   if (config.trendAware) {
     const commons = Array.isArray(profile?.commons) ? profile.commons : [];
     const dominantRoll = String(profile?.dominantRoll || '');
@@ -551,6 +582,7 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
 function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
   if (!attempt) return false;
   if (attemptsUsed >= MAX_RACE_TRIES) return true;
+  if (config.strictGoal && !attempt.goalSatisfied) return false;
   if (attempt.goalSatisfied && attempt.helpfulHits >= config.minHelpful && attempt.score >= config.minScore) return true;
   if (attempt.grade === 'SSS' || attempt.grade === 'SS') return true;
   if (String(config.historyAware || false) === 'true' || config.historyAware) {
