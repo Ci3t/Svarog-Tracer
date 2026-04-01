@@ -31,8 +31,8 @@ const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
   intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 1, forceBonus: 3, helpfulBonus: 10, junkPenalty: 8, neutralPenalty: 1.5, noisePenalty: 1, commonsBonus: 1.25, dominantBonus: 0.75, scoreWeight: 0.8, strictGoal: true },
-  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 2, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.25, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.68, strictGoal: true },
-  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 5, helpfulBonus: 16, junkPenalty: 12, neutralPenalty: 3, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.58, strictGoal: true },
+  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 3, forceBonus: 4, helpfulBonus: 13, junkPenalty: 10, neutralPenalty: 2.25, noisePenalty: 1.5, commonsBonus: 1.75, dominantBonus: 1.15, scoreWeight: 0.68, strictGoal: true },
+  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true, historyAware: true, pairAware: true, searchDepth: 4, forceBonus: 5, helpfulBonus: 18, junkPenalty: 13, neutralPenalty: 3.5, noisePenalty: 2, commonsBonus: 2.25, dominantBonus: 1.5, scoreWeight: 0.52, strictGoal: true },
 };
 
 function readBody(req) {
@@ -185,6 +185,21 @@ function getRequiredStatsForScenario(success = {}) {
   return [];
 }
 
+function getScenarioStatTier(stat, scenario) {
+  const tierByStat = scenario?.targetStatGuide?.tierByStat && typeof scenario.targetStatGuide.tierByStat === 'object'
+    ? scenario.targetStatGuide.tierByStat
+    : {};
+  return String(tierByStat[String(stat || '')] || 'NEUTRAL');
+}
+
+function formatScenarioTierLabel(stat, scenario) {
+  const tier = getScenarioStatTier(stat, scenario);
+  if (tier === 'S') return 'S-tier';
+  if (tier === 'A') return 'A-tier';
+  if (tier === 'TRASH') return 'trash';
+  return 'neutral';
+}
+
 function isNeutralStatForScenario(stat, success) {
   if (!stat) return false;
   if (isHelpfulStatForScenario(stat, success)) return false;
@@ -272,8 +287,8 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
     const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
     const nextProfile = advancePatternProfile(profile, visibleRoll);
-    const defaultImmediate = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false, predictor);
-    const forcedImmediate = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true, predictor);
+    const defaultImmediate = getActionCandidateScore(defaultCandidate, defaultStat, scenario, profile, config, false, predictor);
+    const forcedImmediate = getActionCandidateScore(forcedCandidate, forcedStat, scenario, profile, config, true, predictor);
     const defaultFuture = config.searchDepth > 0
       ? searchBestBotFuture(defaultCandidate, nextProfile, defaultCandidate.lastLine || null, scenario, config, config.searchDepth)
       : defaultImmediate;
@@ -289,7 +304,7 @@ function simulateBotTargetRelic(scenario, totalActions, options = {}) {
     pushBotDebug(debugLog, `My own board read said commons ${Array.isArray(profile?.commons) ? profile.commons.join('/') : '-'}, noise ${Array.isArray(profile?.noise) ? profile.noise.join('/') : '-'}, dominant roll ${String(profile?.dominantRoll || 'none')}, and noise pressure ${Number(profile?.noisePressure || 0).toFixed(2)}.`);
     pushBotDebug(debugLog, summarizePredictor(predictor));
     pushBotDebug(debugLog, summarizeTrendRead(predictor));
-    pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, forcedStat, forcedChoiceScore, shouldForce, forceLine, config));
+    pushBotDebug(debugLog, summarizeChoice(defaultStat, defaultChoiceScore, forcedStat, forcedChoiceScore, shouldForce, forceLine, config, scenario));
 
     relic = shouldForce ? forcedCandidate : defaultCandidate;
     profile = nextProfile;
@@ -405,11 +420,11 @@ function summarizeTrendRead(predictor) {
   return `Trend check: ${summary}.`;
 }
 
-function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, shouldForce, forceLine, config) {
+function summarizeChoice(defaultStat, defaultScore, forcedStat, forcedScore, shouldForce, forceLine, config, scenario) {
   const searchNote = config.searchDepth > 0
     ? `I also searched ${config.searchDepth} move${config.searchDepth > 1 ? 's' : ''} ahead before picking.`
     : 'I judged the move from the immediate board state only.';
-  return `I compared staying on the current line into ${defaultStat || 'unknown'} (${defaultScore.toFixed(2)}) against forcing line ${forceLine} into ${forcedStat || 'unknown'} (${forcedScore.toFixed(2)}). ${searchNote} I chose ${shouldForce ? `the forced route because it projected the stronger outcome` : `the default route because it projected the stronger outcome`}.`;
+  return `I compared staying on the current line into ${defaultStat || 'unknown'} [${formatScenarioTierLabel(defaultStat, scenario)}] (${defaultScore.toFixed(2)}) against forcing line ${forceLine} into ${forcedStat || 'unknown'} [${formatScenarioTierLabel(forcedStat, scenario)}] (${forcedScore.toFixed(2)}). ${searchNote} I chose ${shouldForce ? `the forced route because it projected the stronger outcome` : `the default route because it projected the stronger outcome`}.`;
 }
 
 function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
@@ -427,22 +442,30 @@ function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
   };
 }
 
-function getActionCandidateScore(candidateRelic, stat, success, profile, config, usedForce, predictor) {
+function getActionCandidateScore(candidateRelic, stat, scenario, profile, config, usedForce, predictor) {
+  const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   const relicScore = scoreRelicWithProfile(candidateRelic, detectRelicScoreProfile(candidateRelic));
   const isHelpful = isHelpfulStatForScenario(stat, success);
   const junkStats = Array.isArray(success?.junk) ? success.junk : [];
   const isJunk = junkStats.includes(stat);
   const isNeutral = isNeutralStatForScenario(stat, success);
+  const statTier = getScenarioStatTier(stat, scenario);
   let score = relicScore.score * Number(config.scoreWeight || 1);
 
   if (isHelpful) score += config.helpfulBonus || 8;
   if (isJunk) score -= config.junkPenalty || 6;
   if (isNeutral) score -= config.neutralPenalty || 0;
+  if (statTier === 'S') score += (config.helpfulBonus || 8) * 1.15;
+  if (statTier === 'A') score += (config.helpfulBonus || 8) * 0.45;
+  if (statTier === 'TRASH') score -= (config.junkPenalty || 6) * 1.35;
+  if (statTier === 'NEUTRAL') score -= (config.neutralPenalty || 0) * 0.75;
 
   if (config.scoreBias) {
     if (usedForce && isHelpful) score += config.forceBonus || 3;
     if (usedForce && isJunk) score -= Math.max(1, (config.forceBonus || 3) - 1);
     if (usedForce && isNeutral) score -= 0.5;
+    if (usedForce && statTier === 'S') score += 1.5;
+    if (usedForce && statTier === 'TRASH') score -= 1.5;
   }
 
   if (config.trendAware) {
@@ -508,11 +531,23 @@ function evaluateBotRelicState(relic, scenario, profile, config) {
   const neutralHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
     isNeutralStatForScenario(stat, success) ? sum + Math.max(0, Number(count || 0)) : sum
   ), 0);
+  const sHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
+    getScenarioStatTier(stat, scenario) === 'S' ? sum + Math.max(0, Number(count || 0)) : sum
+  ), 0);
+  const aHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
+    getScenarioStatTier(stat, scenario) === 'A' ? sum + Math.max(0, Number(count || 0)) : sum
+  ), 0);
+  const trashHits = Object.entries(statBreakdown).reduce((sum, [stat, count]) => (
+    getScenarioStatTier(stat, scenario) === 'TRASH' ? sum + Math.max(0, Number(count || 0)) : sum
+  ), 0);
   const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
   let total = relicScore.score * Number(config.scoreWeight || 1)
     + helpfulHits * (config.helpfulBonus || 8)
     - junkHits * (config.junkPenalty || 6)
     - neutralHits * (config.neutralPenalty || 0);
+  total += sHits * ((config.helpfulBonus || 8) * 0.9);
+  total += aHits * ((config.helpfulBonus || 8) * 0.35);
+  total -= trashHits * ((config.junkPenalty || 6) * 0.9);
   if (requiredCoverage > 0) total += requiredCoverage * ((config.helpfulBonus || 8) * 0.7);
   if (requiredCoverage === requiredStats.length && requiredStats.length > 1) total += config.forceBonus || 3;
   if (evaluateScenarioSuccess(scenario, statBreakdown)) total += 16;
@@ -562,7 +597,7 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
   const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
   const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
   const defaultRelic = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
-  const defaultImmediate = getActionCandidateScore(defaultRelic, defaultStat, scenario?.success || {}, profile, config, false, predictor);
+  const defaultImmediate = getActionCandidateScore(defaultRelic, defaultStat, scenario, profile, config, false, predictor);
   const defaultFuture = searchBestBotFuture(defaultRelic, nextProfile, defaultRelic.lastLine || null, scenario, config, depth - 1);
   let bestScore = defaultImmediate * 0.45 + defaultFuture * 0.55;
 
@@ -570,7 +605,7 @@ function searchBestBotFuture(relic, profile, carryLine, scenario, config, depth)
     const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
     const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
     const forcedRelic = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
-    const forcedImmediate = getActionCandidateScore(forcedRelic, forcedStat, scenario?.success || {}, profile, config, true, predictor);
+    const forcedImmediate = getActionCandidateScore(forcedRelic, forcedStat, scenario, profile, config, true, predictor);
     const forcedFuture = searchBestBotFuture(forcedRelic, nextProfile, forcedRelic.lastLine || null, scenario, config, depth - 1);
     const forcedScore = forcedImmediate * 0.45 + forcedFuture * 0.55;
     if (forcedScore > bestScore) bestScore = forcedScore;
@@ -693,6 +728,12 @@ function buildBotState(room) {
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
+    if (scenario?.targetStatGuide) {
+      const sTier = Array.isArray(scenario.targetStatGuide.s) && scenario.targetStatGuide.s.length > 0 ? scenario.targetStatGuide.s.join(', ') : 'none';
+      const aTier = Array.isArray(scenario.targetStatGuide.a) && scenario.targetStatGuide.a.length > 0 ? scenario.targetStatGuide.a.join(', ') : 'none';
+      const trashTier = Array.isArray(scenario.targetStatGuide.trash) && scenario.targetStatGuide.trash.length > 0 ? scenario.targetStatGuide.trash.join(', ') : 'none';
+      pushBotDebug(debugLog, `For this relic, I rate S-tier stats as ${sTier}; A-tier stats as ${aTier}; and trash stats as ${trashTier}.`);
+    }
     const actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
 
     if (actionsThisAttempt <= 0) {
@@ -1095,10 +1136,14 @@ function ensureRoomParticipant(room, userId) {
 async function createRoomForUser(user, body) {
   const tier = String(body?.tier || 'beginner').trim().toLowerCase();
   const selectedSetName = String(body?.selectedSetName || '').trim() || null;
+  const targetRelicOverride =
+    body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
+      ? body.targetRelicOverride
+      : null;
   const scenario = sanitizeScenario(
     body?.scenario && typeof body.scenario === 'object'
       ? body.scenario
-      : createChallengeScenario({ tier, generated: true, mode: 'pvp', selectedSetName })
+      : createChallengeScenario({ tier, generated: true, mode: 'pvp', selectedSetName, targetRelicOverride })
   );
   const displayName = normalizeName(user);
 
@@ -1235,7 +1280,11 @@ async function rerollRoomForUser(user, code, body = {}) {
   }
 
   const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName });
+  const targetRelicOverride =
+    body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
+      ? body.targetRelicOverride
+      : null;
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName, targetRelicOverride });
   const updated = await patchRoom(code, {
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
@@ -1264,7 +1313,11 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
   }
 
   const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName });
+  const targetRelicOverride =
+    body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
+      ? body.targetRelicOverride
+      : null;
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName, targetRelicOverride });
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
     status: 'active',

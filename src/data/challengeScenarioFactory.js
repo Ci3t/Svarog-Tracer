@@ -288,6 +288,29 @@ function buildPvpSuccessFromGuide(guide, targetRelic, generator) {
   };
 }
 
+function buildTargetStatGuide(guide, targetRelic) {
+  const s = (guide?.s || []).map(normalizeGuideStat).filter(Boolean);
+  const a = (guide?.a || []).map(normalizeGuideStat).filter(Boolean);
+  const zero = (guide?.zero || []).map(normalizeGuideStat).filter(Boolean);
+  const selectedLines = [...(Array.isArray(targetRelic?.lines) ? targetRelic.lines : []), targetRelic?.fourthLine]
+    .map(normalizeGuideStat)
+    .filter(Boolean);
+  const tierByStat = selectedLines.reduce((acc, stat) => {
+    if (s.includes(stat)) acc[stat] = 'S';
+    else if (a.includes(stat)) acc[stat] = 'A';
+    else if (zero.includes(stat)) acc[stat] = 'TRASH';
+    else acc[stat] = 'NEUTRAL';
+    return acc;
+  }, {});
+  return {
+    s: selectedLines.filter((stat) => tierByStat[stat] === 'S'),
+    a: selectedLines.filter((stat) => tierByStat[stat] === 'A'),
+    trash: selectedLines.filter((stat) => tierByStat[stat] === 'TRASH'),
+    neutral: selectedLines.filter((stat) => tierByStat[stat] === 'NEUTRAL'),
+    tierByStat,
+  };
+}
+
 function buildTargetRelicFromGuide(spec, setInfo, guide, generator) {
   const s = shuffleList((guide?.s || []).map(normalizeGuideStat).filter(Boolean), generator);
   const a = shuffleList((guide?.a || []).map(normalizeGuideStat).filter(Boolean), generator);
@@ -362,6 +385,7 @@ export function createChallengeScenario({
   generated = true,
   mode = 'challenge',
   selectedSetName = null,
+  targetRelicOverride = null,
 } = {}) {
   const tierRules = TIER_RULES[tier] || TIER_RULES.beginner;
   const seedPool = getChallengeSeedPool(tier);
@@ -384,11 +408,27 @@ export function createChallengeScenario({
   const selectedSetResult = mode === 'pvp'
     ? applySelectedTargetSet(randomizedTemplate, selectedSetName, seedRandom)
     : { template: randomizedTemplate, successOverride: null };
-  const finalTemplate = selectedSetResult.template;
+  const overriddenTargetRelic = targetRelicOverride && typeof targetRelicOverride === 'object'
+    ? {
+        ...selectedSetResult.template.targetRelic,
+        lines: Array.isArray(targetRelicOverride.lines) && targetRelicOverride.lines.length >= 3
+          ? targetRelicOverride.lines.slice(0, 3)
+          : selectedSetResult.template.targetRelic.lines,
+        fourthLine: String(targetRelicOverride.fourthLine || '').trim() || selectedSetResult.template.targetRelic.fourthLine,
+        hasFourthLine: typeof targetRelicOverride.hasFourthLine === 'boolean'
+          ? targetRelicOverride.hasFourthLine
+          : selectedSetResult.template.targetRelic.hasFourthLine,
+      }
+    : null;
+  const finalTemplate = {
+    ...selectedSetResult.template,
+    targetRelic: overriddenTargetRelic || selectedSetResult.template.targetRelic,
+  };
+  const selectedGuide = mode === 'pvp' && selectedSetName ? getSetBisGuide(selectedSetName) : null;
   const success = selectedSetResult.successOverride
     ? { ...selectedSetResult.successOverride }
-    : mode === 'pvp' && selectedSetName
-      ? { ...(buildPvpSuccessFromGuide(getSetBisGuide(selectedSetName), finalTemplate.targetRelic, seedRandom)) }
+    : mode === 'pvp' && selectedGuide
+      ? { ...(buildPvpSuccessFromGuide(selectedGuide, finalTemplate.targetRelic, seedRandom)) }
       : { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
   const hintPackId = seed.hintPackId || tierRules.hintPack || inferHintPack(seed.expectedStyle, template);
   const hints = getChallengeHintPack(hintPackId);
@@ -416,6 +456,7 @@ export function createChallengeScenario({
     progressText: style.progressText,
     hints: [...hints],
     success,
+    targetStatGuide: selectedGuide ? buildTargetStatGuide(selectedGuide, finalTemplate.targetRelic) : null,
     targetRelic: { ...finalTemplate.targetRelic },
     builderRelic: { ...finalTemplate.builderRelic },
     forceRelic: { ...finalTemplate.forceRelic },
