@@ -1,6 +1,8 @@
-import { getChallengeHintPack } from './challengeHintPacks';
-import { CHALLENGE_RELIC_TEMPLATES, getChallengeRelicTemplate } from './challengeRelicTemplates';
-import { getChallengeSeedPool } from './challengeSeedPools';
+import { getChallengeHintPack } from './challengeHintPacks.js';
+import { CHALLENGE_RELIC_TEMPLATES, getChallengeRelicTemplate } from './challengeRelicTemplates.js';
+import { getChallengeSeedPool } from './challengeSeedPools.js';
+import relicSets from './relics.json' with { type: 'json' };
+import { getSetScoreProfile } from '../utils/relicScoring.js';
 
 const TIER_RULES = {
   new_player: {
@@ -144,12 +146,12 @@ function inferHintPack(expectedStyle, template) {
 function buildGoalText(styleId, template, success) {
   const style = STYLE_COPY[styleId] || STYLE_COPY.clean_detour;
   if (success.type === 'monoLine') {
-    return `Keep routing the session back into ${success.target}. ${style.goal}`;
+    return `Route the board back into ${success.target} and keep it there across repeated upgrades. ${style.goal}`;
   }
   if (success.type === 'dualCritCombined') {
-    return `Turn the session into a crit-favored finish. ${style.goal}`;
+    return `Turn the board into a real dual-crit finish, not a one-sided crit dump. ${style.goal}`;
   }
-  return `Finish on both crit lines instead of drifting into junk. ${style.goal}`;
+  return `Hit both crit lines, not just one, and avoid drifting into junk. ${style.goal}`;
 }
 
 function buildWinText(success) {
@@ -169,6 +171,40 @@ function buildScenarioId(tier, seed, template) {
   return `${tier}-${seed.id}-${template.id}`;
 }
 
+function pickPvpRollTier(generator) {
+  const roll = generator();
+  if (roll < 0.33) return 'low';
+  if (roll < 0.66) return 'mid';
+  return 'high';
+}
+
+function randomizeRelicSet(spec, preferredProfiles, generator) {
+  const profiles = Array.isArray(preferredProfiles) ? preferredProfiles : [];
+  const candidates = (Array.isArray(relicSets) ? relicSets : []).filter((entry) => profiles.includes(getSetScoreProfile(entry?.name || '')));
+  const pool = candidates.length > 0 ? candidates : (Array.isArray(relicSets) ? relicSets : []);
+  const chosen = pickRandom(pool, generator);
+  if (!chosen) return { ...spec };
+  return {
+    ...spec,
+    setNameHint: chosen.name,
+    setImage: chosen.image || '',
+  };
+}
+
+function randomizeTemplateSets(template, generator) {
+  const targetProfiles = template.archetype === 'monoLine'
+    ? ['crit', 'fua', 'debuff_crit']
+    : ['crit', 'fua', 'debuff_crit', 'hp_crit', 'low_spd_crit'];
+  const builderProfiles = ['support', 'support_cd', 'break_support', 'break_dps', 'dot'];
+  const forceProfiles = ['support', 'support_cd', 'break_support', 'break_dps', 'crit'];
+  return {
+    ...template,
+    targetRelic: randomizeRelicSet(template.targetRelic, targetProfiles, generator),
+    builderRelic: randomizeRelicSet(template.builderRelic, builderProfiles, generator),
+    forceRelic: randomizeRelicSet(template.forceRelic, forceProfiles, generator),
+  };
+}
+
 export function createChallengeScenario({
   tier = 'beginner',
   seedId = null,
@@ -177,16 +213,24 @@ export function createChallengeScenario({
 } = {}) {
   const tierRules = TIER_RULES[tier] || TIER_RULES.beginner;
   const seedPool = getChallengeSeedPool(tier);
-  const seedRandom = createGenerator(hashString(`${tier}:${seedId || 'random'}:${templateId || 'random'}`));
+  const randomSalt =
+    seedId || templateId
+      ? 'locked'
+      : `${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+  const seedRandom = createGenerator(hashString(`${tier}:${seedId || 'random'}:${templateId || 'random'}:${randomSalt}`));
   const seed = seedId
     ? seedPool.find((entry) => entry.id === seedId) || seedPool[0]
     : pickRandom(seedPool, seedRandom);
-  const availableTemplates = tierRules.templateIds.map((id) => getChallengeRelicTemplate(id));
+  const resolvedTemplateIds = Array.isArray(seed?.templateIds) && seed.templateIds.length > 0
+    ? seed.templateIds
+    : tierRules.templateIds;
+  const availableTemplates = resolvedTemplateIds.map((id) => getChallengeRelicTemplate(id));
   const template = templateId
     ? getChallengeRelicTemplate(templateId)
     : pickRandom(availableTemplates, seedRandom);
+  const randomizedTemplate = randomizeTemplateSets(template, seedRandom);
   const success = { ...(SUCCESS_PRESETS[template.archetype] || SUCCESS_PRESETS.dualCrit) };
-  const hintPackId = tierRules.hintPack || inferHintPack(seed.expectedStyle, template);
+  const hintPackId = seed.hintPackId || tierRules.hintPack || inferHintPack(seed.expectedStyle, template);
   const hints = getChallengeHintPack(hintPackId);
   const style = STYLE_COPY[seed.expectedStyle] || STYLE_COPY.clean_detour;
   const scenarioId = buildScenarioId(tier, seed, template);
@@ -203,6 +247,7 @@ export function createChallengeScenario({
     region: seed.region,
     patch: seed.patch,
     seedLabel: seed.seedLabel,
+    pvpRollTier: pickPvpRollTier(seedRandom),
     starterRolls: [...seed.starterRolls],
     tags: [...(seed.tags || [])],
     expectedStyle: seed.expectedStyle,
@@ -211,9 +256,9 @@ export function createChallengeScenario({
     progressText: style.progressText,
     hints: [...hints],
     success,
-    targetRelic: { ...template.targetRelic },
-    builderRelic: { ...template.builderRelic },
-    forceRelic: { ...template.forceRelic },
+    targetRelic: { ...randomizedTemplate.targetRelic },
+    builderRelic: { ...randomizedTemplate.builderRelic },
+    forceRelic: { ...randomizedTemplate.forceRelic },
     attempts: {
       maxTries: tierRules.maxTries,
       expectedMistakes: tierRules.expectedMistakes,
