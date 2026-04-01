@@ -112,6 +112,7 @@ function createPlayerState(name = '') {
     finalRelicSummary: '',
     sessionEntriesBuilt: 0,
     sessionEntries: [],
+    botTick: 0,
     bestScore: 0,
     bestGrade: 'F',
     bestRollCount: 0,
@@ -961,11 +962,16 @@ function buildBotState(room) {
   if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) return null;
 
   const nowMs = Date.now();
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
+  const realElapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
   const scenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
   const seedLabel = String(scenario.seedLabel || room.seed_label || room.code || '');
   const seedHash = hashString(seedLabel);
   const config = getBotConfig(room?.tier, seedHash);
+  const currentBotTick = Math.max(0, Number(room?.guest_state?.botTick || 0) || 0);
+  const nextBotTick = currentBotTick + 1;
+  const elapsedSeconds = isDevBotUserId(guestUserId)
+    ? nextBotTick * config.stepSeconds
+    : Math.max(realElapsedSeconds, nextBotTick * config.stepSeconds);
   const debugLog = [];
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   let remainingSeconds = elapsedSeconds;
@@ -976,6 +982,7 @@ function buildBotState(room) {
   let currentRelic = createBotTargetRelic(scenario);
   let currentBuilderRelic = createBotBuilderRelic(scenario);
   let currentSessionEntries = [];
+  let hasTakenAnyAction = false;
 
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
@@ -1008,6 +1015,7 @@ function buildBotState(room) {
       currentProfile = builderSimulation.profile;
       currentCarryLine = builderSimulation.carryLine;
       currentSessionEntries = builderSimulation.sessionEntries;
+      hasTakenAnyAction = hasTakenAnyAction || builderSimulation.usedActions > 0;
       remainingSeconds = Math.max(0, remainingSeconds - (builderSimulation.usedActions * config.stepSeconds));
       actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
 
@@ -1031,6 +1039,7 @@ function buildBotState(room) {
           submittedAttempts: 0,
           sessionEntriesBuilt: builtEntries,
           sessionEntries: currentSessionEntries,
+          botTick: nextBotTick,
           bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
           bestGrade: String(bestAttempt?.grade || 'F'),
           bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
@@ -1059,6 +1068,7 @@ function buildBotState(room) {
     currentRelic = simulation.relic;
     currentProfile = simulation.profile;
     currentCarryLine = simulation.carryLine;
+    hasTakenAnyAction = hasTakenAnyAction || simulation.usedActions > 0;
     remainingSeconds = Math.max(0, remainingSeconds - (simulation.usedActions * config.stepSeconds));
 
     const statBreakdown = simulation.statBreakdown;
@@ -1109,6 +1119,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
         bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
@@ -1145,6 +1156,7 @@ function buildBotState(room) {
         submittedAttempts: 1,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        botTick: nextBotTick,
         finalScore: relicScore.score,
         finalGrade: relicScore.grade,
         finalRollCount: relicScore.rollCount,
@@ -1188,6 +1200,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
         bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
@@ -1222,6 +1235,7 @@ function buildBotState(room) {
         submittedAttempts: 0,
         sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
         sessionEntries: currentSessionEntries,
+        botTick: nextBotTick,
         bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
         bestGrade: String(bestAttempt?.grade || 'F'),
         bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
@@ -1247,12 +1261,13 @@ function buildBotState(room) {
 
   return {
     ...createPlayerState(room.guest_name || 'Svarog Bot'),
-    status: 'attempting',
-    currentLevel: currentRelic.level || (scenario?.requiresSessionBuilder ? currentBuilderRelic.level : 0),
-    attemptsUsed,
-    tries: attemptsUsed,
+    status: hasTakenAnyAction ? 'attempting' : 'ready',
+    currentLevel: hasTakenAnyAction ? (currentRelic.level || (scenario?.requiresSessionBuilder ? currentBuilderRelic.level : 0)) : 0,
+    attemptsUsed: hasTakenAnyAction ? attemptsUsed : 0,
+    tries: hasTakenAnyAction ? attemptsUsed : 1,
     sessionEntriesBuilt: Array.isArray(currentProfile?.history) ? currentProfile.history.length : 0,
     sessionEntries: currentSessionEntries,
+    botTick: nextBotTick,
     bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
     bestGrade: String(bestAttempt?.grade || 'F'),
     bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
@@ -1338,6 +1353,7 @@ function normalizePlayerState(input, currentState = {}) {
         trendSummary: String(entry?.trendSummary || '').slice(0, 120),
       })).slice(-32)
     : (Array.isArray(next.sessionEntries) ? next.sessionEntries.slice(-32) : []);
+  next.botTick = Math.max(0, Number(input?.botTick ?? next.botTick ?? 0) || 0);
   next.bestScore = Math.max(0, Number(input?.bestScore ?? next.bestScore ?? 0) || 0);
   next.bestGrade = String(input?.bestGrade || next.bestGrade || 'F').slice(0, 12);
   next.bestRollCount = Math.max(0, Number(input?.bestRollCount ?? next.bestRollCount ?? 0) || 0);
@@ -1385,6 +1401,7 @@ async function syncBotRoomIfNeeded(room) {
   const currentSignature = JSON.stringify({
     status: currentGuestState.status || '',
     currentLevel: Number(currentGuestState.currentLevel || 0),
+    botTick: Number(currentGuestState.botTick || 0),
     attemptsUsed: Number(currentGuestState.attemptsUsed || 0),
     submittedAttempts: Number(currentGuestState.submittedAttempts || 0),
     helpfulHits: Number(currentGuestState.helpfulHits || 0),
@@ -1396,6 +1413,7 @@ async function syncBotRoomIfNeeded(room) {
   const nextSignature = JSON.stringify({
     status: nextGuestState.status,
     currentLevel: nextGuestState.currentLevel,
+    botTick: nextGuestState.botTick || 0,
     attemptsUsed: nextGuestState.attemptsUsed,
     submittedAttempts: nextGuestState.submittedAttempts,
     helpfulHits: nextGuestState.helpfulHits,
