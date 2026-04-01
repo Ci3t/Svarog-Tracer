@@ -26,6 +26,13 @@ const PVP_ROOMS_TABLE = env.SUPABASE_PVP_ROOMS_TABLE || 'pvp_rooms';
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
+const BOT_TIER_CONFIG = {
+  new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false },
+  beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false },
+  intermediate: { baseStep: 4, jitter: 2, minScore: 24, minHelpful: 1, scoreBias: true, trendAware: true },
+  veteran: { baseStep: 4, jitter: 1, minScore: 28, minHelpful: 2, scoreBias: true, trendAware: true },
+  expert: { baseStep: 3, jitter: 1, minScore: 32, minHelpful: 2, scoreBias: true, trendAware: true },
+};
 
 function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -204,9 +211,11 @@ function createScenarioPatternProfile(scenario) {
   );
 }
 
-function simulateBotTargetRelic(scenario, totalActions) {
-  let relic = createBotTargetRelic(scenario);
-  let profile = createScenarioPatternProfile(scenario);
+function simulateBotTargetRelic(scenario, totalActions, options = {}) {
+  const config = options?.config || BOT_TIER_CONFIG.beginner;
+  let relic = options?.startRelic ? cloneRelic(options.startRelic) : createBotTargetRelic(scenario);
+  let profile = options?.startProfile ? cloneRelic(options.startProfile) : createScenarioPatternProfile(scenario);
+  let carryLine = Number.isInteger(options?.startCarryLine) ? options.startCarryLine : null;
   const actions = Math.max(0, Math.min(5, Number(totalActions) || 0));
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
   const forceBaseLines = Math.max(1, Math.min(3, Number(scenario?.forceRelic?.baseLines || 0) || 0));
@@ -230,29 +239,20 @@ function simulateBotTargetRelic(scenario, totalActions) {
 
     const nextSequenceIndex = Array.isArray(profile?.history) ? profile.history.length : 0;
     const visibleRoll = getVisibleRollForUpgrade(profile, nextSequenceIndex);
-    const previousLine = relic.lastLine || 4;
+    const previousLine = carryLine || relic.lastLine || 4;
     const defaultResolution = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
     const forcedResolution = resolveNextSlotFromVisibleRoll(forceLine, visibleRoll);
     const defaultStat = relic.lines.find((line) => line.slot === defaultResolution.targetSlot)?.stat || '';
     const forcedStat = relic.lines.find((line) => line.slot === forcedResolution.targetSlot)?.stat || '';
-    const shouldForce =
-      relic.hasFourthLine &&
-      isHelpfulStatForScenario(forcedStat, success) &&
-      !isHelpfulStatForScenario(defaultStat, success);
-    const targetSlot = shouldForce ? forcedResolution.targetSlot : defaultResolution.targetSlot;
-    const updatedLines = [...relic.lines, relic.fourthLine].map((line) => (
-      line.slot === targetSlot ? applyUpgradeRoll(line) : { ...line, justHit: false }
-    ));
-    relic = {
-      ...relic,
-      level: Math.min(15, relic.level + 3),
-      lastLine: targetSlot,
-      lastRawPair: shouldForce ? forcedResolution.rawPair : defaultResolution.rawPair,
-      lastVisibleRoll: visibleRoll,
-      lines: updatedLines.slice(0, 3),
-      fourthLine: updatedLines[3],
-    };
+    const defaultCandidate = applyBotUpgradeToSlot(relic, defaultResolution.targetSlot, defaultResolution.rawPair, visibleRoll);
+    const forcedCandidate = applyBotUpgradeToSlot(relic, forcedResolution.targetSlot, forcedResolution.rawPair, visibleRoll);
+    const defaultChoiceScore = getActionCandidateScore(defaultCandidate, defaultStat, success, profile, config, false);
+    const forcedChoiceScore = getActionCandidateScore(forcedCandidate, forcedStat, success, profile, config, true);
+    const shouldForce = relic.hasFourthLine && forcedChoiceScore > defaultChoiceScore;
+
+    relic = shouldForce ? forcedCandidate : defaultCandidate;
     profile = advancePatternProfile(profile, visibleRoll);
+    carryLine = relic.lastLine || carryLine || null;
   }
 
   const statBreakdown = [...relic.lines, relic.fourthLine].reduce((acc, line) => {
@@ -263,6 +263,9 @@ function simulateBotTargetRelic(scenario, totalActions) {
   return {
     relic,
     statBreakdown,
+    profile,
+    carryLine,
+    usedActions: actions,
   };
 }
 
@@ -293,6 +296,71 @@ function evaluateScenarioSuccess(scenario, breakdown = {}) {
     return combinedHits >= (success.minCombined || 2) && passedJunkGate;
   }
 
+  return false;
+}
+
+function getBotConfig(tier, seedHash) {
+  const base = BOT_TIER_CONFIG[String(tier || '').toLowerCase()] || BOT_TIER_CONFIG.beginner;
+  return {
+    ...base,
+    stepSeconds: base.baseStep + (seedHash % Math.max(1, base.jitter + 1)),
+    retryDelay: BOT_RETRY_DELAY_SECONDS,
+  };
+}
+
+function cloneRelic(relic) {
+  return JSON.parse(JSON.stringify(relic));
+}
+
+function applyBotUpgradeToSlot(relic, targetSlot, rawPair, visibleRoll) {
+  const updatedLines = [...relic.lines, relic.fourthLine].map((line) => (
+    line.slot === targetSlot ? applyUpgradeRoll(line) : { ...line, justHit: false }
+  ));
+  return {
+    ...relic,
+    level: Math.min(15, relic.level + 3),
+    lastLine: targetSlot,
+    lastRawPair: rawPair,
+    lastVisibleRoll: visibleRoll,
+    lines: updatedLines.slice(0, 3),
+    fourthLine: updatedLines[3],
+  };
+}
+
+function getActionCandidateScore(candidateRelic, stat, success, profile, config, usedForce) {
+  const relicScore = scoreRelicWithProfile(candidateRelic, detectRelicScoreProfile(candidateRelic));
+  const isHelpful = isHelpfulStatForScenario(stat, success);
+  const junkStats = Array.isArray(success?.junk) ? success.junk : [];
+  const isJunk = junkStats.includes(stat);
+  let score = relicScore.score;
+
+  if (isHelpful) score += 8;
+  if (isJunk) score -= 6;
+
+  if (config.scoreBias) {
+    if (usedForce && isHelpful) score += 3;
+    if (usedForce && isJunk) score -= 3;
+  }
+
+  if (config.trendAware) {
+    const commons = Array.isArray(profile?.commons) ? profile.commons : [];
+    const noise = Array.isArray(profile?.noise) ? profile.noise : [];
+    const dominantRoll = String(profile?.dominantRoll || '');
+    const visibleRoll = String(candidateRelic.lastVisibleRoll || '');
+    if (commons.includes(visibleRoll)) score += 1.5;
+    if (noise.includes(visibleRoll)) score -= 1.25;
+    if (dominantRoll === visibleRoll) score += 1;
+    if (Number(profile?.noisePressure || 0) > 3 && !usedForce) score -= 0.75;
+  }
+
+  return score;
+}
+
+function shouldBotSubmitAttempt(attempt, attemptsUsed, config) {
+  if (!attempt) return false;
+  if (attemptsUsed >= MAX_RACE_TRIES) return true;
+  if (attempt.helpfulHits >= config.minHelpful && attempt.score >= config.minScore) return true;
+  if (attempt.grade === 'SSS' || attempt.grade === 'SS' || attempt.grade === 'S') return true;
   return false;
 }
 
@@ -386,17 +454,36 @@ function buildBotState(room) {
   const scenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
   const seedLabel = String(scenario.seedLabel || room.seed_label || room.code || '');
   const seedHash = hashString(seedLabel);
-  const stepSeconds = 4 + (seedHash % 4); // 4-7s per click
-  const finishDelay = 2 + (seedHash % 3);
+  const config = getBotConfig(room?.tier, seedHash);
   const success = scenario?.success && typeof scenario.success === 'object' ? scenario.success : {};
-  let consumedSeconds = 0;
-  let currentState = createPlayerState(room.guest_name || 'Svarog Bot');
+  let remainingSeconds = elapsedSeconds;
+  let attemptsUsed = 1;
   let bestAttempt = null;
-  const tryIndex = 1;
-  const remainingSeconds = Math.max(0, elapsedSeconds - consumedSeconds);
-  const actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / stepSeconds)));
-  const { relic: simulatedRelic, statBreakdown } = simulateBotTargetRelic(scenario, actionsThisAttempt);
-    const usefulHits = success.type === 'monoLine'
+  let currentProfile = createScenarioPatternProfile(scenario);
+  let currentCarryLine = null;
+  let currentRelic = createBotTargetRelic(scenario);
+
+  while (attemptsUsed <= MAX_RACE_TRIES) {
+    const actionsThisAttempt = Math.max(0, Math.min(5, Math.floor(remainingSeconds / config.stepSeconds)));
+
+    if (actionsThisAttempt <= 0) {
+      break;
+    }
+
+    const simulation = simulateBotTargetRelic(scenario, actionsThisAttempt, {
+      startRelic: currentRelic,
+      startProfile: currentProfile,
+      startCarryLine: currentCarryLine,
+      config,
+    });
+
+    currentRelic = simulation.relic;
+    currentProfile = simulation.profile;
+    currentCarryLine = simulation.carryLine;
+    remainingSeconds = Math.max(0, remainingSeconds - (simulation.usedActions * config.stepSeconds));
+
+    const statBreakdown = simulation.statBreakdown;
+    const helpfulHits = success.type === 'monoLine'
       ? Math.max(0, Number(statBreakdown?.[success.target] || 0))
       : Array.isArray(success.required)
         ? success.required.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0)
@@ -404,70 +491,175 @@ function buildBotState(room) {
     const junkStats = Array.isArray(success.junk) ? success.junk : [];
     const mistakes = junkStats.reduce((sum, stat) => sum + Math.max(0, Number(statBreakdown?.[stat] || 0)), 0);
     const goalSatisfied = evaluateScenarioSuccess(scenario, statBreakdown);
-    const attemptFinished = actionsThisAttempt >= 5;
-    const relicScore = scoreRelicWithProfile(simulatedRelic, detectRelicScoreProfile(simulatedRelic));
-    const score = relicScore.score;
-    const rollCount = relicScore.rollCount;
-    const hp = Math.max(0, 100 - usefulHits * 25);
-    const grade = relicScore.grade;
-
+    const relicScore = scoreRelicWithProfile(currentRelic, detectRelicScoreProfile(currentRelic));
     const attempt = {
-      score,
-      grade,
-      helpfulHits: usefulHits,
+      score: relicScore.score,
+      grade: relicScore.grade,
+      helpfulHits,
       mistakes,
-      rollCount,
+      rollCount: relicScore.rollCount,
       statBreakdown,
       goalSatisfied,
-      relicSnapshot: JSON.parse(JSON.stringify(simulatedRelic)),
-      relicSummary: simulatedRelic.level >= 15
-        ? `Bot submitted try ${tryIndex} at +15.`
-        : `Bot aborted try ${tryIndex} at +${simulatedRelic.level}.`,
+      relicSnapshot: cloneRelic(currentRelic),
+      relicSummary: currentRelic.level >= 15
+        ? `Bot finished try ${attemptsUsed} at +15.`
+        : `Bot is on try ${attemptsUsed} at +${currentRelic.level}.`,
     };
 
     if (!bestAttempt || compareAttemptPayload(attempt, bestAttempt) > 0) {
       bestAttempt = attempt;
     }
 
-    currentState = {
-      status: attemptFinished ? 'submitted' : 'attempting',
-      currentLevel: simulatedRelic.level,
-      helpfulHits: usefulHits,
-      hp,
-      tries: tryIndex,
-      mistakes,
-      score,
-      grade,
-      rollCount,
-      hintStep: 0,
-      statBreakdown,
-      goalSatisfied,
-      attemptsUsed: 1,
-      submittedAttempts: attemptFinished ? 1 : 0,
-      finalScore: attemptFinished ? score : 0,
-      finalGrade: attemptFinished ? grade : 'F',
-      finalRollCount: attemptFinished ? rollCount : 0,
-      finalHelpfulHits: attemptFinished ? usefulHits : 0,
-      finalMistakes: attemptFinished ? mistakes : 0,
-      finalStatBreakdown: attemptFinished ? statBreakdown : {},
-      finalRelicSnapshot: attemptFinished ? JSON.parse(JSON.stringify(simulatedRelic)) : null,
-      finalRelicSummary: attemptFinished ? `Bot submitted try ${tryIndex} at +15.` : '',
-      bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
-      bestGrade: String(bestAttempt?.grade || 'F'),
-      bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
-      bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
-      bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
-      bestStatBreakdown: bestAttempt?.statBreakdown || {},
-      bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
-      bestRelicSummary: bestAttempt?.relicSummary || '',
-      relicSummary: attemptFinished
-        ? `Bot submitted try ${tryIndex}.`
-        : `Bot is on try ${tryIndex}, progressed to +${simulatedRelic.level}.`,
-      displayName: room.guest_name || 'Svarog Bot',
-      updatedAt: new Date().toISOString(),
-    };
+    if (currentRelic.level < 15) {
+      return {
+        ...createPlayerState(room.guest_name || 'Svarog Bot'),
+        status: 'attempting',
+        currentLevel: currentRelic.level,
+        helpfulHits,
+        hp: Math.max(0, 100 - helpfulHits * 25),
+        tries: attemptsUsed,
+        mistakes,
+        score: relicScore.score,
+        grade: relicScore.grade,
+        rollCount: relicScore.rollCount,
+        statBreakdown,
+        goalSatisfied,
+        attemptsUsed,
+        submittedAttempts: 0,
+        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+        bestGrade: String(bestAttempt?.grade || 'F'),
+        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+        bestStatBreakdown: bestAttempt?.statBreakdown || {},
+        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+        bestRelicSummary: bestAttempt?.relicSummary || '',
+        relicSummary: `Bot is building try ${attemptsUsed} at +${currentRelic.level}.`,
+        displayName: room.guest_name || 'Svarog Bot',
+        updatedAt: new Date().toISOString(),
+      };
+    }
 
-  return currentState;
+    if (shouldBotSubmitAttempt(attempt, attemptsUsed, config)) {
+      return {
+        ...createPlayerState(room.guest_name || 'Svarog Bot'),
+        status: 'submitted',
+        currentLevel: currentRelic.level,
+        helpfulHits,
+        hp: Math.max(0, 100 - helpfulHits * 25),
+        tries: attemptsUsed,
+        mistakes,
+        score: relicScore.score,
+        grade: relicScore.grade,
+        rollCount: relicScore.rollCount,
+        statBreakdown,
+        goalSatisfied,
+        attemptsUsed,
+        submittedAttempts: 1,
+        finalScore: relicScore.score,
+        finalGrade: relicScore.grade,
+        finalRollCount: relicScore.rollCount,
+        finalHelpfulHits: helpfulHits,
+        finalMistakes: mistakes,
+        finalStatBreakdown: statBreakdown,
+        finalRelicSnapshot: cloneRelic(currentRelic),
+        finalRelicSummary: `Bot submitted try ${attemptsUsed} at +15.`,
+        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+        bestGrade: String(bestAttempt?.grade || 'F'),
+        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+        bestStatBreakdown: bestAttempt?.statBreakdown || {},
+        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+        bestRelicSummary: bestAttempt?.relicSummary || '',
+        relicSummary: `Bot submitted its final relic on try ${attemptsUsed}.`,
+        displayName: room.guest_name || 'Svarog Bot',
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    if (attemptsUsed >= MAX_RACE_TRIES) {
+      return {
+        ...createPlayerState(room.guest_name || 'Svarog Bot'),
+        status: 'busted',
+        currentLevel: currentRelic.level,
+        helpfulHits,
+        hp: Math.max(0, 100 - helpfulHits * 25),
+        tries: MAX_RACE_TRIES + 1,
+        mistakes,
+        score: relicScore.score,
+        grade: relicScore.grade,
+        rollCount: relicScore.rollCount,
+        statBreakdown,
+        goalSatisfied,
+        attemptsUsed: MAX_RACE_TRIES + 1,
+        submittedAttempts: 0,
+        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+        bestGrade: String(bestAttempt?.grade || 'F'),
+        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+        bestStatBreakdown: bestAttempt?.statBreakdown || {},
+        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+        bestRelicSummary: bestAttempt?.relicSummary || '',
+        relicSummary: `Bot busted after failing to improve through ${MAX_RACE_TRIES} tries.`,
+        displayName: room.guest_name || 'Svarog Bot',
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    if (remainingSeconds < config.retryDelay) {
+      return {
+        ...createPlayerState(room.guest_name || 'Svarog Bot'),
+        status: 'maxed',
+        currentLevel: currentRelic.level,
+        helpfulHits,
+        hp: Math.max(0, 100 - helpfulHits * 25),
+        tries: attemptsUsed,
+        mistakes,
+        score: relicScore.score,
+        grade: relicScore.grade,
+        rollCount: relicScore.rollCount,
+        statBreakdown,
+        goalSatisfied,
+        attemptsUsed,
+        submittedAttempts: 0,
+        bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+        bestGrade: String(bestAttempt?.grade || 'F'),
+        bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+        bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+        bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+        bestStatBreakdown: bestAttempt?.statBreakdown || {},
+        bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+        bestRelicSummary: bestAttempt?.relicSummary || '',
+        relicSummary: `Bot is deciding whether to reset try ${attemptsUsed}.`,
+        displayName: room.guest_name || 'Svarog Bot',
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    remainingSeconds = Math.max(0, remainingSeconds - config.retryDelay);
+    attemptsUsed += 1;
+    currentRelic = createBotTargetRelic(scenario);
+  }
+
+  return {
+    ...createPlayerState(room.guest_name || 'Svarog Bot'),
+    status: 'attempting',
+    currentLevel: currentRelic.level,
+    attemptsUsed,
+    tries: attemptsUsed,
+    bestScore: Math.max(0, Number(bestAttempt?.score || 0)),
+    bestGrade: String(bestAttempt?.grade || 'F'),
+    bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || 0)),
+    bestHelpfulHits: Math.max(0, Number(bestAttempt?.helpfulHits || 0)),
+    bestMistakes: Math.max(0, Number(bestAttempt?.mistakes || 0)),
+    bestStatBreakdown: bestAttempt?.statBreakdown || {},
+    bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
+    bestRelicSummary: bestAttempt?.relicSummary || '',
+    displayName: room.guest_name || 'Svarog Bot',
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function sanitizeScenario(scenario) {
@@ -780,6 +972,34 @@ async function restartRoomForUser(user, code) {
   return toClientRoom(updated || room, user.id);
 }
 
+async function rerollRoomForUser(user, code) {
+  const room = await loadRoomByCode(code);
+  if (!room) {
+    throw new HttpError(404, 'Room not found.');
+  }
+  const role = ensureRoomParticipant(room, user.id);
+  if (role !== 'host') {
+    throw new HttpError(403, 'Only the host can reroll the room.');
+  }
+  if (room.status !== 'lobby') {
+    throw new HttpError(409, 'You can only reroll relics before the duel starts.');
+  }
+
+  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true });
+  const updated = await patchRoom(code, {
+    difficulty: scenario.difficulty || room.tier,
+    seed_label: scenario.seedLabel || '',
+    scenario,
+    winner_user_id: null,
+    started_at: null,
+    finished_at: null,
+    host_state: createPlayerState(room.host_name),
+    guest_state: createPlayerState(room.guest_name || 'Opponent'),
+    updated_at: new Date().toISOString(),
+  });
+  return toClientRoom(updated || room, user.id);
+}
+
 async function devFillRoomForUser(req, user, code) {
   if (!isLocalDevRequest(req)) {
     throw new HttpError(403, 'Dev fill is only available on local development.');
@@ -893,6 +1113,12 @@ export async function handler(req, res) {
     if (action === 'restart') {
       if (!code) throw new HttpError(400, 'Room code is required.');
       const room = await restartRoomForUser(user, code);
+      return res.status(200).json({ room });
+    }
+
+    if (action === 'reroll') {
+      if (!code) throw new HttpError(400, 'Room code is required.');
+      const room = await rerollRoomForUser(user, code);
       return res.status(200).json({ room });
     }
 

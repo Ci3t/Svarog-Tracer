@@ -47,6 +47,7 @@ import {
   applyUpgradeRoll,
   createRelicId,
   createRelicLine,
+  describeRelicScoreGuide,
   detectRelicScoreProfile,
   formatStatValue,
   getMainStatDisplay,
@@ -349,6 +350,10 @@ function formatPvpStatusLabel(status) {
   if (normalized === 'timeout') return 'TIMEOUT';
   if (normalized === 'disconnected') return 'DISCONNECTED';
   return normalized ? normalized.toUpperCase() : 'READY';
+}
+
+function formatScoreProfileLabel(profileId = 'crit') {
+  return String(profileId || 'crit').replace(/_/g, ' ');
 }
 
 function describeHint(relic, moodConfig) {
@@ -859,6 +864,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     [currentContract.success, lineHitsByStat]
   );
   const relicScore = useMemo(() => scoreRelicWithProfile(relic, detectRelicScoreProfile(relic)), [relic]);
+  const scoreGuide = useMemo(() => describeRelicScoreGuide(relic), [relic]);
   const currentPvpAttempt = useMemo(() => ({
     score: relicScore.score,
     grade: relicScore.grade,
@@ -2070,6 +2076,42 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       : currentContract.win}
                   </p>
                 </div>
+                {isPvpMode ? (
+                  <div className="rounded-xl border border-fuchsia-400/15 bg-fuchsia-500/5 p-3 mb-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fuchsia-200">Set Score Guide</div>
+                      <div className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
+                        {formatScoreProfileLabel(scoreGuide.profileId)}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div>
+                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-200">Aim For</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {scoreGuide.targetStats.length > 0 ? scoreGuide.targetStats.map((stat) => (
+                            <span key={stat} className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100">
+                              {stat}
+                            </span>
+                          )) : (
+                            <span className="text-[10px] text-slate-400">No preferred lines found.</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-rose-200">Avoid</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {scoreGuide.avoidStats.length > 0 ? scoreGuide.avoidStats.map((stat) => (
+                            <span key={stat} className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-rose-100">
+                              {stat}
+                            </span>
+                          )) : (
+                            <span className="text-[10px] text-slate-400">No dead lines on this relic.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div
                   className={`rounded-xl border p-3 mb-3 ${
                     challengeStatus.tone === 'clear'
