@@ -605,23 +605,68 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             {/* DIALOGUE & MOVES PANE */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch relative">
                
-               {/* Dialogue Box */}
-               <div className="md:col-span-7 rounded-2xl border-[3px] border-double border-cyan-400/30 bg-slate-900/90 p-5 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] flex flex-col justify-between">
-                  <div>
-                     <span className="text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400 border border-cyan-500/30 rounded px-1.5 py-0.5 mb-3 inline-block">
-                        {currentDrill.skill}
+               {/* Dialogue Box - WITH CLARA ASSISTANT */}
+               <div className="md:col-span-7 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-transparent backdrop-blur-md p-6 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-stretch gap-4 sm:gap-6 border-[3px] border-double border-cyan-400/30">
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
+                    .force-overflow-visible { overflow: visible !important; }
+                  `}} />
+
+                  {/* CLARA AVATAR & BUBBLE CONTAINER */}
+                  <div className="relative shrink-0 w-24 sm:w-32 flex flex-col justify-end mt-10 z-[120]">
+                     <div className="absolute inset-0 rounded-full bg-cyan-500 blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity duration-1000" />
+                     
+                     {/* The speech bubble pointing to the dialogue text */}
+                     <div className="absolute -top-20 md:-top-28 left-[60%] md:left-[70%] z-[130] animate-float-gentle select-none pointer-events-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:scale-105">
+                        <div className="relative">
+                           <svg width="270" height="92" viewBox="0 0 270 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-[180px] md:w-[220px]">
+                              <path
+                                d="M10 38C10 18.1178 31.4903 2 58 2H212C238.51 2 260 18.1178 260 38C260 57.8822 238.51 74 212 74H78L44 90L54 74C29.5964 74 10 57.8822 10 38Z"
+                                fill="white"
+                                fillOpacity="0.95"
+                                stroke="#0ea5e9"
+                                strokeWidth="3"
+                              />
+                           </svg>
+                           <div className="absolute inset-0 flex items-center justify-center pb-3 px-8 z-20">
+                              <span className="text-[10px] md:text-[11px] font-black uppercase tracking-tight text-center leading-[1.05]" style={{ color: '#000000' }}>
+                                {!revealed ? "Analyze the board!" : (selectedAnswer === currentDrill.correctAnswer ? "Excellent read!" : "Wait, recalculating...")}
+                              </span>
+                           </div>
+                        </div>
+                     </div>
+                     <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-[130] w-full text-center pointer-events-none drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
+                         <div className="text-[9px] font-black uppercase tracking-widest text-cyan-300 drop-shadow-md pb-1 border-b border-cyan-500/30 bg-black/40 px-2 rounded-t-xl inline-block backdrop-blur-sm">
+                           Clara
+                         </div>
+                     </div>
+                     <img
+                       src={revealed && selectedAnswer !== currentDrill.correctAnswer ? "/clara-prof-assistant.png" : "/clara-prof-OandMouth.gif"}
+                       alt="Clara Assistant Icon"
+                       className="relative w-[140%] max-w-none -ml-4 object-contain z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform duration-700 pointer-events-none"
+                       style={{
+                         maskImage: 'linear-gradient(to bottom, black 60%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                         WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                       }}
+                     />
+                  </div>
+
+                  {/* TEXT AREA */}
+                  <div className="flex-1 flex flex-col justify-center relative z-20 mt-4 md:mt-2">
+                     <span className="text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400 border border-cyan-500/30 rounded px-1.5 py-0.5 mb-2 inline-block self-start shadow-sm bg-cyan-500/10 backdrop-blur-sm">
+                        {currentDrill.skill} Review
                      </span>
-                     <p className="text-[14px] sm:text-[16px] leading-relaxed text-white font-medium drop-shadow-sm min-h-[60px]">
+                     <p className="text-[14px] sm:text-[16px] leading-relaxed text-white font-medium drop-shadow-sm">
                         {currentDrill.prompt}
                      </p>
+                     {revealed && (
+                        <div className="mt-4 border-t border-cyan-500/20 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                           <p className="text-[11px] leading-relaxed italic text-cyan-100/80">
+                              {currentDrill.explanation}
+                           </p>
+                        </div>
+                     )}
                   </div>
-                  {revealed && (
-                     <div className="mt-4 border-t border-cyan-500/20 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <p className="text-[11px] leading-relaxed italic text-cyan-100/80">
-                           {currentDrill.explanation}
-                        </p>
-                     </div>
-                  )}
                </div>
 
                {/* Action/Moves Grid */}
