@@ -115,6 +115,31 @@ const STYLE_COPY = {
     goal: 'A hard mixed-chaos board with multiple plausible reads. Commit to the line that actually clears the relic.',
     progressText: 'This contract punishes lazy reads. The board gives you options, but not all of them are actually good.',
   },
+  true_dominance: {
+    title: 'True Dominance',
+    goal: 'A real dominant lane can run for a long time, break once, then come back. Read the actual dominance instead of panicking at the first cut.',
+    progressText: 'This contract teaches real dominance behavior. One noise cut does not automatically kill the lane.',
+  },
+  dominance_break_return: {
+    title: 'Break And Return',
+    goal: 'The board breaks, then returns to dominance. Keep reading through the interruption instead of resetting your whole belief tree.',
+    progressText: 'The lane can break for a beat and still be the right read. Watch the return, not just the break.',
+  },
+  fake_stable: {
+    title: 'Fake Stable',
+    goal: 'A board can look stable while hiding a trap side. Use the live pressure and relic shape instead of trusting the first clean rhythm.',
+    progressText: 'This contract punishes fake confidence. Stable-looking does not always mean safe.',
+  },
+  pair_flip: {
+    title: 'Pair Flip',
+    goal: 'The trusted pair can shift mid-session. Detect the flip before you commit the finish.',
+    progressText: 'This board changes lanes. The solve is noticing when the safe pair actually moved.',
+  },
+  greed_punish: {
+    title: 'Greed Punish',
+    goal: 'Good-looking value is not enough if it does not clear the real contract. Pick the line that wins, not the one that only looks pretty.',
+    progressText: 'This contract punishes greed. Score bait is not the same thing as a successful finish.',
+  },
 };
 
 function hashString(value = '') {
@@ -140,6 +165,20 @@ function createGenerator(seed = 1) {
 function pickRandom(list, generator = Math.random) {
   if (!Array.isArray(list) || list.length === 0) return null;
   return list[Math.floor(generator() * list.length)] || list[0];
+}
+
+function pickWeighted(list, generator = Math.random) {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const totalWeight = list.reduce((sum, entry) => sum + Math.max(0, Number(entry?.weight || 0)), 0);
+  if (totalWeight <= 0) {
+    return pickRandom(list, generator);
+  }
+  let threshold = generator() * totalWeight;
+  for (const entry of list) {
+    threshold -= Math.max(0, Number(entry?.weight || 0));
+    if (threshold <= 0) return entry;
+  }
+  return list[list.length - 1];
 }
 
 function inferHintPack(expectedStyle, template) {
@@ -249,6 +288,17 @@ function shuffleList(list, generator) {
   return copy;
 }
 
+function takeUniqueFromPool(pool, selected, count = 1) {
+  const picked = [];
+  if (!Array.isArray(pool) || count <= 0) return picked;
+  for (const candidate of pool) {
+    if (!candidate || selected.includes(candidate) || picked.includes(candidate)) continue;
+    picked.push(candidate);
+    if (picked.length >= count) break;
+  }
+  return picked;
+}
+
 function normalizeGuideStat(stat = '') {
   const normalized = String(stat || '').trim().toUpperCase();
   if (normalized === 'CRIT RATE') return 'CRIT RATE';
@@ -322,28 +372,57 @@ function buildTargetRelicFromGuide(spec, setInfo, guide, generator) {
   const s = shuffleList((guide?.s || []).map(normalizeGuideStat).filter(Boolean), generator);
   const a = shuffleList((guide?.a || []).map(normalizeGuideStat).filter(Boolean), generator);
   const zero = shuffleList((guide?.zero || []).map(normalizeGuideStat).filter(Boolean), generator);
+  const archetypeLayouts = [
+    { weight: 26, pattern: ['S', 'A', 'TRASH'] },
+    { weight: 18, pattern: ['S', 'TRASH', 'TRASH'] },
+    { weight: 18, pattern: ['S', 'A', 'A'] },
+    { weight: 16, pattern: ['S', 'S', 'TRASH'] },
+    { weight: 12, pattern: ['S', 'S', 'A'] },
+    { weight: 10, pattern: ['S', 'A', 'S'] },
+  ];
+  const viableLayouts = archetypeLayouts.filter((layout) => {
+    const counts = layout.pattern.reduce((acc, tier) => {
+      acc[tier] = (acc[tier] || 0) + 1;
+      return acc;
+    }, {});
+    return (
+      (counts.S || 0) <= s.length
+      && (counts.A || 0) <= a.length
+      && (counts.TRASH || 0) <= zero.length
+    );
+  });
+  const fallbackLayout = s.length >= 2 && a.length > 0
+    ? { pattern: ['S', 'S', 'A'] }
+    : a.length > 0
+      ? { pattern: ['S', 'A', 'TRASH'] }
+      : { pattern: ['S', 'TRASH', 'TRASH'] };
+  const chosenLayout = pickWeighted(viableLayouts, generator) || fallbackLayout;
   const selected = [];
 
-  if (s.length >= 2 && (generator() < 0.65 || a.length === 0)) {
-    selected.push(s[0], s[1]);
-  } else {
-    if (s[0]) selected.push(s[0]);
-    if (a[0]) selected.push(a[0]);
+  for (const tier of chosenLayout.pattern) {
+    if (tier === 'S') {
+      selected.push(...takeUniqueFromPool(s, selected, 1));
+    } else if (tier === 'A') {
+      selected.push(...takeUniqueFromPool(a, selected, 1));
+    } else if (tier === 'TRASH') {
+      selected.push(...takeUniqueFromPool(zero, selected, 1));
+    }
   }
 
-  const pool = [...s.slice(2), ...a.slice(1), ...zero];
-  while (selected.length < 3 && pool.length > 0) {
-    const next = pool.shift();
-    if (next && !selected.includes(next)) selected.push(next);
+  if (!selected.some((stat) => s.includes(stat)) && s[0]) {
+    if (selected.length < 3) selected.unshift(s[0]);
+    else selected[0] = s[0];
   }
 
-  if (selected.length >= 3 && s.length > 0 && !selected.some((stat) => s.includes(stat))) {
-    const replaceIndex = selected.findIndex((stat) => !a.includes(stat));
-    selected[Math.max(0, replaceIndex)] = s[0];
+  const fillPool = shuffleList([...s, ...a, ...zero], generator);
+  for (const stat of fillPool) {
+    if (selected.length >= 3) break;
+    if (!stat || selected.includes(stat)) continue;
+    selected.push(stat);
   }
 
-  const fourthCandidates = [...a, ...zero, ...s].filter((stat) => stat && !selected.includes(stat));
-  const fourthLine = fourthCandidates[0] || selected[2] || 'ATK%';
+  const fourthCandidates = shuffleList([...s, ...a, ...zero].filter((stat) => stat && !selected.includes(stat)), generator);
+  const fourthLine = fourthCandidates[0] || selected[2] || selected[1] || 'ATK%';
   const ordered = shuffleList(selected.slice(0, 3), generator);
 
   return {
@@ -352,7 +431,7 @@ function buildTargetRelicFromGuide(spec, setInfo, guide, generator) {
     setImage: setInfo.image || '',
     lines: ordered,
     fourthLine,
-    hasFourthLine: false,
+    hasFourthLine: Boolean(spec?.hasFourthLine),
   };
 }
 
@@ -393,21 +472,39 @@ export function createChallengeScenario({
   mode = 'challenge',
   selectedSetName = null,
   targetRelicOverride = null,
+  preferredStyle = null,
+  excludeSeedId = null,
+  excludeTemplateId = null,
 } = {}) {
   const tierRules = TIER_RULES[tier] || TIER_RULES.beginner;
-  const seedPool = getChallengeSeedPool(tier);
+  const fullSeedPool = getChallengeSeedPool(tier);
   const randomSalt =
     seedId || templateId
       ? 'locked'
       : `${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
   const seedRandom = createGenerator(hashString(`${tier}:${seedId || 'random'}:${templateId || 'random'}:${randomSalt}`));
+  let seedPool = fullSeedPool;
+  if (preferredStyle) {
+    const styledPool = fullSeedPool.filter((entry) => entry?.expectedStyle === preferredStyle);
+    if (styledPool.length > 0) seedPool = styledPool;
+  }
+  if (!seedId && excludeSeedId) {
+    const filteredPool = seedPool.filter((entry) => entry?.id !== excludeSeedId);
+    if (filteredPool.length > 0) seedPool = filteredPool;
+  }
   const seed = seedId
     ? seedPool.find((entry) => entry.id === seedId) || seedPool[0]
     : pickRandom(seedPool, seedRandom);
   const resolvedTemplateIds = Array.isArray(seed?.templateIds) && seed.templateIds.length > 0
     ? seed.templateIds
     : tierRules.templateIds;
-  const availableTemplates = resolvedTemplateIds.map((id) => getChallengeRelicTemplate(id));
+  const candidateTemplateIds =
+    !templateId && excludeTemplateId
+      ? (resolvedTemplateIds.filter((id) => id !== excludeTemplateId).length > 0
+        ? resolvedTemplateIds.filter((id) => id !== excludeTemplateId)
+        : resolvedTemplateIds)
+      : resolvedTemplateIds;
+  const availableTemplates = candidateTemplateIds.map((id) => getChallengeRelicTemplate(id));
   const template = templateId
     ? getChallengeRelicTemplate(templateId)
     : pickRandom(availableTemplates, seedRandom);

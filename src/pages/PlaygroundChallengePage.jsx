@@ -315,7 +315,8 @@ const PVP_MISTAKE_SCORE_PENALTY = 4;
 
 function getPvpEffectiveScore(attempt = null) {
   if (!attempt) return 0;
-  return Math.max(0, Number(attempt.score || 0)) - (Math.max(0, Number(attempt.mistakes || 0)) * PVP_MISTAKE_SCORE_PENALTY);
+  const multiplier = String(attempt.completionType || 'submitted') === 'timeout' ? 0.7 : 1;
+  return (Math.max(0, Number(attempt.score || 0)) * multiplier) - (Math.max(0, Number(attempt.mistakes || 0)) * PVP_MISTAKE_SCORE_PENALTY);
 }
 
 function describeContractTargets(success = {}) {
@@ -343,6 +344,36 @@ function describeContractTargets(success = {}) {
   }
 
   return [];
+}
+
+function describeChallengeMission(success = {}) {
+  if (success.type === 'monoLine') {
+    return `Keep landing on ${success.target} and avoid drifting into junk.`;
+  }
+  if (success.type === 'dualCrit') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : ['CRIT RATE', 'CRIT DMG'];
+    return `Hit both ${required[0]} and ${required[1]}. One-sided crit finishes do not clear this mission.`;
+  }
+  if (success.type === 'dualCritCombined') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : ['CRIT RATE', 'CRIT DMG'];
+    return `Build enough total value on ${required[0]} and ${required[1]} while keeping the junk side low.`;
+  }
+  return 'Read the board, land on the useful lines, and avoid junk.';
+}
+
+function describeChallengeWinRule(success = {}) {
+  if (success.type === 'monoLine') {
+    return `Clear by landing at least ${success.minHits || 1} hits on ${success.target}${typeof success.maxJunk === 'number' ? ` while keeping junk hits at ${success.maxJunk} or less` : ''}.`;
+  }
+  if (success.type === 'dualCrit') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : ['CRIT RATE', 'CRIT DMG'];
+    return `Clear by hitting ${required[0]} at least ${success.minEach || 1} time${(success.minEach || 1) > 1 ? 's' : ''} and ${required[1]} at least ${success.minEach || 1} time${(success.minEach || 1) > 1 ? 's' : ''}${typeof success.maxJunk === 'number' ? `, with junk hits at ${success.maxJunk} or less` : ''}.`;
+  }
+  if (success.type === 'dualCritCombined') {
+    const required = Array.isArray(success.required) ? success.required.slice(0, 2) : ['CRIT RATE', 'CRIT DMG'];
+    return `Clear by getting at least ${success.minCombined || 2} combined hits on ${required[0]} and ${required[1]}${typeof success.maxJunk === 'number' ? `, with junk hits at ${success.maxJunk} or less` : ''}.`;
+  }
+  return 'Meet the relic target and avoid the bad side.';
 }
 
 function getLineHitsByStat(relic) {
@@ -407,12 +438,19 @@ function comparePvpAttempts(left = null, right = null) {
   return (left.rollCount || 0) - (right.rollCount || 0);
 }
 
-function formatPvpStatusLabel(status) {
+function formatPvpStatusLabel(status, phase = '') {
   const normalized = String(status || '').trim().toLowerCase();
+  const normalizedPhase = String(phase || '').trim().toLowerCase();
+  if (normalizedPhase === 'building_read') return 'BUILDING READ';
+  if (normalizedPhase === 'analyzing_read') return 'ANALYZING';
+  if (normalizedPhase === 'upgrading_target') return 'UPGRADING';
+  if (normalizedPhase === 'submitted_final') return 'SUBMITTED';
+  if (normalized === 'countdown') return 'COUNTDOWN';
   if (normalized === 'attempting') return 'ATTEMPTING';
   if (normalized === 'maxed') return 'READY TO SUBMIT';
   if (normalized === 'waiting') return 'ATTEMPT LOCKED';
   if (normalized === 'submitted') return 'DUEL DONE';
+  if (normalized === 'busted') return 'BUSTED';
   if (normalized === 'timeout') return 'TIMEOUT';
   if (normalized === 'disconnected') return 'DISCONNECTED';
   return normalized ? normalized.toUpperCase() : 'READY';
@@ -452,6 +490,7 @@ function ModernRelicCard({
   onChangeLineStat,
   onChangeOrderMode,
   footerSlot = null,
+  disabled = false,
 }) {
   const handleDragStart = (event, slot) => {
     event.dataTransfer.setData('text/plain', String(slot));
@@ -629,8 +668,9 @@ function ModernRelicCard({
           <button
             type="button"
             onClick={onAction}
+            disabled={disabled || relic.level >= 15}
             className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
-              relic.level >= 15 
+              disabled || relic.level >= 15 
                 ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-800' 
                 : `${themeClasses.button}`
             }`}
@@ -642,7 +682,8 @@ function ModernRelicCard({
           <button
             type="button"
             onClick={onReset}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-700 transition-all hover:bg-rose-500/10 hover:text-rose-400"
+            disabled={disabled}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-700 transition-all hover:bg-rose-500/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <RefreshCw className="h-3 w-3" />
             Reset
@@ -655,7 +696,7 @@ function ModernRelicCard({
   );
 }
 
-function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
+function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false }) {
   const lineTypeLabel = `${relic.baseLines}-Liner`;
   const nextLabel = relic.forcedLine;
   const visibleLines = relic.lines.slice(0, relic.currentLineCount);
@@ -695,7 +736,8 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
             <button
               type="button"
               onClick={onCycleType}
-              className="rounded-lg border border-white/5 bg-white/5 p-1.5 text-slate-600 transition-colors hover:text-white"
+              disabled={disabled}
+              className="rounded-lg border border-white/5 bg-white/5 p-1.5 text-slate-600 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               title="Cycle 1-liner / 2-liner / 3-liner"
             >
               <Settings2 className="h-3.5 w-3.5" />
@@ -752,9 +794,9 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
           <button
             type="button"
             onClick={onPrime}
-            disabled={relic.isPrimed}
+            disabled={disabled || relic.isPrimed}
             className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
-              relic.isPrimed
+              disabled || relic.isPrimed
                 ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-800'
                 : 'border-amber-500/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/18'
             }`}
@@ -766,7 +808,8 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
           <button
             type="button"
             onClick={onReset}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-700 transition-all hover:bg-rose-500/10 hover:text-rose-400"
+            disabled={disabled}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-700 transition-all hover:bg-rose-500/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <RefreshCw className="h-3 w-3" />
             Reset
@@ -807,7 +850,10 @@ function ResultRelicCard({ relic, title, accent = 'cyan' }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
-          <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-white">{relic.pieceLabel}</div>
+          <div className="mt-1 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-white">
+            <span>{relic.pieceLabel}</span>
+            <span className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[9px] text-slate-200">+{relic.level || 0}</span>
+          </div>
         </div>
         <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${accentClasses.chip}`}>
           {relicScore.grade} · {relicScore.score}
@@ -860,9 +906,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     return String(params.get('room') || '').trim().toUpperCase();
   }, [location.search]);
   const isPvpMode = Boolean(roomCode);
-  const [currentContractId, setCurrentContractId] = useState('easy01');
+  const [currentContractId, setCurrentContractId] = useState('level01');
   const [completedContracts, setCompletedContracts] = useState([]);
   const [selectedTier, setSelectedTier] = useState('beginner');
+  const [challengeModeView, setChallengeModeView] = useState('ladder');
   const [generatedScenario, setGeneratedScenario] = useState(null);
   const [pvpRoom, setPvpRoom] = useState(null);
   const [pvpLoading, setPvpLoading] = useState(false);
@@ -874,9 +921,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [pvpSubmittedAttempt, setPvpSubmittedAttempt] = useState(null);
   const [pvpBusted, setPvpBusted] = useState(false);
   const [copiedBotTrace, setCopiedBotTrace] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const ladderContract = useMemo(() => getChallengeContract(currentContractId), [currentContractId]);
   const currentContract = useMemo(
-    () => generatedScenario || getChallengeContract(currentContractId),
-    [currentContractId, generatedScenario]
+    () => (challengeModeView === 'generated' && generatedScenario ? generatedScenario : ladderContract),
+    [challengeModeView, generatedScenario, ladderContract]
   );
   const seedMood = currentContract.mood;
   const bucketKey = currentContract.seedLabel;
@@ -947,6 +996,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     statBreakdown: lineHitsByStat,
     relicSnapshot: JSON.parse(JSON.stringify(relic)),
     summary: `${relic.setName || 'Relic'} ${relic.pieceLabel || ''} | ${relicScore.grade} ${relicScore.score}`,
+    completionType: 'submitted',
   }), [currentContract.success, helpfulHits, lineHitsByStat, mistakes, relic, relic.pieceLabel, relic.setName, relicScore.grade, relicScore.rollCount, relicScore.score]);
   const bestPvpAttempt = useMemo(
     () => pvpAttempts.reduce((best, attempt) => (comparePvpAttempts(attempt, best) > 0 ? attempt : best), null),
@@ -1042,23 +1092,26 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       text: 'This contract has no valid success evaluator yet.',
     };
   }, [currentContract.progressText, currentContract.success, lineHitsByStat, relic.level]);
+  const isGeneratedChallengeActive = !isPvpMode && challengeModeView === 'generated';
   const nextContractId = useMemo(
-    () => (generatedScenario ? null : getNextChallengeContractId(currentContract.id)),
-    [currentContract.id, generatedScenario]
+    () => (isGeneratedChallengeActive ? null : getNextChallengeContractId(currentContract.id)),
+    [currentContract.id, isGeneratedChallengeActive]
   );
-  const canOpenContract = (contractId) => {
-    if (contractId === currentContractId) return true;
-    const targetIndex = CHALLENGE_CONTRACT_ORDER.indexOf(contractId);
-    if (targetIndex <= 0) return true;
-    const previousId = CHALLENGE_CONTRACT_ORDER[targetIndex - 1];
-    return completedContracts.includes(previousId);
-  };
+  const canOpenContract = () => true;
   const maxTries = currentContract?.attempts?.maxTries ?? null;
   const pvpViewerRole = pvpRoom?.viewerRole || null;
   const pvpOpponent = useMemo(() => {
     if (!pvpRoom) return null;
     return pvpViewerRole === 'host' ? pvpRoom.guest : pvpRoom.host;
   }, [pvpRoom, pvpViewerRole]);
+  const isOpponentBot = /^dev-bot/.test(String(pvpOpponent?.userId || ''));
+  const pvpCountdownLeft = useMemo(() => {
+    if (!isPvpMode || pvpRoom?.status !== 'countdown') return 0;
+    const startedAtMs = new Date(pvpRoom?.startedAt || 0).getTime();
+    if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) return 0;
+    return Math.max(0, 5 - Math.floor((clockNow - startedAtMs) / 1000));
+  }, [clockNow, isPvpMode, pvpRoom?.startedAt, pvpRoom?.status]);
+  const isPvpPreStartLocked = isPvpMode && pvpRoom?.status === 'countdown' && pvpCountdownLeft > 0;
   const opponentHelpfulHits = Math.max(0, Number(pvpOpponent?.state?.helpfulHits || 0));
   const playerHp = Math.max(0, 100 - opponentHelpfulHits * 25);
   const opponentHp = Math.max(0, 100 - helpfulHits * 25);
@@ -1070,15 +1123,30 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         : `Lvl ${relic.level} | ${challengeStatus.label}`;
 
     let status = 'ready';
-    if (pvpRoom?.status === 'active' || pvpRoom?.status === 'finished') {
+    let phase = 'idle';
+    if (pvpRoom?.status === 'countdown') {
+      status = 'countdown';
+      phase = 'idle';
+    } else if (pvpRoom?.status === 'active' || pvpRoom?.status === 'finished') {
       if (isPvpMode) {
-        status = pvpSubmittedAttempt
+        status = secondsLeft <= 0
+          ? 'timeout'
+          : pvpSubmittedAttempt
           ? 'submitted'
           : pvpBusted
             ? 'busted'
             : relic.level >= 15
               ? 'maxed'
               : 'attempting';
+        phase = pvpSubmittedAttempt
+          ? 'submitted_final'
+          : pvpBusted
+            ? 'busted'
+            : secondsLeft <= 0
+              ? 'timeout'
+            : currentContract.requiresSessionBuilder && relic.level === 0
+              ? (sessionRolls.length > 0 || testRelic.level > 0 ? 'building_read' : 'idle')
+              : 'upgrading_target';
       } else if (secondsLeft <= 0) {
         status = 'timeout';
       } else if (relic.level >= 15 && challengeStatus.tone === 'fail') {
@@ -1090,6 +1158,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
     return {
       status,
+      phase,
       currentLevel: localDisplayedPvpLevel,
       helpfulHits,
       hp: playerHp,
@@ -1110,8 +1179,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       finalMistakes: Math.max(0, Number(pvpSubmittedAttempt?.mistakes || 0)),
       finalGoalSatisfied: Boolean(pvpSubmittedAttempt?.goalSatisfied || false),
       finalStatBreakdown: pvpSubmittedAttempt?.statBreakdown || {},
-      finalRelicSnapshot: pvpSubmittedAttempt?.relicSnapshot || null,
-      finalRelicSummary: pvpSubmittedAttempt?.summary || '',
+      finalRelicSnapshot: pvpSubmittedAttempt?.relicSnapshot || (secondsLeft <= 0 ? JSON.parse(JSON.stringify(relic)) : null),
+      finalRelicSummary: pvpSubmittedAttempt?.summary || (secondsLeft <= 0 ? `${relic.setName || 'Relic'} ${relic.pieceLabel || ''} | timeout at +${relic.level}` : ''),
+      currentRelicSnapshot: JSON.parse(JSON.stringify(relic)),
+      currentRelicSummary: `${relic.setName || 'Relic'} ${relic.pieceLabel || ''} | +${relic.level} | ${relicScore.grade} ${relicScore.score}`,
       sessionEntriesBuilt: sessionRolls.length,
       sessionEntries: sessionRolls,
       bestScore: Math.max(0, Number(bestPvpAttempt?.score || 0)),
@@ -1137,6 +1208,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     pvpViewerRole,
     helpfulHits,
     isPvpMode,
+    currentContract.requiresSessionBuilder,
     localDisplayedPvpLevel,
     bestPvpAttempt,
     pvpAttempts.length,
@@ -1145,6 +1217,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     pvpSubmittedAttempt,
     playerHp,
     relic.level,
+    sessionRolls.length,
+    testRelic.level,
     relicScore.grade,
     relicScore.rollCount,
     relicScore.score,
@@ -1167,6 +1241,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   }, [isPvpMode, pvpOpponent?.state?.currentLevel, pvpRoom?.status, pvpRoom?.winnerUserId, relic.level, user?.id]);
   const localBestRelicSnapshot = localPvpState?.finalRelicSnapshot || localPvpState?.bestRelicSnapshot || bestPvpAttempt?.relicSnapshot || null;
   const opponentBestRelicSnapshot = pvpOpponent?.state?.finalRelicSnapshot || pvpOpponent?.state?.bestRelicSnapshot || null;
+  const localResultUsesTimeout = localPvpState?.status === 'timeout' && Boolean(localPvpState?.finalRelicSnapshot);
+  const opponentResultUsesTimeout = String(pvpOpponent?.state?.status || '') === 'timeout' && Boolean(pvpOpponent?.state?.finalRelicSnapshot);
+  const localResultScore = localResultUsesTimeout ? localPvpState.finalScore : (localPvpState.bestScore ?? localPvpState.score);
+  const localResultGrade = localResultUsesTimeout ? localPvpState.finalGrade : (localPvpState.bestGrade ?? localPvpState.grade);
+  const localResultMistakes = localResultUsesTimeout ? localPvpState.finalMistakes : (localPvpState.bestMistakes ?? localPvpState.mistakes);
+  const localResultHelpful = localResultUsesTimeout ? localPvpState.finalHelpfulHits : (localPvpState.bestHelpfulHits ?? localPvpState.helpfulHits);
+  const opponentResultScore = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalScore ?? 0) : (pvpOpponent?.state?.bestScore ?? pvpOpponent?.state?.score ?? 0);
+  const opponentResultGrade = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalGrade || 'F') : (pvpOpponent?.state?.bestGrade || pvpOpponent?.state?.grade || 'F');
+  const opponentResultMistakes = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalMistakes ?? 0) : (pvpOpponent?.state?.bestMistakes ?? pvpOpponent?.state?.mistakes ?? 0);
+  const opponentResultHelpful = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalHelpfulHits ?? 0) : (pvpOpponent?.state?.bestHelpfulHits ?? pvpOpponent?.state?.helpfulHits ?? 0);
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
   const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionArchive)
     ? pvpOpponent.state.sessionArchive
@@ -1315,6 +1399,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const handleSubmitPvpAttempt = useCallback(() => {
     if (!isPvpMode) return;
+    if (isPvpPreStartLocked) return;
     if (pvpAttemptsUsed > 3) return;
     if (relic.level < 15) return;
     if (pvpSubmittedAttempt || pvpBusted) return;
@@ -1330,13 +1415,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       },
       ...current,
     ].slice(0, 8));
-  }, [currentPvpAttempt, isPvpMode, pvpAttemptsUsed, pvpBusted, pvpSubmittedAttempt, relic.level]);
+  }, [currentPvpAttempt, isPvpMode, isPvpPreStartLocked, pvpAttemptsUsed, pvpBusted, pvpSubmittedAttempt, relic.level]);
 
   const handleResetPvpAttempt = useCallback(() => {
     if (!isPvpMode) {
       resetChallengeMode();
       return;
     }
+    if (isPvpPreStartLocked) return;
     if (pvpSubmittedAttempt || pvpBusted) {
       return;
     }
@@ -1375,7 +1461,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     setMistakes(0);
     setHintStep(0);
     setHintVisible(false);
-  }, [currentContract, currentPvpAttempt, isPvpMode, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt, sessionRolls.length, testRelic.level]);
+  }, [currentContract, currentPvpAttempt, isPvpMode, isPvpPreStartLocked, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt, sessionRolls.length, testRelic.level]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1398,6 +1484,19 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     }, 2500);
     return () => window.clearInterval(interval);
   }, [fetchPvpRoom, isPvpMode, roomCode]);
+
+  useEffect(() => {
+    if (!isPvpMode) return undefined;
+    const interval = window.setInterval(() => {
+      setClockNow(Date.now());
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [isPvpMode]);
+
+  useEffect(() => {
+    if (!isPvpMode || pvpRoom?.status !== 'countdown' || pvpCountdownLeft > 0) return;
+    fetchPvpRoom({ silent: true });
+  }, [fetchPvpRoom, isPvpMode, pvpCountdownLeft, pvpRoom?.status]);
 
   useEffect(() => {
     if (!isPvpMode || !pvpRoom?.scenario) return;
@@ -1436,9 +1535,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (challengeStatus.tone !== 'clear') return;
-    if (generatedScenario) return;
+    if (isGeneratedChallengeActive) return;
     setCompletedContracts((existing) => (existing.includes(currentContract.id) ? existing : [...existing, currentContract.id]));
-  }, [challengeStatus.tone, currentContract.id, generatedScenario]);
+  }, [challengeStatus.tone, currentContract.id, isGeneratedChallengeActive]);
 
   useEffect(() => {
     const lastSessionRoll = patternProfile?.history?.[patternProfile.history.length - 1] || '-';
@@ -1692,17 +1791,19 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   }, [isPvpMode, pvpRoom?.status]);
 
   const handleStartSession = () => {
+    if (isPvpPreStartLocked) return;
     setTimerRunning(true);
   };
 
   const handleOpenHandcraftedContract = (contractId) => {
-    setGeneratedScenario(null);
+    setChallengeModeView('ladder');
     setCurrentContractId(contractId);
   };
 
   const handleGenerateScenario = () => {
     const nextScenario = createChallengeScenario({ tier: selectedTier, generated: true });
     setGeneratedScenario(nextScenario);
+    setChallengeModeView('generated');
   };
 
   const updateRelicState = (kind, updater) => {
@@ -1756,6 +1857,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handlePracticeRelicAction = () => {
+    if (isPvpPreStartLocked) return;
     const nextRelic = handleBaseUpgrade(relic, patternProfile, forceRelic.isPrimed && relic.hasFourthLine ? forceRelic.forcedLine : null);
     setRelic(nextRelic);
 
@@ -1772,6 +1874,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleTestRelicAction = () => {
+    if (isPvpPreStartLocked) return;
     const startingRelic =
       testRelicLoopMode && testRelic.level >= 15
         ? createChallengeRelic(currentContract.builderRelic, {
@@ -1814,6 +1917,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleAddManualRoll = () => {
+    if (isPvpPreStartLocked) return;
     const parts = String(rollInput || '')
       .trim()
       .split(/[\s,]+/)
@@ -1827,10 +1931,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleDeleteEntry = (entryId) => {
+    if (isPvpPreStartLocked) return;
     setSessionRolls((existing) => existing.filter((entry) => entry.id !== entryId));
   };
 
   const handlePrimeForceRelic = () => {
+    if (isPvpPreStartLocked) return;
     setForceRelic((current) => {
       if (current.isPrimed || current.currentLineCount >= 4) return current;
       return {
@@ -1846,6 +1952,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleResetForceRelic = () => {
+    if (isPvpPreStartLocked) return;
     setForceRelic(createChallengeForceRelic({
       ...currentContract.forceRelic,
       baseLines: forceRelic.baseLines,
@@ -1853,6 +1960,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleCycleForceRelicType = () => {
+    if (isPvpPreStartLocked) return;
     const nextBaseLines = forceRelic.baseLines >= 3 ? 1 : forceRelic.baseLines + 1;
     setForceRelic(createChallengeForceRelic({
       ...currentContract.forceRelic,
@@ -1872,12 +1980,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       <ModernStickyHeader
         secondsLeft={secondsLeft}
         onStart={handleStartSession}
-        onStop={() => setTimerRunning(false)}
-        onRestart={() => resetChallengeMode()}
+        onStop={isPvpPreStartLocked ? undefined : (() => setTimerRunning(false))}
+        onRestart={isPvpPreStartLocked ? undefined : (() => resetChallengeMode())}
         timerRunning={timerRunning}
         rollInput={rollInput}
         setRollInput={setRollInput}
-        onAddRoll={handleAddManualRoll}
+        onAddRoll={isPvpPreStartLocked ? undefined : handleAddManualRoll}
         entriesCount={predictorEntries.length}
       />
 
@@ -1921,7 +2029,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.16em]">
                     <span className="rounded-full border border-cyan-400/15 bg-black/25 px-3 py-1 text-cyan-100">
-                      {formatPvpStatusLabel(localPvpState.status)}
+                      {formatPvpStatusLabel(localPvpState.status, localPvpState.phase)}
                     </span>
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
                       +{localDisplayedPvpLevel}
@@ -1980,7 +2088,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2 text-[10px] font-black uppercase tracking-[0.16em]">
                     <span className="rounded-full border border-rose-400/15 bg-black/25 px-3 py-1 text-rose-100">
-                      {formatPvpStatusLabel(pvpOpponent?.state?.status || 'idle')}
+                      {formatPvpStatusLabel(pvpOpponent?.state?.status || 'idle', pvpOpponent?.state?.phase || '')}
                     </span>
                     <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
                       +{pvpOpponent?.state?.currentLevel ?? 0}
@@ -2086,12 +2194,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   )}
                 </div>
                 </div>
-                {currentContract.requiresSessionBuilder ? (
+                {currentContract.requiresSessionBuilder && false ? (
                   <div className="rounded-[1.3rem] border border-violet-400/15 bg-violet-500/6 p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <History className="h-4 w-4 text-violet-300" />
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">Opponent Session Data</div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">
+                          {isOpponentBot ? 'Bot Read Notes' : 'Opponent Session Data'}
+                        </div>
                       </div>
                       <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
                         {opponentSessionEntries.length} entries
@@ -2122,30 +2232,125 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </div>
                   </div>
                 ) : null}
+                {currentContract.requiresSessionBuilder && isOpponentBot ? (
+                  <div className="rounded-[1.3rem] border border-cyan-400/15 bg-cyan-500/6 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <History className="h-4 w-4 text-cyan-300" />
+                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200">Readable Bot Notes</div>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                      {opponentSessionEntriesNewestFirst.length > 0 ? (
+                        <div className="space-y-2">
+                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
+                            <div key={`readable-${entry.id || index}-${entry.raw || index}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                              Try {entry.attempt || 1}, read {entry.step || 1}: the bot entered {entry.raw || '--'}, translated it to {entry.translated || entry.s2 || '--'}, and ended on line L{entry.carryLine || '-'}. It was comparing commons {entry.commons || '-'} against noise {entry.noise || '-'}, leaning on Svarog eye {entry.trustedPair || '-'} with {entry.pairSafety || 'unknown'} safety and {entry.noiseRisk || 0}% noise risk.{entry.trendSummary ? ` Trends: ${entry.trendSummary}.` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] leading-relaxed text-slate-400">The bot has not recorded readable session notes yet.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+                {currentContract.requiresSessionBuilder && !isOpponentBot ? (
+                  <div className="rounded-[1.3rem] border border-violet-400/15 bg-violet-500/6 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <History className="h-4 w-4 text-violet-300" />
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">Opponent Session Data</div>
+                      </div>
+                      <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
+                        {opponentSessionEntries.length} entries
+                      </div>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
+                      {opponentSessionEntriesNewestFirst.length > 0 ? (
+                        <div className="space-y-2">
+                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
+                            <div key={`${entry.id || index}-${entry.raw || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
+                              <span className="text-slate-400">Try {entry.attempt || 1} • #{entry.step || 1}</span>
+                              <span>{entry.raw || '--'}</span>
+                              <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] leading-relaxed text-slate-400">No opponent session entries recorded yet.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
         ) : null}
 
         {!isPvpMode ? (
-        <div className="gsap-fade-up mb-6 flex flex-wrap items-center gap-2">
+        <div className="gsap-fade-up mb-4 rounded-[1.1rem] border border-white/5 bg-slate-950/35 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Challenge Mode</div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                Keep the handcrafted ladder and generated setup separate so you can switch between them without losing your place.
+              </p>
+            </div>
+            <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+              {[
+                { id: 'ladder', label: 'Ladder' },
+                { id: 'generated', label: 'Generated' },
+              ].map((view) => (
+                <button
+                  key={view.id}
+                  type="button"
+                  onClick={() => setChallengeModeView(view.id)}
+                  className={`rounded-full px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
+                    challengeModeView === view.id
+                      ? 'bg-cyan-500/18 text-cyan-100'
+                      : 'text-slate-500 hover:text-white'
+                  }`}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        ) : null}
+
+        {!isPvpMode && challengeModeView === 'ladder' ? (
+        <div className="gsap-fade-up mb-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Handcrafted Ladder
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCompletedContracts([]);
+                setCurrentContractId('level01');
+              }}
+              className="rounded-full border border-white/5 bg-black/30 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/10 hover:text-white"
+            >
+              Reset Ladder
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
           {CHALLENGE_CONTRACT_ORDER.map((contractId) => {
             const contract = getChallengeContract(contractId);
             const isCurrent = contractId === currentContractId;
-            const isUnlocked = canOpenContract(contractId);
             const isCompleted = completedContracts.includes(contractId);
             return (
               <button
                 key={contractId}
                 type="button"
-                disabled={!isUnlocked}
                 onClick={() => handleOpenHandcraftedContract(contractId)}
                 className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
                   isCurrent
                     ? 'border-amber-400/35 bg-amber-500/15 text-amber-100'
-                    : isUnlocked
-                      ? 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
-                      : 'cursor-not-allowed border-white/5 bg-white/5 text-slate-700'
+                    : isCompleted
+                      ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/16'
+                      : 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
                 }`}
               >
                 {contract.title}
@@ -2153,16 +2358,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               </button>
             );
           })}
+          </div>
         </div>
         ) : null}
 
-        {!isPvpMode ? (
+        {!isPvpMode && challengeModeView === 'generated' ? (
         <div className="gsap-fade-up mb-6 rounded-[1.1rem] border border-white/5 bg-slate-950/35 p-4">
           <div className="mb-3 flex items-center justify-between gap-4">
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Generated Challenge</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Generated Challenge Setup</div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                Pick a tier, then generate a full challenge with seed, relics, hints, and success rules already attached.
+                Pick a tier here, generate a fresh challenge, and keep it separate from the ladder contracts.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -2178,20 +2384,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               {generatedScenario ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setGeneratedScenario(null);
-                    navigate('/playground/challenge', { replace: true });
-                  }}
+                  onClick={() => setGeneratedScenario(null)}
                   className="rounded-full border border-white/5 bg-black/30 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/10 hover:text-white"
                 >
-                  Back To Ladder
+                  Clear Generated
                 </button>
               ) : null}
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {['new_player', 'beginner', 'intermediate', 'veteran', 'expert'].map((tier) => {
+            {['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'].map((tier) => {
               const isSelected = selectedTier === tier;
               return (
                 <button
@@ -2250,8 +2453,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   title="Target Relic"
                   themeColor="cyan"
                   icon={Target}
-                  onAction={handlePracticeRelicAction}
-                  onReset={isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode()}
+                  onAction={isPvpPreStartLocked ? undefined : handlePracticeRelicAction}
+                  onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
+                  disabled={isPvpPreStartLocked}
                 />
 
                 <ModernRelicCard
@@ -2259,17 +2463,19 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   title="Setup / Builder"
                   themeColor="violet"
                   icon={FlaskConical}
-                  onAction={handleTestRelicAction}
-                  onReset={isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode()}
+                  onAction={isPvpPreStartLocked ? undefined : handleTestRelicAction}
+                  onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
+                  disabled={isPvpPreStartLocked}
                   footerSlot={
                     <button
                       type="button"
                       onClick={() => setTestRelicLoopMode((current) => !current)}
+                      disabled={isPvpPreStartLocked}
                       className={`mt-1 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-[8px] font-black uppercase tracking-[0.16em] transition-all ${
                         testRelicLoopMode
                           ? 'border-violet-500/30 bg-violet-500/10 text-violet-200'
                           : 'border-white/5 bg-white/5 text-slate-600'
-                      }`}
+                      } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
                       <span>Loop Builder</span>
                       <span className={`rounded-full px-2 py-1 text-[7px] ${testRelicLoopMode ? 'bg-violet-500/20 text-violet-100' : 'bg-black/30 text-slate-500'}`}>
@@ -2285,7 +2491,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
              <div className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 mt-6">
                 <div className="flex items-center gap-2 mb-3">
                    <Trophy className="h-3 w-3 text-amber-300" />
-                   <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">MISSION</span>
+                   <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">Mission Card</span>
                 </div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                <div className="text-lg font-black uppercase tracking-tight text-amber-300">{isPvpMode ? 'PVP Score Duel' : currentContract.title}</div>
@@ -2303,19 +2509,27 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 <p className="text-[11px] leading-relaxed text-slate-300 mb-3">
                   {isPvpMode
                     ? 'You both get the same seed, target relic, and setup tools. Clear the contract first. If both sides fail the contract, the duel ends in a draw.'
-                    : currentContract.goal}
+                    : describeChallengeMission(currentContract.success)}
                 </p>
+                {isPvpPreStartLocked ? (
+                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 mb-3">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Match Countdown</div>
+                    <p className="mt-1 text-[10px] leading-relaxed text-amber-50/90">
+                      Shared seed is locking in. Duel controls unlock in {pvpCountdownLeft}s, then the 5-minute timer begins.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Win Condition</div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">{isPvpMode ? 'Win Condition' : 'Clear Rule'}</div>
                   <p className="text-[10px] leading-relaxed text-slate-300">
                     {isPvpMode
                       ? `If one side clears the contract and the other fails, the clear wins. If both clear, higher score wins. Mistakes reduce duel score by ${PVP_MISTAKE_SCORE_PENALTY} each. If both fail, the duel is a draw.`
-                      : currentContract.win}
+                      : describeChallengeWinRule(currentContract.success)}
                   </p>
                 </div>
-                {isPvpMode && contractTargets.length > 0 ? (
+                {contractTargets.length > 0 ? (
                   <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-3 mb-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Contract Target</div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">{isPvpMode ? 'Contract Target' : 'Goal Checklist'}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {contractTargets.map((target) => (
                         <span key={target} className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
@@ -2404,6 +2618,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <button
                       type="button"
                       onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
+                      disabled={isPvpPreStartLocked}
                       className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
                     >
                       <Lightbulb className="h-3.5 w-3.5" />
@@ -2420,8 +2635,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 {isPvpMode ? (
                   <button
                     type="button"
-                    onClick={pvpSubmittedAttempt || pvpBusted ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
-                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted)}
+                    onClick={pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
+                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked)}
                     className={`mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
                       pvpSubmittedAttempt || pvpBusted
                         ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
@@ -2476,9 +2691,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
              {/* FORCE RELIC */}
              <ForceRelicCard
                 relic={forceRelic}
-                onPrime={handlePrimeForceRelic}
-                onReset={handleResetForceRelic}
-                onCycleType={handleCycleForceRelicType}
+                onPrime={isPvpPreStartLocked ? undefined : handlePrimeForceRelic}
+                onReset={isPvpPreStartLocked ? undefined : handleResetForceRelic}
+                onCycleType={isPvpPreStartLocked ? undefined : handleCycleForceRelicType}
+                disabled={isPvpPreStartLocked}
              />
 
              <div className="relic-session-container mt-2">
@@ -2503,6 +2719,23 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         </div>
       </div>
 
+      {isPvpPreStartLocked ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[#05070dcc]/95 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 px-6 text-center">
+            <div className="text-[12px] font-black uppercase tracking-[0.4em] text-amber-200">PVP Countdown</div>
+            <div className="text-8xl font-black uppercase tracking-[0.04em] text-white md:text-[10rem]">
+              {pvpCountdownLeft}
+            </div>
+            <div className="text-2xl font-black uppercase tracking-[0.2em] text-fuchsia-200 md:text-3xl">
+              {pvpCountdownLeft >= 4 ? 'Read...' : pvpCountdownLeft >= 2 ? 'Set...' : 'Go!'}
+            </div>
+            <p className="max-w-xl text-sm leading-relaxed text-slate-300">
+              Shared seed is about to start. Controls stay locked until the countdown ends, then the 5-minute duel timer begins.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {isPvpMode && showPvpResults && pvpRoom ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md">
           <div className="w-full max-w-5xl rounded-[1.8rem] border border-white/10 bg-[#0A0F1B]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-8">
@@ -2521,6 +2754,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       : `${pvpOpponent?.name || 'Opponent'} satisfied the duel rules better than you did.`)
                     : 'Neither side cleared the contract, so the duel ended in a draw.'}
                 </p>
+                {(localResultUsesTimeout || opponentResultUsesTimeout) ? (
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-200">
+                    Timeout rule: unfinished relics were scored from their live level with a reduced timeout value.
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-3">
                 {pvpViewerRole === 'host' ? (
@@ -2563,23 +2801,23 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Best Attempt</div>
-                    <div className={`mt-1 text-sm font-black uppercase ${localPvpState.bestScore > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-                      {localPvpState.bestScore > 0 ? 'Submitted' : 'None'}
+                    <div className={`mt-1 text-sm font-black uppercase ${localResultUsesTimeout ? 'text-amber-200' : localPvpState.bestScore > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+                      {localResultUsesTimeout ? 'Timed Out' : localPvpState.bestScore > 0 ? 'Submitted' : 'None'}
                     </div>
                   </div>
                 </div>
                 <div className="mb-4 grid grid-cols-5 gap-3 text-center">
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Score</div>
-                    <div className="mt-1 text-lg font-black text-white">{localPvpState.bestScore ?? localPvpState.score}</div>
+                    <div className="mt-1 text-lg font-black text-white">{localResultScore}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Grade</div>
-                    <div className="mt-1 text-lg font-black text-amber-200">{localPvpState.bestGrade ?? localPvpState.grade}</div>
+                    <div className="mt-1 text-lg font-black text-amber-200">{localResultGrade}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                    <div className="mt-1 text-lg font-black text-rose-200">{localPvpState.bestMistakes ?? localPvpState.mistakes}</div>
+                    <div className="mt-1 text-lg font-black text-rose-200">{localResultMistakes}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Attempts</div>
@@ -2587,10 +2825,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Helpful</div>
-                    <div className="mt-1 text-lg font-black text-emerald-200">{localPvpState.bestHelpfulHits ?? localPvpState.helpfulHits}</div>
+                    <div className="mt-1 text-lg font-black text-emerald-200">{localResultHelpful}</div>
                   </div>
                 </div>
-                <ResultRelicCard relic={localBestRelicSnapshot} title="Best Target Relic" accent="cyan" />
+                <ResultRelicCard relic={localBestRelicSnapshot} title={localPvpState.status === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="cyan" />
               </div>
 
               <div className="rounded-[1.35rem] border border-rose-400/15 bg-rose-500/6 p-5">
@@ -2601,23 +2839,23 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Best Attempt</div>
-                    <div className={`mt-1 text-sm font-black uppercase ${Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-                      {Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'Submitted' : 'None'}
+                    <div className={`mt-1 text-sm font-black uppercase ${opponentResultUsesTimeout ? 'text-amber-200' : Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+                      {opponentResultUsesTimeout ? 'Timed Out' : Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'Submitted' : 'None'}
                     </div>
                   </div>
                 </div>
                 <div className="mb-4 grid grid-cols-5 gap-3 text-center">
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Score</div>
-                    <div className="mt-1 text-lg font-black text-white">{pvpOpponent?.state?.bestScore ?? pvpOpponent?.state?.score ?? 0}</div>
+                    <div className="mt-1 text-lg font-black text-white">{opponentResultScore}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Grade</div>
-                    <div className="mt-1 text-lg font-black text-amber-200">{pvpOpponent?.state?.bestGrade || pvpOpponent?.state?.grade || 'F'}</div>
+                    <div className="mt-1 text-lg font-black text-amber-200">{opponentResultGrade}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                    <div className="mt-1 text-lg font-black text-rose-200">{pvpOpponent?.state?.bestMistakes ?? pvpOpponent?.state?.mistakes ?? 0}</div>
+                    <div className="mt-1 text-lg font-black text-rose-200">{opponentResultMistakes}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Attempts</div>
@@ -2625,10 +2863,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Helpful</div>
-                    <div className="mt-1 text-lg font-black text-emerald-200">{pvpOpponent?.state?.bestHelpfulHits ?? pvpOpponent?.state?.helpfulHits ?? 0}</div>
+                    <div className="mt-1 text-lg font-black text-emerald-200">{opponentResultHelpful}</div>
                   </div>
                 </div>
-                <ResultRelicCard relic={opponentBestRelicSnapshot} title="Best Target Relic" accent="rose" />
+                <ResultRelicCard relic={opponentBestRelicSnapshot} title={String(pvpOpponent?.state?.status || '') === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="rose" />
               </div>
             </div>
 

@@ -26,178 +26,238 @@ const DRILL_DEFS = [
     starterRolls: ['41', '41', '41', '44', '41', '41'],
     type: 'commons',
     explanation:
-      'This is the kind of board that should feel easy. One value is clearly dominating and the second value is the readable partner, so you start from the commons pair instead of overthinking noise.',
+      'When one value clearly dominates and one partner keeps returning with it, you start from the commons pair instead of guessing at outsiders.',
   },
   {
     id: 'noise-spot',
     chapter: 'Predictor Basics',
     title: 'Spot The Noise',
-    subtitle: 'Which side is trying to interrupt the lane?',
+    subtitle: 'Which side is interrupting the lane?',
     skill: 'Noise Awareness',
     starterRolls: ['42', '43', '42', '43', '44', '42'],
     type: 'noise',
     explanation:
-      'A clean pair can still have a trap side. Noise tells you which values are trying to break the lane, so you know what to respect before you commit to a target relic.',
+      'A readable board can still have a trap side. Noise tells you what is trying to break the lane.',
   },
   {
-    id: 'trusted-pair-read',
-    chapter: 'Predictor Basics',
-    title: 'Trust The Safe Pair',
-    subtitle: 'Pick the lane you should lean on first.',
-    skill: 'Safe Lane Reading',
-    starterRolls: ['43', '43', '42', '43', '42', '43'],
-    type: 'commons',
-    prompt: 'Which pair is acting like the safe lane in this snapshot?',
+    id: 'dominant-roll-read',
+    chapter: 'Session Reading',
+    title: 'Find The Dominant Roll',
+    subtitle: 'Which value is really running the board?',
+    skill: 'Dominant Roll',
+    starterRolls: ['41', '41', '41', '41', '44', '41'],
+    type: 'decision',
+    prompt: 'Which roll is dominant in this session snapshot?',
+    answer: '41',
+    options: ['41', '42', '44'],
     explanation:
-      'When one pair keeps repeating cleanly, that is your first read. You do not start from the outsider values. You start from the lane the session is already living on.',
+      'Dominant does not mean perfect. It means one value is doing most of the work even if a break appears once.',
   },
   {
-    id: 'break-side-read',
-    chapter: 'Predictor Basics',
-    title: 'Respect The Break Side',
-    subtitle: 'Find the values most likely to break the readable lane.',
-    skill: 'Break Awareness',
-    starterRolls: ['41', '43', '41', '43', '44', '41'],
-    type: 'noise',
-    prompt: 'Which pair is acting like the break side here?',
+    id: 'how-many-times-runs',
+    chapter: 'Session Reading',
+    title: 'Count The Lane',
+    subtitle: 'Read how long a streak actually ran.',
+    skill: 'Lane Counting',
+    starterRolls: ['44', '44', '44', '44', '42', '44'],
+    type: 'decision',
+    prompt: 'Before the 42 break, how many times did 44 run in a row?',
+    answer: '4',
+    options: ['3', '4', '5'],
     explanation:
-      'A board can look very readable and still have one dangerous outside side. That break side matters because it tells you what values may punish a lazy read.',
+      'Counting streak length matters because long dominance behaves differently from a tiny accidental streak.',
   },
   {
-    id: 'dont-overreact-noise',
-    chapter: 'Predictor Basics',
-    title: 'Do Not Overreact',
-    subtitle: 'One outsider hit does not automatically destroy the lane.',
-    skill: 'Session Patience',
-    starterRolls: ['41', '42', '41', '42', '44', '41'],
-    type: 'commons',
-    prompt: 'After one 44 break, which pair should you still read first?',
+    id: 'chaotic-session-read',
+    chapter: 'Session Reading',
+    title: 'What Is A Chaotic Session?',
+    subtitle: 'Know the difference between readable and messy.',
+    skill: 'Chaos Reading',
+    starterRolls: ['41', '44', '42', '43', '44', '41'],
+    type: 'decision',
+    prompt: 'Why does this snapshot read as chaotic instead of clean?',
+    answer: 'All four values are active and the lane keeps changing',
+    options: [
+      'All four values are active and the lane keeps changing',
+      'Because one value appears three times',
+      'Because chaos means the same value repeats',
+    ],
     explanation:
-      'One outsider does not always mean the board is dead. If the same commons pair is still doing most of the work, you respect the lane first and treat the outsider as noise until proven otherwise.',
+      'Chaotic boards use many values and shift the lane often. They do not hand you one simple safe pair right away.',
+  },
+  {
+    id: 'sequence-session-read',
+    chapter: 'Session Reading',
+    title: 'What Is A Sequence Session?',
+    subtitle: 'Some boards move with rhythm instead of one-value dominance.',
+    skill: 'Sequence Reading',
+    starterRolls: ['42', '43', '42', '43', '42', '43'],
+    type: 'decision',
+    prompt: 'What makes this feel like a sequence session?',
+    answer: 'The board is repeating a readable alternating rhythm',
+    options: [
+      'The board is repeating a readable alternating rhythm',
+      'One outsider appeared once',
+      'The board has no pattern at all',
+    ],
+    explanation:
+      'Sequence sessions are about repeatable rhythm and transitions, not only one value dominating forever.',
+  },
+  {
+    id: 'session-history-read',
+    chapter: 'Session Reading',
+    title: 'Read Session History',
+    subtitle: 'Use the last entries, not vibes.',
+    skill: 'History Reading',
+    starterRolls: ['41', '41', '42', '41', '41', '44', '41', '41'],
+    type: 'decision',
+    prompt: 'What should you trust first here: the repeated 41 lane or the single 44 outsider?',
+    answer: 'The repeated 41 lane',
+    options: ['The repeated 41 lane', 'The single 44 outsider', 'Neither, because one break deletes the history'],
+    explanation:
+      'History gives context. The right read usually starts from what kept happening, not the one loud interruption.',
+  },
+  {
+    id: 'carry-line-read',
+    chapter: 'Carry Line',
+    title: 'Read The Sitting Line',
+    subtitle: 'The board only makes sense if you know where you are sitting.',
+    skill: 'Carry Line',
+    type: 'decision',
+    prompt: 'You just hit line 3 on a relic. Before the next roll, what line are you sitting on?',
+    answer: 'Line 3',
+    options: ['Line 1', 'Line 2', 'Line 3'],
+    explanation:
+      'Your sitting line is where the last hit left you. If you forget that, all raw-pair and force decisions start from the wrong place.',
+  },
+  {
+    id: 'line-helper-hit-slot-4',
+    chapter: 'Line Helper',
+    title: 'Pick The Winning Pair',
+    subtitle: 'Use the helper, then choose the right raw pair.',
+    skill: 'Line Helper',
+    type: 'decision',
+    prompt: 'If the next visible roll is 41 and you want to land on slot 4, which raw pair wins?',
+    answer: '34',
+    options: ['34', '24', '14', '44'],
+    explanation:
+      'For a visible roll of 41, the helper path is 12 / 23 / 34 / 41. To land on slot 4, the winning raw pair is 34.',
+  },
+  {
+    id: 'raw-pair-translate-42',
+    chapter: 'Translation',
+    title: 'Translate The Pair',
+    subtitle: 'Know the Caesar-style conversion, not just the visible roll.',
+    skill: 'Raw Pair Translation',
+    type: 'decision',
+    prompt: 'What visible roll does raw pair 23 translate into?',
+    answer: '41',
+    options: ['41', '42', '43'],
+    explanation:
+      'The hidden raw pair matters because it tells you which previous line and target slot created the visible roll.',
+  },
+  {
+    id: 'what-is-13',
+    chapter: 'Translation',
+    title: 'What 13 Means',
+    subtitle: 'Raw pairs tell a full story, not just a value.',
+    skill: 'Raw Pair Meaning',
+    type: 'decision',
+    prompt: 'What does raw pair 13 mean?',
+    answer: 'You were on line 1 and landed on slot 3',
+    options: [
+      'You were on line 1 and landed on slot 3',
+      'You were on slot 1 and the next roll became 3',
+      'It means the board is on line 13',
+    ],
+    explanation:
+      'The first number is the line you came from. The second number is the slot you landed on.',
+  },
+  {
+    id: 'what-is-caesar-shift',
+    chapter: 'Translation',
+    title: 'What Is Caesar Shift?',
+    subtitle: 'Why raw pairs become visible 4x rolls.',
+    skill: 'Caesar Shift',
+    type: 'decision',
+    prompt: 'In this system, what does Caesar shift help you do?',
+    answer: 'Convert hidden raw pairs like 23 into the visible 4x roll language',
+    options: [
+      'Convert hidden raw pairs like 23 into the visible 4x roll language',
+      'Force the board into line 4 automatically',
+      'Rank relics by score tier',
+    ],
+    explanation:
+      'The shift is the translation layer between hidden pair logic and the visible roll language players actually see.',
+  },
+  {
+    id: 'slot-targeting-43',
+    chapter: 'Translation',
+    title: 'Hit Slot 1 On 43',
+    subtitle: 'Work backward from the visible roll into the right raw pair.',
+    skill: 'Slot Targeting',
+    type: 'decision',
+    prompt: 'If the next visible roll is 43 and you want slot 1, which raw pair should you choose?',
+    answer: '21',
+    options: ['14', '21', '32', '43'],
+    explanation:
+      'For 43, the full helper path is 14 / 21 / 32 / 43. To land on slot 1, you need raw pair 21.',
   },
   {
     id: 'line-two-force',
     chapter: 'Force Lines',
     title: 'Force Line 2',
-    subtitle: 'Pick the relic that sits you on line 2.',
+    subtitle: 'Know which relic count sits you on line 2.',
     skill: 'Line Forcing',
     type: 'force',
-    prompt: 'You want to sit on line 2 before returning to the target relic. Which relic do you use?',
+    prompt: 'You want to sit on line 2 before the next real hit. Which relic do you use?',
     answer: '1-liner',
     options: ['1-liner', '2-liner', '3-liner'],
     explanation:
-      'A 1-line relic forces line 2. This is the simplest detour in the whole system and the first mapping you should memorize.',
+      'A 1-line relic forces line 2. This is the simplest force mapping in the whole system.',
   },
   {
     id: 'line-three-force',
     chapter: 'Force Lines',
     title: 'Force Line 3',
-    subtitle: 'Choose the detour relic that sits you on the right line.',
+    subtitle: 'Line 3 has its own basic force mapping too.',
     skill: 'Line Forcing',
     type: 'force',
-    prompt: 'You want to sit on line 3 before returning to the target relic. Which relic do you use?',
+    prompt: 'You want to sit on line 3 before the next real hit. Which relic do you use?',
     answer: '2-liner',
     options: ['1-liner', '2-liner', '3-liner'],
     explanation:
-      'A 2-line relic forces line 3. This is the detour used often in dual-crit and cleanup paths because it gives you a practical shift without needing a fresh session.',
+      'A 2-line relic forces line 3. This is one of the most common practical detours.',
   },
   {
-    id: 'line-four-force',
-    chapter: 'Force Lines',
-    title: 'Force Line 4',
-    subtitle: 'Know the last standard detour mapping too.',
-    skill: 'Line Forcing',
-    type: 'force',
-    prompt: 'You want to sit on line 4 before returning to the target relic. Which relic do you use?',
-    answer: '3-liner',
-    options: ['1-liner', '2-liner', '3-liner'],
-    explanation:
-      'A 3-line relic forces line 4. Once you know line 2, 3, and 4 forcing cleanly, the detour system stops feeling magical and starts feeling practical.',
-  },
-  {
-    id: 'build-session-first',
-    chapter: 'Relic Setup',
-    title: 'Build The Read First',
-    subtitle: 'Do not guess before the predictor has shape.',
-    skill: 'Session Building',
+    id: 'next-step-setup',
+    chapter: 'Planning',
+    title: 'Set Up The Next Hit',
+    subtitle: 'Sometimes this turn is about the next turn.',
+    skill: 'Next-Step Planning',
     type: 'decision',
-    prompt: 'At the start of a fresh window with almost no readable history, what is the best first move?',
-    answer: 'Use the session builder relic to create readable data',
+    prompt: 'If the next visible roll is 42 and the stat you want is on slot 3, what line do you want to be sitting on first?',
+    answer: 'Line 1',
+    options: ['Line 1', 'Line 2', 'Line 4'],
+    explanation:
+      'For roll 42, slot 3 comes from raw pair 13. That means you need to be sitting on line 1 before the real hit.',
+  },
+  {
+    id: 'builder-session-basics',
+    chapter: 'Builder Session',
+    title: 'Build Data First',
+    subtitle: 'Do not guess with no history.',
+    skill: 'Builder Basics',
+    type: 'decision',
+    prompt: 'If the session window is basically empty, what should you usually do first?',
+    answer: 'Use the builder relic to create readable session data',
     options: [
-      'Use the session builder relic to create readable data',
+      'Use the builder relic to create readable session data',
       'Immediately slam the target relic',
-      'Reset until the target looks lucky',
+      'Keep waiting without clicking anything',
     ],
     explanation:
-      'If the board does not have enough shape yet, you should not brute-force the target relic. Build readable history first so the predictor has something real to teach you.',
-  },
-  {
-    id: 'bad-direct-path',
-    chapter: 'Relic Setup',
-    title: 'Bad Direct Path',
-    subtitle: 'Sometimes the lane is good, but the target relic is wrong for it.',
-    skill: 'Target Judgment',
-    type: 'decision',
-    prompt: 'Main Predictor looks safe, but that safe lane lands on EFF RES and BREAK EFFECT on your target relic. What is the right read?',
-    answer: 'Detour first, then return to the target relic',
-    options: [
-      'Detour first, then return to the target relic',
-      'Keep upgrading because the lane is safe',
-      'Ignore the target relic and only watch session data',
-    ],
-    explanation:
-      'A safe lane is not automatically a good target path. If the readable pair lands on junk stats, that is exactly when detours and force-line practice matter.',
-  },
-  {
-    id: 'dual-crit-means-both',
-    chapter: 'Relic Goals',
-    title: 'Dual Crit Means Both',
-    subtitle: 'One crit line carrying the whole relic is not a dual-crit solve.',
-    skill: 'Goal Reading',
-    type: 'decision',
-    prompt: 'A mission says dual crit. You finish with CRIT RATE x0 and CRIT DMG x3. Is that a clear?',
-    answer: 'No, dual crit means both crit lines must be hit',
-    options: [
-      'No, dual crit means both crit lines must be hit',
-      'Yes, three hits on one crit line is enough',
-      'Yes, because total crit hits matter more than distribution',
-    ],
-    explanation:
-      'Dual crit is not “a lot of one crit stat.” It means both CRIT RATE and CRIT DMG were part of the finish. If one side is zero, that is not a true dual-crit solve.',
-  },
-  {
-    id: 'reforce-discipline',
-    chapter: 'Relic Goals',
-    title: 'Re-force Discipline',
-    subtitle: 'One good hit is not always enough.',
-    skill: 'Discipline',
-    type: 'discipline',
-    prompt: 'You got the first good mono-line hit, but the path will drift after that. What is the right read?',
-    answer: 'Re-force before the next upgrade',
-    options: [
-      'Re-force before the next upgrade',
-      'Keep upgrading because the first hit proved the lane',
-      'Reset the session immediately',
-    ],
-    explanation:
-      'Mono-line solving is harder because one success does not guarantee the next hit stays clean. The discipline skill is noticing when you must re-force instead of trusting momentum.',
-  },
-  {
-    id: 'mono-is-harder',
-    chapter: 'Relic Goals',
-    title: 'Know What Is Harder',
-    subtitle: 'Not every mission type is equal.',
-    skill: 'Difficulty Awareness',
-    type: 'decision',
-    prompt: 'Which mission is usually harder to solve cleanly: dual-crit or mono-line?',
-    answer: 'Mono-line is usually harder',
-    options: [
-      'Mono-line is usually harder',
-      'Dual-crit is always harder',
-      'They are exactly the same difficulty',
-    ],
-    explanation:
-      'Mono-line paths usually demand more discipline because you often need the same line to keep landing correctly multiple times. Dual-crit gives you two acceptable finish lines instead of one.',
+      'Builder exists to create readable history. With no data, most advanced reads are just guessing.',
   },
 ];
 
@@ -214,59 +274,75 @@ function uniqueOptions(list = []) {
   });
 }
 
-function buildDrill(definition) {
-  if (!definition.starterRolls) {
-    return {
-      ...definition,
-      correctAnswer: definition.answer,
-      options: definition.options,
-      prediction: null,
-    };
+function hashString(value = '') {
+  let hash = 0;
+  const normalized = String(value || '');
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+    hash |= 0;
   }
+  return Math.abs(hash);
+}
 
-  const prediction = predictWithPairs(definition.starterRolls, { region: 'America' });
-  const trustedPair = Array.isArray(prediction?.trustedPair) && prediction.trustedPair.length === 2
-    ? prediction.trustedPair
-    : prediction?.commons || ['41', '42'];
-  const noisePair = Array.isArray(prediction?.noise) && prediction.noise.length > 0
-    ? prediction.noise.slice(0, 2)
-    : ['43', '44'];
+function shuffleOptions(list = [], seedKey = '') {
+  const items = [...list];
+  let seed = hashString(seedKey);
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const swapIndex = seed % (index + 1);
+    [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+  }
+  return items;
+}
+
+function buildDrill(definition) {
+  const prediction = definition.starterRolls
+    ? predictWithPairs(definition.starterRolls, { region: 'America' })
+    : null;
 
   if (definition.type === 'commons') {
+    const trustedPair = Array.isArray(prediction?.trustedPair) && prediction.trustedPair.length === 2
+      ? prediction.trustedPair
+      : prediction?.commons || ['41', '42'];
     const correct = pairKey(trustedPair);
     const distractors = ALL_PAIRS
       .map(pairKey)
       .filter((entry) => entry !== correct)
       .slice(0, 3);
+
     return {
       ...definition,
       prediction,
       correctAnswer: correct,
-      options: uniqueOptions([correct, ...distractors]).slice(0, 4),
+      options: shuffleOptions(uniqueOptions([correct, ...distractors]).slice(0, 4), definition.id),
       prompt: definition.prompt || 'Which pair should you treat as the commons lane?',
     };
   }
 
   if (definition.type === 'noise') {
+    const noisePair = Array.isArray(prediction?.noise) && prediction.noise.length > 0
+      ? prediction.noise.slice(0, 2)
+      : ['43', '44'];
     const correct = pairKey(noisePair);
     const distractors = ALL_PAIRS
       .map(pairKey)
       .filter((entry) => entry !== correct)
       .slice(0, 3);
+
     return {
       ...definition,
       prediction,
       correctAnswer: correct,
-      options: uniqueOptions([correct, ...distractors]).slice(0, 4),
+      options: shuffleOptions(uniqueOptions([correct, ...distractors]).slice(0, 4), definition.id),
       prompt: definition.prompt || 'Which values are acting like the noise side here?',
     };
   }
 
   return {
     ...definition,
+    prediction,
     correctAnswer: definition.answer,
-    options: definition.options,
-    prediction: null,
+    options: shuffleOptions(definition.options || [], definition.id),
   };
 }
 
@@ -321,6 +397,22 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   };
 
   const handleNext = () => {
+    if (currentIndex + 1 >= drills.length) {
+      if (score >= drills.length) {
+        setSelectedAnswer('');
+        setRevealed(false);
+        setCurrentIndex(drills.length);
+        return;
+      }
+      setCurrentIndex(0);
+      setSelectedAnswer('');
+      setRevealed(false);
+      setScore(0);
+      setAnswers({});
+      setSessionTab('current');
+      return;
+    }
+
     setSelectedAnswer('');
     setRevealed(false);
     setCurrentIndex((current) => current + 1);
@@ -332,6 +424,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     setRevealed(false);
     setScore(0);
     setAnswers({});
+    setSessionTab('current');
   };
 
   return (
@@ -367,17 +460,19 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             <div className="text-[10px] font-black uppercase tracking-[0.22em]">What Drills Are</div>
           </div>
           <p className="text-sm leading-relaxed text-slate-300">
-            Drills are not a full tutorial and not a full contract. They are short reps for one beginner skill at a time:
-            read the predictor, understand the break side, learn force-line mappings, and make basic relic decisions before full Challenge Mode.
+            Drills are short reps for one manip skill at a time: read commons, spot noise, understand session history,
+            follow carry line, translate raw pairs, use line helper, and learn force mappings before harder modes ask you
+            to combine all of that at once.
           </p>
         </div>
 
         {isComplete ? (
           <div className="rounded-[2rem] border border-emerald-400/20 bg-slate-950/50 p-8 text-center">
             <div className="mb-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Drills Complete</div>
-            <h2 className="text-4xl font-black uppercase tracking-tight text-white">You Cleared The Warmup</h2>
+            <h2 className="text-4xl font-black uppercase tracking-tight text-white">You Cleared The Foundations</h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-300">
-              That is the idea of Drills: fast reps, one idea at a time. Once these feel natural, Challenge Mode should feel less like guessing and more like reading.
+              These drills are here to make the manip language feel normal. Once these concepts feel natural, Challenge Mode
+              stops feeling like luck and starts feeling readable.
             </p>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -418,54 +513,43 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
 
                 <div className="mt-5 rounded-xl border border-white/5 bg-black/25 p-4">
                   <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Skill Focus</div>
-                  <div className="mt-1 text-lg font-black text-white">{currentDrill.skill}</div>
+                  <div className="mt-2 text-sm font-semibold text-white">{currentDrill.skill}</div>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-300">{currentDrill.explanation}</p>
                 </div>
-
-                {currentDrill.starterRolls ? (
-                  <div className="mt-5 rounded-xl border border-white/5 bg-black/25 p-4">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Session Snapshot</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {currentDrill.starterRolls.map((roll, index) => (
-                        <span
-                          key={`${currentDrill.id}-${roll}-${index}`}
-                          className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100"
-                        >
-                          {roll}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-xl border border-white/5 bg-black/25 p-4">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mini Scenario</div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                      This drill is about one rule, not a full board solve. Read the prompt and commit to the correct move.
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">Progress</div>
-                <div className="mt-3 space-y-2">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Drill Map</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    {Object.keys(answers).length} Answered
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   {drills.map((drill, index) => {
                     const answerState = answers[drill.id];
-                    const isCurrent = index === currentIndex;
                     return (
-                      <div
+                      <button
                         key={drill.id}
-                        className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] ${
-                          answerState?.correct
-                            ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                            : answerState && !answerState.correct
-                              ? 'border-rose-400/20 bg-rose-500/10 text-rose-100'
-                              : isCurrent
-                                ? 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'
-                                : 'border-white/5 bg-black/20 text-slate-500'
+                        type="button"
+                        onClick={() => {
+                          setCurrentIndex(index);
+                          setSelectedAnswer('');
+                          setRevealed(Boolean(answerState));
+                          if (answerState) setSelectedAnswer(answerState.answer);
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-left text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                          index === currentIndex
+                            ? 'border-cyan-400/35 bg-cyan-500/12 text-cyan-100'
+                            : answerState?.correct
+                              ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                              : answerState && !answerState.correct
+                                ? 'border-rose-400/25 bg-rose-500/10 text-rose-100'
+                                : 'border-white/5 bg-black/20 text-slate-400 hover:border-white/10 hover:text-white'
                         }`}
                       >
                         {drill.title}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -473,80 +557,115 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             </aside>
 
             <section className="space-y-6 xl:col-span-8">
-              {currentDrill.starterRolls ? (
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-                  <div className="xl:col-span-7">
+              {currentEntries.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
                     <ModernPairPredictorCard entries={currentEntries} region="America" />
                   </div>
-                  <div className="xl:col-span-5">
+                  <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Session Snapshot</div>
+                      <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+                        {[
+                          { id: 'current', label: 'Current' },
+                          { id: 'history', label: 'History' },
+                        ].map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setSessionTab(tab.id)}
+                            className={`rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                              sessionTab === tab.id
+                                ? 'bg-cyan-500/18 text-cyan-100'
+                                : 'text-slate-500 hover:text-white'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <ModernSessionTable
                       sessionTab={sessionTab}
                       setSessionTab={setSessionTab}
                       entries={currentEntries}
                       prevSessions={[]}
-                      compact
+                      onDeleteEntry={() => {}}
+                      onDeleteSession={() => {}}
                     />
                   </div>
                 </div>
               ) : null}
 
-              <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-6">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">Prompt</div>
-                <h3 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">{currentDrill.prompt}</h3>
+              <div className="rounded-[1.75rem] border border-white/5 bg-slate-950/45 p-6">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">Question</div>
+                <h3 className="mt-3 text-2xl font-black uppercase tracking-tight text-white">{currentDrill.prompt}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                  This drill is about one rule, not a full board solve. Read the prompt and commit to the strongest answer.
+                </p>
 
-                <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="mt-6 grid gap-3">
                   {currentDrill.options.map((option) => {
                     const isChosen = selectedAnswer === option;
-                    const isCorrect = option === currentDrill.correctAnswer;
-                    const tone = !revealed
-                      ? 'border-white/5 bg-black/20 text-slate-200 hover:border-white/10'
-                      : isCorrect
-                        ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
-                        : isChosen
-                          ? 'border-rose-400/25 bg-rose-500/10 text-rose-100'
-                          : 'border-white/5 bg-black/20 text-slate-500';
-
+                    const isCorrect = currentDrill.correctAnswer === option;
+                    const showState = revealed && (isChosen || isCorrect);
                     return (
                       <button
-                        key={`${currentDrill.id}-${option}`}
+                        key={option}
                         type="button"
-                        disabled={revealed}
                         onClick={() => handleReveal(option)}
-                        className={`rounded-[1.2rem] border px-4 py-4 text-left text-sm font-black uppercase tracking-[0.16em] transition-all ${tone}`}
+                        disabled={revealed}
+                        className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                          !revealed
+                            ? 'border-white/5 bg-black/20 text-slate-200 hover:border-cyan-400/20 hover:bg-cyan-500/6'
+                            : showState && isCorrect
+                              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+                              : isChosen && !isCorrect
+                                ? 'border-rose-400/30 bg-rose-500/10 text-rose-100'
+                                : 'border-white/5 bg-black/20 text-slate-500'
+                        }`}
                       >
-                        {option}
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em]">{option}</div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
 
-              {revealed ? (
-                <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-6">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">Review</div>
-                  <div
-                    className={`mt-3 rounded-xl border px-4 py-3 text-sm font-black uppercase tracking-[0.16em] ${
-                      selectedAnswer === currentDrill.correctAnswer
-                        ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
-                        : 'border-rose-400/25 bg-rose-500/10 text-rose-100'
-                    }`}
+                {revealed ? (
+                  <div className={`mt-6 rounded-2xl border p-4 ${
+                    selectedAnswer === currentDrill.correctAnswer
+                      ? 'border-emerald-400/25 bg-emerald-500/10'
+                      : 'border-rose-400/25 bg-rose-500/10'
+                  }`}>
+                    <div className={`text-[10px] font-black uppercase tracking-[0.18em] ${
+                      selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-200' : 'text-rose-200'
+                    }`}>
+                      {selectedAnswer === currentDrill.correctAnswer ? 'Correct Read' : 'Missed Read'}
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-200">{currentDrill.explanation}</p>
+                  </div>
+                ) : null}
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={handleRestart}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/20 hover:text-white"
                   >
-                    {selectedAnswer === currentDrill.correctAnswer ? 'Correct Read' : 'Wrong Read'}
-                  </div>
-                  <p className="mt-4 text-sm leading-relaxed text-slate-300">{currentDrill.explanation}</p>
-
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleNext}
-                      className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                    >
-                      {currentIndex + 1 >= drills.length ? 'Finish Drills' : 'Next Drill'}
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
+                    <RefreshCw className="h-4 w-4" />
+                    Restart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={!revealed}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {currentIndex + 1 >= drills.length ? 'Finish Drills' : 'Next Drill'}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-              ) : null}
+              </div>
             </section>
           </div>
         )}
