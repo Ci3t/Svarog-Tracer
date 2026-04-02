@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 
 export default function ModernStickyHeader({ 
+  containerId,
+  topOffsetClass = 'top-[72px] md:top-[84px]',
   secondsLeft, 
   onStart,
   onStop,
@@ -59,7 +61,8 @@ export default function ModernStickyHeader({
 
   return (
     <div 
-      className={`astral-sticky-header sticky top-0 z-[100] transition-all duration-500 ${
+      id={containerId}
+      className={`astral-sticky-header sticky ${topOffsetClass} z-[100] transition-all duration-500 ${
         isScrolled 
           ? 'py-2 px-0' 
           : 'py-0 px-0'

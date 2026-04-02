@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Copy,
   Lightbulb,
+  Map,
   RefreshCw,
   Target,
   FlaskConical,
@@ -23,6 +24,13 @@ import {
   Flag,
   ShieldAlert,
   X,
+  TerminalSquare,
+  Sparkles,
+  BrainCircuit,
+  Radar,
+  ScanSearch,
+  StepForward,
+  CircleHelp,
 } from 'lucide-react';
 import ModernStickyHeader from '../components/modern/ModernStickyHeader';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
@@ -71,6 +79,87 @@ const SUBSTATS = [
 ];
 const REQUEST_TIMEOUT_MS = 8000;
 const LOCAL_REQUEST_TIMEOUT_MS = 30000;
+const CHALLENGE_TOUR_KEY = 'challenge-mode-tour-v1';
+const CHALLENGE_TOUR_STEPS = [
+  {
+    target: '#challenge-tour-mode',
+    title: 'Mode And Ladder',
+    body: 'This top strip is your challenge navigator. Switch between Ladder and Generated, reset the ladder, reopen this tour, and click any node in the operation track to jump to that level directly.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-mode',
+    title: 'Generated Challenges',
+    body: 'The Generated tab is your fresh-contract mode. Pick a difficulty tier there, press Load, and the page builds a new challenge outside the handcrafted ladder so you can practice without losing your current ladder progress.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-mission',
+    title: 'Mission Brief',
+    body: 'This is the contract. Read the mission text, the clear rule, the exact target stats, your attempt count, and how many deviations you have already burned.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-hints',
+    title: 'Intel And Hints',
+    body: 'Use Intel when you want the next hint from the contract pack. It is there to teach the intended read, not to replace the solve, so treat it like a nudge when the board stops making sense.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-stickybar',
+    title: 'Sticky Roll Bar',
+    body: 'This timer and roll-input bar stays with you while you scroll. Use it to keep entering rolls fast without having to climb back to the top of the page every time.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-predictor',
+    title: 'Svarog Predictor',
+    body: 'Start here before you touch a relic. It gives you commons, noise, the lane lean, and Svarog Eye so you know whether the board is stable or if break pressure is coming.',
+    placement: 'right',
+  },
+  {
+    target: '#challenge-tour-advanced-toggle',
+    title: 'Advanced Mode',
+    body: 'Open Show details when you want the deeper proof behind the lean: trends, trust, freshness, pair behavior, matrix evidence, and why the board is reading that way.',
+    placement: 'right',
+  },
+  {
+    target: '#challenge-tour-helper',
+    title: 'Stats And Line Helper',
+    body: 'This panel turns the read into manipulation logic. Use it to understand line helper mapping, Caesar-style pair translation, and which raw pair actually lands on the slot you want.',
+    placement: 'right',
+  },
+  {
+    target: '#challenge-tour-target',
+    title: 'Target Relic',
+    body: 'This is the relic you are trying to solve. Green rows mean the line is part of the goal and has hits. Red rows mean it is part of the goal but still missed. You only finish cleanly when the contract is satisfied.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-builder',
+    title: 'Setup / Builder Relic',
+    body: 'Use this relic to scout or reposition without committing to the target relic yet. It is where you can build a read, loop a setup, or consume a roll before going back to the target.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-force',
+    title: 'Force Relic',
+    body: 'The force relic lets you prime a forced line before the next important hit. Use it when the default path drifts into junk and you need to redirect the outcome onto a different slot.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-force-switch',
+    title: 'Switch Force',
+    body: 'This control changes the force relic mode between 1-liner, 2-liner, and 3-liner. If the current force setup is wrong for the board, switch it here first, then add the shown line to prime the next force path.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-session',
+    title: 'Session History',
+    body: 'This is the replay trail for the current run. Compare the history on the right with the predictor on the left and the helper panel to understand exactly where the session changed.',
+    placement: 'left',
+  },
+];
 
 function isLocalHost() {
   if (typeof window === 'undefined') return false;
@@ -383,6 +472,162 @@ function getLineHitsByStat(relic) {
   }, {});
 }
 
+function ChallengeTourOverlay({
+  steps,
+  currentStep,
+  onNext,
+  onBack,
+  onClose,
+  canAdvance = true,
+  isWaiting = false,
+}) {
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    const step = steps[currentStep];
+    if (!step) return undefined;
+
+    const update = () => {
+      const element = document.querySelector(step.target);
+      if (!element) {
+        setRect(null);
+        return;
+      }
+      const nextRect = element.getBoundingClientRect();
+      setRect(nextRect);
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [steps, currentStep]);
+
+  const step = steps[currentStep];
+  if (!step || !rect) return null;
+
+  const cardWidth = 340;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const placement = step.placement || 'auto';
+  const canPlaceRight = rect.right + 24 + cardWidth < viewportWidth;
+  const canPlaceLeft = rect.left - cardWidth - 24 > 24;
+  const canPlaceBelow = rect.bottom + 240 < viewportHeight;
+  const canPlaceAbove = rect.top - 220 > 24;
+
+  let top;
+  let left;
+
+  if (placement === 'right' && canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (placement === 'left' && canPlaceLeft) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.left - cardWidth - 24;
+  } else if (placement === 'bottom' && canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (placement === 'top' && canPlaceAbove) {
+    top = rect.top - 200;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else {
+    top = Math.max(24, rect.top - 200);
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[420]">
+      <div className="pointer-events-auto absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]" style={{ height: Math.max(0, rect.top - 8) }} />
+      <div
+        className="pointer-events-auto absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ top: Math.max(0, rect.top - 8), width: Math.max(0, rect.left - 8), height: rect.height + 16 }}
+      />
+      <div
+        className="pointer-events-auto absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ top: Math.max(0, rect.top - 8), left: rect.left + rect.width + 8, height: rect.height + 16 }}
+      />
+      <div className="pointer-events-auto absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]" style={{ top: rect.top + rect.height + 8 }} />
+      <div
+        className="absolute rounded-[1.75rem] border border-pink-400/55 shadow-[0_0_22px_rgba(244,114,182,0.18)] transition-all duration-300"
+        style={{ top: rect.top - 8, left: rect.left - 8, width: rect.width + 16, height: rect.height + 16 }}
+      />
+      <div
+        className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+        style={{ top, left, width: cardWidth }}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+            <Map className="h-3.5 w-3.5" />
+            Guided Tour
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-400 transition-colors hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="text-lg font-black uppercase tracking-tight text-white">{step.title}</div>
+        <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+        <div className="mt-5 flex items-center justify-between">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+            {isWaiting ? 'Waiting For Action' : `${currentStep + 1} / ${steps.length}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={currentStep === 0}
+              className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!canAdvance}
+              className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getChallengeGoalStats(success = {}) {
+  if (Array.isArray(success.required) && success.required.length > 0) {
+    return success.required.filter(Boolean);
+  }
+  if (success.target) {
+    return [success.target];
+  }
+  return [];
+}
+
+function getChallengeLineFeedback(success = {}, line = {}) {
+  const isGoal = getChallengeGoalStats(success).includes(line.stat);
+  const hits = Number(line.hits || 0);
+  return {
+    isGoal,
+    isGoalHit: isGoal && hits > 0,
+    isGoalMiss: isGoal && hits <= 0,
+  };
+}
+
 function getHelpfulHitsForContract(hitMap, success) {
   if (!success || typeof success !== 'object') return 0;
 
@@ -484,6 +729,7 @@ function ModernRelicCard({
   title,
   themeColor = 'cyan', 
   icon: Icon,
+  success = null,
   onAction,
   onReset,
   onReorderLines,
@@ -526,7 +772,7 @@ function ModernRelicCard({
   const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
 
   return (
-    <article className="group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-slate-900/40 p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
+    <article className="theme-glass-card force-overflow-visible group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-transparent p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
       {/* Dynamic Relic Overflow Image */}
       <div className="absolute -top-16 left-1/2 z-20 h-32 w-32 -translate-x-1/2 transform transition-transform duration-700 group-hover:scale-110">
          <div className={`absolute inset-0 ${themeClasses.bgGlow} blur-3xl opacity-60`} />
@@ -539,7 +785,7 @@ function ModernRelicCard({
          ) : null}
       </div>
 
-      <div className="relative rounded-[1.4rem] border border-white/5 bg-slate-950/70 p-4 pt-12 backdrop-blur-3xl">
+      <div className="relative rounded-[1.4rem] border border-white/5 bg-black/20 p-4 pt-12 backdrop-blur-3xl">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between px-1">
           <div className="flex items-center gap-3">
@@ -605,7 +851,9 @@ function ModernRelicCard({
 
         {/* Substats */}
         <div className="space-y-1.5">
-          {visibleLines.map((line) => (
+          {visibleLines.map((line) => {
+            const feedback = getChallengeLineFeedback(success, line);
+            return (
             <div
               key={`${title}-${line.slot}`}
               draggable={Boolean(onReorderLines)}
@@ -615,7 +863,11 @@ function ModernRelicCard({
               className={`group/item relative overflow-hidden rounded-xl border transition-all duration-300 ${
                 line.justHit 
                   ? `${themeClasses.border} ${themeClasses.bgGlow}` 
-                  : 'border-white/5 bg-black/30 hover:bg-black/50'
+                  : feedback.isGoalHit
+                    ? 'border-emerald-400/25 bg-emerald-500/8 hover:bg-emerald-500/12'
+                    : feedback.isGoalMiss
+                      ? 'border-rose-400/20 bg-rose-500/8 hover:bg-rose-500/12'
+                      : 'border-white/5 bg-black/30 hover:bg-black/50'
               } ${onReorderLines ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
               <div className="relative z-10 flex h-10 items-center justify-between px-3">
@@ -633,21 +885,47 @@ function ModernRelicCard({
                     </select>
                   ) : (
                     <div className="flex flex-col">
-                      <span className={`text-[10px] font-black uppercase tracking-tight ${line.justHit ? 'text-white' : 'text-slate-500'}`}>
+                      <span className={`text-[11px] font-black uppercase tracking-tight ${
+                        line.justHit
+                          ? 'text-white'
+                          : feedback.isGoalHit
+                            ? 'text-emerald-200'
+                            : feedback.isGoalMiss
+                              ? 'text-rose-200'
+                              : 'text-slate-400'
+                      }`}>
                         {line.stat}
-                      </span>
-                      <span className={`text-[9px] font-mono ${line.justHit ? themeClasses.text : 'text-slate-600'}`}>
-                        {formatStatValue(line.stat, line.value)}
                       </span>
                     </div>
                   )}
                 </div>
-                <div className={`flex h-6 min-w-[24px] items-center justify-center rounded-lg px-1.5 text-xs font-black ${line.justHit ? themeClasses.button : 'bg-white/5 text-slate-700'}`}>
-                  {line.hits}
+                <div className="flex items-center gap-2">
+                  <div className={`text-[11px] font-black ${
+                    feedback.isGoalHit
+                      ? 'text-emerald-200'
+                      : feedback.isGoalMiss
+                        ? 'text-rose-200'
+                        : line.justHit
+                          ? themeClasses.text
+                          : 'text-slate-400'
+                  }`}>
+                    {formatStatValue(line.stat, line.value)}
+                  </div>
+                  <div className={`flex h-7 min-w-[38px] items-center justify-center rounded-lg px-2 text-[13px] font-black ${
+                    feedback.isGoalHit
+                      ? 'border border-emerald-400/20 bg-emerald-500/15 text-emerald-100'
+                      : feedback.isGoalMiss
+                        ? 'border border-rose-400/20 bg-rose-500/15 text-rose-100'
+                        : line.justHit
+                          ? themeClasses.button
+                          : 'bg-white/5 text-slate-700'
+                  }`}>
+                  x{line.hits}
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          )})}
 
           {!relic.hasFourthLine && (
             <div className="flex h-10 items-center justify-between rounded-xl border border-dashed border-white/5 bg-white/[0.01] px-3 opacity-30">
@@ -703,7 +981,7 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false
   const previewLine = !relic.isPrimed && relic.currentLineCount < 4 ? relic.lines[relic.currentLineCount] : null;
 
   return (
-    <article className="group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-slate-900/40 p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
+    <article className="theme-glass-card force-overflow-visible group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-transparent p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
       <div className="absolute -top-16 left-1/2 z-20 h-32 w-32 -translate-x-1/2 transform transition-transform duration-700 group-hover:scale-110">
         <div className="absolute inset-0 bg-amber-500/10 blur-3xl opacity-60" />
         {relic.setImage ? (
@@ -715,7 +993,7 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false
         ) : null}
       </div>
 
-      <div className="relative rounded-[1.4rem] border border-white/5 bg-slate-950/70 p-4 pt-12 backdrop-blur-3xl">
+      <div className="relative rounded-[1.4rem] border border-white/5 bg-black/20 p-4 pt-12 backdrop-blur-3xl">
         <div className="mb-4 flex items-center justify-between px-1">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-black/50">
@@ -734,13 +1012,15 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false
               Force {nextLabel}
             </div>
             <button
+              id="challenge-tour-force-switch"
               type="button"
               onClick={onCycleType}
               disabled={disabled}
-              className="rounded-lg border border-white/5 bg-white/5 p-1.5 text-slate-600 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              title="Cycle 1-liner / 2-liner / 3-liner"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              title="Switch force relic type: 1-liner / 2-liner / 3-liner"
             >
               <Settings2 className="h-3.5 w-3.5" />
+              <span>Switch Force</span>
             </button>
           </div>
         </div>
@@ -820,7 +1100,7 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false
   );
 }
 
-function ResultRelicCard({ relic, title, accent = 'cyan' }) {
+function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
   if (!relic) {
     return (
       <div className="rounded-[1.15rem] border border-white/5 bg-black/20 p-4">
@@ -846,7 +1126,7 @@ function ResultRelicCard({ relic, title, accent = 'cyan' }) {
       };
 
   return (
-    <div className="rounded-[1.15rem] border border-white/5 bg-black/20 p-4">
+    <div className="theme-glass-card rounded-[1.15rem] border border-white/5 bg-transparent p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
@@ -877,20 +1157,47 @@ function ResultRelicCard({ relic, title, accent = 'cyan' }) {
         </div>
       </div>
       <div className="space-y-2">
-        {visibleLines.filter(Boolean).map((line) => (
-          <div key={`result-${title}-${line.slot}`} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+        {visibleLines.filter(Boolean).map((line) => {
+          const feedback = getChallengeLineFeedback(success, line);
+          return (
+          <div
+            key={`result-${title}-${line.slot}`}
+            className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
+              feedback.isGoalHit
+                ? 'border-emerald-400/25 bg-emerald-500/8'
+                : feedback.isGoalMiss
+                  ? 'border-rose-400/20 bg-rose-500/8'
+                  : 'border-white/5 bg-white/[0.03]'
+            }`}
+          >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className={`h-1.5 w-1.5 rounded-full ${accentClasses.dot}`} />
-                <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-200">{line.stat}</span>
+                <span className={`truncate text-[11px] font-black uppercase tracking-[0.16em] ${
+                  feedback.isGoalHit ? 'text-emerald-100' : feedback.isGoalMiss ? 'text-rose-100' : 'text-slate-200'
+                }`}>
+                  {line.stat}
+                </span>
               </div>
-              <div className="mt-1 pl-3.5 text-[10px] font-mono text-slate-400">{formatStatValue(line.stat, line.value)}</div>
             </div>
-            <div className="rounded-lg border border-white/5 bg-black/25 px-2.5 py-1 text-xs font-black text-white">
-              x{line.hits || 0}
+            <div className="flex items-center gap-2">
+              <div className={`text-[12px] font-black ${
+                feedback.isGoalHit ? 'text-emerald-200' : feedback.isGoalMiss ? 'text-rose-200' : 'text-slate-300'
+              }`}>
+                {formatStatValue(line.stat, line.value)}
+              </div>
+              <div className={`rounded-lg px-2.5 py-1 text-[13px] font-black ${
+                feedback.isGoalHit
+                  ? 'border border-emerald-400/20 bg-emerald-500/15 text-emerald-100'
+                  : feedback.isGoalMiss
+                    ? 'border border-rose-400/20 bg-rose-500/15 text-rose-100'
+                    : 'border border-white/5 bg-black/25 text-white'
+              }`}>
+                x{line.hits || 0}
+              </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -944,6 +1251,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [mistakes, setMistakes] = useState(0);
   const [hintStep, setHintStep] = useState(0);
   const [triesUsed, setTriesUsed] = useState(1);
+  const [tourRunning, setTourRunning] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
 
   const containerRef = useRef(null);
   const debugRef = useRef({
@@ -973,7 +1282,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const helperLineOverride = forceRelic.isPrimed
     ? forceRelic.forcedLine
     : sharedCarryLine || relic.lastLine || testRelic.lastLine || null;
-  const activeHint = hintStep > 0 ? currentContract.hints[Math.min(hintStep - 1, currentContract.hints.length - 1)] : 'No hint opened yet.';
+  const activeHint = hintStep > 0 ? currentContract.hints[Math.min(hintStep - 1, currentContract.hints.length - 1)] : null;
   const lineHitsByStat = useMemo(() => getLineHitsByStat(relic), [relic]);
   const helpfulHits = useMemo(
     () => getHelpfulHitsForContract(lineHitsByStat, currentContract.success),
@@ -1002,6 +1311,22 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     () => pvpAttempts.reduce((best, attempt) => (comparePvpAttempts(attempt, best) > 0 ? attempt : best), null),
     [pvpAttempts]
   );
+
+  useEffect(() => {
+    if (isPvpMode) return undefined;
+    try {
+      const seenTour = window.localStorage.getItem(CHALLENGE_TOUR_KEY);
+      if (!seenTour) {
+        setTourStepIndex(0);
+        setTourRunning(true);
+      }
+    } catch {
+      setTourStepIndex(0);
+      setTourRunning(true);
+    }
+    return undefined;
+  }, [isPvpMode]);
+
   const challengeStatus = useMemo(() => {
     if (relic.level < 15) {
       return {
@@ -1968,16 +2293,35 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     }, { rollTierMode: currentContract?.pvpRollTier || null }));
   };
 
+  const handleCloseTour = () => {
+    setTourRunning(false);
+    try {
+      window.localStorage.setItem(CHALLENGE_TOUR_KEY, 'seen');
+    } catch {
+      // ignore localStorage issues
+    }
+  };
+
+  const handleNextTourStep = () => {
+    if (tourStepIndex >= CHALLENGE_TOUR_STEPS.length - 1) {
+      handleCloseTour();
+      return;
+    }
+    setTourStepIndex((current) => Math.min(current + 1, CHALLENGE_TOUR_STEPS.length - 1));
+  };
+
+  const handleBackTourStep = () => {
+    setTourStepIndex((current) => Math.max(current - 1, 0));
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`min-h-screen bg-[#080B14] text-slate-200 relative [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`}
+      className={`playground-theme-shell min-h-screen bg-transparent text-slate-200 relative [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`}
     >
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute top-0 left-0 h-full w-full bg-[radial-gradient(ellipse_at_center,rgba(15,18,25,0.7),#080B14)]" />
-      </div>
-
       <ModernStickyHeader
+        containerId="challenge-tour-stickybar"
+        topOffsetClass={themeConfig.rootClassName === 'arctic-theme' ? 'top-[112px] md:top-[128px]' : 'top-[72px] md:top-[84px]'}
         secondsLeft={secondsLeft}
         onStart={handleStartSession}
         onStop={isPvpPreStartLocked ? undefined : (() => setTimerRunning(false))}
@@ -2286,270 +2630,241 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           </div>
         ) : null}
 
+        {/* HYPER-MINIMALIST TACTICAL COMMAND CENTER */}
         {!isPvpMode ? (
-        <div className="gsap-fade-up mb-4 rounded-[1.1rem] border border-white/5 bg-slate-950/35 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Challenge Mode</div>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                Keep the handcrafted ladder and generated setup separate so you can switch between them without losing your place.
-              </p>
-            </div>
-            <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
-              {[
-                { id: 'ladder', label: 'Ladder' },
-                { id: 'generated', label: 'Generated' },
-              ].map((view) => (
-                <button
-                  key={view.id}
-                  type="button"
-                  onClick={() => setChallengeModeView(view.id)}
-                  className={`rounded-full px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
-                    challengeModeView === view.id
-                      ? 'bg-cyan-500/18 text-cyan-100'
-                      : 'text-slate-500 hover:text-white'
-                  }`}
-                >
-                  {view.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        ) : null}
-
-        {!isPvpMode && challengeModeView === 'ladder' ? (
         <div className="gsap-fade-up mb-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Handcrafted Ladder
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setCompletedContracts([]);
-                setCurrentContractId('level01');
-              }}
-              className="rounded-full border border-white/5 bg-black/30 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/10 hover:text-white"
-            >
-              Reset Ladder
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-          {CHALLENGE_CONTRACT_ORDER.map((contractId) => {
-            const contract = getChallengeContract(contractId);
-            const isCurrent = contractId === currentContractId;
-            const isCompleted = completedContracts.includes(contractId);
-            return (
-              <button
-                key={contractId}
-                type="button"
-                onClick={() => handleOpenHandcraftedContract(contractId)}
-                className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
-                  isCurrent
-                    ? 'border-amber-400/35 bg-amber-500/15 text-amber-100'
-                    : isCompleted
-                      ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/16'
-                      : 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
-                }`}
-              >
-                {contract.title}
-                {isCompleted ? ' • Clear' : ''}
-              </button>
-            );
-          })}
-          </div>
-        </div>
-        ) : null}
-
-        {!isPvpMode && challengeModeView === 'generated' ? (
-        <div className="gsap-fade-up mb-6 rounded-[1.1rem] border border-white/5 bg-slate-950/35 p-4">
-          <div className="mb-3 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Generated Challenge Setup</div>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                Pick a tier here, generate a fresh challenge, and keep it separate from the ladder contracts.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {roleMode === 'admin' ? (
-                <button
-                  type="button"
-                  onClick={() => navigate('/playground/challenge/admin')}
-                  className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-amber-100 transition-all hover:bg-amber-500/18"
-                >
-                  Admin Builder
-                </button>
-              ) : null}
-              {generatedScenario ? (
-                <button
-                  type="button"
-                  onClick={() => setGeneratedScenario(null)}
-                  className="rounded-full border border-white/5 bg-black/30 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/10 hover:text-white"
-                >
-                  Clear Generated
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'].map((tier) => {
-              const isSelected = selectedTier === tier;
-              return (
-                <button
-                  key={tier}
-                  type="button"
-                  onClick={() => setSelectedTier(tier)}
-                  className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-all ${
-                    isSelected
-                      ? 'border-cyan-400/30 bg-cyan-500/14 text-cyan-100'
-                      : 'border-white/5 bg-black/30 text-slate-300 hover:border-white/10 hover:text-white'
-                  }`}
-                >
-                  {tier.replace('_', ' ')}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={handleGenerateScenario}
-              className="ml-auto inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
-            >
-              Generate Challenge
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-        ) : null}
-
-        {!isPvpMode ? (
-        <div className="gsap-fade-up mb-6 rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 shadow-inner backdrop-blur-md">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Mission Brief</span>
-                {generatedScenario ? (
-                  <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100">
-                    Generated
-                  </span>
-                ) : null}
-                <span className="rounded-full border border-white/5 bg-black/30 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
-                  {currentContract.difficulty}
-                </span>
-              </div>
-              <div className="text-xl font-black uppercase tracking-tight text-amber-300">
-                {currentContract.title}
-              </div>
-              <p className="mt-2 max-w-3xl text-[11px] leading-relaxed text-slate-300">
-                {describeChallengeMission(currentContract.success)}
-              </p>
-            </div>
-
-            <div className="grid min-w-[220px] grid-cols-2 gap-3 lg:w-[260px]">
-              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">Tries</div>
-                <div className="mt-1 text-2xl font-black text-amber-200">
-                  {triesUsed}
-                  {maxTries ? <span className="text-sm text-slate-500"> / {maxTries}</span> : null}
+          {/* TOP BAR: Mode & Mission Selector */}
+          <div id="challenge-tour-mode" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-3">
+             <div className="flex items-center gap-3">
+                <div className="inline-flex rounded-xl border border-white/5 bg-slate-950/40 p-1 backdrop-blur-md">
+                  {[
+                    { id: 'ladder', label: 'Ladder' },
+                    { id: 'generated', label: 'Generated' },
+                  ].map((view) => (
+                    <button
+                      key={view.id}
+                      type="button"
+                      onClick={() => setChallengeModeView(view.id)}
+                      className={`rounded-lg px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] transition-all ${
+                        challengeModeView === view.id
+                          ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                          : 'text-slate-500 hover:text-white'
+                      }`}
+                    >
+                      {view.label}
+                    </button>
+                  ))}
                 </div>
-              </div>
-              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                <div className="mt-1 text-2xl font-black text-rose-300">{mistakes}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_280px]">
-            <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Clear Rule</div>
-              <p className="text-[10px] leading-relaxed text-slate-300">
-                {describeChallengeWinRule(currentContract.success)}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-3">
-              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Goal Checklist</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {contractTargets.length > 0 ? contractTargets.map((target) => (
-                  <span key={target} className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
-                    {target}
-                  </span>
-                )) : (
-                  <span className="text-[10px] text-slate-400">No explicit target lines.</span>
+                {challengeModeView === 'ladder' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompletedContracts([]);
+                      setCurrentContractId('level01');
+                    }}
+                    className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-rose-500/50 hover:text-rose-400 transition-colors"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Reset
+                  </button>
                 )}
-              </div>
-              {currentContract.requiresSessionBuilder ? (
-                <p className="mt-3 text-[10px] leading-relaxed text-amber-100/85">
-                  Session-builder rule is active for this challenge. Read the board first, then convert that read into your target path.
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <div
-                className={`rounded-xl border p-3 ${
-                  challengeStatus.tone === 'clear'
-                    ? 'border-emerald-500/25 bg-emerald-500/10'
-                    : challengeStatus.tone === 'fail'
-                      ? 'border-rose-500/25 bg-rose-500/10'
-                      : 'border-cyan-400/20 bg-cyan-500/5'
-                }`}
-              >
-                <div
-                  className={`text-[9px] font-black uppercase tracking-[0.18em] mb-1 ${
-                    challengeStatus.tone === 'clear'
-                      ? 'text-emerald-200'
-                      : challengeStatus.tone === 'fail'
-                        ? 'text-rose-200'
-                        : 'text-cyan-200'
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTourStepIndex(0);
+                    setTourRunning(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/18"
                 >
-                  {challengeStatus.label}
+                  <Map className="h-3 w-3" />
+                  Tour
+                </button>
+             </div>
+
+             {challengeModeView === 'ladder' ? (
+                <div className="flex-1 max-w-full lg:max-w-3xl flex flex-col justify-center xl:ml-8">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Operation Track</span>
+                       <span className="rounded-full border border-white/5 bg-black/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-500/70">
+                         {CHALLENGE_CONTRACT_ORDER.length} Nodes
+                       </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {CHALLENGE_CONTRACT_ORDER.map((contractId, index) => {
+                      const contract = getChallengeContract(contractId);
+                      const isCurrent = contractId === currentContractId;
+                      const isCompleted = completedContracts.includes(contractId);
+                      const num = (index + 1).toString().padStart(2, '0');
+                      
+                      return (
+                        <button
+                          key={contractId}
+                          type="button"
+                          onClick={() => handleOpenHandcraftedContract(contractId)}
+                          className={`group relative flex h-7 w-7 items-center justify-center rounded-lg border text-[10px] font-black transition-all ${
+                            isCurrent
+                              ? 'border-amber-400/50 bg-amber-500/20 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.2)] ring-1 ring-amber-400/30 scale-110 z-10'
+                              : isCompleted
+                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400/80 hover:bg-emerald-500/20 hover:text-emerald-300'
+                                : 'border-white/5 bg-white/[0.02] text-slate-500 hover:border-white/20 hover:bg-white/[0.05] hover:text-slate-300'
+                          }`}
+                        >
+                          <span className="relative z-10">{num}</span>
+                          
+                          {/* Inner status dot */}
+                          {isCompleted && !isCurrent && (
+                            <div className="absolute top-1 right-1 h-1 w-1 rounded-full bg-emerald-400/70" />
+                          )}
+
+                          {/* Custom Tooltip */}
+                          <div className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-50 flex -translate-x-1/2 flex-col items-center opacity-0 transition-opacity group-hover:opacity-100">
+                             <div className="whitespace-nowrap rounded border border-white/10 bg-slate-900/95 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-xl backdrop-blur-md">
+                               <span className="text-slate-400 mr-2">OP {num}:</span>
+                               {contract.title.replace(/^Level\s*\d+\s*-\s*/i, '')}
+                             </div>
+                             <div className="h-1.5 w-1.5 rotate-45 border-b border-r border-white/10 bg-slate-900/95 -mt-[4px]" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <p className="text-[10px] leading-relaxed text-slate-200">{challengeStatus.text}</p>
-              </div>
+             ) : (
+                <div className="flex-1 flex flex-wrap lg:justify-end items-center gap-2 max-w-full">
+                  {['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'].map((tier) => {
+                    const isSelected = selectedTier === tier;
+                    return (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => setSelectedTier(tier)}
+                        className={`rounded-lg border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap ${
+                          isSelected
+                            ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-400/30'
+                            : 'border-white/5 bg-white/[0.02] text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {tier.replace('_', ' ')}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={handleGenerateScenario}
+                    className="ml-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-500/25 transition-all"
+                  >
+                    <Radar className="h-3 w-3" />
+                    Load
+                  </button>
+                </div>
+             )}
+          </div>
 
-              {challengeStatus.tone === 'clear' && nextContractId ? (
-                <button
-                  type="button"
-                  onClick={() => handleOpenHandcraftedContract(nextContractId)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
-                >
-                  Next Contract
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : null}
-              {challengeStatus.tone === 'clear' && generatedScenario ? (
-                <button
-                  type="button"
-                  onClick={handleGenerateScenario}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                >
-                  Generate Next Challenge
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : null}
-              {challengeStatus.tone !== 'clear' ? (
-                <button
-                  type="button"
-                  onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                >
-                  <Lightbulb className="h-3.5 w-3.5" />
-                  Show Hint
-                </button>
-              ) : null}
+          {/* MISSION BRIEF: SINGLE SLIM CARD */}
+          <div id="challenge-tour-mission" className="relative rounded-2xl border border-white/10 bg-slate-950/70 p-5 shadow-2xl backdrop-blur-2xl flex flex-col lg:flex-row gap-5 items-start lg:items-center overflow-hidden">
+             {/* Decorative subtle pulse */}
+             <div className="absolute -left-10 top-0 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+
+             {/* INFO BLOCK */}
+             <div className="flex-1 min-w-0 z-10 w-full">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                   <div className="text-2xl font-black uppercase tracking-tight text-white drop-shadow-md">
+                     {currentContract.title}
+                   </div>
+                   <div className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400/80">
+                     {generatedScenario ? 'Generated' : currentContract.difficulty}
+                   </div>
+                   <div className="rounded bg-black/40 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.2em] text-slate-600">
+                     Seed {currentContract.seedLabel}
+                   </div>
+                </div>
+                
+                <p className="text-[12px] leading-relaxed text-slate-300 mb-3 max-w-4xl">
+                   {describeChallengeMission(currentContract.success)}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                   <div className="flex items-center gap-2">
+                      <span className="text-[8px] uppercase tracking-[0.25em] text-emerald-400/60 font-black">Rule:</span>
+                      <span className="text-[11px] text-emerald-100/90 font-medium leading-relaxed">{describeChallengeWinRule(currentContract.success)}</span>
+                   </div>
+                   {contractTargets.length > 0 && (
+                     <div className="flex items-center gap-2">
+                        <span className="text-[8px] uppercase tracking-[0.25em] text-amber-400/60 font-black">Targets:</span>
+                        <div className="flex gap-1.5">
+                          {contractTargets.map(t => (
+                            <span key={t} className="bg-amber-500/10 border border-amber-500/20 text-amber-200 text-[9px] uppercase tracking-[0.14em] px-2 py-1 rounded shadow-sm">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                     </div>
+                   )}
+                   {currentContract.requiresSessionBuilder && (
+                     <div className="text-[8px] uppercase tracking-widest text-violet-300 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded">
+                       Session-builder Active
+                     </div>
+                   )}
+                </div>
+             </div>
+
+             {/* STATS & ACTION BLOCK */}
+             <div className="w-full lg:w-auto shrink-0 flex items-center justify-between lg:justify-end gap-5 lg:border-l lg:border-white/5 lg:pl-5 z-10">
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] text-slate-500 uppercase tracking-[0.2em] font-black mb-0.5">Attempts</span>
+                    <span className="text-2xl font-black text-amber-300 leading-none">{triesUsed}{maxTries ? <span className="text-sm text-slate-600">/{maxTries}</span> : ''}</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] text-slate-500 uppercase tracking-[0.2em] font-black mb-0.5">Deviations</span>
+                    <span className="text-2xl font-black text-rose-400 leading-none">{mistakes}</span>
+                  </div>
+                </div>
+                
+                <div id="challenge-tour-hints" className="flex flex-col gap-1.5 min-w-[120px]">
+                   <div className={`text-[8px] text-center uppercase font-black tracking-[0.25em] ${challengeStatus.tone === 'clear' ? 'text-emerald-400' : challengeStatus.tone === 'fail' ? 'text-rose-400' : 'text-cyan-400'}`}>
+                      {challengeStatus.label}
+                   </div>
+                   
+                   {challengeStatus.tone === 'clear' ? (
+                     <button
+                       type="button"
+                       onClick={() => {
+                          if (generatedScenario) handleGenerateScenario();
+                          else if (nextContractId) handleOpenHandcraftedContract(nextContractId);
+                       }}
+                       className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 hover:bg-emerald-500/30 transition-all"
+                     >
+                       Next <StepForward className="h-3 w-3" />
+                     </button>
+                   ) : (
+                     <button
+                       type="button"
+                       onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
+                       className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 hover:bg-cyan-500/15 hover:border-cyan-400/30 hover:text-cyan-200 transition-all"
+                     >
+                       <CircleHelp className="h-3 w-3" />
+                       Intel {activeHint && <span className="text-[7px] bg-cyan-500/30 px-1 py-0.5 rounded ml-0.5">✓</span>}
+                     </button>
+                   )}
+                </div>
+             </div>
+          </div>
+          
+          {/* Subtle Env info at bottom */}
+          <div className="mt-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] uppercase tracking-[0.2em] text-slate-600 font-black">Env:</span>
+              <span className="text-[8.5px] uppercase tracking-wider text-slate-500">{describePatternProfile(patternProfile)}</span>
             </div>
+            {activeHint && (
+               <div className="text-[9px] leading-relaxed text-cyan-200/90 font-medium">
+                 {activeHint}
+               </div>
+            )}
           </div>
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {currentContract.seedLabel}</p>
-          </div>
-          <p className="mt-2 text-[10px] leading-relaxed text-slate-400">{activeHint}</p>
         </div>
         ) : null}
 
@@ -2558,9 +2873,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           
           {/* COLUMN 1: FAR LEFT (3/12) - PREDICTOR */}
           <aside className="gsap-fade-up flex flex-col gap-6 lg:col-span-3">
-             <ModernPairPredictorCard entries={predictorEntries} region={currentContract.region} />
+             <div id="challenge-tour-predictor">
+               <ModernPairPredictorCard entries={predictorEntries} region={currentContract.region} advancedToggleId="challenge-tour-advanced-toggle" />
+             </div>
 
-             <div className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 shadow-inner backdrop-blur-md">
+             <div id="challenge-tour-helper" className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 shadow-inner backdrop-blur-md">
                 <ModernStatsPanel
                   entries={predictorEntries}
                   prediction2={prediction2}
@@ -2577,21 +2894,26 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           <section className="gsap-fade-up flex flex-col gap-10 lg:col-span-6">
              {/* 1. RELIC ACTION BAY - CENTER TOP */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div id="challenge-tour-target">
                 <ModernRelicCard
                   relic={relic}
                   title="Target Relic"
                   themeColor="cyan"
                   icon={Target}
+                  success={currentContract.success}
                   onAction={isPvpPreStartLocked ? undefined : handlePracticeRelicAction}
                   onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
                   disabled={isPvpPreStartLocked}
                 />
+                </div>
 
+                <div id="challenge-tour-builder">
                 <ModernRelicCard
                   relic={testRelic}
                   title="Setup / Builder"
                   themeColor="violet"
                   icon={FlaskConical}
+                  success={currentContract.success}
                   onAction={isPvpPreStartLocked ? undefined : handleTestRelicAction}
                   onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
                   disabled={isPvpPreStartLocked}
@@ -2613,6 +2935,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </button>
                   }
                 />
+                </div>
              </div>
 
              {/* 2. SESSION TABLE - CENTER BOTTOM */}
@@ -2824,14 +3147,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                         Use the predictor on the left, builder/target relics above, then compare your read against the line helper before committing.
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
-                      className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                    >
-                      <Lightbulb className="h-3.5 w-3.5" />
-                      Hint
-                    </button>
+                    {activeHint ? (
+                      <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-right">
+                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">Active Hint</div>
+                        <div className="mt-1 text-[10px] leading-relaxed text-cyan-50/90">{activeHint}</div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -2841,6 +3162,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           {/* COLUMN 3: FAR RIGHT (3/12) - STATS & INTEL */}
           <aside className="gsap-fade-up flex flex-col gap-6 lg:col-span-3">
              {/* FORCE RELIC */}
+             <div id="challenge-tour-force">
              <ForceRelicCard
                 relic={forceRelic}
                 onPrime={isPvpPreStartLocked ? undefined : handlePrimeForceRelic}
@@ -2848,8 +3170,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 onCycleType={isPvpPreStartLocked ? undefined : handleCycleForceRelicType}
                 disabled={isPvpPreStartLocked}
              />
+             </div>
 
-             <div className="relic-session-container mt-2">
+             <div id="challenge-tour-session" className="relic-session-container mt-2">
                 <div className="mb-4 flex items-center gap-3">
                    <History className="h-4 w-4 text-violet-500/60" />
                    <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50">Session History</h3>
@@ -2870,6 +3193,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
         </div>
       </div>
+
+      {!isPvpMode && tourRunning ? (
+        <ChallengeTourOverlay
+          steps={CHALLENGE_TOUR_STEPS}
+          currentStep={tourStepIndex}
+          onNext={handleNextTourStep}
+          onBack={handleBackTourStep}
+          onClose={handleCloseTour}
+        />
+      ) : null}
 
       {isPvpPreStartLocked ? (
         <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[#05070dcc]/95 backdrop-blur-md">
@@ -2980,7 +3313,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <div className="mt-1 text-lg font-black text-emerald-200">{localResultHelpful}</div>
                   </div>
                 </div>
-                <ResultRelicCard relic={localBestRelicSnapshot} title={localPvpState.status === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="cyan" />
+                <ResultRelicCard relic={localBestRelicSnapshot} title={localPvpState.status === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="cyan" success={currentContract.success} />
               </div>
 
               <div className="rounded-[1.35rem] border border-rose-400/15 bg-rose-500/6 p-5">
@@ -3018,7 +3351,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <div className="mt-1 text-lg font-black text-emerald-200">{opponentResultHelpful}</div>
                   </div>
                 </div>
-                <ResultRelicCard relic={opponentBestRelicSnapshot} title={String(pvpOpponent?.state?.status || '') === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="rose" />
+                <ResultRelicCard relic={opponentBestRelicSnapshot} title={String(pvpOpponent?.state?.status || '') === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="rose" success={currentContract.success} />
               </div>
             </div>
 

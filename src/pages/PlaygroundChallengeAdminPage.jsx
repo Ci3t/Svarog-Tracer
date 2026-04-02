@@ -275,7 +275,7 @@ export default function PlaygroundChallengeAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080B14] px-4 py-10 text-slate-200 md:px-6">
+    <div className="playground-theme-shell min-h-screen bg-transparent px-4 py-10 text-slate-200 md:px-6">
       <div className="mx-auto max-w-[1800px]">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-4">

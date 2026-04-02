@@ -412,7 +412,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div className={`min-h-screen bg-[#080B14] px-4 py-12 text-slate-200 md:px-8 ${themeConfig.rootClassName || ''}`}>
+    <div className={`playground-theme-shell min-h-screen bg-transparent px-4 py-12 text-slate-200 md:px-8 ${themeConfig.rootClassName || ''}`}>
       <div className="mx-auto flex max-w-[1500px] flex-col gap-8">
         <header className="rounded-[2rem] border border-white/5 bg-slate-950/35 p-8">
           <div className="mb-4 flex items-center justify-between gap-4">

@@ -95,13 +95,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
   }, []);
 
   return (
-    <div ref={containerRef} className={`min-h-screen px-4 py-12 md:px-8 bg-[#080B14] relative overflow-hidden ${themeConfig.rootClassName || ''}`}>
-      {/* Background Ambience */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute top-[-20%] left-[-10%] h-[1000px] w-[1000px] rounded-full bg-fuchsia-600/5 blur-[150px]" />
-        <div className="absolute right-[-10%] bottom-[-10%] h-[800px] w-[800px] rounded-full bg-cyan-600/5 blur-[120px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:120px_120px]" />
-      </div>
+    <div ref={containerRef} className={`playground-theme-shell min-h-screen px-4 py-12 md:px-8 bg-transparent relative ${themeConfig.rootClassName || ''}`}>
 
       <div className="relative mx-auto flex w-full max-w-[1600px] flex-col gap-10">
         <section className="gsap-card relative overflow-hidden rounded-[3rem] border border-white/5 bg-slate-950/40 px-10 py-12 shadow-2xl backdrop-blur-3xl">

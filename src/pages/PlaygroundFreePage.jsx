@@ -893,10 +893,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div ref={containerRef} className={`min-h-screen bg-[#080B14] text-slate-200 relative ${themeConfig.rootClassName || ''}`}>
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute top-0 left-0 h-full w-full bg-[radial-gradient(ellipse_at_center,rgba(15,18,25,0.7),#080B14)]" />
-      </div>
+    <div ref={containerRef} className={`playground-theme-shell min-h-screen bg-transparent text-slate-200 relative ${themeConfig.rootClassName || ''}`}>
 
       <ModernStickyHeader
         secondsLeft={secondsLeft}

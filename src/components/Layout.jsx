@@ -130,7 +130,7 @@ export default function Layout({
       <LiveStatsBanner sessionTheme={sessionTheme} />
 
       {/* Header */}
-      <header className="relative z-50 glacial-header-glass">
+      <header className="relative z-[320] glacial-header-glass">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
@@ -332,7 +332,7 @@ export default function Layout({
               </nav>
 
               {/* Theme Switch (Paint Dropdown) */}
-              <div ref={themeMenuRef} className="relative w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto">
+              <div ref={themeMenuRef} className="relative z-[220] w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto">
                 <button
                   type="button"
                   onClick={() => setThemeMenuOpen(prev => !prev)}
@@ -344,7 +344,7 @@ export default function Layout({
                   <Palette className="w-4 h-4 lg:w-5 lg:h-5" />
                 </button>
                 {themeMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border backdrop-blur-xl p-2.5 z-[70] shadow-2xl" style={themeConfig.layout.themeMenuStyle}>
+                  <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border backdrop-blur-xl p-2.5 z-[260] shadow-2xl" style={themeConfig.layout.themeMenuStyle}>
                     <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 px-1.5 pb-2">
                       Theme
                     </div>

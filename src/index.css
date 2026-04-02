@@ -301,6 +301,55 @@ body {
   overflow: visible !important;
 }
 
+.playground-theme-shell {
+  background: transparent !important;
+}
+
+.playground-theme-shell .theme-glass-card {
+  background: rgba(255, 255, 255, 0.014) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+}
+
+.playground-theme-shell .theme-panel-surface {
+  background: rgba(255, 255, 255, 0.014) !important;
+}
+
+.playground-theme-shell .theme-subpanel {
+  background: rgba(255, 255, 255, 0.012) !important;
+}
+
+.playground-theme-shell .theme-glass-card::before,
+.playground-theme-shell .theme-panel-surface::before,
+.playground-theme-shell .theme-subpanel::before {
+  opacity: 0.14 !important;
+}
+
+.playground-theme-shell .theme-glass-card::after,
+.playground-theme-shell .theme-panel-surface::after {
+  opacity: 0.22 !important;
+}
+
+.playground-theme-shell [class*="bg-slate-900"],
+.playground-theme-shell [class*="bg-slate-950"],
+.playground-theme-shell [class*="bg-slate-800"],
+.playground-theme-shell [class*="bg-black"],
+.playground-theme-shell [class*="from-slate-900"],
+.playground-theme-shell [class*="to-slate-800"] {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.playground-theme-shell [class*="bg-white/["] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Force dark color on Clara's Manga chat bubble even when theme overrides global colors */
+.clara-chat-text {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-family: var(--font-sans);
+}
+
 /* Holographic Chat Bubble Animations */
 @keyframes float-gentle {
   0%, 100% { transform: translateY(0); }
