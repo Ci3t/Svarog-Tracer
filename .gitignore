@@ -29,3 +29,14 @@ dist-ssr
 discord-bot/.env
 
 .vercel
+
+# Local analysis / debug dumps
+debugfiles/
+debugpatternfiles/
+
+# Local docs / guides / notes
+docs/
+src/guides/
+
+# Local SQL setup scripts
+*.sql

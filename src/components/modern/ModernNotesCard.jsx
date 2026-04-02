@@ -6,6 +6,24 @@ export default function ModernNotesCard({
   patch,
   entries,
 }) {
+  const buildSummary = () => `
+🧠 HSR RNG Test Notes
+Region: ${region}
+Patch: ${patch}
+
+Prediction: ${prediction?.prediction || "—"}
+Alt: ${prediction?.alt || "—"}
+Mode: ${prediction?.mode || "—"}
+
+Recent Rolls: ${entries
+    .slice(0, 8)
+    .map((e) => e.translated)
+    .join(", ")}
+
+Notes:
+${notes || "(none)"}
+`;
+
   return (
     <div className="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 shadow-xl">
       {/* Header */}
@@ -30,24 +48,7 @@ export default function ModernNotesCard({
       <div className="flex flex-wrap justify-end gap-2 mt-4">
         <button
           onClick={() => {
-            const summary = `
-🧠 HSR RNG Test Notes
-Region: ${region}
-Patch: ${patch}
-
-Prediction: ${prediction?.prediction || "—"}
-Alt: ${prediction?.alt || "—"}
-Mode: ${prediction?.mode || "—"}
-
-Recent Rolls: ${entries
-              .slice(0, 8)
-              .map((e) => e.translated)
-              .join(", ")}
-
-Notes:
-${notes || "(none)"}
-`;
-            navigator.clipboard.writeText(summary);
+            navigator.clipboard.writeText(buildSummary());
           }}
           className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-xs font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
         >
@@ -58,6 +59,22 @@ ${notes || "(none)"}
             </svg>
             Copy Notes
           </div>
+        </button>
+        <button
+          onClick={() => {
+            const blob = new Blob([buildSummary()], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `notes_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }}
+          className="px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 text-slate-100 text-xs font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          Download
         </button>
         <button
           onClick={() => setNotes("")}

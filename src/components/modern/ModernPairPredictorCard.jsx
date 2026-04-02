@@ -285,6 +285,36 @@ export default function ModernPairPredictorCard({
     return null;
   })();
 
+  const trustGuideLine = (() => {
+    if (!analyzerPicks.length) return null;
+    const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
+    if (pairSafety === 'danger' && analyzerLeadsOutsider) {
+      return {
+        tone: 'danger',
+        text: `Trust Svarog Eye here: ${freshOutsider.value} is the active break-pressure roll and the pair is fragile.`,
+      };
+    }
+    if (pairSafety === 'safe') {
+      return {
+        tone: 'good',
+        text: 'Trust the commons lane here. Use Svarog Eye mainly as a confirmation layer.',
+      };
+    }
+    if (pairSafety === 'caution' && analyzerMatchesLane) {
+      return {
+        tone: 'warn',
+        text: 'The board is shaky, but the commons lane and Svarog Eye still overlap. Keep the main lane first.',
+      };
+    }
+    if (pairSafety === 'caution' && !analyzerMatchesLane) {
+      return {
+        tone: 'warn',
+        text: 'Mixed pressure. Keep the lane as baseline, but watch Svarog Eye if the outsider keeps repeating.',
+      };
+    }
+    return null;
+  })();
+
   return (
     <div className={`astral-bbp-card bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
@@ -330,7 +360,7 @@ export default function ModernPairPredictorCard({
         }`}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${
+              <p id={tutorialIds.statusMessageId} className={`text-[10px] font-black uppercase tracking-widest ${
                 pairSafety === 'safe'
                   ? 'text-emerald-300'
                   : pairSafety === 'caution'
@@ -345,7 +375,7 @@ export default function ModernPairPredictorCard({
             </div>
             <div className="text-right">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Noise Risk</p>
-              <p className={`text-sm font-black ${
+              <p id={tutorialIds.noiseRiskId} className={`text-sm font-black ${
                 noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
               }`}>
                 {noiseRisk ?? 0}%
@@ -353,7 +383,7 @@ export default function ModernPairPredictorCard({
             </div>
           </div>
           {freshOutsider?.value && (
-            <p className="mt-2 text-[10px] text-slate-400">
+            <p id={tutorialIds.breakPressureId} className="mt-2 text-[10px] text-slate-400">
               Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
               {' '}({Math.round(freshOutsider.score)} pts)
               {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
@@ -486,6 +516,33 @@ export default function ModernPairPredictorCard({
           </div>
         )}
 
+        {trustGuideLine && (
+          <div className={`mt-2 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 ${
+            trustGuideLine.tone === 'danger'
+              ? 'bg-fuchsia-500/12 border border-fuchsia-500/35'
+              : trustGuideLine.tone === 'good'
+                ? 'bg-emerald-500/12 border border-emerald-500/35'
+                : 'bg-cyan-500/10 border border-cyan-500/30'
+          }`}>
+            <span className={`text-xs ${
+              trustGuideLine.tone === 'danger'
+                ? 'text-fuchsia-300'
+                : trustGuideLine.tone === 'good'
+                  ? 'text-emerald-300'
+                  : 'text-cyan-300'
+            }`}>◎</span>
+            <span className={`text-[11px] font-medium ${
+              trustGuideLine.tone === 'danger'
+                ? 'text-fuchsia-100'
+                : trustGuideLine.tone === 'good'
+                  ? 'text-emerald-100'
+                  : 'text-cyan-100'
+            }`}>
+              {trustGuideLine.text}
+            </span>
+          </div>
+        )}
+
         {/* Commons Flip Alert — confidence-gated wording */}
         {commonsFlipDetected && (() => {
           const fc = flipConfidence || 0;
@@ -568,15 +625,29 @@ export default function ModernPairPredictorCard({
                             : t.direction === 'falling' ? 'text-red-400'
                             : 'text-slate-400';
                 const isMain = v === mainCommon;
+                const trustPct = Math.round((t.trustScore ?? 0) * 100);
+                const freshnessPct = Math.round((t.arrowWeight ?? 0) * 100);
+                const freshnessLabel = t.arrowAge === 0 ? 'fresh'
+                  : t.arrowAge === 1 ? 'held'
+                  : 'stale';
                 return (
                   <div key={v} className={`flex-1 text-center py-1.5 rounded-md bg-slate-800/50
                     ${isMain ? 'border border-violet-500/40' : ''}`}>
                     <div className="text-xs font-bold text-slate-300">{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
-                    <div className="text-[10px] text-slate-500">{t.current}%</div>
+                    <div className="text-[11px] text-slate-400">{t.current}%</div>
+                    <div className="mt-1 text-[10px] text-slate-500">trend share</div>
+                    <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
+                    <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
+                    <div className="text-[9px] uppercase tracking-wide text-slate-600">{freshnessLabel}</div>
                   </div>
                 );
               })}
+            </div>
+            <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              `trend share` = how much this value owns the latest 5-roll window.
+              `trust` = internal confidence in the arrow direction.
+              `fresh` = how recently that same arrow changed or stayed alive.
             </div>
           </div>
 
