@@ -428,245 +428,253 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div className={`playground-theme-shell min-h-screen bg-transparent px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`}>
-      <div className="mx-auto max-w-[1600px]">
-        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+    <div className={`playground-theme-shell min-h-screen bg-[#080b12] px-4 py-8 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
+      <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col">
+        {/* TOP NAV PANE */}
+        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4 md:border-none md:pb-0">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate('/playground')}
-              className="inline-flex items-center gap-2 text-slate-400 transition-colors hover:text-white"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back To Playground
-            </button>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Beginner Friendly</div>
-              <h1 className="text-3xl font-black uppercase tracking-tight text-white">Beginner Drills</h1>
-            </div>
+             <button
+               type="button"
+               onClick={() => navigate('/playground')}
+               className="group inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition-colors hover:text-white"
+             >
+               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+               Evacuate
+             </button>
+             
+             <button
+                type="button"
+                onClick={handleRestart}
+                className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-rose-400 transition-colors"
+             >
+                <RefreshCw className="h-3 w-3" />
+                Restart Matrix
+             </button>
           </div>
 
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-slate-950/50 px-4 py-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-300" />
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
-              Score {score} / {drills.length}
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5 md:justify-end flex-1 max-w-xl">
+             {drills.map((drill, index) => {
+                const answerState = answers[drill.id];
+                const isCurrent = index === currentIndex;
+                const num = (index + 1).toString().padStart(2, '0');
+                
+                return (
+                   <button
+                     key={drill.id}
+                     type="button"
+                     onClick={() => {
+                       setCurrentIndex(index);
+                       setSelectedAnswer('');
+                       setRevealed(Boolean(answerState));
+                       if (answerState) setSelectedAnswer(answerState.answer);
+                     }}
+                     className={`group relative flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg border text-[9px] sm:text-[10px] font-black transition-all ${
+                        isCurrent 
+                          ? 'border-cyan-400 bg-cyan-400/20 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.3)] scale-110 z-10'
+                          : answerState?.correct
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400/80 hover:bg-emerald-500/20 hover:text-emerald-300'
+                            : answerState && !answerState.correct
+                              ? 'border-rose-500/30 bg-rose-500/10 text-rose-400/80 hover:bg-rose-500/20'
+                              : 'border-white/5 bg-white/[0.02] text-slate-500 hover:border-white/20 hover:text-slate-300'
+                     }`}
+                   >
+                      <span className="relative z-10">{num}</span>
+                      {/* Tooltip */}
+                      <div className="pointer-events-none absolute bottom-[calc(100%+8px)] right-0 md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col items-end md:items-center opacity-0 transition-opacity group-hover:opacity-100">
+                         <div className="whitespace-nowrap rounded border border-white/10 bg-slate-900/95 px-2 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-xl backdrop-blur-md">
+                           {drill.title}
+                         </div>
+                      </div>
+                   </button>
+                );
+             })}
           </div>
-        </div>
-
-        <div className="mb-6 rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-          <div className="mb-3 flex items-center gap-2 text-emerald-200">
-            <Sparkles className="h-4 w-4" />
-            <div className="text-[10px] font-black uppercase tracking-[0.22em]">What Drills Are</div>
-          </div>
-          <p className="text-sm leading-relaxed text-slate-300">
-            Drills are short reps for one manip skill at a time: read commons, spot noise, understand session history,
-            follow carry line, translate raw pairs, use line helper, and learn force mappings before harder modes ask you
-            to combine all of that at once.
-          </p>
         </div>
 
         {isComplete ? (
-          <div className="rounded-[2rem] border border-emerald-400/20 bg-slate-950/50 p-8 text-center">
-            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Drills Complete</div>
-            <h2 className="text-4xl font-black uppercase tracking-tight text-white">You Cleared The Foundations</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-300">
-              These drills are here to make the manip language feel normal. Once these concepts feel natural, Challenge Mode
-              stops feeling like luck and starts feeling readable.
+          <div className="flex-1 flex flex-col items-center justify-center text-center gsap-fade-up">
+            <div className="mb-4 inline-flex items-center justify-center rounded-full bg-emerald-500/20 p-4 ring-2 ring-emerald-400/50 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+               <ShieldCheck className="h-12 w-12 text-emerald-400" />
+            </div>
+            <div className="mb-2 text-[12px] font-black uppercase tracking-[0.4em] text-emerald-400 drop-shadow-md">Drill Sequence Cleared</div>
+            <h2 className="text-5xl font-black uppercase tracking-tight text-white drop-shadow-lg">Rank: Tactical Expert</h2>
+            <p className="mx-auto mt-6 max-w-xl text-xs leading-relaxed text-slate-400 font-semibold tracking-wider">
+              You've successfully analyzed the core patterns. The simulator logic is now unlocked. Time to step into the real challenges.
             </p>
 
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleRestart}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all hover:border-white/20 hover:text-white"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Restart Drills
-              </button>
+            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <button
                 type="button"
                 onClick={() => navigate('/playground/challenge')}
-                className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 transition-all hover:bg-amber-500/20"
+                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-amber-400/50 bg-amber-500/20 px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-amber-100 transition-all hover:bg-amber-500/30 hover:shadow-[0_0_30px_rgba(251,191,36,0.3)]"
               >
-                Go To Challenge Mode
-                <ChevronRight className="h-4 w-4" />
+                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full" />
+                <span className="relative z-10 flex items-center gap-2">
+                   Enter Challenge Mode
+                   <ChevronRight className="h-5 w-5" />
+                </span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <aside className="space-y-6 xl:col-span-4">
-              <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-                <div className="mb-3 flex items-center gap-2 text-emerald-200">
-                  <BrainCircuit className="h-4 w-4" />
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em]">Current Drill</div>
-                </div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  Drill {currentIndex + 1} / {drills.length}
-                </div>
-                <div className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
-                  {currentDrill.chapter}
-                </div>
-                <h2 className="mt-2 text-3xl font-black uppercase tracking-tight text-white">{currentDrill.title}</h2>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300">{currentDrill.subtitle}</p>
-
-                <div className="mt-5 rounded-xl border border-white/5 bg-black/25 p-4">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Skill Focus</div>
-                  <div className="mt-2 text-sm font-semibold text-white">{currentDrill.skill}</div>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-300">{currentDrill.explanation}</p>
-                </div>
-              </div>
-
-              <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Drill Map</div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    {Object.keys(answers).length} Answered
+          <div className="flex-1 flex flex-col gap-5 max-w-4xl mx-auto w-full gsap-fade-up">
+            {/* HUD / ARENA HEADER */}
+            <div className="flex items-end justify-between px-2 pt-2">
+               {/* Player / HP Bar equivalent */}
+               <div className="flex flex-col flex-1 max-w-[200px]">
+                  <div className="flex justify-between items-end mb-1">
+                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Player</span>
+                     <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-500/80">Lvl {score}</span>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {drills.map((drill, index) => {
-                    const answerState = answers[drill.id];
-                    return (
-                      <button
-                        key={drill.id}
-                        type="button"
-                        onClick={() => {
-                          setCurrentIndex(index);
-                          setSelectedAnswer('');
-                          setRevealed(Boolean(answerState));
-                          if (answerState) setSelectedAnswer(answerState.answer);
-                        }}
-                        className={`rounded-xl border px-3 py-2 text-left text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
-                          index === currentIndex
-                            ? 'border-cyan-400/35 bg-cyan-500/12 text-cyan-100'
-                            : answerState?.correct
-                              ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
-                              : answerState && !answerState.correct
-                                ? 'border-rose-400/25 bg-rose-500/10 text-rose-100'
-                                : 'border-white/5 bg-black/20 text-slate-400 hover:border-white/10 hover:text-white'
-                        }`}
-                      >
-                        {drill.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </aside>
-
-            <section className="space-y-6 xl:col-span-8">
-              {currentEntries.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-                    <ModernPairPredictorCard entries={currentEntries} region="America" />
+                  <div className="h-2 w-full bg-black/60 border border-emerald-500/20 rounded-full overflow-hidden shadow-inner">
+                     <div className="h-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)] transition-all duration-700 ease-out" style={{ width: `${(score / drills.length) * 100}%` }} />
                   </div>
-                  <div className="rounded-[1.35rem] border border-white/5 bg-slate-950/45 p-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Session Snapshot</div>
-                      <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
-                        {[
-                          { id: 'current', label: 'Current' },
-                          { id: 'history', label: 'History' },
-                        ].map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setSessionTab(tab.id)}
-                            className={`rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
-                              sessionTab === tab.id
-                                ? 'bg-cyan-500/18 text-cyan-100'
-                                : 'text-slate-500 hover:text-white'
-                            }`}
-                          >
-                            {tab.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <ModernSessionTable
-                      sessionTab={sessionTab}
-                      setSessionTab={setSessionTab}
-                      entries={currentEntries}
-                      prevSessions={[]}
-                      onDeleteEntry={() => {}}
-                      onDeleteSession={() => {}}
-                    />
-                  </div>
+                  <span className="text-[8px] uppercase font-black tracking-[0.15em] mt-1.5 text-slate-500">Exp {score}/{drills.length} Score</span>
+               </div>
+               
+               {/* Opponent / Encounter Info */}
+               <div className="flex flex-col items-end">
+                  <span className="text-[9px] font-black uppercase tracking-[0.25em] text-rose-500 border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(244,63,94,0.2)] mb-1.5">
+                     Rival: Drill {String(currentIndex + 1).padStart(2, '0')}
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white drop-shadow-md text-right leading-none max-w-[300px] sm:max-w-none">
+                     {currentDrill.title}
+                  </span>
+               </div>
+            </div>
+
+            {/* THE BATTLEFIELD (Predictor & Session) */}
+            <div className="relative rounded-[2rem] border border-white/5 bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-5 sm:p-8 shadow-[0_30px_60px_rgba(0,0,0,0.6)] backdrop-blur-2xl ring-1 ring-white/5">
+                {/* Background Details */}
+                <div className="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
+                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] bg-cyan-500/5 blur-[100px] rounded-full" />
+                   <div className="absolute top-[-10%] right-[-5%] text-[150px] font-black italic tracking-tighter text-white/[0.02] leading-none select-none">
+                      {String(currentIndex + 1).padStart(2, '0')}
+                   </div>
                 </div>
-              ) : null}
 
-              <div className="rounded-[1.75rem] border border-white/5 bg-slate-950/45 p-6">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">Question</div>
-                <h3 className="mt-3 text-2xl font-black uppercase tracking-tight text-white">{currentDrill.prompt}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  This drill is about one rule, not a full board solve. Read the prompt and commit to the strongest answer.
-                </p>
+                {currentEntries.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                     <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                           <BrainCircuit className="h-4 w-4 text-cyan-400" />
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md">Predictor Matrix</span>
+                        </div>
+                        <div className="rounded-[1.25rem] border border-white/10 bg-black/40 overflow-hidden shadow-inner">
+                           <ModernPairPredictorCard entries={currentEntries} region="America" />
+                        </div>
+                     </div>
 
-                <div className="mt-6 grid gap-3">
-                  {currentDrill.options.map((option) => {
+                     <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md pb-1 border-b border-cyan-400/30">Session Data</span>
+                           <div className="flex bg-black/40 rounded-full border border-white/5 p-0.5">
+                              {['current', 'history'].map((tab) => (
+                                 <button
+                                   key={tab}
+                                   type="button"
+                                   onClick={() => setSessionTab(tab)}
+                                   className={`rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-[0.2em] transition-all ${
+                                      sessionTab === tab ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-500 hover:text-slate-300'
+                                   }`}
+                                 >
+                                   {tab}
+                                 </button>
+                              ))}
+                           </div>
+                        </div>
+                        <div className="flex-1 rounded-[1.25rem] border border-white/10 bg-black/40 overflow-y-auto shadow-inner p-3 min-h-[150px]">
+                            <ModernSessionTable
+                              sessionTab={sessionTab}
+                              setSessionTab={setSessionTab}
+                              entries={currentEntries}
+                              prevSessions={[]}
+                              onDeleteEntry={() => {}}
+                              onDeleteSession={() => {}}
+                            />
+                        </div>
+                     </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center min-h-[200px] relative z-10">
+                     <span className="text-[12px] font-black uppercase tracking-widest text-slate-600">No Target Active</span>
+                  </div>
+                )}
+            </div>
+
+            {/* DIALOGUE & MOVES PANE */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch relative">
+               
+               {/* Dialogue Box */}
+               <div className="md:col-span-7 rounded-2xl border-[3px] border-double border-cyan-400/30 bg-slate-900/90 p-5 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] flex flex-col justify-between">
+                  <div>
+                     <span className="text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400 border border-cyan-500/30 rounded px-1.5 py-0.5 mb-3 inline-block">
+                        {currentDrill.skill}
+                     </span>
+                     <p className="text-[14px] sm:text-[16px] leading-relaxed text-white font-medium drop-shadow-sm min-h-[60px]">
+                        {currentDrill.prompt}
+                     </p>
+                  </div>
+                  {revealed && (
+                     <div className="mt-4 border-t border-cyan-500/20 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <p className="text-[11px] leading-relaxed italic text-cyan-100/80">
+                           {currentDrill.explanation}
+                        </p>
+                     </div>
+                  )}
+               </div>
+
+               {/* Action/Moves Grid */}
+               <div className="md:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3 relative min-h-[150px]">
+                  {currentDrill.options.map((option, idx) => {
                     const isChosen = selectedAnswer === option;
                     const isCorrect = currentDrill.correctAnswer === option;
                     const showState = revealed && (isChosen || isCorrect);
+                    
+                    let btnStyle = "border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 hover:border-white/30 hover:scale-[1.03]";
+                    
+                    if (showState && isCorrect) {
+                       btnStyle = "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-1 ring-emerald-400 scale-[1.02] z-10";
+                    } else if (isChosen && !isCorrect) {
+                       btnStyle = "border-rose-500 bg-rose-500/20 text-rose-100 shadow-[0_0_15px_rgba(244,63,94,0.2)]";
+                    } else if (revealed) {
+                       btnStyle = "border-white/5 bg-black/40 text-slate-600 opacity-50 cursor-not-allowed";
+                    }
+
                     return (
                       <button
                         key={option}
-                        type="button"
                         onClick={() => handleReveal(option)}
                         disabled={revealed}
-                        className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                          !revealed
-                            ? 'border-white/5 bg-black/20 text-slate-200 hover:border-cyan-400/20 hover:bg-cyan-500/6'
-                            : showState && isCorrect
-                              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
-                              : isChosen && !isCorrect
-                                ? 'border-rose-400/30 bg-rose-500/10 text-rose-100'
-                                : 'border-white/5 bg-black/20 text-slate-500'
-                        }`}
+                        className={`group relative rounded-xl border p-3 flex items-center justify-center text-center font-black uppercase tracking-[0.14em] text-[9.5px] transition-all duration-300 ${btnStyle}`}
                       >
-                        <div className="text-[11px] font-black uppercase tracking-[0.16em]">{option}</div>
+                         {/* Optional subtle accent triangle usually seen in game menus */}
+                         <div className={`absolute top-2 left-2 w-0 h-0 border-t-4 border-r-4 border-t-current border-r-transparent opacity-20 ${showState ? 'opacity-50' : 'group-hover:opacity-100'}`} />
+                         {option}
                       </button>
                     );
                   })}
-                </div>
 
-                {revealed ? (
-                  <div className={`mt-6 rounded-2xl border p-4 ${
-                    selectedAnswer === currentDrill.correctAnswer
-                      ? 'border-emerald-400/25 bg-emerald-500/10'
-                      : 'border-rose-400/25 bg-rose-500/10'
-                  }`}>
-                    <div className={`text-[10px] font-black uppercase tracking-[0.18em] ${
-                      selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-200' : 'text-rose-200'
-                    }`}>
-                      {selectedAnswer === currentDrill.correctAnswer ? 'Correct Read' : 'Missed Read'}
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-200">{currentDrill.explanation}</p>
-                  </div>
-                ) : null}
+                  {/* Next Step Overlay - Pops up over options when resolved */}
+                  {revealed && (
+                     <div className="absolute inset-0 z-20 flex items-center justify-center animate-in zoom-in-95 duration-500 rounded-2xl overflow-hidden">
+                        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px]" />
+                        <div className="relative text-center w-full px-4">
+                           <div className={`text-[12px] font-black uppercase tracking-[0.25em] mb-4 drop-shadow-[0_0_10px_currentColor] ${selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-400' : 'text-rose-400'}`}>
+                             {selectedAnswer === currentDrill.correctAnswer ? 'Critical Hit!' : 'It Was Ineffective...'}
+                           </div>
+                           <button
+                             onClick={handleNext}
+                             className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-slate-900 py-3.5 px-4 font-black uppercase tracking-[0.2em] text-[11px] hover:bg-cyan-300 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] ring-2 ring-white/50"
+                           >
+                             {currentIndex + 1 >= drills.length ? 'Victory' : 'Continue'} <ChevronRight className="h-4 w-4" />
+                           </button>
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
 
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
-                  <button
-                    type="button"
-                    onClick={handleRestart}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:border-white/20 hover:text-white"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Restart
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNext}
-                    disabled={!revealed}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {currentIndex + 1 >= drills.length ? 'Finish Drills' : 'Next Drill'}
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </section>
           </div>
         )}
       </div>
