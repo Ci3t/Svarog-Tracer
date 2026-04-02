@@ -90,9 +90,15 @@ function formatSetShortName(name = '') {
   return value.length > 28 ? `${value.slice(0, 28)}...` : value;
 }
 
+function getRosterMark(name = '', fallback = 'P') {
+  const value = String(name || '').trim();
+  if (!value) return fallback;
+  return value.charAt(0).toUpperCase();
+}
+
 function LobbySection({ title, actions, children, className = '' }) {
   return (
-    <section className={`rounded-xl border border-white/10 bg-black/20 ${className}`}>
+    <section className={`theme-glass-card rounded-xl ${className}`}>
       <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
         <h2 className="text-base font-semibold text-white">{title}</h2>
         {actions}
@@ -116,14 +122,14 @@ function LobbyRelicPreview({ title, relic, accent = 'cyan' }) {
   const theme = colorMap[accent] || colorMap.cyan;
 
   return (
-    <div className={`relative flex flex-col border border-white/10 bg-black/40 overflow-hidden`}>
+    <div className={`theme-glass-card relative flex flex-col overflow-hidden rounded-lg`}>
       <div className={`border-b border-white/10 px-4 py-2 font-mono text-[10px] sm:text-xs font-bold uppercase tracking-widest ${theme} border-l-[3px]`}>
         {title}
       </div>
       
       <div className="flex flex-1 flex-col p-4">
         <div className="mb-4 flex items-start gap-4">
-          <div className="h-10 w-10 shrink-0 rounded-sm border border-white/10 bg-black/40 p-1 flex items-center justify-center">
+          <div className="theme-subpanel flex h-10 w-10 shrink-0 items-center justify-center rounded-md p-1">
              {relic.setImage ? (
                <img src={relic.setImage} className="max-h-full max-w-full opacity-80" alt="" onError={e => e.currentTarget.style.display='none'} />
              ) : (
@@ -143,7 +149,7 @@ function LobbyRelicPreview({ title, relic, accent = 'cyan' }) {
 
         <div className="mt-auto space-y-1.5 border-t border-white/5 pt-3">
           {lines.map((stat, i) => (
-            <div key={i} className="flex justify-between items-center text-xs font-medium text-slate-300 bg-white/[0.02] px-2 py-1">
+            <div key={i} className="theme-subpanel flex items-center justify-between px-2 py-1 text-xs font-medium text-slate-300">
                <span className="text-slate-600 font-mono text-[9px] mr-3">[{i+1}]</span>
                <span className="flex-1 truncate uppercase">{stat}</span>
             </div>
@@ -418,7 +424,20 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div className={`playground-theme-shell min-h-screen bg-transparent px-4 py-8 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
+    <div className={`playground-theme-shell pvp-lobby-shell min-h-screen bg-transparent px-4 py-8 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
+      <style>{`
+        .pvp-lobby-shell .theme-glass-card::before,
+        .pvp-lobby-shell .theme-glass-card::after,
+        .pvp-lobby-shell .theme-subpanel::before,
+        .pvp-lobby-shell .theme-subpanel::after,
+        .pvp-lobby-shell .theme-panel-surface::before,
+        .pvp-lobby-shell .theme-panel-surface::after {
+          display: none !important;
+          content: none !important;
+          background-image: none !important;
+          animation: none !important;
+        }
+      `}</style>
       <div className="mx-auto flex w-full max-w-[1380px] flex-1 flex-col gap-6 pt-4">
         <header className="border-b border-white/10 pb-5">
           <div className="mb-5 flex items-center justify-between gap-4">
@@ -430,9 +449,9 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               <ArrowLeft className="h-4 w-4" />
               Back to Playground
             </button>
-            <div className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300">
-              PvP Lobby
-            </div>
+	            <div className="theme-subpanel rounded-md px-3 py-1.5 text-xs font-medium text-slate-300">
+	              PvP Lobby
+	            </div>
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -443,18 +462,18 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xs text-slate-500">Seed</div>
-                <div className="mt-1 font-medium text-white">Shared</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xs text-slate-500">Attempts</div>
-                <div className="mt-1 font-medium text-white">3 per side</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xs text-slate-500">Result</div>
-                <div className="mt-1 font-medium text-white">Best submit</div>
-              </div>
+	              <div className="theme-subpanel rounded-lg px-4 py-3">
+	                <div className="text-xs text-slate-500">Seed</div>
+	                <div className="mt-1 font-medium text-white">Shared</div>
+	              </div>
+	              <div className="theme-subpanel rounded-lg px-4 py-3">
+	                <div className="text-xs text-slate-500">Attempts</div>
+	                <div className="mt-1 font-medium text-white">3 per side</div>
+	              </div>
+	              <div className="theme-subpanel rounded-lg px-4 py-3">
+	                <div className="text-xs text-slate-500">Result</div>
+	                <div className="mt-1 font-medium text-white">Best submit</div>
+	              </div>
             </div>
           </div>
         </header>
@@ -521,8 +540,8 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                     </button>
                   </div>
 
-                  <div className="max-h-[260px] overflow-y-auto rounded-lg border border-white/10">
-                    {relicSetOptions.map((entry) => {
+	                  <div className="theme-subpanel max-h-[260px] overflow-y-auto rounded-lg">
+	                    {relicSetOptions.map((entry) => {
                       const active = selectedSetName === entry.name;
                       return (
                         <button
@@ -538,13 +557,13 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                             <img
                               src={entry.image}
                               alt={entry.name}
-                              className="h-10 w-10 rounded-md border border-white/10 bg-black/30 object-cover"
+	                              className="theme-subpanel h-10 w-10 rounded-md object-cover"
                               onError={(event) => {
                                 event.currentTarget.style.display = 'none';
                               }}
                             />
                           ) : (
-                            <div className="h-10 w-10 rounded-md border border-white/10 bg-black/20" />
+	                            <div className="theme-subpanel h-10 w-10 rounded-md" />
                           )}
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium">{entry.name}</div>
@@ -578,11 +597,11 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                     })}
                   </div>
 
-                  <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-slate-400">
+	                  <div className="theme-subpanel mt-4 rounded-lg p-3 text-sm text-slate-400">
                     {selectedTargetSubs.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {selectedTargetSubs.map((stat, index) => (
-                          <div key={`${stat}-${index}`} className="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-200">
+	                          <div key={`${stat}-${index}`} className="theme-subpanel rounded-md px-2.5 py-1.5 text-xs text-slate-200">
                             <span className="mr-1 text-slate-500">{index < 3 ? `L${index + 1}` : 'L4'}</span>
                             {stat}
                           </div>
@@ -602,12 +621,12 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               <div className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-white">Room code</label>
-                  <input
-                    value={joinCode}
-                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                    placeholder="ROOM CODE"
-                    className="w-full rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-center text-lg font-semibold uppercase tracking-[0.2em] text-white outline-none transition-colors placeholder:text-slate-600 focus:border-white/30"
-                  />
+	                  <input
+	                    value={joinCode}
+	                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+	                    placeholder="ROOM CODE"
+	                    className="theme-subpanel w-full rounded-lg px-4 py-3 text-center text-lg font-semibold uppercase tracking-[0.2em] text-white outline-none transition-colors placeholder:text-slate-600 focus:border-white/30"
+	                  />
                 </div>
                 <button
                   type="button"
@@ -633,11 +652,17 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
         </section>
 
         {room ? (
-          <LobbySection
-            title="Active room"
-            actions={
+          <section className="theme-glass-card overflow-hidden rounded-xl">
+            <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-md bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-950">
+                  Active Encounter
+                </div>
+                <div className="text-[11px] font-mono uppercase tracking-[0.16em] text-slate-500">
+                  Ref: {room.code}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-white">{room.code}</div>
                 <button
                   type="button"
                   onClick={handleCopyCode}
@@ -646,139 +671,174 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                   <Copy className="h-4 w-4" />
                   {copied ? 'Copied' : 'Copy'}
                 </button>
-              </div>
-            }
-          >
-            <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-              <div className="space-y-4">
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="mb-3 text-sm font-medium text-white">Players</div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between rounded-md border border-white/10 px-3 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-white">{room.host?.name || 'Host'}</div>
-                        <div className="text-xs text-slate-500">Host</div>
-                      </div>
-                      <div className="text-xs font-medium text-slate-300">{room.host?.state?.status || 'ready'}</div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-md border border-white/10 px-3 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-white">{room.guest?.name || 'Waiting for opponent'}</div>
-                        <div className="text-xs text-slate-500">Guest</div>
-                      </div>
-                      <div className="text-xs font-medium text-slate-300">{room.guest?.userId ? room.guest?.state?.status || 'ready' : 'open'}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="mb-3 text-sm font-medium text-white">Room status</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs text-slate-500">Status</div>
-                      <div className="mt-1 text-sm font-medium text-white">{room.status}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Tier</div>
-                      <div className="mt-1 text-sm font-medium text-white">{formatTierLabel(room.tier)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Seed</div>
-                      <div className="mt-1 text-sm font-medium text-white">{room.seedLabel || room.scenario?.seedLabel}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Rolls</div>
-                      <div className="mt-1 text-sm font-medium text-white">{formatRollTierLabel(room.scenario?.pvpRollTier)}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  {room.status === 'lobby' && isHost ? (
-                    <>
-                      {canDevFill ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={handleDevFill}
-                            disabled={busyAction !== ''}
-                            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
-                          >
-                            <Users className="h-4 w-4" />
-                            Fill Svarog Bot
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleDevFillFair}
-                            disabled={busyAction !== ''}
-                            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
-                          >
-                            <Users className="h-4 w-4" />
-                            Fill Svarog #2 Fair
-                          </button>
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={handleRerollRoom}
-                        disabled={busyAction !== ''}
-                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Reroll relics
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleStartRoom}
-                        disabled={busyAction !== '' || !room.guest?.userId}
-                        className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-slate-200 disabled:opacity-50"
-                      >
-                        <Play className="h-4 w-4" />
-                        Start race
-                      </button>
-                    </>
-                  ) : null}
-
-                  {(room.status === 'countdown' || room.status === 'active' || room.status === 'finished') ? (
+                {room.status === 'lobby' && isHost ? (
+                  <>
+                    {canDevFill ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleDevFill}
+                          disabled={busyAction !== ''}
+                          className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
+                        >
+                          <Users className="h-4 w-4" />
+                          Svarog Bot
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDevFillFair}
+                          disabled={busyAction !== ''}
+                          className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
+                        >
+                          <Users className="h-4 w-4" />
+                          Svarog #2 Fair
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type="button"
-                      onClick={openBoard}
-                      className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-slate-200"
+                      onClick={handleRerollRoom}
+                      disabled={busyAction !== ''}
+                      className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
                     >
-                      {room.status === 'countdown' ? 'Enter countdown board' : 'Enter race board'}
-                      <ChevronRight className="h-4 w-4" />
+                      <RefreshCw className="h-4 w-4" />
+                      Reroll
                     </button>
-                  ) : null}
-                </div>
+                    <button
+                      type="button"
+                      onClick={handleStartRoom}
+                      disabled={busyAction !== '' || !room.guest?.userId}
+                      className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-slate-200 disabled:opacity-50"
+                    >
+                      <Play className="h-4 w-4" />
+                      Start Race
+                    </button>
+                  </>
+                ) : null}
+                {(room.status === 'countdown' || room.status === 'active' || room.status === 'finished') ? (
+                  <button
+                    type="button"
+                    onClick={openBoard}
+                    className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-slate-200"
+                  >
+                    {room.status === 'countdown' ? 'Enter Board' : 'Open Board'}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
+            </div>
 
-              <div className="space-y-4">
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="text-lg font-semibold text-white">{room.scenario?.title || 'Shared contract'}</div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{room.scenario?.goal || 'Scenario loading...'}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                      Set: {formatSetShortName(room.scenario?.targetRelic?.setNameHint || room.scenario?.targetRelic?.setName || selectedSetName)}
+            <div className="grid xl:grid-cols-[300px_minmax(0,1fr)]">
+              <div className="border-b border-white/10 xl:border-b-0 xl:border-r xl:border-white/10">
+                <div className="border-b border-white/10 px-5 py-3 text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
+                  Duel Roster
+                </div>
+                <div>
+                  <div className="px-5 py-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
+                          {getRosterMark(room.host?.name, 'H')}
+                        </div>
+                        <div>
+                          <div className="mb-1 inline-flex rounded-sm border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
+                            Host
+                          </div>
+                          <div className="text-lg font-semibold text-white">{room.host?.name || 'Host'}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
+                        <div className="mt-1 text-sm font-medium text-white">{room.host?.state?.status || 'ready'}</div>
+                      </div>
                     </div>
-                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                      Mood: {room.scenario?.mood || 'mixed'}
+                  </div>
+
+                  <div className="relative border-t border-white/10 px-5 py-6">
+                    <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-white/10 bg-[var(--theme-surface-3)] px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-slate-400">
+                      Versus
                     </div>
-                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                      Difficulty: {room.difficulty}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
+                          {getRosterMark(room.guest?.name, 'G')}
+                        </div>
+                        <div>
+                          <div className="mb-1 inline-flex rounded-sm border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                            Guest
+                          </div>
+                          <div className="text-lg font-semibold text-white">{room.guest?.name || 'Waiting for opponent'}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
+                        <div className="mt-1 text-sm font-medium text-white">{room.guest?.userId ? room.guest?.state?.status || 'ready' : 'open'}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-3">
-                  <LobbyRelicPreview title="Target relic" relic={room.scenario?.targetRelic} accent="cyan" />
-                  <LobbyRelicPreview title="Builder relic" relic={room.scenario?.builderRelic} accent="violet" />
-                  <LobbyRelicPreview title="Force relic" relic={room.scenario?.forceRelic} accent="rose" />
+                <div className="border-t border-white/10 px-5 py-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
+                      <div className="mt-1 font-medium text-white">{room.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Tier</div>
+                      <div className="mt-1 font-medium text-white">{formatTierLabel(room.tier)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Seed</div>
+                      <div className="mt-1 font-medium text-white">{room.seedLabel || room.scenario?.seedLabel}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Rolls</div>
+                      <div className="mt-1 font-medium text-white">{formatRollTierLabel(room.scenario?.pvpRollTier)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="border-b border-white/10 px-5 py-3 text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
+                  Shared Contract Params
+                </div>
+                <div className="p-5">
+                  <div className="theme-subpanel rounded-lg p-5">
+                    <div className="text-3xl font-semibold tracking-tight text-white">
+                      {room.scenario?.title || 'Shared contract'}
+                    </div>
+                    <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400">
+                      {room.scenario?.goal || 'Scenario loading...'}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="theme-subpanel rounded-md px-2.5 py-1 text-xs text-slate-300">
+                        Set: {formatSetShortName(room.scenario?.targetRelic?.setNameHint || room.scenario?.targetRelic?.setName || selectedSetName)}
+                      </div>
+                      <div className="theme-subpanel rounded-md px-2.5 py-1 text-xs text-slate-300">
+                        Seed: {room.seedLabel || room.scenario?.seedLabel}
+                      </div>
+                      <div className="theme-subpanel rounded-md px-2.5 py-1 text-xs text-slate-300">
+                        Tier: {formatTierLabel(room.tier)}
+                      </div>
+                      <div className="theme-subpanel rounded-md px-2.5 py-1 text-xs text-slate-300">
+                        Mood: {room.scenario?.mood || 'mixed'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 xl:grid-cols-3">
+                    <LobbyRelicPreview title="Target override" relic={room.scenario?.targetRelic} accent="cyan" />
+                    <LobbyRelicPreview title="Setup package" relic={room.scenario?.builderRelic} accent="violet" />
+                    <LobbyRelicPreview title="Force relic" relic={room.scenario?.forceRelic} accent="rose" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {room.status === 'finished' ? (
-              <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-100">
+              <div className="border-t border-white/10 px-5 py-4 text-sm text-emerald-100">
                 <span className="font-medium">
                   <Trophy className="mr-2 inline h-4 w-4" />
                   Winner:
@@ -790,7 +850,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                     : 'Pending'}
               </div>
             ) : null}
-          </LobbySection>
+          </section>
         ) : null}
       </div>
     </div>

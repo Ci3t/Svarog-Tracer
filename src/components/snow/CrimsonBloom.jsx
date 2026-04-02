@@ -1,29 +1,24 @@
 import React, { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 
-const BLOOD_SLASH_SVG =
-  "data:image/svg+xml;utf8,<svg width='400' height='60' viewBox='0 0 400 60' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M0 55L40 45L120 48L280 12L360 8L400 2L350 18L180 32L60 52L0 60Z' fill='%23ff0033' fill-opacity='0.78'/><circle cx='45' cy='42' r='2' fill='%23ff0033' fill-opacity='0.56'/><circle cx='180' cy='28' r='1.5' fill='%23ff0033' fill-opacity='0.78'/><circle cx='350' cy='12' r='2.5' fill='%23ff0033' fill-opacity='0.5'/></svg>";
-
 const CrimsonBloom = () => {
   const layerRef = useRef(null);
   const mainGroupRef = useRef(null);
-  const mainSlashRef = useRef(null);
   const miniGroupRef = useRef(null);
   const baseUrl = import.meta.env.BASE_URL;
 
   useEffect(() => {
     const layer = layerRef.current;
     const mainGroup = mainGroupRef.current;
-    const mainSlash = mainSlashRef.current;
     const miniGroup = miniGroupRef.current;
-    if (!layer || !mainGroup || !mainSlash || !miniGroup) return;
+    if (!layer || !mainGroup || !miniGroup) return;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const speed = reduceMotion ? 1.9 : 1;
 
     const ctx = gsap.context(() => {
       gsap.set(layer, { opacity: 0.62 });
-      gsap.set([mainGroup, miniGroup, mainSlash], {
+      gsap.set([mainGroup, miniGroup], {
         transformOrigin: "50% 50%",
       });
 
@@ -53,13 +48,6 @@ const CrimsonBloom = () => {
           duration: 7.6 * speed,
           ease: "sine.inOut",
         });
-
-      gsap.to(mainSlash, {
-        rotation: -360,
-        duration: 20 * speed,
-        ease: "none",
-        repeat: -1,
-      });
 
       gsap.to(miniGroup, {
         x: 84,
@@ -103,22 +91,8 @@ const CrimsonBloom = () => {
           alt=""
           style={{
             width: "100%",
-            opacity: 0.54,
-            filter: "saturate(1.28) contrast(1.08) brightness(0.82)",
-          }}
-        />
-        <div
-          ref={mainSlashRef}
-          style={{
-            position: "absolute",
-            inset: "-8%",
-            backgroundImage: `url(${BLOOD_SLASH_SVG})`,
-            backgroundSize: "contain",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "center",
-            opacity: 0.24,
-            mixBlendMode: "screen",
-            filter: "drop-shadow(0 0 10px rgba(255, 0, 51, 0.28))",
+            opacity: 0.5,
+            filter: "saturate(1.18) contrast(1.04) brightness(0.82)",
           }}
         />
       </div>

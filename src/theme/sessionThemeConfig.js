@@ -914,7 +914,7 @@ const themeOverrides = {
     home: {
       backgroundClass:
         "bg-[#050505] text-white selection:bg-[#ff0033]/40 selection:text-white",
-      disableBackdropImage: false,
+      disableBackdropImage: true,
       backdropImage: "acheron-flower.png",
       backdropImageClass:
         "opacity-[0.24] saturate-[1.2] contrast-[1.1] blur-[0.6px] scale-[1.03]",

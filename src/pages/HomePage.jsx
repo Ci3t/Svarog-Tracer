@@ -235,9 +235,6 @@ export default function HomePage({
           <div className="opacity-95">
             <CrimsonBloom />
           </div>
-          <div className="opacity-100">
-            <VoidPetals />
-          </div>
         </div>
       );
     }
