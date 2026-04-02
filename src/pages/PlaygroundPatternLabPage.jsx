@@ -4,7 +4,9 @@ import gsap from 'gsap';
 import {
   ArrowLeft,
   BrainCircuit,
+  CircleHelp,
   ChevronRight,
+  Map,
   Radar,
   RefreshCw,
   ScanSearch,
@@ -13,7 +15,8 @@ import {
   Play,
   FastForward,
   SkipBack,
-  TerminalSquare
+  TerminalSquare,
+  X,
 } from 'lucide-react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernNotesCard from '../components/modern/ModernNotesCard';
@@ -41,6 +44,202 @@ const SOURCE_MODES = [
   { id: 'import', label: 'Import TXT' },
   { id: 'manual', label: 'Manual Rolls' },
 ];
+
+const PATTERN_LAB_TOUR_KEY = 'pattern-lab-tour-v1';
+const PATTERN_LAB_TOUR_STEPS = [
+  {
+    target: '#pattern-lab-source',
+    title: 'Source Protocols',
+    body: 'Start here. Auto Seed creates a practice session. Import TXT loads a session export from live/free mode. Manual Rolls accepts normal rolls like 41 43 43 or a longstring like 4123432.',
+    placement: 'bottom',
+  },
+  {
+    target: '#pattern-lab-controls',
+    title: 'Control Buttons',
+    body: 'Use Step 5 twice here so the lab has enough rolls to build a real board read. Step Back rewinds, Sparkles loads a motif, Step 1 advances one move, and Reset clears the lab.',
+    placement: 'bottom',
+    waitFor: { type: 'state', value: 'rows_at_least_10' },
+    prompt: 'Click Step 5 two times. Once the lab has 10 or more rolls, Next will unlock.',
+  },
+  {
+    target: '#pattern-lab-predictor',
+    title: 'Svarog Predictor',
+    body: 'Now the board has enough data. This is the fast read for commons, noise, the current lean, and Svarog Eye before you dive into the deeper evidence.',
+    placement: 'right',
+  },
+  {
+    target: '#pattern-lab-advanced-toggle',
+    title: 'Advanced Mode',
+    body: 'Open Show details to inspect trends, trust, freshness, pair matrix, run/flip behavior, and the deeper logic behind the board lean.',
+    placement: 'right',
+    waitFor: { type: 'selector', value: '#pattern-lab-advanced-toggle' },
+  },
+  {
+    target: '#pattern-lab-stats',
+    title: 'Stats & Line Helper',
+    body: 'This panel turns the board read into manipulation logic. It shows helper mapping, your line, and Caesar-style raw-pair conversions.',
+    placement: 'right',
+  },
+  {
+    target: '#pattern-lab-clara',
+    title: "Clara's Lab",
+    body: 'Clara gives quick rotating tips, and this panel explains Svarog Main, Svarog Eye, the real output, and what you should trust.',
+    placement: 'left',
+  },
+  {
+    target: '#pattern-lab-log',
+    title: 'Log Output',
+    body: 'This is the replay trail. It records each move with line, raw pair, and translated roll so you can inspect the path step by step.',
+    placement: 'left',
+  },
+  {
+    target: '#pattern-lab-notes',
+    title: 'Notes',
+    body: 'Write your own read here, then copy or download it. This turns Pattern Lab into a real study tool instead of only a viewer.',
+    placement: 'top',
+  },
+];
+
+function PatternLabTourOverlay({
+  steps,
+  currentStep,
+  onNext,
+  onBack,
+  onClose,
+  canAdvance = true,
+  isWaiting = false,
+}) {
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    const step = steps[currentStep];
+    if (!step) return undefined;
+
+    const update = () => {
+      const element = document.querySelector(step.target);
+      if (!element) {
+        setRect(null);
+        return;
+      }
+      const nextRect = element.getBoundingClientRect();
+      setRect(nextRect);
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [steps, currentStep]);
+
+  const step = steps[currentStep];
+  if (!step || !rect) return null;
+
+  const cardWidth = 340;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const placement = step.placement || 'auto';
+  const canPlaceRight = rect.right + 24 + cardWidth < viewportWidth;
+  const canPlaceLeft = rect.left - cardWidth - 24 > 24;
+  const canPlaceBelow = rect.bottom + 240 < viewportHeight;
+  const canPlaceAbove = rect.top - 220 > 24;
+
+  let top;
+  let left;
+
+  if (placement === 'right' && canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (placement === 'left' && canPlaceLeft) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.left - cardWidth - 24;
+  } else if (placement === 'bottom' && canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (placement === 'top' && canPlaceAbove) {
+    top = rect.top - 200;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else {
+    top = Math.max(24, rect.top - 200);
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[220]">
+      <div className="pointer-events-auto absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]" style={{ height: Math.max(0, rect.top - 8) }} />
+      <div
+        className="pointer-events-auto absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ top: Math.max(0, rect.top - 8), width: Math.max(0, rect.left - 8), height: rect.height + 16 }}
+      />
+      <div
+        className="pointer-events-auto absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ top: Math.max(0, rect.top - 8), left: rect.left + rect.width + 8, height: rect.height + 16 }}
+      />
+      <div className="pointer-events-auto absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]" style={{ top: rect.top + rect.height + 8 }} />
+      <div
+        className="absolute rounded-[1.75rem] border border-pink-400/55 shadow-[0_0_22px_rgba(244,114,182,0.18)] transition-all duration-300"
+        style={{ top: rect.top - 8, left: rect.left - 8, width: rect.width + 16, height: rect.height + 16 }}
+      />
+      <div
+        className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+        style={{ top, left, width: cardWidth }}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+            <Map className="h-3.5 w-3.5" />
+            Guided Tour
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-400 transition-colors hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="text-lg font-black uppercase tracking-tight text-white">{step.title}</div>
+        <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+        {step.prompt ? (
+          <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-semibold text-cyan-100">
+            {step.prompt}
+          </div>
+        ) : null}
+        <div className="mt-5 flex items-center justify-between">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+            {isWaiting ? 'Waiting For Action' : `${currentStep + 1} / ${steps.length}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={currentStep === 0}
+              className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!canAdvance}
+              className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {currentStep === steps.length - 1 ? 'Finish' : (isWaiting ? 'Waiting' : 'Next')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function createSessionEntry(rawValue) {
   const normalized = String(rawValue || '').trim();
@@ -176,6 +375,44 @@ function getTransitionSupport(prediction, targetValue) {
   return {
     pct: raw || 0,
     samples: 0,
+  };
+}
+
+function buildRowsFromSequence(baseProfile, sequence, maxCount = sequence.length) {
+  let workingProfile = baseProfile;
+  let workingLine = 4;
+  const rows = [];
+  const limitedSequence = sequence.slice(0, Math.max(0, maxCount));
+
+  limitedSequence.forEach((sequenceRow, index) => {
+    const visibleRoll = sequenceRow.visibleRoll;
+    const resolved = sequenceRow.rawPair
+      ? {
+          rawPair: sequenceRow.rawPair,
+          targetSlot: Number(String(sequenceRow.rawPair).slice(1, 2)) || workingLine,
+        }
+      : resolveNextSlotFromVisibleRoll(workingLine, visibleRoll);
+
+    rows.push({
+      index: index + 1,
+      fromLine: workingLine,
+      rawPair: resolved.rawPair,
+      visibleRoll,
+      targetSlot: resolved.targetSlot,
+      phase: workingProfile.phase,
+      family: workingProfile.family,
+      commons: (workingProfile.commons || []).join(' / '),
+      noise: (workingProfile.noise || []).join(' / '),
+    });
+
+    workingLine = resolved.targetSlot;
+    workingProfile = advancePatternProfile(workingProfile, visibleRoll);
+  });
+
+  return {
+    rows,
+    currentLine: workingLine,
+    patternProfile: workingProfile,
   };
 }
 
@@ -365,6 +602,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [sourceCursor, setSourceCursor] = useState(0);
   const [sourceMessage, setSourceMessage] = useState('');
   const [notes, setNotes] = useState('');
+  const [tourRunning, setTourRunning] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [claraTipIndex, setClaraTipIndex] = useState(0);
   const lastRollIndexRef = useRef(0);
 
   useEffect(() => {
@@ -453,6 +693,23 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
       return;
     }
     loadExplicitSequence('manual', rows, message, '');
+  };
+
+  const rebuildLabToCount = (targetCount) => {
+    const freshProfile = createLabProfile(mood, familyId);
+    const activeSequence = sourceMode === 'auto'
+      ? labRows.map((row) => ({ visibleRoll: row.visibleRoll, rawPair: row.rawPair }))
+      : sourceSequence;
+    const safeCount = Math.max(0, Math.min(targetCount, activeSequence.length));
+    const rebuilt = buildRowsFromSequence(freshProfile, activeSequence, safeCount);
+
+    setLabRows(rebuilt.rows);
+    setCurrentLine(rebuilt.currentLine);
+    setPatternProfile(rebuilt.patternProfile);
+
+    if (sourceMode !== 'auto') {
+      setSourceCursor(safeCount);
+    }
   };
 
   const runSteps = (count = 1, useStarterSequence = false) => {
@@ -550,10 +807,184 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     () => buildSvarogAssistance(prediction2, nextObservedRoll),
     [prediction2, nextObservedRoll],
   );
+  const claraTips = useMemo(() => {
+    const tips = [];
+    if (!labRows.length) {
+      tips.push("I'm here to help. Pick a source, then step forward to watch the session unfold.");
+      tips.push('Import a Session Data TXT or paste a longstring to replay a real session.');
+      tips.push('Use Step 1 to inspect one roll at a time, or Step 5 to skip ahead faster.');
+      return tips;
+    }
+
+    if (sourceMode === 'import' && remainingSourceRolls > 0) {
+      tips.push(`Imported replay active. ${remainingSourceRolls} rolls left to inspect.`);
+      tips.push('Use Step Back to compare before and after a key roll.');
+    }
+
+    if (sourceMode === 'manual' && remainingSourceRolls > 0) {
+      tips.push(`Manual replay active. ${remainingSourceRolls} rolls remain in the payload.`);
+      tips.push('Use Step Back to compare how the same session looks before and after a key roll.');
+    }
+
+    if (prediction2?.pairSafety === 'danger' && prediction2?.freshOutsider?.value) {
+      tips.push(`Break danger. ${prediction2.freshOutsider.value} is the active outsider, so compare the commons lane with Svarog Eye first.`);
+    }
+
+    if (prediction2?.trustedPair?.length === 2) {
+      tips.push(`Watch the trusted pair ${prediction2.trustedPair.join(' / ')} and compare it with the real output to learn why the board held or broke.`);
+    }
+
+    if (nextObservedRoll) {
+      tips.push(`Next observed roll is ${nextObservedRoll}. Check Svarog Assistance below to see why it fit or broke the current read.`);
+    }
+
+    tips.push('Use Notes on the right to write your own read, then copy or download it.');
+    return tips;
+  }, [labRows, sourceMode, remainingSourceRolls, prediction2, nextObservedRoll]);
+  const claraTip = claraTips[claraTipIndex % Math.max(claraTips.length, 1)] || "I'm here to help.";
+
+  useEffect(() => {
+    setClaraTipIndex(0);
+  }, [sourceMode, sourceCursor, labRows.length, prediction2?.pairSafety, prediction2?.freshOutsider?.value, nextObservedRoll]);
+
+  useEffect(() => {
+    if (claraTips.length <= 1) return undefined;
+    const interval = window.setInterval(() => {
+      setClaraTipIndex((current) => (current + 1) % claraTips.length);
+    }, 4500);
+    return () => window.clearInterval(interval);
+  }, [claraTips]);
+
+  useEffect(() => {
+    try {
+      const seen = window.localStorage.getItem(PATTERN_LAB_TOUR_KEY);
+      if (!seen) {
+        const timer = setTimeout(() => setTourRunning(true), 500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      const timer = setTimeout(() => setTourRunning(true), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, []);
+
+  const closeTour = () => {
+    setTourRunning(false);
+    setTourStepIndex(0);
+    try {
+      window.localStorage.setItem(PATTERN_LAB_TOUR_KEY, '1');
+    } catch {
+      // ignore localStorage failures
+    }
+  };
+
+  const nextTourStep = () => {
+    if (tourStepIndex >= PATTERN_LAB_TOUR_STEPS.length - 1) {
+      closeTour();
+      return;
+    }
+    setTourStepIndex((current) => current + 1);
+  };
+
+  const previousTourStep = () => {
+    setTourStepIndex((current) => Math.max(0, current - 1));
+  };
+
+  const patternLabTourState = useMemo(
+    () => ({
+      rows_at_least_10: labRows.length >= 10,
+    }),
+    [labRows.length],
+  );
+
+  const currentTourStep = PATTERN_LAB_TOUR_STEPS[tourStepIndex] || null;
+  const [tourSelectorSatisfied, setTourSelectorSatisfied] = useState(false);
+
+  useEffect(() => {
+    if (!tourRunning || currentTourStep?.waitFor?.type !== 'selector') {
+      setTourSelectorSatisfied(false);
+      return undefined;
+    }
+
+    const checkSelector = () => {
+      if (typeof document === 'undefined') return;
+      setTourSelectorSatisfied(Boolean(document.querySelector(currentTourStep.waitFor.value)));
+    };
+
+    checkSelector();
+    const interval = window.setInterval(checkSelector, 150);
+    return () => window.clearInterval(interval);
+  }, [currentTourStep, tourRunning]);
+
+  const currentTourStepSatisfied = useMemo(() => {
+    if (!currentTourStep?.waitFor) return true;
+    if (currentTourStep.waitFor.type === 'state') {
+      return Boolean(patternLabTourState[currentTourStep.waitFor.value]);
+    }
+    if (currentTourStep.waitFor.type === 'selector') {
+      return tourSelectorSatisfied;
+    }
+    return false;
+  }, [currentTourStep, patternLabTourState, tourSelectorSatisfied]);
+
+  const canAdvanceTour = currentTourStepSatisfied;
 
   return (
-    <div className={`min-h-screen px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`} ref={containerRef}>
+    <div className={`pattern-lab-shell min-h-screen px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`} ref={containerRef}>
       <div className="mx-auto max-w-[1600px]">
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              .pattern-lab-shell {
+                background: transparent !important;
+              }
+              .pattern-lab-shell .theme-glass-card {
+                background: rgba(255, 255, 255, 0.012) !important;
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+              }
+              .pattern-lab-shell .theme-panel-surface {
+                background: rgba(255, 255, 255, 0.012) !important;
+              }
+              .pattern-lab-shell .theme-subpanel {
+                background: rgba(255, 255, 255, 0.01) !important;
+              }
+              .pattern-lab-shell .theme-glass-card::before,
+              .pattern-lab-shell .theme-panel-surface::before,
+              .pattern-lab-shell .theme-subpanel::before {
+                opacity: 0.14 !important;
+              }
+              .pattern-lab-shell .theme-glass-card::after,
+              .pattern-lab-shell .theme-panel-surface::after {
+                opacity: 0.22 !important;
+              }
+              .pattern-lab-shell [class*="bg-slate-900"],
+              .pattern-lab-shell [class*="bg-slate-950"],
+              .pattern-lab-shell [class*="bg-slate-800"],
+              .pattern-lab-shell [class*="bg-black"],
+              .pattern-lab-shell [class*="from-slate-900"],
+              .pattern-lab-shell [class*="to-slate-800"] {
+                background: rgba(255, 255, 255, 0.028) !important;
+              }
+              .pattern-lab-shell [class*="bg-white/["] {
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+              }
+            `,
+          }}
+        />
+
+        {tourRunning && PATTERN_LAB_TOUR_STEPS.length > 0 ? (
+          <PatternLabTourOverlay
+            steps={PATTERN_LAB_TOUR_STEPS}
+            currentStep={tourStepIndex}
+            onNext={nextTourStep}
+            onBack={previousTourStep}
+            onClose={closeTour}
+            canAdvance={canAdvanceTour}
+            isWaiting={!canAdvanceTour}
+          />
+        ) : null}
 
         {/* -- Super Header -- */}
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center matrix-fade relative z-20">
@@ -572,11 +1003,22 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/40 backdrop-blur-md px-4 py-2">
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md px-4 py-2">
             <Radar className={`h-4 w-4 ${themeColors.text}`} />
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
               {patternProfile.family} / {patternProfile.phase}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTourStepIndex(0);
+                setTourRunning(true);
+              }}
+              title="Open guided tour"
+              className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 transition-colors hover:bg-white/[0.09] hover:text-white"
+            >
+              <CircleHelp className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -589,12 +1031,17 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           <div className="xl:col-span-5 space-y-6 sticky top-24">
 
             {/* The Main Predictor - Placed High up */}
-            <div className="matrix-fade">
-              <ModernPairPredictorCard entries={entries} region={LAB_REGION} />
+            <div id="pattern-lab-predictor" className="matrix-fade">
+              <ModernPairPredictorCard
+                entries={entries}
+                region={LAB_REGION}
+                advancedToggleId="pattern-lab-advanced-toggle"
+                advancedPanelId="pattern-lab-advanced-panel"
+              />
             </div>
 
             {/* Moved Stats and Line Card */}
-            <div className="matrix-fade transition-all duration-500">
+            <div id="pattern-lab-stats" className="matrix-fade transition-all duration-500">
               <ModernStatsPanel
                 entries={entries}
                 prediction2={prediction2}
@@ -613,218 +1060,192 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           {/* =========================================================
               RIGHT (60%): THE BENTO DASHBOARD
               ========================================================= */}
-          <div className="xl:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-5 relative z-10 w-full">
-
-            {/* Tile 1: Tactical Media Player Deck (Full Width) */}
-            <div className={`bento-tile md:col-span-12 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-2xl p-6 relative overflow-hidden group hover:border-white/20 transition-all duration-500`}>
+          <div className="xl:col-span-7 grid grid-cols-1 md:col-span-12 gap-5 relative z-10 w-full bento-container">
+            
+            {/* Tile 1: Tactical Media Player Deck (Unified Header) */}
+            <div className={`bento-tile md:col-span-12 theme-glass-card rounded-[2rem] bg-transparent backdrop-blur-md p-6 relative overflow-hidden group hover:border-white/20 transition-all duration-500`}>
               <div className={`absolute top-0 right-0 w-32 h-32 ${themeColors.bgGlow} blur-[60px] rounded-full opacity-50 group-hover:opacity-100 transition-opacity`} />
 
-              <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 relative z-10">
+              <div className="flex flex-col gap-6 relative z-[140]">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+                  
+                  {/* Internal Settings Rack */}
+                  <div className="flex flex-wrap gap-4 xs:gap-8">
+                    <div>
+                      <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">System Mood</div>
+                      <div className="flex bg-white/[0.04] p-1 rounded-xl border border-white/5 backdrop-blur-sm">
+                        {MOODS.map((option) => (
+                          <button
+                            key={option}
+                            onClick={() => resetLab(option, familyOptionMatchesMood ? familyId : 'auto')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mood === option
+                              ? themeColors.buttonActive
+                              : 'text-slate-400 hover:text-white hover:bg-white/5'
+                              }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Internal Settings Rack */}
-                <div className="flex flex-wrap gap-4 xs:gap-8">
-                  <div>
-                    <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">System Mood</div>
-                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-                      {MOODS.map((option) => (
-                        <button
-                          key={option}
-                          onClick={() => resetLab(option, familyOptionMatchesMood ? familyId : 'auto')}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mood === option
-                            ? themeColors.buttonActive
-                            : 'text-slate-400 hover:text-white hover:bg-white/5'
-                            }`}
-                        >
-                          {option}
-                        </button>
-                      ))}
+                    <div>
+                      <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Target Line</div>
+                      <div className="flex bg-white/[0.04] p-1 rounded-xl border border-white/5 backdrop-blur-sm">
+                        {[1, 2, 3, 4].map((line) => (
+                          <button
+                            key={line}
+                            onClick={() => setCurrentLine(line)}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all duration-300 ${currentLine === line
+                              ? 'bg-amber-500/20 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                              : 'text-slate-400 hover:text-white hover:bg-white/5'
+                              }`}
+                          >
+                            L{line}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Target Line</div>
-                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-                      {[1, 2, 3, 4].map((line) => (
-                        <button
-                          key={line}
-                          onClick={() => setCurrentLine(line)}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all duration-300 ${currentLine === line
-                            ? 'bg-amber-500/20 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                            : 'text-slate-400 hover:text-white hover:bg-white/5'
-                            }`}
-                        >
-                          L{line}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Media Controls */}
+                  <div id="pattern-lab-controls" className="flex items-center gap-3">
+                    <button
+                      onClick={() => rebuildLabToCount(labRows.length - 1)}
+                      title="Step Back"
+                      disabled={labRows.length === 0}
+                      className={`h-12 w-12 flex items-center justify-center rounded-2xl border transition-all duration-300 active:scale-95 ${
+                        labRows.length === 0
+                          ? 'border-white/5 bg-black/20 text-slate-600 cursor-not-allowed'
+                          : 'border-white/10 bg-white/[0.04] text-slate-300 hover:scale-105 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <StepForward className="h-5 w-5 rotate-180" />
+                    </button>
+                    <button
+                      onClick={loadStarterMotif}
+                      title="Load Starter Motif"
+                      className="h-12 w-12 flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all duration-300 hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+                    >
+                      <Sparkles className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => runSteps(1)}
+                      title="Step 1"
+                      className={`h-14 w-14 flex items-center justify-center rounded-[1.25rem] border transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${themeColors.button} pl-1`}
+                    >
+                      <Play className="h-6 w-6 text-current drop-shadow-[0_0_8px_currentColor]" />
+                    </button>
+                    <button
+                      onClick={() => runSteps(5)}
+                      title="Step 5"
+                      className={`h-12 w-12 flex items-center justify-center rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 ${themeColors.button}`}
+                    >
+                      <FastForward className="h-5 w-5 drop-shadow-[0_0_5px_currentColor]" />
+                    </button>
+                    <div className="w-px h-8 bg-white/10 mx-1" />
+                    <button
+                      onClick={() => resetLab(mood, familyId)}
+                      title="Reset Data"
+                      className="h-10 w-10 flex items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-300 transition-all duration-300 hover:scale-105 hover:bg-rose-500/20 active:scale-95"
+                    >
+                      <SkipBack className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Media Controls */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={loadStarterMotif}
-                    title="Load Starter Motif"
-                    className="h-12 w-12 flex items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-slate-400 transition-all duration-300 hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
-                  >
-                    <Sparkles className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => runSteps(1)}
-                    title="Step 1"
-                    className={`h-14 w-14 flex items-center justify-center rounded-[1.25rem] border transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${themeColors.button} pl-1`}
-                  >
-                    <Play className="h-6 w-6 text-current drop-shadow-[0_0_8px_currentColor]" />
-                  </button>
-                  <button
-                    onClick={() => runSteps(5)}
-                    title="Step 5"
-                    className={`h-12 w-12 flex items-center justify-center rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 ${themeColors.button}`}
-                  >
-                    <FastForward className="h-5 w-5 drop-shadow-[0_0_5px_currentColor]" />
-                  </button>
-                  <div className="w-px h-8 bg-white/10 mx-1" />
-                  <button
-                    onClick={() => resetLab(mood, familyId)}
-                    title="Reset Data"
-                    className="h-10 w-10 flex items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-300 transition-all duration-300 hover:scale-105 hover:bg-rose-500/20 active:scale-95"
-                  >
-                    <SkipBack className="h-4 w-4" />
-                  </button>
+                {/* Integrated Diagnostics Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white/[0.03] rounded-2xl border border-white/5 backdrop-blur-sm">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Active Seed</span>
+                    <span className={`font-mono text-[11px] ${themeColors.textLight} truncate group-hover:text-white transition-colors`}>{sourceMode === 'auto' ? patternProfile.seed : 'Imported/Manual Session'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Commons</span>
+                    <span className="font-black text-emerald-300 text-sm">{(patternProfile.commons || []).join(' / ')}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Noise</span>
+                    <span className="font-black text-rose-400 text-sm">{(patternProfile.noise || []).join(' / ')}</span>
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <p className="text-[10px] text-slate-400 leading-tight italic line-clamp-2">
+                      {profileDescription}
+                    </p>
+                  </div>
                 </div>
-
               </div>
 
-              {/* Source Protocol moved inside/bottom of System Mood */}
-              <div className="border-t border-white/5 pt-6 mt-6 relative z-10">
-                <div className="flex flex-col md:flex-row gap-6">
-
-                  <div className="w-full md:w-1/3">
-                    <div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Source Protocol</div>
-                    <div className="flex flex-col gap-2">
+              {/* Source Protocol Bottom Rack */}
+              <div id="pattern-lab-source" className="border-t border-white/5 pt-6 mt-6 relative z-[140]">
+                <div className="flex flex-col gap-6">
+                  {/* Inline Mode Switcher on Top */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Source Protocol Selection</div>
+                    <div className="flex bg-white/[0.04] p-1 rounded-xl border border-white/5 self-start md:self-auto backdrop-blur-sm">
                       {SOURCE_MODES.map((option) => (
                         <button
                           key={option.id}
                           onClick={() => setSourceMode(option.id)}
-                          className={`flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${sourceMode === option.id
+                          className={`px-5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${sourceMode === option.id
                             ? themeColors.buttonActive
-                            : 'border border-white/5 bg-black/40 text-slate-400 hover:border-white/20 hover:text-white'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
                             }`}
                         >
-                          <div className={`mr-3 h-2 w-2 rounded-full ${sourceMode === option.id ? themeColors.accent : 'bg-slate-700'}`} />
                           {option.label}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className="w-full md:w-2/3 md:pl-6 flex flex-col justify-center">
+                  {/* Interactive Content Below */}
+                  <div className="w-full bg-white/[0.02] rounded-2xl p-4 md:p-6 border border-white/5">
                     {sourceMode === 'import' ? (
-                      <div className="space-y-4">
-                        <input ref={fileInputRef} type="file" accept=".txt" onChange={handleImportFile} className="hidden" />
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-[11px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
-                        >
-                          Select Session Data.txt
-                        </button>
-                        <div className="text-xs text-slate-400 font-medium">
-                          {importedFileName ? `Currently active: ${importedFileName}` : 'Select a dump from Live/Free mode to simulate.'}
+                      <div className="flex flex-col md:flex-row items-center justify-end gap-6 text-right">
+                        <div className="text-xs text-slate-400 font-medium order-2 md:order-1">
+                          {importedFileName ? `Session: ${importedFileName}` : 'Select a dump from Live/Free mode to simulate.'}
+                        </div>
+                        <div className="flex items-center gap-3 order-1 md:order-2">
+                          <input ref={fileInputRef} type="file" accept=".txt" onChange={handleImportFile} className="hidden" />
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
+                          >
+                            Select Session Data.txt
+                          </button>
                         </div>
                       </div>
                     ) : sourceMode === 'manual' ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <textarea
                           value={manualRollsInput}
                           onChange={(e) => setManualRollsInput(e.target.value)}
                           rows={2}
                           placeholder="Paste visible rolls here..."
-                          className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm font-mono text-slate-200 outline-none focus:border-white/30 transition-all"
+                          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-mono text-slate-200 outline-none focus:border-white/30 transition-all backdrop-blur-sm"
                         />
-                        <button
-                          onClick={handleLoadManualRolls}
-                          className={`inline-flex items-center gap-2 rounded-xl border px-6 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
-                        >
-                          Execute Manual Payload
-                        </button>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={handleLoadManualRolls}
+                            className={`inline-flex items-center gap-2 rounded-xl border px-8 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
+                          >
+                            Execute Manual Payload
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-sm text-slate-400 font-medium p-6 rounded-xl bg-black/20 border border-white/5 border-dashed text-center">
+                      <div className="text-sm text-slate-400 font-medium p-4 rounded-xl bg-white/[0.03] border border-white/5 border-dashed text-right backdrop-blur-sm">
                         Automated generation using internal structural profiling.
                       </div>
                     )}
-
-                    {sourceMessage && <div className={`mt-3 text-xs font-bold ${themeColors.textLight}`}>{sourceMessage}</div>}
+                    {sourceMessage && <div className={`mt-3 text-xs font-bold ${themeColors.textLight} text-right`}>{sourceMessage}</div>}
                   </div>
-
                 </div>
               </div>
             </div>
 
-            {/* Tile 2: Engine Read (Square-ish) */}
-            <div className={`bento-tile md:col-span-6 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-xl p-6 group relative overflow-hidden`}>
-              <div className={`mb-5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${themeColors.text} relative z-10`}>
-                <Radar className="h-4 w-4" />
-                Engine Diagnostics
-              </div>
-              <div className="space-y-4">
-                <div className="p-3 bg-black/30 rounded-xl border border-white/5 flex flex-col justify-center">
-                  <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Seed</span>
-                  <span className={`font-mono text-xs ${themeColors.textLight} break-all`}>{sourceMode === 'auto' ? patternProfile.seed : 'Imported/Manual Session'}</span>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-1 p-3 bg-black/30 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block mb-1">Commons</span>
-                    <span className="font-black text-emerald-300 text-lg">{(patternProfile.commons || []).join('/')}</span>
-                  </div>
-                  <div className="flex-1 p-3 bg-black/30 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block mb-1">Noise</span>
-                    <span className="font-black text-rose-400 text-lg">{(patternProfile.noise || []).join('/')}</span>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  {profileDescription}
-                </p>
-              </div>
-            </div>
-
-            {/* Tile 3: The Terminal (Raw vs Translated Stream) */}
-            <div className={`bento-tile md:col-span-6 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-xl p-6 flex flex-col max-h-[350px] relative overflow-hidden`}>
-              <div className="flex items-center justify-between mb-4 relative z-10">
-                <div className={`text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-slate-300`}>
-                  <TerminalSquare className="h-4 w-4" />
-                  Log Output
-                </div>
-                <div className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-md">{labRows.length} Ops</div>
-              </div>
-
-              <div className="grid grid-cols-[30px_35px_35px_1fr] gap-2 mb-2 px-2 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 border-b border-white/5 pb-2 relative z-10">
-                <div>Idx</div>
-                <div>Line</div>
-                <div>Raw</div>
-                <div>Trans</div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1 relative z-10">
-                {forceDisplayRows.length > 0 ? forceDisplayRows.map((row) => (
-                  <div key={row.index} className="gsap-pulse-row grid grid-cols-[30px_35px_35px_1fr] gap-2 items-center text-xs py-1.5 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
-                    <span className="text-slate-600 font-bold text-[9px]">{row.index}</span>
-                    <span className="text-slate-400 font-bold text-[10px]">L{row.fromLine}</span>
-                    <span className="text-slate-500 font-mono text-[10px]">{row.rawPair}</span>
-                    <span className={`font-mono font-bold text-sm ${themeColors.textLight}`}>{row.visibleRoll}</span>
-                  </div>
-                )) : (
-                  <div className="h-full flex items-center justify-center text-xs text-slate-600 font-mono italic">
-                    &gt; awaiting input_stream...
-                  </div>
-                )}
-              </div>
-              <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-[#0B0D13] to-transparent pointer-events-none rounded-b-[2rem] z-20" />
-            </div>
-
-            {/* Clara's lab (Tile 3) */}
-            <div className={`bento-tile md:col-span-12 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-black/40 backdrop-blur-2xl p-8 mt-12 md:mt-20 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.5)]`}>
-              {/* Surgical fix for Arctic/Glacial theme overflow:hidden !important */}
+            {/* Row 2: Clara's Lab (Primary) & Log Output (Secondary) */}
+            <div id="pattern-lab-clara" className={`bento-tile md:col-span-8 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-transparent backdrop-blur-md p-8 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.35)]`}>
               <style dangerouslySetInnerHTML={{
                 __html: `
                 .force-overflow-visible { overflow: visible !important; }
@@ -834,40 +1255,34 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
 
               <div className="flex flex-col relative z-20">
                 <div className={`mb-5 flex items-center gap-6 ${themeColors.textLight} relative`}>
-
-                  {/* Anime/Manga Style Speech Bubble */}
                   <div className="absolute -top-24 md:-top-32 left-10 md:left-33 z-[130] animate-float-gentle select-none pointer-events-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:scale-105">
                     <div className="relative">
-                      {/* Organic Manga SVG Bubble */}
-                      <svg width="220" height="75" viewBox="0 0 220 75" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-[200px] md:w-[240px]">
+                      <svg width="270" height="92" viewBox="0 0 270 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-[230px] md:w-[290px]">
                         <path
-                          d="M10 32C10 15.4315 28.3563 2 51 2H169C191.644 2 210 15.4315 210 32C210 48.5685 191.644 62 169 62H65L38 73L46 62C25.4395 62 10 48.5685 10 32Z"
+                          d="M10 38C10 18.1178 31.4903 2 58 2H212C238.51 2 260 18.1178 260 38C260 57.8822 238.51 74 212 74H78L44 90L54 74C29.5964 74 10 57.8822 10 38Z"
                           fill="white"
                           fillOpacity="0.95"
-                          stroke={themeColors.text.includes('cyan') ? '#0ea5e9' : '#000'}
+                          stroke={(themeColors && themeColors.text && themeColors.text.includes('cyan')) ? '#0ea5e9' : '#000'}
                           strokeWidth="3"
-                          strokeLinejoin="round"
                         />
                       </svg>
-                      {/* Interaction Text */}
-                      <div className="absolute inset-0 flex items-center justify-center pb-2.5 px-6">
-                        <span className="text-[12px] md:text-[13px] font-black uppercase tracking-tight text-black text-center leading-none">
-                          "I-I'm... I'm here to help, Mr. Svarog..."
+                      <div className="absolute inset-0 flex items-center justify-center pb-3 px-8 md:px-10 z-20">
+                        <span className="text-[10px] md:text-[11px] font-black uppercase tracking-tight clara-chat-text text-center leading-[1.05]" style={{ color: '#000000' }}>
+                          {claraTip}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Clara Assistant Massive Pop-out Icon */}
-                  <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-[120]">
+                  <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 z-[120]">
                     <div className={`absolute inset-0 rounded-full ${themeColors.bgGlow} blur-[60px] opacity-40 group-hover:scale-150 transition-transform duration-1000`} />
                     <img
                       src="/clara-prof-assistant.png"
                       alt="Clara Assistant Icon"
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 select-none pointer-events-none drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
                       style={{
-                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                        maskImage: 'linear-gradient(to bottom, black 50%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
                         maskComposite: 'intersect',
                         WebkitMaskComposite: 'source-in'
                       }}
@@ -876,7 +1291,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
 
                   <div className="pt-4 relative z-10">
                     <div className={`text-[10px] font-black uppercase tracking-[0.5em] ${themeColors.text} opacity-50 mb-1`}>Clara's Lab</div>
-                    <div className={`text-xl md:text-2xl font-black tracking-tight text-white drop-shadow-md`}>{svarogAssistance.title}</div>
+                    <div className="text-xl md:text-2xl font-black tracking-tight text-white drop-shadow-md">{svarogAssistance.title}</div>
                   </div>
                 </div>
 
@@ -899,19 +1314,41 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
               </div>
             </div>
 
-            {/* User requested turning this off since we have log output now
-            <div className="bento-tile md:col-span-12">
-              <ModernSessionTable
-                sessionTab={sessionTab}
-                setSessionTab={setSessionTab}
-                entries={entries}
-                prevSessions={[]}
-                compact
-              />
-            </div>
-            */}
+            {/* Tile 2: Log Output (Sidebar) */}
+            <div id="pattern-lab-log" className={`bento-tile md:col-span-4 theme-glass-card rounded-[2.5rem] bg-transparent backdrop-blur-md p-6 flex flex-col min-h-[400px] relative overflow-hidden group`}>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <div className={`text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-slate-300`}>
+                  <TerminalSquare className="h-4 w-4" />
+                  Log Output
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-md">{labRows.length} Ops</div>
+              </div>
 
-            <div className="bento-tile md:col-span-12">
+              <div className="grid grid-cols-[30px_35px_35px_1fr] gap-2 mb-2 px-2 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 border-b border-white/5 pb-2 relative z-10">
+                <div>Idx</div>
+                <div>Line</div>
+                <div>Raw</div>
+                <div>Trans</div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1 relative z-10 text-[10px]">
+                {forceDisplayRows.length > 0 ? forceDisplayRows.map((row) => (
+                  <div key={row.index} className="gsap-pulse-row grid grid-cols-[30px_35px_35px_1fr] gap-2 items-center text-xs py-1.5 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
+                    <span className="text-slate-600 font-bold text-[9px]">{row.index}</span>
+                    <span className="text-slate-400 font-bold text-[10px]">L{row.fromLine}</span>
+                    <span className="text-slate-500 font-mono text-[10px]">{row.rawPair}</span>
+                    <span className={`font-mono font-bold text-sm ${themeColors.textLight}`}>{row.visibleRoll}</span>
+                  </div>
+                )) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-600 font-mono italic">
+                    &gt; awaiting input_stream...
+                  </div>
+                )}
+              </div>
+              <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-black/10 to-transparent pointer-events-none rounded-b-[2rem] z-20" />
+            </div>
+
+            <div id="pattern-lab-notes" className="bento-tile md:col-span-12">
               <ModernNotesCard
                 notes={notes}
                 setNotes={setNotes}
@@ -922,7 +1359,6 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
                 themeColors={themeColors}
               />
             </div>
-
           </div>
         </div>
       </div>
