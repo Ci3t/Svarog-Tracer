@@ -633,171 +633,164 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
         </section>
 
         {room ? (
-          <section className="mt-4 flex flex-col border border-white/10 bg-[#0c0e12] relative">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
-              <Swords className="w-80 h-80" />
-            </div>
-
-            {/* Header Raw HUD */}
-            <div className="flex flex-col md:flex-row border-b border-white/10 font-mono text-xs uppercase relative z-10">
-              <div className="flex bg-white px-4 py-3 font-bold text-slate-900 tracking-widest shrink-0 items-center justify-center border-b md:border-b-0 md:border-r border-white/10">
-                Active Encounter
-              </div>
-              <div className="flex items-center justify-between border-b md:border-b-0 md:border-r border-white/10 px-4 py-3 tracking-wider text-slate-400 flex-1">
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>REF: {room.code}</span>
-                </div>
+          <LobbySection
+            title="Active room"
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-white">{room.code}</div>
                 <button
                   type="button"
                   onClick={handleCopyCode}
-                  className="flex items-center gap-2 text-slate-500 hover:text-white transition-colors"
+                  className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white"
                 >
-                  <Copy className="h-3.5 w-3.5" />
+                  <Copy className="h-4 w-4" />
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               </div>
-              
-              <div className="flex divide-x divide-white/10 overflow-x-auto hide-scrollbar">
-                {room.status === 'lobby' && isHost && (
-                  <>
-                    {canDevFill && (
-                      <button onClick={handleDevFill} disabled={busyAction !== ''} className="px-5 py-3 font-medium text-slate-300 hover:bg-white/5 disabled:opacity-50 tracking-wider whitespace-nowrap hidden lg:flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5" /> Bot 01
-                      </button>
-                    )}
-                    {canDevFill && (
-                      <button onClick={handleDevFillFair} disabled={busyAction !== ''} className="px-5 py-3 font-medium text-slate-300 hover:bg-white/5 disabled:opacity-50 tracking-wider whitespace-nowrap hidden lg:flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5" /> Bot 02
-                      </button>
-                    )}
-                    <button onClick={handleRerollRoom} disabled={busyAction !== ''} className="px-5 py-3 font-medium text-slate-300 hover:bg-white/5 disabled:opacity-50 tracking-wider whitespace-nowrap flex items-center gap-2">
-                      <RefreshCw className="h-3.5 w-3.5" /> Reroll
-                    </button>
-                    <button onClick={handleStartRoom} disabled={busyAction !== '' || !room.guest?.userId} className="px-5 py-3 font-bold text-emerald-400 hover:bg-emerald-400/10 disabled:opacity-50 tracking-wider whitespace-nowrap disabled:text-slate-500 bg-white/5 flex items-center gap-2">
-                      <Play className="h-3.5 w-3.5" /> Start Race
-                    </button>
-                  </>
-                )}
+            }
+          >
+            <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="mb-3 text-sm font-medium text-white">Players</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-md border border-white/10 px-3 py-3">
+                      <div>
+                        <div className="text-sm font-medium text-white">{room.host?.name || 'Host'}</div>
+                        <div className="text-xs text-slate-500">Host</div>
+                      </div>
+                      <div className="text-xs font-medium text-slate-300">{room.host?.state?.status || 'ready'}</div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border border-white/10 px-3 py-3">
+                      <div>
+                        <div className="text-sm font-medium text-white">{room.guest?.name || 'Waiting for opponent'}</div>
+                        <div className="text-xs text-slate-500">Guest</div>
+                      </div>
+                      <div className="text-xs font-medium text-slate-300">{room.guest?.userId ? room.guest?.state?.status || 'ready' : 'open'}</div>
+                    </div>
+                  </div>
+                </div>
 
-                {(room.status === 'countdown' || room.status === 'active' || room.status === 'finished') && (
-                  <button onClick={openBoard} className="bg-emerald-500/10 px-6 py-3 font-bold text-emerald-400 hover:bg-emerald-500/20 tracking-wider flex items-center whitespace-nowrap">
-                    Enter Active Board <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                  </button>
-                )}
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="mb-3 text-sm font-medium text-white">Room status</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-slate-500">Status</div>
+                      <div className="mt-1 text-sm font-medium text-white">{room.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Tier</div>
+                      <div className="mt-1 text-sm font-medium text-white">{formatTierLabel(room.tier)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Seed</div>
+                      <div className="mt-1 text-sm font-medium text-white">{room.seedLabel || room.scenario?.seedLabel}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Rolls</div>
+                      <div className="mt-1 text-sm font-medium text-white">{formatRollTierLabel(room.scenario?.pvpRollTier)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {room.status === 'lobby' && isHost ? (
+                    <>
+                      {canDevFill ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleDevFill}
+                            disabled={busyAction !== ''}
+                            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
+                          >
+                            <Users className="h-4 w-4" />
+                            Fill Svarog Bot
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDevFillFair}
+                            disabled={busyAction !== ''}
+                            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
+                          >
+                            <Users className="h-4 w-4" />
+                            Fill Svarog #2 Fair
+                          </button>
+                        </>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleRerollRoom}
+                        disabled={busyAction !== ''}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Reroll relics
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStartRoom}
+                        disabled={busyAction !== '' || !room.guest?.userId}
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-slate-200 disabled:opacity-50"
+                      >
+                        <Play className="h-4 w-4" />
+                        Start race
+                      </button>
+                    </>
+                  ) : null}
+
+                  {(room.status === 'countdown' || room.status === 'active' || room.status === 'finished') ? (
+                    <button
+                      type="button"
+                      onClick={openBoard}
+                      className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-slate-200"
+                    >
+                      {room.status === 'countdown' ? 'Enter countdown board' : 'Enter race board'}
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="text-lg font-semibold text-white">{room.scenario?.title || 'Shared contract'}</div>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">{room.scenario?.goal || 'Scenario loading...'}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
+                      Set: {formatSetShortName(room.scenario?.targetRelic?.setNameHint || room.scenario?.targetRelic?.setName || selectedSetName)}
+                    </div>
+                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
+                      Mood: {room.scenario?.mood || 'mixed'}
+                    </div>
+                    <div className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300">
+                      Difficulty: {room.difficulty}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <LobbyRelicPreview title="Target relic" relic={room.scenario?.targetRelic} accent="cyan" />
+                  <LobbyRelicPreview title="Builder relic" relic={room.scenario?.builderRelic} accent="violet" />
+                  <LobbyRelicPreview title="Force relic" relic={room.scenario?.forceRelic} accent="rose" />
+                </div>
               </div>
             </div>
 
-            <div className="grid divide-y divide-white/10 xl:grid-cols-[1fr_2px_1.5fr] xl:divide-y-0 relative z-10">
-              {/* VS Grid Left */}
-              <div className="flex flex-col bg-black/20">
-                <div className="border-b border-white/10 px-5 py-4 font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-black/40">
-                  Duel Roster
-                </div>
-                
-                <div className="flex flex-col relative h-full">
-                  {/* Host Pane */}
-                  <div className="flex-1 p-6 relative flex flex-col justify-center">
-                    <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-cyan-500/30" />
-                    <div className="flex items-center justify-between">
-                       <div className="flex items-center gap-4">
-                         <div className="hidden sm:flex h-12 w-12 items-center justify-center border border-white/20 bg-white/5 text-lg font-mono font-bold text-slate-300">
-                           {room.host?.name?.charAt(0) || 'H'}
-                         </div>
-                         <div>
-                           <div className="flex items-center gap-2 mb-1">
-                              <span className="font-mono text-xs text-cyan-400/80 uppercase tracking-widest bg-cyan-500/10 px-1.5 py-0.5 rounded">Host</span>
-                           </div>
-                           <div className="font-sans text-xl font-semibold tracking-tight text-white">{room.host?.name || 'Waiting'}</div>
-                         </div>
-                       </div>
-                       <div className="font-mono text-[10px] uppercase tracking-widest text-white/40 text-right">
-                         Status<br />
-                         <span className="text-cyan-400 font-bold">{room.host?.state?.status || 'ready'}</span>
-                       </div>
-                    </div>
-                  </div>
-
-                  {/* Absolute Center VS Divider */}
-                  <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10 flex items-center justify-center -translate-y-[0.5px] z-20">
-                    <div className="bg-[#0c0e12] border border-white/10 text-white/30 font-mono text-xs font-bold px-3 py-1 uppercase tracking-widest">
-                       Versus
-                    </div>
-                  </div>
-
-                  {/* Guest Pane */}
-                  <div className="flex-1 p-6 relative flex flex-col justify-center bg-black/10">
-                    {room.guest?.userId && <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-rose-500/30" />}
-                    
-                    <div className={`flex items-center justify-between ${!room.guest?.userId ? 'opacity-50' : ''}`}>
-                       <div className="flex items-center gap-4">
-                         <div className={`hidden sm:flex h-12 w-12 items-center justify-center border ${room.guest?.userId ? 'border-white/20 bg-white/5 text-slate-300' : 'border-dashed border-white/20 text-slate-600'} text-lg font-mono font-bold`}>
-                           {room.guest?.name?.charAt(0) || '?'}
-                         </div>
-                         <div>
-                           <div className="flex items-center gap-2 mb-1">
-                              <span className={`font-mono text-xs uppercase tracking-widest px-1.5 py-0.5 rounded ${room.guest?.userId ? 'bg-rose-500/10 text-rose-400/80' : 'bg-white/5 text-slate-500'}`}>Guest</span>
-                           </div>
-                           <div className="font-sans text-xl font-semibold tracking-tight text-white">{room.guest?.name || 'Awaiting Challenger'}</div>
-                         </div>
-                       </div>
-                       <div className="font-mono text-[10px] uppercase tracking-widest text-white/40 text-right">
-                         Status<br />
-                         <span className={room.guest?.userId ? 'text-rose-400 font-bold' : 'text-slate-500 font-bold'}>
-                           {room.guest?.userId ? (room.guest?.state?.status || 'ready') : 'open'}
-                         </span>
-                       </div>
-                    </div>
-                  </div>
-                </div>
+            {room.status === 'finished' ? (
+              <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-100">
+                <span className="font-medium">
+                  <Trophy className="mr-2 inline h-4 w-4" />
+                  Winner:
+                </span>{' '}
+                {room.winnerUserId === room.host?.userId
+                  ? room.host?.name
+                  : room.winnerUserId === room.guest?.userId
+                    ? room.guest?.name
+                    : 'Pending'}
               </div>
-
-              <div className="hidden xl:block bg-white/10" />
-
-              {/* Shared Contract Right */}
-              <div className="flex flex-col bg-black/20">
-                <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-black/40">
-                  <div className="font-mono text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Shared Contract Params
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <div className="mb-8">
-                    <h3 className="font-sans text-2xl font-semibold tracking-tight text-white">{room.scenario?.title || 'Unknown Contract'}</h3>
-                    <p className="mt-2 text-sm text-slate-400 max-w-xl leading-relaxed">{room.scenario?.goal || 'No goal provided.'}</p>
-                    
-                    <div className="mt-5 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-300">
-                      <span className="border border-white/10 bg-black px-2 py-1"><span className="text-slate-600 mr-2">SET</span>{formatSetShortName(room.scenario?.targetRelic?.setNameHint || selectedSetName)}</span>
-                      <span className="border border-white/10 bg-black px-2 py-1"><span className="text-slate-600 mr-2">SEED</span>{room.seedLabel || room.scenario?.seedLabel}</span>
-                      <span className="border border-white/10 bg-black px-2 py-1"><span className="text-slate-600 mr-2">TIER</span>{formatTierLabel(room.tier)}</span>
-                      <span className="border border-white/10 bg-black px-2 py-1"><span className="text-slate-600 mr-2">MOOD</span>{room.scenario?.mood || 'mixed'}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <LobbyRelicPreview title="Target Override" relic={room.scenario?.targetRelic} accent="cyan" />
-                    <LobbyRelicPreview title="Setup Package" relic={room.scenario?.builderRelic} accent="violet" />
-                    <LobbyRelicPreview title="Force Relic" relic={room.scenario?.forceRelic} accent="rose" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {room.status === 'finished' && (
-              <div className="border-t border-emerald-500/30 bg-emerald-950/30 relative z-10 px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Trophy className="h-5 w-5 text-emerald-400" />
-                  <div>
-                    <div className="font-mono text-[10px] uppercase tracking-widest text-emerald-400/80">Match Concluded</div>
-                    <div className="mt-0.5 text-sm font-medium text-white">
-                      Victory assigned to <span className="text-emerald-400 ml-1">{room.winnerUserId === room.host?.userId ? room.host?.name : room.winnerUserId === room.guest?.userId ? room.guest?.name : 'Pending'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+            ) : null}
+          </LobbySection>
         ) : null}
       </div>
     </div>
