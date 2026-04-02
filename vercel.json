@@ -1,6 +1,10 @@
 {
   "version": 2,
+  "framework": "vite",
   "installCommand": "npm install",
+  "devCommand": "npx vite --host 0.0.0.0 --port $PORT",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/api/(.*)",

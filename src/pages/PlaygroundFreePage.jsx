@@ -31,6 +31,17 @@ import {
   advancePatternProfile,
   getFiveMinuteBucketKey,
 } from '../utils/playgroundPatternProfiles';
+import {
+  activateRelicLine,
+  applyUpgradeRoll,
+  createRelicId,
+  createRelicLine,
+  detectRelicScoreProfile,
+  formatStatValue,
+  getMainStatDisplay,
+  replaceRelicLineStat,
+  scoreRelicWithProfile,
+} from '../utils/relicScoring';
 
 const MAIN_STATS = ['CRIT RATE', 'HP%', 'ATK%', 'SPD BOOTS'];
 const SUBSTATS = [
@@ -85,6 +96,7 @@ function createRelic(seedMood) {
   const subs = pickUniqueRandom(SUBSTATS, 4, used);
   const meta = createRelicMeta();
   return {
+    id: createRelicId('free-target'),
     seedMood,
     ...meta,
     level: 0,
@@ -93,18 +105,8 @@ function createRelic(seedMood) {
     lastVisibleRoll: '',
     mainStat,
     orderMode: 'random',
-    lines: subs.slice(0, 3).map((stat, index) => ({
-      slot: index + 1,
-      stat,
-      hits: 0,
-      justHit: false,
-    })),
-    fourthLine: {
-      slot: 4,
-      stat: subs[3],
-      hits: 0,
-      justHit: false,
-    },
+    lines: subs.slice(0, 3).map((stat, index) => createRelicLine(index + 1, stat, { active: true })),
+    fourthLine: createRelicLine(4, subs[3], { active: false }),
     hasFourthLine: false,
   };
 }
@@ -116,6 +118,7 @@ function createTestRelic(options = {}) {
   const subs = pickUniqueRandom(SUBSTATS, 4, used);
   const meta = createRelicMeta();
   return {
+    id: createRelicId('free-builder'),
     ...meta,
     level: readyForUpgrades ? 3 : 0,
     lastLine: readyForUpgrades ? (Number.isInteger(carryLine) ? carryLine : 4) : null,
@@ -124,16 +127,11 @@ function createTestRelic(options = {}) {
     mainStat,
     orderMode: 'random',
     lines: [
-      { slot: 1, stat: subs[0], hits: 0, justHit: false },
-      { slot: 2, stat: subs[1], hits: 0, justHit: false },
-      { slot: 3, stat: subs[2], hits: 0, justHit: false },
+      createRelicLine(1, subs[0], { active: true }),
+      createRelicLine(2, subs[1], { active: true }),
+      createRelicLine(3, subs[2], { active: true }),
     ],
-    fourthLine: {
-      slot: 4,
-      stat: subs[3],
-      hits: 0,
-      justHit: false,
-    },
+    fourthLine: createRelicLine(4, subs[3], { active: readyForUpgrades }),
     hasFourthLine: readyForUpgrades,
   };
 }
@@ -144,6 +142,7 @@ function createForceRelic(baseLines = 2) {
   const subs = pickUniqueRandom(SUBSTATS, 4, used);
   const meta = createRelicMeta();
   return {
+    id: createRelicId('free-force'),
     ...meta,
     mainStat,
     baseLines,
@@ -151,10 +150,10 @@ function createForceRelic(baseLines = 2) {
     forcedLine: Math.min(baseLines + 1, 4),
     isPrimed: false,
     lines: [
-      { slot: 1, stat: subs[0], hits: 0, justHit: false },
-      { slot: 2, stat: subs[1], hits: 0, justHit: false },
-      { slot: 3, stat: subs[2], hits: 0, justHit: false },
-      { slot: 4, stat: subs[3], hits: 0, justHit: false },
+      createRelicLine(1, subs[0], { active: true }),
+      createRelicLine(2, subs[1], { active: true }),
+      createRelicLine(3, subs[2], { active: true }),
+      createRelicLine(4, subs[3], { active: true }),
     ],
   };
 }
@@ -257,6 +256,8 @@ function ModernRelicCard({
   }[themeColor];
 
   const visibleLines = [...relic.lines, ...(relic.hasFourthLine ? [relic.fourthLine] : [])];
+  const mainStatDisplay = getMainStatDisplay(relic.mainStat, relic.level);
+  const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
 
   return (
     <article className="group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-slate-900/40 p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
@@ -313,9 +314,27 @@ function ModernRelicCard({
         <div className={`relative mb-4 flex items-center justify-between overflow-hidden rounded-xl border border-white/5 bg-black/40 px-4 py-2 shadow-sm`}>
            <div className="relative z-10 flex flex-col">
               <span className="text-[7px] font-black uppercase tracking-widest text-slate-600">Main Stat</span>
-              <span className="text-[11px] font-black uppercase text-white tracking-wide">{relic.mainStat}</span>
+              <span className="text-[11px] font-black uppercase text-white tracking-wide">{mainStatDisplay.label}</span>
+           </div>
+           <div className="relative z-10 text-right">
+              <div className="text-[10px] font-black text-white/90">{mainStatDisplay.display}</div>
            </div>
            <Zap className={`relative z-10 h-3 w-3 ${themeClasses.text} opacity-20`} />
+        </div>
+
+        <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2">
+          <div>
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Score</div>
+            <div className="text-[10px] font-black text-white">{relicScore.score}</div>
+          </div>
+          <div>
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Grade</div>
+            <div className="text-[10px] font-black text-amber-200">{relicScore.grade}</div>
+          </div>
+          <div>
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Rolls</div>
+            <div className="text-[10px] font-black text-cyan-200">{relicScore.rollCount}</div>
+          </div>
         </div>
 
         {/* Substats */}
@@ -347,9 +366,14 @@ function ModernRelicCard({
                       {SUBSTATS.map(stat => <option key={stat} value={stat} className="bg-slate-900">{stat}</option>)}
                     </select>
                   ) : (
-                    <span className={`text-[10px] font-black uppercase tracking-tight ${line.justHit ? 'text-white' : 'text-slate-500'}`}>
-                      {line.stat}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className={`text-[10px] font-black uppercase tracking-tight ${line.justHit ? 'text-white' : 'text-slate-500'}`}>
+                        {line.stat}
+                      </span>
+                      <span className={`text-[9px] font-mono ${line.justHit ? themeClasses.text : 'text-slate-600'}`}>
+                        {formatStatValue(line.stat, line.value)}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <div className={`flex h-6 min-w-[24px] items-center justify-center rounded-lg px-1.5 text-xs font-black ${line.justHit ? themeClasses.button : 'bg-white/5 text-slate-700'}`}>
@@ -363,7 +387,10 @@ function ModernRelicCard({
             <div className="flex h-10 items-center justify-between rounded-xl border border-dashed border-white/5 bg-white/[0.01] px-3 opacity-30">
                <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-dashed border-white/5 text-[8px] font-black text-slate-800">L4</div>
-                  <span className="text-[9px] font-black uppercase text-slate-800">{relic.fourthLine.stat}</span>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-black uppercase text-slate-800">{relic.fourthLine.stat}</span>
+                    <span className="text-[8px] font-mono text-slate-800">{formatStatValue(relic.fourthLine.stat, relic.fourthLine.value)}</span>
+                  </div>
                </div>
                <span className="text-[7px] font-bold text-slate-900">LOCKED</span>
             </div>
@@ -538,11 +565,19 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const [hintVisible, setHintVisible] = useState(false);
   const [sessionTab, setSessionTab] = useState('current');
   const [rollInput, setRollInput] = useState('');
+  const [sharedCarryLine, setSharedCarryLine] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(300);
   const [timerRunning, setTimerRunning] = useState(false);
   const [testRelicLoopMode, setTestRelicLoopMode] = useState(true);
 
   const containerRef = useRef(null);
+  const debugRef = useRef({
+    bucketKey: null,
+    historyLength: 0,
+    family: null,
+    commons: null,
+    phase: null,
+  });
   const moodConfig = SEED_MOODS[seedMood];
   const hintText = useMemo(() => describeHint(relic, patternProfile), [relic, patternProfile]);
   const predictorEntries = useMemo(() => buildEntryRows(sessionRolls), [sessionRolls]);
@@ -550,7 +585,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: FREE_MODE_REGION }), [translatedRolls]);
   const helperLineOverride = forceRelic.isPrimed
     ? forceRelic.forcedLine
-    : relic.lastLine || testRelic.lastLine || null;
+    : sharedCarryLine || relic.lastLine || testRelic.lastLine || null;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -563,38 +598,60 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     const lastSessionRoll = patternProfile?.history?.[patternProfile.history.length - 1] || '-';
-    const debugSnapshot = {
-      bucketKey,
-      seed: patternProfile?.seed,
-      mood: patternProfile?.mood,
-      family: patternProfile?.family,
-      historyLength: patternProfile?.history?.length || 0,
-      lastSessionRoll,
-      target: {
-        level: relic.level,
-        line: relic.lastLine,
-        rawPair: relic.lastRawPair || '-',
-        visibleRoll: relic.lastVisibleRoll || '-',
-      },
-      sessionBuilder: {
-        level: testRelic.level,
-        line: testRelic.lastLine,
-        rawPair: testRelic.lastRawPair || '-',
-        visibleRoll: testRelic.lastVisibleRoll || '-',
-        loopMode: testRelicLoopMode,
-      },
-      forceRelic: {
-        primed: forceRelic.isPrimed,
-        forcedLine: forceRelic.forcedLine,
-        baseLines: forceRelic.baseLines,
-      },
-    };
+    const historyLength = patternProfile?.history?.length || 0;
+    const commons = patternProfile?.commons?.join('/') || '-';
+    const previous = debugRef.current;
 
-    console.groupCollapsed(
-      `[FreeMode] bucket=${bucketKey} family=${patternProfile?.family || '-'} last=${lastSessionRoll}`
-    );
-    console.table(debugSnapshot);
-    console.groupEnd();
+    if (previous.bucketKey && previous.bucketKey !== bucketKey) {
+      console.info(
+        `[FreeMode] bucket rollover ${previous.bucketKey} -> ${bucketKey} | seed=${patternProfile?.seed} | mood=${patternProfile?.mood}`
+      );
+    }
+
+    if (
+      previous.family &&
+      (
+        previous.family !== (patternProfile?.family || null) ||
+        previous.commons !== commons ||
+        previous.phase !== (patternProfile?.phase || null)
+      )
+    ) {
+      console.info(
+        `[FreeMode] regime update ${previous.family}(${previous.commons || '-'}) -> ${patternProfile?.family || '-'}(${commons}) | phase=${patternProfile?.phase || '-'} | noise=${patternProfile?.noisePressure ?? 0}`
+      );
+    }
+
+    if (historyLength > previous.historyLength) {
+      console.groupCollapsed(
+        `[FreeMode] consumed ${lastSessionRoll} | bucket=${bucketKey} | family=${patternProfile?.family || '-'} | phase=${patternProfile?.phase || '-'}`
+      );
+      console.table({
+        bucketKey,
+        seed: patternProfile?.seed,
+        mood: patternProfile?.mood,
+        family: patternProfile?.family,
+        phase: patternProfile?.phase,
+        commons,
+        noise: patternProfile?.noise?.join('/') || '-',
+        noisePressure: patternProfile?.noisePressure ?? 0,
+        dominantRoll: patternProfile?.dominantRoll || '-',
+        regimeShiftCount: patternProfile?.regimeShiftCount ?? 0,
+        historyLength,
+        lastSessionRoll,
+        target: `${relic.level} | L${relic.lastLine || '-'} | ${relic.lastRawPair || '-'} -> ${relic.lastVisibleRoll || '-'}`,
+        sessionBuilder: `${testRelic.level} | L${testRelic.lastLine || '-'} | ${testRelic.lastRawPair || '-'} -> ${testRelic.lastVisibleRoll || '-'} | loop=${testRelicLoopMode ? 'on' : 'off'}`,
+        forceRelic: `primed=${forceRelic.isPrimed} | line=${forceRelic.forcedLine} | base=${forceRelic.baseLines}`,
+      });
+      console.groupEnd();
+    }
+
+    debugRef.current = {
+      bucketKey,
+      historyLength,
+      family: patternProfile?.family || null,
+      commons,
+      phase: patternProfile?.phase || null,
+    };
   }, [
     bucketKey,
     patternProfile,
@@ -646,6 +703,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     setTestRelic(createTestRelic());
     setForceRelic(createForceRelic(forceRelic.baseLines));
     setSessionRolls([]);
+    setSharedCarryLine(null);
     setHintVisible(false);
     setSecondsLeft(300);
     setTimerRunning(false);
@@ -704,11 +762,12 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
       if (targetIndex < 0) return current;
       const existingIndex = activeLines.findIndex((line, index) => index !== targetIndex && line.stat === nextStat);
       if (existingIndex >= 0) {
-        const swapStat = activeLines[targetIndex].stat;
-        activeLines[targetIndex].stat = nextStat;
-        activeLines[existingIndex].stat = swapStat;
+        const currentTarget = activeLines[targetIndex];
+        const currentExisting = activeLines[existingIndex];
+        activeLines[targetIndex] = replaceRelicLineStat(currentTarget, nextStat, { preserveActive: true });
+        activeLines[existingIndex] = replaceRelicLineStat(currentExisting, currentTarget.stat, { preserveActive: true });
       } else {
-        activeLines[targetIndex].stat = nextStat;
+        activeLines[targetIndex] = replaceRelicLineStat(activeLines[targetIndex], nextStat, { preserveActive: true });
       }
       return {
         ...current,
@@ -735,7 +794,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
         lastVisibleRoll: '',
         hasFourthLine: true,
         lines: currentRelic.lines.map((line) => ({ ...line, justHit: false })),
-        fourthLine: { ...currentRelic.fourthLine, justHit: false },
+        fourthLine: { ...activateRelicLine(currentRelic.fourthLine), justHit: false },
       };
     }
 
@@ -743,14 +802,14 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
 
     const nextSequenceIndex = Array.isArray(currentPatternProfile?.history) ? currentPatternProfile.history.length : 0;
     const visibleRoll = getVisibleRollForUpgrade(currentPatternProfile, nextSequenceIndex);
-    const previousLine = Number.isInteger(forcedSlot) ? forcedSlot : (currentRelic.lastLine || 4);
+    const previousLine = Number.isInteger(forcedSlot)
+      ? forcedSlot
+      : (sharedCarryLine || currentRelic.lastLine || 4);
     const { rawPair, targetSlot } = resolveNextSlotFromVisibleRoll(previousLine, visibleRoll);
     const nextLevel = Math.min(currentRelic.level + 3, 15);
-    const activeLines = [...currentRelic.lines, currentRelic.fourthLine].map((line) => ({
-      ...line,
-      hits: line.slot === targetSlot ? line.hits + 1 : line.hits,
-      justHit: line.slot === targetSlot,
-    }));
+    const activeLines = [...currentRelic.lines, currentRelic.fourthLine].map((line) => (
+      line.slot === targetSlot ? applyUpgradeRoll(line) : { ...line, justHit: false }
+    ));
 
     return {
       ...currentRelic,
@@ -769,6 +828,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
 
     if (nextRelic.level > relic.level && nextRelic.lastVisibleRoll) {
       setPatternProfile((current) => advancePatternProfile(current, nextRelic.lastVisibleRoll));
+      setSharedCarryLine(nextRelic.lastLine || null);
     }
 
     if (forceRelic.isPrimed && relic.hasFourthLine) {
@@ -787,6 +847,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     const previousLevel = startingRelic.level;
     if (nextRelic.level > previousLevel && nextRelic.lastVisibleRoll) {
       setPatternProfile((current) => advancePatternProfile(current, nextRelic.lastVisibleRoll));
+      setSharedCarryLine(nextRelic.lastLine || null);
     }
   };
 
@@ -832,7 +893,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div ref={containerRef} className={`min-h-screen bg-[#080B14] text-slate-200 relative overflow-x-hidden ${themeConfig.rootClassName || ''}`}>
+    <div ref={containerRef} className={`min-h-screen bg-[#080B14] text-slate-200 relative ${themeConfig.rootClassName || ''}`}>
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div className="absolute top-0 left-0 h-full w-full bg-[radial-gradient(ellipse_at_center,rgba(15,18,25,0.7),#080B14)]" />
       </div>
@@ -983,6 +1044,9 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
                 <p className="text-[10px] text-slate-700 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
                 <p className="mt-3 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
                   Seed bucket {bucketKey}
+                </p>
+                <p className="mt-1 text-[9px] text-slate-600">
+                  Bucket rolls forward only while the session timer is running.
                 </p>
              </div>
           </aside>

@@ -10,8 +10,11 @@ function normalizeConfiguredApiBase(value) {
 }
 
 const configuredApiBase = normalizeConfiguredApiBase(import.meta.env.VITE_API_BASE_URL);
+const forceRemoteApi = String(import.meta.env.VITE_FORCE_REMOTE_API || '').trim().toLowerCase() === 'true';
 
-export const API_BASE_URL = configuredApiBase || (isDevHost() ? '' : 'https://svarog-tracer.vercel.app');
+export const API_BASE_URL = isDevHost() && !forceRemoteApi
+  ? ''
+  : configuredApiBase || 'https://svarog-tracer.vercel.app';
 
 export function buildApiUrl(path) {
   return `${API_BASE_URL}${path}`;

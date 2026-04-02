@@ -20,6 +20,8 @@ export default function ModernStatsPanel({
   prediction4,
   currentRegion,
   currentPatch,
+  forcedLineOverride = null,
+  tutorialIds = {},
 }) {
   const [manualLine, setManualLine] = useState("");
   const [activeTab, setActiveTab] = useState("2");
@@ -34,12 +36,13 @@ export default function ModernStatsPanel({
   const displayMode = normalizeDisplayToken(prediction?.mode) || EMPTY_PLACEHOLDER;
 
   const autoLine = useMemo(() => {
+    if (forcedLineOverride) return Number(forcedLineOverride);
     if (entries && entries.length > 0) {
       const latestEntry = entries[entries.length - 1];
       return detectLineFromRaw(latestEntry.raw);
     }
     return null;
-  }, [entries]);
+  }, [entries, forcedLineOverride]);
 
   const autoShiftedMain =
     mainPred && autoLine ? caesarShiftForLine(mainPred, autoLine) : mainPred;
@@ -103,7 +106,7 @@ export default function ModernStatsPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div id={tutorialIds.autoSectionId} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/30">
           <div className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
             Main Prediction
@@ -138,7 +141,7 @@ export default function ModernStatsPanel({
         </div>
       </div>
 
-      <div className="pt-6 border-t border-slate-700/30">
+      <div id={tutorialIds.manualSectionId} className="pt-6 border-t border-slate-700/30">
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">
             Line Helper (Manual)

@@ -103,7 +103,24 @@ function LobbyRelicPreview({ title, relic, accent = 'cyan' }) {
     <div className={`rounded-2xl border p-4 ${accentClasses}`}>
       <div className="flex items-start gap-3">
         {relic.setImage ? (
-          <img src={relic.setImage} alt={relic.setNameHint || relic.setName || title} className="h-12 w-12 rounded-xl border border-white/10 bg-black/30 object-cover" />
+          <div className="relative h-12 w-12">
+            <img
+              src={relic.setImage}
+              alt={relic.setNameHint || relic.setName || title}
+              className="h-12 w-12 rounded-xl border border-white/10 bg-black/30 object-cover"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+                const fallback = event.currentTarget.nextElementSibling;
+                if (fallback instanceof HTMLElement) fallback.style.display = 'flex';
+              }}
+            />
+            <div
+              style={{ display: 'none' }}
+              className="absolute inset-0 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300"
+            >
+              {(relic.setNameHint || relic.setName || title).split(' ').slice(0, 2).map((part) => part[0]).join('')}
+            </div>
+          </div>
         ) : (
           <div className="h-12 w-12 rounded-xl border border-white/10 bg-black/30" />
         )}
@@ -494,11 +511,24 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                         title={entry.name}
                       >
                         {entry.image ? (
-                          <img
-                            src={entry.image}
-                            alt={entry.name}
-                            className="h-10 w-10 rounded-lg border border-white/10 bg-black/30 object-cover"
-                          />
+                          <div className="relative h-10 w-10 shrink-0">
+                            <img
+                              src={entry.image}
+                              alt={entry.name}
+                              className="h-10 w-10 rounded-lg border border-white/10 bg-black/30 object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none';
+                                const fallback = event.currentTarget.nextElementSibling;
+                                if (fallback instanceof HTMLElement) fallback.style.display = 'flex';
+                              }}
+                            />
+                            <div
+                              style={{ display: 'none' }}
+                              className="absolute inset-0 items-center justify-center rounded-lg border border-white/10 bg-black/40 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300"
+                            >
+                              {entry.name.split(' ').slice(0, 2).map((part) => part[0]).join('')}
+                            </div>
+                          </div>
                         ) : (
                           <div className="h-10 w-10 rounded-lg border border-white/10 bg-black/30" />
                         )}
@@ -678,13 +708,13 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                   </>
                 ) : null}
 
-                {(room.status === 'active' || room.status === 'finished') ? (
+                {(room.status === 'countdown' || room.status === 'active' || room.status === 'finished') ? (
                   <button
                     type="button"
                     onClick={openBoard}
                     className="inline-flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/12 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-rose-100 transition-all hover:bg-rose-500/20"
                   >
-                    Enter Race Board
+                    {room.status === 'countdown' ? 'Enter Countdown Board' : 'Enter Race Board'}
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 ) : null}

@@ -8,8 +8,9 @@ export default function ModernSessionTable({
   prevSessions,
   onDeleteEntry,
   onDeleteSession,
-  onImportRolls, // NEW: Callback to import rolls from file
-  isAutoImporting = false, // NEW: Track if import is in progress
+  onImportRolls,
+  isAutoImporting = false,
+  compact = false, // NEW: Hide extra columns for cleaner UX
 }) {
   // pad 4/3/2 digit translated strings to 5 digits like 41 -> 41000
   function padTo5(str = "") {
@@ -215,10 +216,14 @@ export default function ModernSessionTable({
               <tr className="text-left text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 <th className="py-3 px-6">Raw</th>
                 <th className="py-3 px-4">Translated</th>
-                <th className="py-3 px-4">2-str</th>
-                <th className="py-3 px-4">3-str</th>
-                <th className="py-3 px-4">4-str</th>
-                <th className="py-3 px-4">5-str</th>
+                {!compact && (
+                  <>
+                    <th className="py-3 px-4">2-str</th>
+                    <th className="py-3 px-4">3-str</th>
+                    <th className="py-3 px-4">4-str</th>
+                    <th className="py-3 px-4">5-str</th>
+                  </>
+                )}
                 <th className="py-3 px-4">Time</th>
                 <th className="py-3 px-6"></th>
               </tr>
@@ -237,18 +242,22 @@ export default function ModernSessionTable({
                       {e.translated}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
-                    {toTranslatedPadded(e.s2)}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
-                    {toTranslatedPadded(e.s3)}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
-                    {toTranslatedPadded(e.s4)}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
-                    {toTranslatedPadded(e.s5)}
-                  </td>
+                  {!compact && (
+                    <>
+                      <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
+                        {toTranslatedPadded(e.s2)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
+                        {toTranslatedPadded(e.s3)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
+                        {toTranslatedPadded(e.s4)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
+                        {toTranslatedPadded(e.s5)}
+                      </td>
+                    </>
+                  )}
                   <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
                     {e.time && !isNaN(new Date(e.time).getTime()) 
                       ? new Date(e.time).toLocaleTimeString() 
@@ -464,10 +473,14 @@ export default function ModernSessionTable({
               <tr className="text-left text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 <th className="py-3 px-6">Raw</th>
                 <th className="py-3 px-4">Translated</th>
-                <th className="py-3 px-4">2-str</th>
-                <th className="py-3 px-4">3-str</th>
-                <th className="py-3 px-4">4-str</th>
-                <th className="py-3 px-4">5-str</th>
+                {!compact && (
+                  <>
+                    <th className="py-3 px-4">2-str</th>
+                    <th className="py-3 px-4">3-str</th>
+                    <th className="py-3 px-4">4-str</th>
+                    <th className="py-3 px-4">5-str</th>
+                  </>
+                )}
                 <th className="py-3 px-4">Time</th>
               </tr>
             </thead>
@@ -487,18 +500,22 @@ export default function ModernSessionTable({
                         {e.translated}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
-                      {toTranslatedPadded(e.s2)}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
-                      {toTranslatedPadded(e.s3)}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
-                      {toTranslatedPadded(e.s4)}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
-                      {toTranslatedPadded(e.s5)}
-                    </td>
+                    {!compact && (
+                      <>
+                        <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-200">
+                          {toTranslatedPadded(e.s2)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-300">
+                          {toTranslatedPadded(e.s3)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-400">
+                          {toTranslatedPadded(e.s4)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] sm:text-xs text-slate-500">
+                          {toTranslatedPadded(e.s5)}
+                        </td>
+                      </>
+                    )}
                     <td className="py-3 px-4 text-[11px] sm:text-xs text-slate-500">
                       {e.time && !isNaN(new Date(e.time).getTime()) 
                         ? new Date(e.time).toLocaleTimeString() 

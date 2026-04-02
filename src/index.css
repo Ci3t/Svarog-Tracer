@@ -15,7 +15,7 @@
   --theme-text-soft: #64748b;
   --theme-accent: #a78bfa;
   --theme-accent-strong: #8b5cf6;
-  --theme-accent-soft: rgba(139, 92, 246, 0.18);
+  --theme-accent-soft: rgba(139, 92, 146, 0.18);
   --theme-accent-contrast: #ffffff;
   --theme-surface-1: rgba(15, 23, 42, 0.72);
   --theme-surface-2: rgba(15, 23, 42, 0.58);
@@ -79,17 +79,9 @@ body {
 }
 
 @keyframes progress-scan {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  50% {
-    transform: translateX(100%);
-  }
-
-  100% {
-    transform: translateX(300%);
-  }
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(300%); }
 }
 
 .animate-progress-scan {
@@ -294,4 +286,41 @@ body {
 .modern-theme .window-progress-track {
   border: 1px solid var(--theme-progress-track-border);
   box-shadow: var(--theme-progress-track-shadow);
+}
+
+/* 🛑 GLOBAL OVERRIDE UTILITIES 🛑 */
+/* Explicitly targeting theme-specific containers to force overflow:visible for pop-outs */
+.arctic-theme .theme-glass-card.force-overflow-visible,
+.void-theme .theme-glass-card.force-overflow-visible,
+.crimson-theme .theme-glass-card.force-overflow-visible,
+.astral-theme .theme-glass-card.force-overflow-visible {
+  overflow: visible !important;
+}
+
+.force-overflow-visible {
+  overflow: visible !important;
+}
+
+/* Holographic Chat Bubble Animations */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.animate-float-gentle {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

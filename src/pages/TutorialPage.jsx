@@ -6,11 +6,17 @@ import {
   ChevronRight,
   Clock3,
   History,
+  Lightbulb,
   Map,
   RotateCcw,
   Target,
   Wand2,
   X,
+  Trophy,
+  Activity,
+  Gamepad2,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
@@ -97,7 +103,109 @@ const LEVEL_TWO_SHIFTED_LINE_SEQUENCE = [2, 3, 2, 3];
 const LEVEL_TWO_VISIBLE_ROLLS = ['42', '44', '41', '44'];
 const LEVEL_THREE_FOURTH_LINE = { slot: 4, stat: 'EFFECT HIT RATE', tone: 'bad', hits: 0 };
 const TUTORIAL_TOUR_KEY = 'svarog-tutorial-tour-v1';
+const TUTORIAL_STAGE_TWO_TOUR_KEY = 'svarog-tutorial-tour-v2';
 const TOUR_STEPS = tutorialStageOneScript;
+const STAGE_TWO_INTRO_STEPS = [
+  {
+    target: '#tutorial-stage-goal',
+    title: 'Stage 2 Goal',
+    body: 'This stage is a challenge. Your goal is to land dual crit by choosing the correct detour before you return to the target relic.',
+    action: 'next',
+    placement: 'right',
+  },
+  {
+    target: '#tutorial-advanced-toggle',
+    title: 'Start With Advanced Mode',
+    body: 'Before you solve Stage 2, open Advanced Mode on the predictor. Do not forget what you learned in Stage 1: read the board first, then decide whether the direct path is bad.',
+    action: 'click',
+    prompt: 'Click Show details to open Advanced Mode.',
+    waitFor: {
+      type: 'selector',
+      value: '#tutorial-advanced-panel',
+    },
+    placement: 'right',
+  },
+  {
+    target: '#tutorial-target-relic',
+    title: 'Read The Target First',
+    body: 'Start by checking whether the current pair actually helps this relic. One side still drifts into the wrong line if you upgrade directly.',
+    action: 'next',
+    placement: 'left',
+  },
+  {
+    target: '#tutorial-setup-relic',
+    title: 'New Tool: Line 2 Detour',
+    body: 'Stage 2 teaches a different reset path. One detour changes the practical mapping so the pair comes back on the crit side.',
+    action: 'next',
+    placement: 'left',
+  },
+  {
+    target: '#tutorial-stage-hints',
+    title: 'Hints, Not Handholding',
+    body: 'There is no full guide here. Use the lamp if you get stuck, and if you make a couple of bad moves the page will nudge you toward a hint.',
+    action: 'next',
+    placement: 'left',
+  },
+];
+const TUTORIAL_STAGE_THREE_TOUR_KEY = 'svarog-tutorial-tour-v3';
+const STAGE_THREE_INTRO_STEPS = [
+  {
+    target: '#tutorial-stage-goal',
+    title: 'Stage 3 Goal',
+    body: 'This stage is about mono-lining SPD. You are not trying to split value across good stats anymore. You want the whole path to stay on SPD.',
+    action: 'next',
+    placement: 'right',
+  },
+  {
+    target: '#tutorial-target-relic',
+    title: 'Mono This Relic',
+    body: 'Look at the target relic first. SPD is the line you care about. If the path drifts, the run is no longer a true mono hit.',
+    action: 'next',
+    placement: 'left',
+  },
+  {
+    target: '#tutorial-setup-relic',
+    title: 'Reinforce The Line',
+    body: 'This reset relic is the tool for Stage 3. Re-use it to reinforce line 2 before the next upgrade so the practical hit keeps coming back to SPD.',
+    action: 'next',
+    placement: 'left',
+  },
+  {
+    target: '#tutorial-stage-hints',
+    title: 'Do It Alone',
+    body: 'That is all the briefing you get here. Use the board, use the detour, and solve the mono path yourself. If you get stuck, the lamp can still help.',
+    action: 'next',
+    placement: 'left',
+  },
+];
+const LEVEL_TWO_HINTS = [
+  {
+    title: 'Read The Relic First',
+    body: 'Check whether the direct path really helps this relic. If one side of the pair lands on junk, you probably need a detour first.',
+  },
+  {
+    title: 'Use The Right Detour',
+    body: 'One reset relic here changes the practical line mapping. Try forcing line 2 before returning to the target relic.',
+  },
+  {
+    title: 'Trust The Better Mapping',
+    body: 'If the detour is active, the same visible rolls land on the crit side instead of Flat HP / junk. That is the path you want to keep.',
+  },
+];
+const LEVEL_THREE_HINTS = [
+  {
+    title: 'First Hit Is Not Enough',
+    body: 'The first SPD hit looks good, but the line will drift if you do not re-prime the setup before the next upgrade.',
+  },
+  {
+    title: 'Repeat The Detour',
+    body: 'Use the 1-line relic again before the next hit. Re-forcing line 2 is what keeps the visible 41 landing back on SPD.',
+  },
+  {
+    title: 'Goal = Mono SPD',
+    body: 'If you stop re-forcing, the path leaks into bad lines. Keep priming the setup relic before the next upgrade if you want all hits on SPD.',
+  },
+];
 
 function TutorialTourOverlay({
   steps,
@@ -140,18 +248,46 @@ function TutorialTourOverlay({
   const cardWidth = 340;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const preferBelow = rect.bottom + 220 < viewportHeight;
-  const top = preferBelow ? rect.bottom + 16 : Math.max(24, rect.top - 200);
-  const left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  const placement = step.placement || 'auto';
+  const canPlaceRight = rect.right + 24 + cardWidth < viewportWidth;
+  const canPlaceLeft = rect.left - cardWidth - 24 > 24;
+  const canPlaceBelow = rect.bottom + 240 < viewportHeight;
+  const canPlaceAbove = rect.top - 220 > 24;
+
+  let top;
+  let left;
+
+  if (placement === 'right' && canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (placement === 'left' && canPlaceLeft) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.left - cardWidth - 24;
+  } else if (placement === 'bottom' && canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (placement === 'top' && canPlaceAbove) {
+    top = rect.top - 200;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else if (canPlaceRight) {
+    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
+    left = rect.right + 24;
+  } else if (canPlaceBelow) {
+    top = rect.bottom + 16;
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  } else {
+    top = Math.max(24, rect.top - 200);
+    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  }
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[120]">
       <div
-        className="absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]"
+        className="pointer-events-auto absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]"
         style={{ height: Math.max(0, rect.top - 8) }}
       />
       <div
-        className="absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        className="pointer-events-auto absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
         style={{
           top: Math.max(0, rect.top - 8),
           width: Math.max(0, rect.left - 8),
@@ -159,7 +295,7 @@ function TutorialTourOverlay({
         }}
       />
       <div
-        className="absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        className="pointer-events-auto absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
         style={{
           top: Math.max(0, rect.top - 8),
           left: rect.left + rect.width + 8,
@@ -167,7 +303,7 @@ function TutorialTourOverlay({
         }}
       />
       <div
-        className="absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        className="pointer-events-auto absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
         style={{ top: rect.top + rect.height + 8 }}
       />
       <div
@@ -504,7 +640,16 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [tourSelectorSatisfied, setTourSelectorSatisfied] = useState(false);
-  const tourSteps = useMemo(() => (level === 1 ? TOUR_STEPS : []), [level]);
+  const [challengeMistakes, setChallengeMistakes] = useState(0);
+  const [hintIndex, setHintIndex] = useState(0);
+  const [hintOpen, setHintOpen] = useState(false);
+  const [challengeFeedback, setChallengeFeedback] = useState(null);
+  const tourSteps = useMemo(() => {
+    if (level === 1) return TOUR_STEPS;
+    if (level === 2) return STAGE_TWO_INTRO_STEPS;
+    if (level === 3) return STAGE_THREE_INTRO_STEPS;
+    return [];
+  }, [level]);
 
   const scriptedEntries = useMemo(
     () =>
@@ -529,6 +674,10 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   );
 
   const shiftActive = isLevelTwo || isLevelThree ? oneLineSetupRelic.forced : setupRelic.forced;
+  const activeChallengeHints = useMemo(
+    () => (isLevelThree ? LEVEL_THREE_HINTS : isLevelTwo ? LEVEL_TWO_HINTS : []),
+    [isLevelThree, isLevelTwo]
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -729,11 +878,54 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     return undefined;
   }, [level]);
 
+  useEffect(() => {
+    if (level !== 2) return;
+    try {
+      const seen = window.localStorage.getItem(TUTORIAL_STAGE_TWO_TOUR_KEY);
+      if (!seen) {
+        const timer = setTimeout(() => setTourRunning(true), 500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      const timer = setTimeout(() => setTourRunning(true), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [level]);
+
+  useEffect(() => {
+    if (level !== 3) return;
+    try {
+      const seen = window.localStorage.getItem(TUTORIAL_STAGE_THREE_TOUR_KEY);
+      if (!seen) {
+        const timer = setTimeout(() => setTourRunning(true), 500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      const timer = setTimeout(() => setTourRunning(true), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [level]);
+
+  useEffect(() => {
+    setChallengeMistakes(0);
+    setHintIndex(0);
+    setHintOpen(false);
+    setChallengeFeedback(null);
+  }, [level]);
+
   const closeTour = () => {
     setTourRunning(false);
     setTourStepIndex(0);
     try {
-      window.localStorage.setItem(TUTORIAL_TOUR_KEY, 'seen');
+      if (level === 1) {
+        window.localStorage.setItem(TUTORIAL_TOUR_KEY, 'seen');
+      } else if (level === 2) {
+        window.localStorage.setItem(TUTORIAL_STAGE_TWO_TOUR_KEY, 'seen');
+      } else if (level === 3) {
+        window.localStorage.setItem(TUTORIAL_STAGE_THREE_TOUR_KEY, 'seen');
+      }
     } catch {
       // ignore
     }
@@ -749,6 +941,11 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
 
   const previousTourStep = () => {
     setTourStepIndex((value) => Math.max(0, value - 1));
+  };
+
+  const revealNextHint = () => {
+    setHintOpen(true);
+    setHintIndex((value) => Math.min(value + 1, Math.max(0, activeChallengeHints.length - 1)));
   };
 
   const handleTargetAction = () => {
@@ -805,6 +1002,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
         : (translateTo4(rawPair) || '42');
     }
     const statLabel = targetRelic.lines.find((line) => line.slot === hitSlot)?.stat || `LINE ${hitSlot}`;
+    const resultingTone = targetRelic.lines.find((line) => line.slot === hitSlot)?.tone || 'bad';
 
     setTutorialRolls((existing) => [...existing, recordedRoll]);
     setHistoryRows((existing) => {
@@ -837,6 +1035,25 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
         ),
       };
     });
+
+    if (level !== 1) {
+      if (resultingTone === 'bad') {
+        setChallengeMistakes((value) => value + 1);
+        setChallengeFeedback({
+          tone: 'bad',
+          text: isLevelThree
+            ? `${statLabel} drifted in. Re-check the setup path before the next upgrade.`
+            : `${statLabel} is the bad side here. You may need the detour before returning to the target relic.`,
+        });
+      } else {
+        setChallengeFeedback({
+          tone: 'good',
+          text: isLevelThree
+            ? `${statLabel} stayed on the mono lane.`
+            : `${statLabel} is on the good side. Keep checking whether the setup is still helping.`,
+        });
+      }
+    }
 
     if (isLevelThree && shiftActive) {
       setOneLineSetupRelic({
@@ -887,6 +1104,14 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     if (!isLevelThree) {
       setShiftedStepIndex(1);
     }
+    if (level !== 1) {
+      setChallengeFeedback({
+        tone: 'info',
+        text: isLevelThree
+          ? 'Detour primed. Now return to the target relic before the next upgrade.'
+          : 'Line 2 detour is ready. Check the target relic mapping again before you upgrade.',
+      });
+    }
   };
 
   const handleResetScenario = () => {
@@ -912,7 +1137,201 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     setLastDirectLine(4);
     setLastShiftedLine(isLevelThree ? 2 : 3);
     setActiveChapter(CHAPTERS[0].id);
+    if (level !== 1) {
+      setChallengeFeedback({
+        tone: 'info',
+        text: 'Scenario reset. Read the board again before you commit to the next path.',
+      });
+    }
   };
+
+  const completionRef = useRef(null);
+
+  useEffect(() => {
+    if (hasLevelThreeClear && completionRef.current) {
+      const q = gsap.utils.selector(completionRef.current);
+      
+      // Reset initial states
+      gsap.set(q('.completion-content'), { opacity: 0, scale: 0.95 });
+      gsap.set(q('.completion-visual'), { opacity: 0, x: 50 });
+      gsap.set(q('.stagger-item'), { opacity: 0, y: 20 });
+      
+      const tl = gsap.timeline({ delay: 0.2 });
+      
+      tl.to(q('.completion-content'), {
+        opacity: 1,
+        scale: 1,
+        duration: 1,
+        ease: 'power4.out',
+      })
+      .to(q('.completion-visual'), {
+        opacity: 1,
+        x: 0,
+        duration: 1.2,
+        ease: 'power3.out',
+      }, '-=0.6')
+      .to(q('.stagger-item'), {
+        opacity: 1,
+        y: 0,
+        stagger: 0.1,
+        duration: 0.8,
+        ease: 'back.out(1.7)',
+      }, '-=1');
+
+      // Floating animation for Svarog
+      gsap.to(q('.floating-svarog'), {
+        y: 15,
+        duration: 3,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      });
+    }
+  }, [hasLevelThreeClear]);
+
+  if (hasLevelThreeClear) {
+    return (
+      <div ref={completionRef} className={`min-h-screen bg-[#06080F] text-slate-200 relative overflow-hidden flex items-center justify-center p-6 ${themeConfig.rootClassName || ''}`}>
+        {/* Advanced Ambient Background */}
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+          <div className="absolute top-[-25%] left-[-15%] h-[1200px] w-[1200px] rounded-full bg-emerald-600/10 blur-[180px] mix-blend-screen opacity-60"></div>
+          <div className="absolute right-[-15%] top-[-10%] h-[1000px] w-[1000px] rounded-full bg-cyan-600/15 blur-[160px] mix-blend-screen opacity-70"></div>
+          <div className="absolute bottom-[-20%] left-[10%] h-[1100px] w-[1100px] rounded-full bg-violet-600/10 blur-[200px] mix-blend-screen opacity-50"></div>
+          
+          {/* Tactical Grid Overlay */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black,transparent)]" />
+          
+          <div className="absolute inset-0 bg-[#06080F]/40 backdrop-brightness-[0.3]"></div>
+        </div>
+
+        <div className="relative z-10 w-full max-w-[1400px] flex flex-col lg:flex-row items-center justify-between gap-12">
+          
+          {/* LEFT: Success Message & Content */}
+          <div className="completion-content relative w-full lg:w-[55%] xl:w-[60%]">
+            <div className="relative overflow-hidden rounded-[3.5rem] border border-white/10 bg-slate-950/40 p-10 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.6)] backdrop-blur-3xl">
+              {/* Internal Glows */}
+              <div className="pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-emerald-400/10 blur-[100px]" />
+              <div className="pointer-events-none absolute -left-24 bottom-10 h-72 w-72 rounded-full bg-cyan-400/5 blur-[90px]" />
+
+              <div className="relative flex flex-col gap-10">
+                <div className="stagger-item">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="h-px w-8 bg-emerald-400/40" />
+                    <div className="text-[11px] font-black uppercase tracking-[0.4em] text-emerald-300 flex items-center gap-2">
+                       <Trophy className="h-3.5 w-3.5" />
+                       Tactical Certification Complete
+                    </div>
+                  </div>
+                  <h1 className="text-4xl font-black uppercase tracking-tight text-white md:text-6xl leading-[1.05]">
+                    Mission <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-400 to-violet-400">Accomplished</span>
+                  </h1>
+                </div>
+
+                <div className="stagger-item flex flex-wrap items-center gap-4">
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-emerald-400/20 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative rounded-full border border-emerald-400/30 bg-emerald-400/10 px-6 py-2.5 text-[12px] font-black uppercase tracking-[0.2em] text-emerald-200 backdrop-blur-sm">
+                      Stage 03 Clear
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-[11px] font-black uppercase tracking-[0.2em] text-slate-300">
+                    Svarog Basic Course
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 tracking-[0.1em]">
+                    <Sparkles className="h-3 w-3 text-amber-400" />
+                    SYNCCON_V4.1.1
+                  </div>
+                </div>
+
+                <div className="stagger-item space-y-6 max-w-2xl">
+                  <p className="text-lg md:text-xl font-medium leading-relaxed text-slate-300">
+                    Verification complete. You have demonstrated mastery of the <span className="text-cyan-300">Svarog Prediction Logic</span>, loop stabilization, and detour protocols.
+                  </p>
+                  <p className="text-base text-slate-400 leading-relaxed border-l-2 border-emerald-500/20 pl-6">
+                    Your tactical profile is now ready for deployment. Choose your next destination below to continue refining your relic manipulation skills.
+                  </p>
+                </div>
+
+                <div className="stagger-item grid gap-5 md:grid-cols-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/live')}
+                    className="group relative overflow-hidden rounded-[2rem] border border-cyan-500/30 bg-cyan-500/10 p-1 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-cyan-500/10"
+                  >
+                    <div className="relative z-10 flex flex-col items-start p-6 text-left">
+                      <div className="mb-4 rounded-xl bg-cyan-400/20 p-3 text-cyan-300 group-hover:bg-cyan-400/30 transition-colors">
+                        <Activity className="h-6 w-6" />
+                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-300/70 mb-1">Live Deployment</div>
+                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-cyan-100 transition-colors">Go Live Mode</div>
+                      <p className="mt-3 text-sm text-slate-300 leading-relaxed"> Apply your training to real-time predictive sessions immediately. </p>
+                    </div>
+                    {/* Hover Glow */}
+                    <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-cyan-400/10 blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/playground')}
+                    className="group relative overflow-hidden rounded-[2rem] border border-amber-500/20 bg-slate-900/40 p-1 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:border-amber-500/40 hover:bg-amber-500/5"
+                  >
+                    <div className="relative z-10 flex flex-col items-start p-6 text-left">
+                      <div className="mb-4 rounded-xl bg-amber-500/10 p-3 text-amber-400 group-hover:bg-amber-500/20 transition-colors">
+                        <Gamepad2 className="h-6 w-6" />
+                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/60 mb-1">Sandbox Reps</div>
+                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-amber-100 transition-colors">Playground</div>
+                      <p className="mt-3 text-sm text-slate-400 leading-relaxed"> Earn badges, track detailed progress, and run low-risk simulation reps. </p>
+                    </div>
+                  </button>
+                </div>
+                
+                <div className="stagger-item flex items-center justify-between pt-6 border-t border-white/5">
+                   <div className="flex items-center gap-4 text-slate-500 text-[11px] font-bold uppercase tracking-widest">
+                      <span className="flex items-center gap-1.5"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> STATUS: CERTIFIED</span>
+                      <span className="flex items-center gap-1.5"><div className="h-1.5 w-1.5 rounded-full bg-cyan-500" /> ACCESS: GRANTED</span>
+                   </div>
+                   <button 
+                     onClick={() => navigate('/')}
+                     className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+                   >
+                     Back to HQ <ArrowRight className="h-3.5 w-3.5" />
+                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Visual Asset (Svarog) */}
+          <div className="completion-visual relative hidden w-[40%] lg:flex items-center justify-center">
+            {/* Background Halo */}
+            <div className="absolute inset-0 flex items-center justify-center">
+               <div className="h-[500px] w-[500px] rounded-full bg-emerald-500/5 blur-[100px] animate-pulse" />
+               <div className="h-[400px] w-[400px] rounded-full border border-emerald-500/10 bg-transparent animate-spin-slow" style={{ animationDuration: '20s' }} />
+               <div className="absolute h-[350px] w-[350px] rounded-full border border-cyan-500/5 bg-transparent animate-spin-slow direction-reverse" style={{ animationDuration: '25s' }} />
+            </div>
+            
+            <div className="floating-svarog relative z-10 w-full max-w-[550px]">
+              <img
+                src="/prof-Svarog.png"
+                alt="Professor Svarog"
+                className="w-full h-auto object-contain drop-shadow-[0_45px_70px_rgba(0,0,0,0.65)] grayscale-[0.2] hover:grayscale-0 transition-all duration-700"
+              />
+              {/* Data Overlay Badge */}
+              <div className="absolute -right-4 top-1/4 rounded-2xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl shadow-2xl">
+                 <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 mb-1">Instructor</div>
+                 <div className="text-base font-black text-white">PROF. SVAROG</div>
+                 <div className="mt-2 h-1 w-20 bg-cyan-500/30 rounded-full overflow-hidden">
+                    <div className="h-full bg-cyan-400 animate-[shimmer_2s_infinite]" style={{ width: '40%' }} />
+                 </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className={`min-h-screen p-4 md:p-6 lg:p-8 bg-[#0B0F19] text-slate-200 relative overflow-x-hidden ${themeConfig.rootClassName || ''}`}>
@@ -926,7 +1345,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
       </div>
 
       <div className="mx-auto w-full max-w-[1900px] relative z-10 flex flex-col gap-6">
-        {level === 1 && tourRunning && (
+        {tourRunning && tourSteps.length > 0 && (
           <TutorialTourOverlay
             steps={tourSteps}
             currentStep={tourStepIndex}
@@ -968,6 +1387,18 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 Start Guide
               </button>
             )}
+            {level === 2 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTourStepIndex(0);
+                  setTourRunning(true);
+                }}
+                className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-cyan-300 transition-all hover:bg-cyan-500/10 hover:border-cyan-500/40"
+              >
+                Stage 2 Briefing
+              </button>
+            )}
             <div id="tutorial-level-switcher" className="rounded-2xl border border-white/5 bg-slate-950/40 p-1 flex items-center gap-1 backdrop-blur-xl shadow-inner">
               {[1, 2, 3].map((num) => (
                 <button
@@ -993,6 +1424,20 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
           
           {/* COLUMN 1: Mission Logistics (col-span-3) */}
           <aside className="flex flex-col gap-6 lg:col-span-3 lg:sticky lg:top-8">
+            {level !== 1 && (
+              <div id="tutorial-stage-goal" className="gsap-slide-right rounded-[2rem] border border-cyan-500/20 bg-cyan-500/8 p-5 shadow-2xl backdrop-blur-3xl">
+                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-cyan-300">Stage Goal</div>
+                <div className="mt-2 text-sm font-black uppercase tracking-[0.12em] text-white">
+                  {isLevelThree ? 'Keep Every Real Hit On SPD' : 'Land Dual Crit With The Correct Detour'}
+                </div>
+                <p className="mt-3 text-[12px] leading-relaxed text-slate-300">
+                  {isLevelThree
+                    ? 'The first good hit is not enough. Re-prime the right setup path so the loop stays on SPD.'
+                    : 'Read the live board, decide if the direct path is bad, then use the correct reset relic before returning to the target.'}
+                </p>
+              </div>
+            )}
+
             <div id="tutorial-mission-timeline" className="gsap-slide-right relative rounded-[2rem] border border-white/5 bg-slate-950/50 p-6 backdrop-blur-3xl shadow-2xl">
               <div className="mb-8 flex items-center justify-between">
                 <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-2">
@@ -1057,6 +1502,10 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 currentRegion="America"
                 currentPatch="4.1"
                 forcedLineOverride={tutorialHelperLine}
+                tutorialIds={{
+                  autoSectionId: 'tutorial-stats-auto',
+                  manualSectionId: 'tutorial-stats-manual',
+                }}
               />
             </div>
           </aside>
@@ -1091,6 +1540,9 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   tutorialIds={{
                     modeBadgeId: 'tutorial-mode-badge',
                     warningStripId: 'tutorial-pair-warning',
+                    statusMessageId: 'tutorial-status-message',
+                    noiseRiskId: 'tutorial-noise-risk',
+                    breakPressureId: 'tutorial-break-pressure',
                     mainPredictorId: 'tutorial-main-predictor',
                     svarogEyeId: 'tutorial-svarog-eye',
                     watchMessageId: 'tutorial-watch-message',
@@ -1176,6 +1628,78 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-400">Interaction Bay</h3>
             </div>
 
+            {level !== 1 && (
+              <div id="tutorial-stage-hints" className="gsap-fade-up rounded-[2rem] border border-white/5 bg-slate-950/40 p-5 backdrop-blur-3xl shadow-2xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-300">Challenge Assist</div>
+                    <div className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-white">
+                      {isLevelThree ? 'Stage 3: Keep The Loop Stable' : 'Stage 2: Solve It Yourself'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHintOpen((value) => !value)}
+                    className={`rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
+                      challengeMistakes >= 2
+                        ? 'border-amber-400/40 bg-amber-500/15 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.15)]'
+                        : 'border-amber-500/25 bg-amber-500/8 text-amber-200 hover:bg-amber-500/12'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4" />
+                      Hint
+                    </span>
+                  </button>
+                </div>
+
+                <div className="mt-4 flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.18em]">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-400">
+                    Mistakes: {challengeMistakes}
+                  </span>
+                  {challengeMistakes >= 2 && !hintOpen && (
+                    <span className="text-amber-300">Need a hint?</span>
+                  )}
+                </div>
+
+                {challengeFeedback && (
+                  <div className={`mt-4 rounded-2xl border px-4 py-3 text-[12px] font-medium leading-relaxed ${
+                    challengeFeedback.tone === 'bad'
+                      ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
+                      : challengeFeedback.tone === 'good'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                      : 'border-cyan-500/25 bg-cyan-500/10 text-cyan-100'
+                  }`}>
+                    {challengeFeedback.text}
+                  </div>
+                )}
+
+                {hintOpen && activeChallengeHints.length > 0 && (
+                  <div className="mt-4 rounded-[1.5rem] border border-amber-500/25 bg-amber-500/8 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Hint {Math.min(hintIndex + 1, activeChallengeHints.length)} / {activeChallengeHints.length}</div>
+                        <div className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-white">
+                          {activeChallengeHints[Math.min(hintIndex, activeChallengeHints.length - 1)]?.title}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={revealNextHint}
+                        disabled={hintIndex >= activeChallengeHints.length - 1}
+                        className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next Hint
+                      </button>
+                    </div>
+                    <p className="mt-3 text-[12px] leading-relaxed text-slate-200/90">
+                      {activeChallengeHints[Math.min(hintIndex, activeChallengeHints.length - 1)]?.body}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Target Relic (Compact) */}
             <div id="tutorial-target-relic" className="gsap-scale-in transition-all duration-700">
               <div id="target-relic-focus">
@@ -1241,7 +1765,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   ))}
                </div>
             </div>
-            
+
           </section>
 
         </div>

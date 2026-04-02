@@ -65,16 +65,16 @@ const MODE_CARDS = [
   {
     id: 'pvp',
     label: 'Relic Races',
-    eyebrow: 'Future PvP',
-    summary: 'Compete on the same seed and solve faster.',
-    detail: 'Best saved for later after solo practice is strong.',
+    eyebrow: 'PvP V1',
+    summary: 'Create a private room, share the code, and race the same contract.',
+    detail: 'Shared seed, shared relics, faster read wins.',
     route: '/playground/races',
     Icon: Swords,
     themeColor: 'violet',
     badgeClass: 'border-violet-400/30 bg-violet-400/10 text-violet-200',
     borderClass: 'border-violet-400/25',
     iconClass: 'text-violet-200',
-    locked: true,
+    locked: false,
   },
 ];
 

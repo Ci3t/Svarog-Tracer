@@ -28,6 +28,9 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_RACE_TRIES = 3;
 const BOT_RETRY_DELAY_SECONDS = 2;
 const MISTAKE_SCORE_PENALTY = 4;
+const PREMATCH_COUNTDOWN_SECONDS = 5;
+const PVP_DUEL_SECONDS = 300;
+const TIMEOUT_SCORE_MULTIPLIER = 0.7;
 const BOT_TIER_CONFIG = {
   new_player: { baseStep: 6, jitter: 2, minScore: 0, minHelpful: 0, scoreBias: false, trendAware: false, historyAware: false, pairAware: false, searchDepth: 0, forceBonus: 1, helpfulBonus: 5, junkPenalty: 4, neutralPenalty: 0, noisePenalty: 0.25, commonsBonus: 0.25, dominantBonus: 0.15, scoreWeight: 1, strictGoal: false },
   beginner: { baseStep: 5, jitter: 2, minScore: 18, minHelpful: 1, scoreBias: false, trendAware: false, historyAware: false, pairAware: true, searchDepth: 0, forceBonus: 2, helpfulBonus: 7, junkPenalty: 5, neutralPenalty: 0.5, noisePenalty: 0.5, commonsBonus: 0.5, dominantBonus: 0.4, scoreWeight: 0.9, strictGoal: false },
@@ -111,6 +114,8 @@ function createPlayerState(name = '') {
     finalStatBreakdown: {},
     finalRelicSnapshot: null,
     finalRelicSummary: '',
+    currentRelicSnapshot: null,
+    currentRelicSummary: '',
     sessionEntriesBuilt: 0,
     sessionEntries: [],
     sessionArchive: [],
@@ -904,17 +909,14 @@ function inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLin
     if (predictor?.mixedWindow && candidateRoll === analyzerAlt) score += 2;
     if ((regime === 'transition' || regime === 'noise-burst') && candidateRoll === analyzerPrediction) score += 3;
     if (boundaryWindowActive && (candidateRoll === '42' || candidateRoll === '44')) {
-      const boundaryTrend = candidateRoll === lastObserved ? -1 : 1;
       if (boundaryAmbiguous) {
-        score += boundaryTrend * (pairSafety === 'safe' ? 4 : 8);
-        if (candidateRoll === analyzerAlt) score += 3;
-        if (candidateRoll === analyzerPrediction && pairScoreGap <= 12) score -= 5;
-      } else if (tailStreak >= 3 && candidateRoll === lastObserved) {
-        score += 6;
+        if (candidateRoll === analyzerAlt) score += 1.75;
+        if (candidateRoll === analyzerPrediction && pairScoreGap <= 12) score -= 2.5;
+        if (candidateRoll === lastObserved && pairSafety === 'danger') score -= 1.5;
+      } else if (tailStreak >= 4 && candidateRoll === lastObserved && pairSafety !== 'danger') {
+        score += 3;
       }
-      if (lastObserved === '44' && candidateRoll === '42' && (pairSafety === 'danger' || regime === 'transition')) score += 4;
-      if (lastObserved === '42' && candidateRoll === '44' && (pairSafety === 'danger' || regime === 'transition')) score += 4;
-      if (candidateRoll === lastObserved && tailStreak <= 2 && pairSafety === 'danger') score -= 4;
+      if (candidateRoll === lastObserved && tailStreak <= 2 && pairSafety === 'danger') score -= 1.5;
     }
     const trend = trends[candidateRoll];
     if (trend) {
@@ -946,8 +948,9 @@ function inferLikelyVisibleRoll(profile, predictor, relic, scenario, previousLin
       const rawGap = Number.isFinite(secondBestScore) ? Math.max(0, bestScore - secondBestScore) : bestScore;
       const topTwo = candidateScored.sort((left, right) => right.score - left.score).slice(0, 2).map((entry) => entry.roll);
       if (boundaryAmbiguous && topTwo.includes('42') && topTwo.includes('44')) {
-        return rawGap * 0.45;
+        return rawGap * 0.3;
       }
+      if (pairSafety === 'danger') return rawGap * 0.65;
       return rawGap;
     })(),
     ranked: candidateScored.sort((left, right) => right.score - left.score),
@@ -1596,8 +1599,10 @@ function compareAttemptPayload(left = {}, right = {}) {
   const rightGoal = Boolean(right?.goalSatisfied);
   if (leftGoal !== rightGoal) return leftGoal ? 1 : -1;
 
-  const leftScore = Math.max(0, Number(left?.score || 0)) - (Math.max(0, Number(left?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
-  const rightScore = Math.max(0, Number(right?.score || 0)) - (Math.max(0, Number(right?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
+  const leftMultiplier = String(left?.completionType || 'submitted') === 'timeout' ? TIMEOUT_SCORE_MULTIPLIER : 1;
+  const rightMultiplier = String(right?.completionType || 'submitted') === 'timeout' ? TIMEOUT_SCORE_MULTIPLIER : 1;
+  const leftScore = (Math.max(0, Number(left?.score || 0)) * leftMultiplier) - (Math.max(0, Number(left?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
+  const rightScore = (Math.max(0, Number(right?.score || 0)) * rightMultiplier) - (Math.max(0, Number(right?.mistakes || 0)) * MISTAKE_SCORE_PENALTY);
   if (leftScore !== rightScore) return leftScore - rightScore;
 
   const leftHelpful = Math.max(0, Number(left?.helpfulHits || 0));
@@ -1611,6 +1616,19 @@ function compareAttemptPayload(left = {}, right = {}) {
   const leftRolls = Math.max(0, Number(left?.rollCount || 0));
   const rightRolls = Math.max(0, Number(right?.rollCount || 0));
   return leftRolls - rightRolls;
+}
+
+function buildTimeoutAttemptFromState(state = {}) {
+  return {
+    score: Math.max(0, Number(state?.score || 0)),
+    helpfulHits: Math.max(0, Number(state?.helpfulHits || 0)),
+    mistakes: Math.max(0, Number(state?.mistakes || 0)),
+    rollCount: Math.max(0, Number(state?.rollCount || 0)),
+    goalSatisfied: Boolean(state?.goalSatisfied),
+    relicSnapshot: state?.currentRelicSnapshot || state?.bestRelicSnapshot || null,
+    relicSummary: state?.currentRelicSummary || state?.relicSummary || '',
+    completionType: 'timeout',
+  };
 }
 
 function estimateRetryCeiling(scenario, profile, carryLine, config) {
@@ -1631,12 +1649,42 @@ function compareStatesForWinner(hostState, guestState) {
   const guestSubmitted = String(guestState?.status || '') === 'submitted';
   const hostBusted = String(hostState?.status || '') === 'busted';
   const guestBusted = String(guestState?.status || '') === 'busted';
+  const hostTimedOut = String(hostState?.status || '') === 'timeout';
+  const guestTimedOut = String(guestState?.status || '') === 'timeout';
   const hostGoal = Boolean(hostState?.finalGoalSatisfied ?? hostState?.goalSatisfied);
   const guestGoal = Boolean(guestState?.finalGoalSatisfied ?? guestState?.goalSatisfied);
 
+  if (hostSubmitted && !guestSubmitted) return 'host';
+  if (guestSubmitted && !hostSubmitted) return 'guest';
   if (hostGoal && !guestGoal) return 'host';
   if (guestGoal && !hostGoal) return 'guest';
-  if (!hostGoal && !guestGoal && ((hostSubmitted || hostBusted) && (guestSubmitted || guestBusted))) return null;
+  if (!hostGoal && !guestGoal && ((hostSubmitted || hostBusted || hostTimedOut) && (guestSubmitted || guestBusted || guestTimedOut))) {
+    const timeoutComparison = compareAttemptPayload(
+      hostSubmitted
+        ? {
+            score: hostState?.finalScore,
+            helpfulHits: hostState?.finalHelpfulHits,
+            mistakes: hostState?.finalMistakes,
+            rollCount: hostState?.finalRollCount,
+            goalSatisfied: hostState?.finalGoalSatisfied ?? hostState?.goalSatisfied,
+            completionType: 'submitted',
+          }
+        : buildTimeoutAttemptFromState(hostState),
+      guestSubmitted
+        ? {
+            score: guestState?.finalScore,
+            helpfulHits: guestState?.finalHelpfulHits,
+            mistakes: guestState?.finalMistakes,
+            rollCount: guestState?.finalRollCount,
+            goalSatisfied: guestState?.finalGoalSatisfied ?? guestState?.goalSatisfied,
+            completionType: 'submitted',
+          }
+        : buildTimeoutAttemptFromState(guestState),
+    );
+    if (timeoutComparison > 0) return 'host';
+    if (timeoutComparison < 0) return 'guest';
+    return null;
+  }
 
   if (hostSubmitted && guestSubmitted) {
     const comparison = compareAttemptPayload({
@@ -1674,10 +1722,53 @@ function compareStatesForWinner(hostState, guestState) {
 }
 
 function resolveRoomOutcome(room, hostState, guestState) {
+  const startedAtMs = new Date(room?.started_at || 0).getTime();
+  const duelTimedOut = String(room?.status || '') === 'active'
+    && Number.isFinite(startedAtMs)
+    && startedAtMs > 0
+    && Date.now() >= (startedAtMs + (PVP_DUEL_SECONDS * 1000));
   const hostStatus = String(hostState?.status || '');
   const guestStatus = String(guestState?.status || '');
-  const hostTerminal = hostStatus === 'submitted' || hostStatus === 'busted';
-  const guestTerminal = guestStatus === 'submitted' || guestStatus === 'busted';
+  const hostTerminal = hostStatus === 'submitted' || hostStatus === 'busted' || hostStatus === 'timeout';
+  const guestTerminal = guestStatus === 'submitted' || guestStatus === 'busted' || guestStatus === 'timeout';
+  if (duelTimedOut) {
+    const better = compareStatesForWinner(hostState, guestState);
+    return {
+      status: 'finished',
+      winnerUserId: better === 'host' ? room.host_user_id : better === 'guest' ? room.guest_user_id : null,
+      finishedAt: new Date().toISOString(),
+      hostState: hostStatus === 'submitted' || hostStatus === 'busted'
+        ? hostState
+        : normalizePlayerState({
+            ...hostState,
+            status: 'timeout',
+            finalScore: Math.max(0, Number(hostState?.score || 0)),
+            finalGrade: String(hostState?.grade || 'F'),
+            finalRollCount: Math.max(0, Number(hostState?.rollCount || 0)),
+            finalHelpfulHits: Math.max(0, Number(hostState?.helpfulHits || 0)),
+            finalMistakes: Math.max(0, Number(hostState?.mistakes || 0)),
+            finalGoalSatisfied: Boolean(hostState?.goalSatisfied),
+            finalStatBreakdown: hostState?.statBreakdown || {},
+            finalRelicSnapshot: hostState?.currentRelicSnapshot || hostState?.bestRelicSnapshot || null,
+            finalRelicSummary: hostState?.currentRelicSummary || hostState?.relicSummary || 'Timed out with a partial relic.',
+          }, hostState),
+      guestState: guestStatus === 'submitted' || guestStatus === 'busted'
+        ? guestState
+        : normalizePlayerState({
+            ...guestState,
+            status: 'timeout',
+            finalScore: Math.max(0, Number(guestState?.score || 0)),
+            finalGrade: String(guestState?.grade || 'F'),
+            finalRollCount: Math.max(0, Number(guestState?.rollCount || 0)),
+            finalHelpfulHits: Math.max(0, Number(guestState?.helpfulHits || 0)),
+            finalMistakes: Math.max(0, Number(guestState?.mistakes || 0)),
+            finalGoalSatisfied: Boolean(guestState?.goalSatisfied),
+            finalStatBreakdown: guestState?.statBreakdown || {},
+            finalRelicSnapshot: guestState?.currentRelicSnapshot || guestState?.bestRelicSnapshot || null,
+            finalRelicSummary: guestState?.currentRelicSummary || guestState?.relicSummary || 'Timed out with a partial relic.',
+          }, guestState),
+    };
+  }
   if (hostTerminal && guestTerminal) {
     const better = compareStatesForWinner(hostState, guestState);
     return {
@@ -1761,6 +1852,8 @@ function buildBotState(room) {
       finalStatBreakdown: finalAttempt?.statBreakdown || {},
       finalRelicSnapshot: finalRelic,
       finalRelicSummary: finalAttempt?.relicSummary || summaryText,
+      currentRelicSnapshot: finalRelic,
+      currentRelicSummary: finalAttempt?.relicSummary || summaryText,
       bestScore: Math.max(0, Number(bestAttempt?.score || finalScore)),
       bestGrade: String(bestAttempt?.grade || finalAttempt?.grade || 'F'),
       bestRollCount: Math.max(0, Number(bestAttempt?.rollCount || finalRollCount)),
@@ -1804,6 +1897,8 @@ function buildBotState(room) {
     bestStatBreakdown: bestAttempt?.statBreakdown || attempt?.statBreakdown || {},
     bestRelicSnapshot: bestAttempt?.relicSnapshot || attempt?.relicSnapshot || null,
     bestRelicSummary: bestAttempt?.relicSummary || attempt?.relicSummary || '',
+    currentRelicSnapshot: attempt?.relicSnapshot || null,
+    currentRelicSummary: attempt?.relicSummary || summaryText,
     relicSummary: summaryText,
     debugLog,
     displayName: room.guest_name || 'Svarog Bot',
@@ -2004,6 +2099,8 @@ function buildBotState(room) {
             bestStatBreakdown: bestAttempt?.statBreakdown || {},
             bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
             bestRelicSummary: bestAttempt?.relicSummary || '',
+            currentRelicSnapshot: cloneRelic(currentRelic),
+            currentRelicSummary: `Bot is still building and validating the session read for try ${attemptsUsed} (${builtEntries} entries captured).`,
             relicSummary: `Bot is still building and validating the session read for try ${attemptsUsed} (${builtEntries} entries captured).`,
             debugLog,
             displayName: room.guest_name || 'Svarog Bot',
@@ -2102,6 +2199,10 @@ function buildBotState(room) {
         bestStatBreakdown: bestAttempt?.statBreakdown || {},
         bestRelicSnapshot: bestAttempt?.relicSnapshot || null,
         bestRelicSummary: bestAttempt?.relicSummary || '',
+        currentRelicSnapshot: cloneRelic(currentRelic),
+        currentRelicSummary: scenario?.requiresSessionBuilder && currentRelic.level === 0
+          ? `Bot finished building session data and is lining up try ${attemptsUsed}.`
+          : `Bot is building try ${attemptsUsed} at +${currentRelic.level}.`,
         relicSummary: scenario?.requiresSessionBuilder && currentRelic.level === 0
           ? `Bot finished building session data and is lining up try ${attemptsUsed}.`
           : `Bot is building try ${attemptsUsed} at +${currentRelic.level}.`,
@@ -2258,6 +2359,10 @@ function normalizePlayerState(input, currentState = {}) {
     ? input.finalRelicSnapshot
     : (next.finalRelicSnapshot && typeof next.finalRelicSnapshot === 'object' ? next.finalRelicSnapshot : null);
   next.finalRelicSummary = String(input?.finalRelicSummary || next.finalRelicSummary || '').slice(0, 240);
+  next.currentRelicSnapshot = input?.currentRelicSnapshot && typeof input.currentRelicSnapshot === 'object'
+    ? input.currentRelicSnapshot
+    : (next.currentRelicSnapshot && typeof next.currentRelicSnapshot === 'object' ? next.currentRelicSnapshot : null);
+  next.currentRelicSummary = String(input?.currentRelicSummary || next.currentRelicSummary || '').slice(0, 240);
   next.sessionEntriesBuilt = Math.max(0, Number(input?.sessionEntriesBuilt ?? next.sessionEntriesBuilt ?? 0) || 0);
   next.sessionEntries = Array.isArray(input?.sessionEntries)
     ? input.sessionEntries.map((entry, index) => ({
@@ -2343,6 +2448,22 @@ async function patchRoom(code, patch) {
   return Array.isArray(rows) ? rows[0] || null : rows;
 }
 
+async function syncCountdownRoomIfNeeded(room) {
+  if (!room || String(room.status || '').toLowerCase() !== 'countdown') return room;
+  const startedAtMs = new Date(room.started_at || 0).getTime();
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) return room;
+  const activeAtMs = startedAtMs + (PREMATCH_COUNTDOWN_SECONDS * 1000);
+  if (Date.now() < activeAtMs) return room;
+
+  const activeStartedAt = new Date(activeAtMs).toISOString();
+  const updated = await patchRoom(room.code, {
+    status: 'active',
+    started_at: activeStartedAt,
+    updated_at: new Date().toISOString(),
+  });
+  return updated || room;
+}
+
 async function syncBotRoomIfNeeded(room) {
   if (!room || !isDevBotUserId(room.guest_user_id)) return room;
 
@@ -2390,6 +2511,8 @@ async function syncBotRoomIfNeeded(room) {
       status: outcome.status,
       winner_user_id: outcome.winnerUserId,
       finished_at: outcome.finishedAt,
+      ...(outcome.hostState ? { host_state: outcome.hostState } : {}),
+      ...(outcome.guestState ? { guest_state: outcome.guestState } : {}),
       updated_at: new Date().toISOString(),
     });
     return updated || room;
@@ -2407,9 +2530,30 @@ async function syncBotRoomIfNeeded(room) {
     patch.status = outcome.status;
     patch.winner_user_id = outcome.winnerUserId;
     patch.finished_at = outcome.finishedAt;
+    if (outcome.hostState) patch.host_state = outcome.hostState;
+    if (outcome.guestState) patch.guest_state = outcome.guestState;
   }
 
   const updated = await patchRoom(room.code, patch);
+  return updated || room;
+}
+
+async function syncTimedOutActiveRoomIfNeeded(room) {
+  if (!room || String(room.status || '').toLowerCase() !== 'active') return room;
+  const outcome = resolveRoomOutcome(
+    room,
+    room.host_state || createPlayerState(room.host_name),
+    room.guest_state || createPlayerState(room.guest_name),
+  );
+  if (!outcome) return room;
+  const updated = await patchRoom(room.code, {
+    status: outcome.status,
+    winner_user_id: outcome.winnerUserId,
+    finished_at: outcome.finishedAt,
+    ...(outcome.hostState ? { host_state: outcome.hostState } : {}),
+    ...(outcome.guestState ? { guest_state: outcome.guestState } : {}),
+    updated_at: new Date().toISOString(),
+  });
   return updated || room;
 }
 
@@ -2537,7 +2681,7 @@ async function joinRoomForUser(user, code) {
 }
 
 async function startRoomForUser(user, code) {
-  const room = await syncBotRoomIfNeeded(await loadRoomByCode(code));
+  const room = await syncBotRoomIfNeeded(await syncCountdownRoomIfNeeded(await loadRoomByCode(code)));
   if (!room) {
     throw new HttpError(404, 'Room not found.');
   }
@@ -2551,12 +2695,12 @@ async function startRoomForUser(user, code) {
 
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
-    status: 'active',
+    status: 'countdown',
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
-    host_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, room.host_state),
-    guest_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, room.guest_state),
+    host_state: createPlayerState(room.host_name),
+    guest_state: createPlayerState(room.guest_name || 'Opponent'),
     updated_at: startedAt,
   });
   return toClientRoom(updated || room, user.id);
@@ -2575,9 +2719,44 @@ async function restartRoomForUser(user, code) {
     throw new HttpError(409, 'Room needs an opponent before it can restart.');
   }
 
+  const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
+  const selectedSetName = String(currentScenario?.targetRelic?.setNameHint || currentScenario?.targetRelic?.setName || '').trim() || null;
+  const reseededScenario = createChallengeScenario({
+    tier: room.tier || 'beginner',
+    generated: true,
+    mode: 'pvp',
+    selectedSetName,
+    targetRelicOverride: currentScenario?.targetRelic || null,
+    preferredStyle: currentScenario?.expectedStyle || null,
+    excludeSeedId: currentScenario?.seedMeta?.id || null,
+    templateId: currentScenario?.templateMeta?.id || null,
+  });
+  const scenario = sanitizeScenario({
+    ...currentScenario,
+    id: reseededScenario.id,
+    slug: reseededScenario.slug,
+    title: reseededScenario.title,
+    mood: reseededScenario.mood,
+    region: reseededScenario.region,
+    patch: reseededScenario.patch,
+    seedLabel: reseededScenario.seedLabel,
+    pvpRollTier: reseededScenario.pvpRollTier,
+    starterRolls: reseededScenario.starterRolls,
+    tags: reseededScenario.tags,
+    expectedStyle: reseededScenario.expectedStyle,
+    goal: reseededScenario.goal,
+    win: reseededScenario.win,
+    progressText: reseededScenario.progressText,
+    hints: reseededScenario.hints,
+    hintPackId: reseededScenario.hintPackId,
+    seedMeta: reseededScenario.seedMeta,
+  });
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
-    status: 'active',
+    status: 'countdown',
+    difficulty: scenario.difficulty || room.tier,
+    seed_label: scenario.seedLabel || '',
+    scenario,
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
@@ -2601,12 +2780,21 @@ async function rerollRoomForUser(user, code, body = {}) {
     throw new HttpError(409, 'You can only reroll relics before the duel starts.');
   }
 
-  const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
+  const selectedSetName = String(body?.selectedSetName || '').trim() || null;
   const targetRelicOverride =
     body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
       ? body.targetRelicOverride
       : null;
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName, targetRelicOverride });
+  const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
+  const scenario = createChallengeScenario({
+    tier: room.tier || 'beginner',
+    generated: true,
+    mode: 'pvp',
+    selectedSetName,
+    targetRelicOverride,
+    excludeSeedId: currentScenario?.seedMeta?.id || null,
+    excludeTemplateId: currentScenario?.templateMeta?.id || null,
+  });
   const updated = await patchRoom(code, {
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
@@ -2634,23 +2822,32 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
     throw new HttpError(409, 'Room needs an opponent before it can reroll and restart.');
   }
 
-  const selectedSetName = String(body?.selectedSetName || room?.scenario?.targetRelic?.setNameHint || '').trim() || null;
+  const selectedSetName = String(body?.selectedSetName || '').trim() || null;
   const targetRelicOverride =
     body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
       ? body.targetRelicOverride
       : null;
-  const scenario = createChallengeScenario({ tier: room.tier || 'beginner', generated: true, mode: 'pvp', selectedSetName, targetRelicOverride });
+  const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
+  const scenario = createChallengeScenario({
+    tier: room.tier || 'beginner',
+    generated: true,
+    mode: 'pvp',
+    selectedSetName,
+    targetRelicOverride,
+    excludeSeedId: currentScenario?.seedMeta?.id || null,
+    excludeTemplateId: currentScenario?.templateMeta?.id || null,
+  });
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
-    status: 'active',
+    status: 'countdown',
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
     scenario,
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
-    host_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, createPlayerState(room.host_name)),
-    guest_state: normalizePlayerState({ status: 'attempting', tries: 1, attemptsUsed: 1, submittedAttempts: 0, mistakes: 0 }, createPlayerState(room.guest_name || 'Opponent')),
+    host_state: createPlayerState(room.host_name),
+    guest_state: createPlayerState(room.guest_name || 'Opponent'),
     updated_at: startedAt,
   });
   return toClientRoom(updated || room, user.id);
@@ -2686,7 +2883,7 @@ async function devFillRoomForUser(req, user, code, body = {}) {
 }
 
 async function updateRoomStateForUser(user, code, body) {
-  const room = await syncBotRoomIfNeeded(await loadRoomByCode(code));
+  const room = await syncTimedOutActiveRoomIfNeeded(await syncBotRoomIfNeeded(await syncCountdownRoomIfNeeded(await loadRoomByCode(code))));
   if (!room) {
     throw new HttpError(404, 'Room not found.');
   }
@@ -2711,6 +2908,8 @@ async function updateRoomStateForUser(user, code, body) {
     patch.status = outcome.status;
     patch.winner_user_id = outcome.winnerUserId;
     patch.finished_at = outcome.finishedAt;
+    if (outcome.hostState) patch.host_state = outcome.hostState;
+    if (outcome.guestState) patch.guest_state = outcome.guestState;
   }
 
   const updated = await patchRoom(code, patch);
@@ -2718,7 +2917,7 @@ async function updateRoomStateForUser(user, code, body) {
 }
 
 async function getRoomForUser(user, code) {
-  const room = await syncBotRoomIfNeeded(await loadRoomByCode(code));
+  const room = await syncTimedOutActiveRoomIfNeeded(await syncBotRoomIfNeeded(await syncCountdownRoomIfNeeded(await loadRoomByCode(code))));
   if (!room) {
     throw new HttpError(404, 'Room not found.');
   }

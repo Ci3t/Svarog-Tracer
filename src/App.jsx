@@ -37,6 +37,7 @@ import PlaygroundChallengePage from "./pages/PlaygroundChallengePage";
 import PlaygroundChallengeAdminPage from "./pages/PlaygroundChallengeAdminPage";
 import PlaygroundDrillsPage from "./pages/PlaygroundDrillsPage";
 import PlaygroundPatternLabPage from "./pages/PlaygroundPatternLabPage";
+import PlaygroundRacesPage from "./pages/PlaygroundRacesPage";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
@@ -1199,6 +1200,14 @@ export default function App() {
             <Route path="/playground/challenge" element={<PlaygroundChallengePage sessionTheme={sessionTheme} />} />
             <Route path="/playground/drills" element={<PlaygroundDrillsPage sessionTheme={sessionTheme} />} />
             <Route path="/playground/pattern-lab" element={<PlaygroundPatternLabPage sessionTheme={sessionTheme} />} />
+            <Route
+              path="/playground/races"
+              element={
+                <RequireAuth>
+                  <PlaygroundRacesPage sessionTheme={sessionTheme} />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/playground/challenge/admin"
               element={

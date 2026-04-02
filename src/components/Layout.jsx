@@ -319,7 +319,7 @@ export default function Layout({
                 </NavLink>
                 <NavLink
                   to="/playground"
-                  data-active={location.pathname === '/playground'}
+                  data-active={location.pathname === '/playground' || location.pathname.startsWith('/playground/')}
                   className={({ isActive }) =>
                     `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
                       ? activeTabTextClass

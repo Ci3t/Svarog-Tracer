@@ -59,10 +59,17 @@ export default function ModernStickyHeader({
 
   return (
     <div 
-      className="astral-sticky-header sticky top-[110px] sm:top-[120px] lg:top-[64px] z-40 transition-all duration-300 glacial-header-glass"
-      style={{ opacity: isScrolled ? 0.95 : 1 }}
+      className={`astral-sticky-header sticky top-0 z-[100] transition-all duration-500 ${
+        isScrolled 
+          ? 'py-2 px-0' 
+          : 'py-0 px-0'
+      }`}
     >
-      <div className="max-w-[1920px] mx-auto px-4 py-3">
+      <div className={`max-w-[1920px] mx-auto transition-all duration-500 ${
+        isScrolled 
+          ? 'rounded-2xl border border-white/10 bg-slate-950/90 backdrop-blur-3xl shadow-[0_20px_60px_-12px_rgba(0,0,0,0.8)] px-6 py-3 ring-1 ring-white/5' 
+          : 'bg-[#080B14]/70 backdrop-blur-md border-b border-white/5 px-4 py-5'
+      }`}>
         {/* Responsive Grid: Timer on top/left, Input in middle, Control on bottom/right */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           

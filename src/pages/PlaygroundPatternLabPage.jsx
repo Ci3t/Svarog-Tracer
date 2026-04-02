@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import gsap from 'gsap';
 import {
   ArrowLeft,
   BrainCircuit,
@@ -9,6 +10,10 @@ import {
   ScanSearch,
   Sparkles,
   StepForward,
+  Play,
+  FastForward,
+  SkipBack,
+  TerminalSquare
 } from 'lucide-react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernNotesCard from '../components/modern/ModernNotesCard';
@@ -25,6 +30,8 @@ import {
   getPatternLibrary,
   getVisibleRollForUpgrade,
 } from '../utils/playgroundPatternProfiles';
+
+
 
 const LAB_REGION = 'America';
 const LAB_PATCH = '4.1';
@@ -286,7 +293,64 @@ function buildSvarogAssistance(prediction, nextObservedRoll) {
 export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const containerRef = useRef(null);
   const themeConfig = getSessionThemeConfig(sessionTheme);
+
+  const rootThemeClass = themeConfig.rootClassName;
+  const isGlacial = rootThemeClass === 'arctic-theme';
+  const isNeon = rootThemeClass === 'neon-theme';
+  const isCrimson = rootThemeClass === 'crimson-theme' || rootThemeClass === 'void-theme';
+  const isAstral = rootThemeClass === 'astral-theme';
+
+  const themeColors = useMemo(() => {
+    if (isCrimson) return {
+      border: 'border-red-500/30',
+      bgGlow: 'bg-red-500/5',
+      text: 'text-red-400',
+      textLight: 'text-red-200',
+      button: 'bg-red-500/10 border-red-500/30 text-red-200 hover:bg-red-500/20',
+      buttonActive: 'bg-red-500/20 border-red-400/50 text-red-100',
+      accent: 'bg-red-400',
+    };
+    if (isGlacial) return {
+      border: 'border-cyan-500/30',
+      bgGlow: 'bg-cyan-500/5',
+      text: 'text-cyan-400',
+      textLight: 'text-cyan-200',
+      button: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/20',
+      buttonActive: 'bg-cyan-500/20 border-cyan-400/50 text-cyan-100',
+      accent: 'bg-cyan-400',
+    };
+    if (isNeon) return {
+      border: 'border-cyan-500/30',
+      bgGlow: 'bg-cyan-500/5',
+      text: 'text-cyan-400',
+      textLight: 'text-cyan-200',
+      button: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/20',
+      buttonActive: 'bg-cyan-500/20 border-cyan-400/50 text-cyan-100',
+      accent: 'bg-cyan-400',
+    };
+    if (isAstral) return {
+      border: 'border-[#d6b360]/30',
+      bgGlow: 'bg-[#d6b360]/5',
+      text: 'text-[#d6b360]',
+      textLight: 'text-[#fae5a0]',
+      button: 'bg-[#d6b360]/10 border-[#d6b360]/30 text-[#ecd189] hover:bg-[#d6b360]/20',
+      buttonActive: 'bg-[#d6b360]/20 border-[#ecd189]/50 text-[#fae5a0]',
+      accent: 'bg-[#d6b360]',
+    };
+    // Default modern / fuchsia as fallback
+    return {
+      border: 'border-fuchsia-400/30',
+      bgGlow: 'bg-fuchsia-500/5',
+      text: 'text-fuchsia-300',
+      textLight: 'text-fuchsia-100',
+      button: 'bg-fuchsia-500/10 border-fuchsia-400/30 text-fuchsia-200 hover:bg-fuchsia-500/20',
+      buttonActive: 'bg-fuchsia-500/20 border-fuchsia-400/50 text-fuchsia-100',
+      accent: 'bg-fuchsia-400',
+    };
+  }, [isCrimson, isGlacial, isNeon, isAstral]);
+
   const familyOptions = useMemo(() => getFamilyOptions(), []);
   const [sessionTab, setSessionTab] = useState('current');
   const [mood, setMood] = useState('mixed');
@@ -301,6 +365,45 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [sourceCursor, setSourceCursor] = useState(0);
   const [sourceMessage, setSourceMessage] = useState('');
   const [notes, setNotes] = useState('');
+  const lastRollIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const q = gsap.utils.selector(containerRef.current);
+
+    // Bento entrance animation with scale and stagger
+    gsap.fromTo(q('.bento-tile'),
+      { opacity: 0, y: 40, scale: 0.95 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.7, stagger: 0.08, ease: 'back.out(1.2)' }
+    );
+
+    // Matrix fade up for Left Side elements
+    gsap.fromTo(q('.matrix-fade'),
+      { opacity: 0, x: -30 },
+      { opacity: 1, x: 0, duration: 0.8, stagger: 0.1, ease: 'power2.out' }
+    );
+
+    // Floating background for Svarog
+    gsap.to(q('.gsap-float'), {
+      y: -15,
+      duration: 5,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut'
+    });
+  }, [themeConfig.rootClassName]);
+
+  // Pulse animation when a step changes
+  useEffect(() => {
+    if (labRows.length > lastRollIndexRef.current && containerRef.current) {
+      const q = gsap.utils.selector(containerRef.current);
+      gsap.fromTo(q('.gsap-pulse-row'),
+        { backgroundColor: 'rgba(255,255,255,0.2)' },
+        { backgroundColor: 'transparent', duration: 1, ease: 'power2.out' }
+      );
+    }
+    lastRollIndexRef.current = labRows.length;
+  }, [labRows.length]);
 
   const entries = useMemo(() => labRows.map((row) => createSessionEntry(row.rawPair)).filter(Boolean), [labRows]);
   const prediction2 = useMemo(() => predictWithPairs(entries.map((entry) => entry.translated), { region: LAB_REGION }), [entries]);
@@ -373,9 +476,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
         : explicitRow?.visibleRoll || getVisibleRollForUpgrade(workingProfile, rows.length);
       const resolved = explicitRow?.rawPair
         ? {
-            rawPair: explicitRow.rawPair,
-            targetSlot: Number(String(explicitRow.rawPair).slice(1, 2)) || workingLine,
-          }
+          rawPair: explicitRow.rawPair,
+          targetSlot: Number(String(explicitRow.rawPair).slice(1, 2)) || workingLine,
+        }
         : resolveNextSlotFromVisibleRoll(workingLine, visibleRoll);
 
       rows.push({
@@ -449,9 +552,11 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   );
 
   return (
-    <div className={`min-h-screen bg-[#080B14] px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`}>
+    <div className={`min-h-screen px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`} ref={containerRef}>
       <div className="mx-auto max-w-[1600px]">
-        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+
+        {/* -- Super Header -- */}
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center matrix-fade relative z-20">
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -462,324 +567,362 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
               Back To Playground
             </button>
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-fuchsia-300">Study Sandbox</div>
-              <h1 className="text-3xl font-black uppercase tracking-tight text-white">Pattern Lab</h1>
+              <div className={`text-[10px] font-black uppercase tracking-[0.24em] ${themeColors.text}`}>Research Division</div>
+              <h1 className="text-3xl font-black uppercase tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">Pattern Lab</h1>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-slate-950/50 px-4 py-2">
-            <Radar className="h-4 w-4 text-fuchsia-300" />
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/40 backdrop-blur-md px-4 py-2">
+            <Radar className={`h-4 w-4 ${themeColors.text}`} />
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
               {patternProfile.family} / {patternProfile.phase}
             </div>
           </div>
         </div>
 
-        <div className="mb-6 rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-5">
-          <div className="mb-3 flex items-center gap-2 text-fuchsia-200">
-            <Sparkles className="h-4 w-4" />
-            <div className="text-[10px] font-black uppercase tracking-[0.22em]">What Pattern Lab Is</div>
+        {/* -- The 40/60 Asymmetrical Split -- */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start relative z-10 w-full mb-[150px]">
+
+          {/* =========================================================
+              LEFT (40%): THE SVAROG MATRIX
+              ========================================================= */}
+          <div className="xl:col-span-5 space-y-6 sticky top-24">
+
+            {/* The Main Predictor - Placed High up */}
+            <div className="matrix-fade">
+              <ModernPairPredictorCard entries={entries} region={LAB_REGION} />
+            </div>
+
+            {/* Moved Stats and Line Card */}
+            <div className="matrix-fade transition-all duration-500">
+              <ModernStatsPanel
+                entries={entries}
+                prediction2={prediction2}
+                prediction3={null}
+                prediction4={null}
+                currentRegion={LAB_REGION}
+                currentPatch={LAB_PATCH}
+                forcedLineOverride={currentLine}
+                compact={false}
+              />
+            </div>
+
           </div>
-          <p className="text-sm leading-relaxed text-slate-300">
-            Pattern Lab is the study room. You can use the auto profile, import a saved session TXT, or paste the full visible-roll history from a
-            real run. Then you step the session forward slowly to study commons, noise, raw pairs, translated rolls, and line position together.
-          </p>
-        </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-5 xl:col-span-8">
-            <div className="mb-4 flex items-center gap-2 text-fuchsia-200">
-              <ScanSearch className="h-4 w-4" />
-              <div className="text-[10px] font-black uppercase tracking-[0.22em]">Session Controls</div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Mood</div>
-                <div className="flex gap-2">
-                  {MOODS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => resetLab(option, familyOptionMatchesMood ? familyId : 'auto')}
-                      className={`rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
-                        mood === option
-                          ? 'border-fuchsia-400/30 bg-fuchsia-500/12 text-fuchsia-100'
-                          : 'border-white/5 bg-black/20 text-slate-300 hover:border-white/10'
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {/* =========================================================
+              RIGHT (60%): THE BENTO DASHBOARD
+              ========================================================= */}
+          <div className="xl:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-5 relative z-10 w-full">
 
-              <div>
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Family Lock</div>
-                <select
-                  value={familyId}
-                  onChange={(event) => resetLab(mood, event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-slate-200 outline-none"
-                >
-                  <option value="auto">Auto from mood</option>
-                  {familyOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Tile 1: Tactical Media Player Deck (Full Width) */}
+            <div className={`bento-tile md:col-span-12 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-2xl p-6 relative overflow-hidden group hover:border-white/20 transition-all duration-500`}>
+              <div className={`absolute top-0 right-0 w-32 h-32 ${themeColors.bgGlow} blur-[60px] rounded-full opacity-50 group-hover:opacity-100 transition-opacity`} />
 
-              <div>
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Current Line</div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map((line) => (
-                    <button
-                      key={line}
-                      type="button"
-                      onClick={() => setCurrentLine(line)}
-                      className={`rounded-xl border px-0 py-3 text-sm font-black transition-all ${
-                        currentLine === line
-                          ? 'border-amber-400/30 bg-amber-500/12 text-amber-100'
-                          : 'border-white/5 bg-black/20 text-slate-300 hover:border-white/10'
-                      }`}
-                    >
-                      L{line}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+              <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 relative z-10">
 
-            <div className="mt-5 rounded-[1.25rem] border border-white/5 bg-black/20 p-4">
-              <div className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Session Source</div>
-              <div className="mb-4 flex flex-wrap gap-2">
-                {SOURCE_MODES.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setSourceMode(option.id)}
-                    className={`rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
-                      sourceMode === option.id
-                        ? 'border-cyan-400/30 bg-cyan-500/12 text-cyan-100'
-                        : 'border-white/5 bg-black/20 text-slate-300 hover:border-white/10'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {sourceMode === 'import' ? (
-                <div className="space-y-3">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".txt,text/plain"
-                    onChange={handleImportFile}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
-                  >
-                    Import Session TXT
-                  </button>
-                  <div className="text-xs text-slate-400">
-                    Import the same TXT format downloaded from Session Data in live/free mode.
-                    {importedFileName ? ` Loaded: ${importedFileName}.` : ''}
+                {/* Internal Settings Rack */}
+                <div className="flex flex-wrap gap-4 xs:gap-8">
+                  <div>
+                    <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">System Mood</div>
+                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                      {MOODS.map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => resetLab(option, familyOptionMatchesMood ? familyId : 'auto')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mood === option
+                            ? themeColors.buttonActive
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : null}
 
-              {sourceMode === 'manual' ? (
-                <div className="space-y-3">
-                  <textarea
-                    value={manualRollsInput}
-                    onChange={(event) => setManualRollsInput(event.target.value)}
-                    rows={4}
-                    placeholder="Paste visible rolls like: 41 42 44 43 42 41, or a longstring like 23412345331345123552"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500"
-                  />
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={handleLoadManualRolls}
-                      className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 transition-all hover:bg-amber-500/20"
-                    >
-                      Load Manual Session
-                    </button>
-                    <div className="self-center text-xs text-slate-400">
-                      Enter the full real session from start to end, then step through it.
+                  <div>
+                    <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Target Line</div>
+                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                      {[1, 2, 3, 4].map((line) => (
+                        <button
+                          key={line}
+                          onClick={() => setCurrentLine(line)}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all duration-300 ${currentLine === line
+                            ? 'bg-amber-500/20 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                          L{line}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ) : null}
 
-              <div className="mt-3 text-xs text-slate-400">{sourceStatusText}</div>
-              {sourceMessage ? <div className="mt-2 text-xs font-medium text-fuchsia-200">{sourceMessage}</div> : null}
+                {/* Media Controls */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={loadStarterMotif}
+                    title="Load Starter Motif"
+                    className="h-12 w-12 flex items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-slate-400 transition-all duration-300 hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => runSteps(1)}
+                    title="Step 1"
+                    className={`h-14 w-14 flex items-center justify-center rounded-[1.25rem] border transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${themeColors.button} pl-1`}
+                  >
+                    <Play className="h-6 w-6 text-current drop-shadow-[0_0_8px_currentColor]" />
+                  </button>
+                  <button
+                    onClick={() => runSteps(5)}
+                    title="Step 5"
+                    className={`h-12 w-12 flex items-center justify-center rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 ${themeColors.button}`}
+                  >
+                    <FastForward className="h-5 w-5 drop-shadow-[0_0_5px_currentColor]" />
+                  </button>
+                  <div className="w-px h-8 bg-white/10 mx-1" />
+                  <button
+                    onClick={() => resetLab(mood, familyId)}
+                    title="Reset Data"
+                    className="h-10 w-10 flex items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-300 transition-all duration-300 hover:scale-105 hover:bg-rose-500/20 active:scale-95"
+                  >
+                    <SkipBack className="h-4 w-4" />
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Source Protocol moved inside/bottom of System Mood */}
+              <div className="border-t border-white/5 pt-6 mt-6 relative z-10">
+                <div className="flex flex-col md:flex-row gap-6">
+
+                  <div className="w-full md:w-1/3">
+                    <div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Source Protocol</div>
+                    <div className="flex flex-col gap-2">
+                      {SOURCE_MODES.map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => setSourceMode(option.id)}
+                          className={`flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${sourceMode === option.id
+                            ? themeColors.buttonActive
+                            : 'border border-white/5 bg-black/40 text-slate-400 hover:border-white/20 hover:text-white'
+                            }`}
+                        >
+                          <div className={`mr-3 h-2 w-2 rounded-full ${sourceMode === option.id ? themeColors.accent : 'bg-slate-700'}`} />
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="w-full md:w-2/3 md:pl-6 flex flex-col justify-center">
+                    {sourceMode === 'import' ? (
+                      <div className="space-y-4">
+                        <input ref={fileInputRef} type="file" accept=".txt" onChange={handleImportFile} className="hidden" />
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-[11px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
+                        >
+                          Select Session Data.txt
+                        </button>
+                        <div className="text-xs text-slate-400 font-medium">
+                          {importedFileName ? `Currently active: ${importedFileName}` : 'Select a dump from Live/Free mode to simulate.'}
+                        </div>
+                      </div>
+                    ) : sourceMode === 'manual' ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={manualRollsInput}
+                          onChange={(e) => setManualRollsInput(e.target.value)}
+                          rows={2}
+                          placeholder="Paste visible rolls here..."
+                          className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm font-mono text-slate-200 outline-none focus:border-white/30 transition-all"
+                        />
+                        <button
+                          onClick={handleLoadManualRolls}
+                          className={`inline-flex items-center gap-2 rounded-xl border px-6 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${themeColors.button}`}
+                        >
+                          Execute Manual Payload
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-400 font-medium p-6 rounded-xl bg-black/20 border border-white/5 border-dashed text-center">
+                        Automated generation using internal structural profiling.
+                      </div>
+                    )}
+
+                    {sourceMessage && <div className={`mt-3 text-xs font-bold ${themeColors.textLight}`}>{sourceMessage}</div>}
+                  </div>
+
+                </div>
+              </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => runSteps(1)}
-                className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-              >
-                <StepForward className="h-4 w-4" />
-                Step 1 Roll
-              </button>
-              <button
-                type="button"
-                onClick={() => runSteps(5)}
-                className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-fuchsia-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-100 transition-all hover:bg-fuchsia-500/20"
-              >
-                <ChevronRight className="h-4 w-4" />
-                Step 5 Rolls
-              </button>
-              <button
-                type="button"
-                onClick={loadStarterMotif}
-                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
-              >
-                <BrainCircuit className="h-4 w-4" />
-                Load Starter Motif
-              </button>
-              <button
-                type="button"
-                onClick={() => resetLab(mood, familyId)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all hover:border-white/20"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Reset Lab
-              </button>
+            {/* Tile 2: Engine Read (Square-ish) */}
+            <div className={`bento-tile md:col-span-6 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-xl p-6 group relative overflow-hidden`}>
+              <div className={`mb-5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${themeColors.text} relative z-10`}>
+                <Radar className="h-4 w-4" />
+                Engine Diagnostics
+              </div>
+              <div className="space-y-4">
+                <div className="p-3 bg-black/30 rounded-xl border border-white/5 flex flex-col justify-center">
+                  <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Seed</span>
+                  <span className={`font-mono text-xs ${themeColors.textLight} break-all`}>{sourceMode === 'auto' ? patternProfile.seed : 'Imported/Manual Session'}</span>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1 p-3 bg-black/30 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block mb-1">Commons</span>
+                    <span className="font-black text-emerald-300 text-lg">{(patternProfile.commons || []).join('/')}</span>
+                  </div>
+                  <div className="flex-1 p-3 bg-black/30 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block mb-1">Noise</span>
+                    <span className="font-black text-rose-400 text-lg">{(patternProfile.noise || []).join('/')}</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  {profileDescription}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-5 xl:col-span-4">
-            <div className="mb-4 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-300">Engine Read</div>
-            <div className="space-y-3 text-sm text-slate-300">
-              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Seed</div>
-                <div className="mt-1 font-mono text-white">{sourceMode === 'auto' ? patternProfile.seed : 'Imported / manual replay'}</div>
+            {/* Tile 3: The Terminal (Raw vs Translated Stream) */}
+            <div className={`bento-tile md:col-span-6 theme-glass-card rounded-[2rem] bg-black/40 backdrop-blur-xl p-6 flex flex-col max-h-[350px] relative overflow-hidden`}>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <div className={`text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-slate-300`}>
+                  <TerminalSquare className="h-4 w-4" />
+                  Log Output
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-md">{labRows.length} Ops</div>
               </div>
-              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Starter Motif</div>
-                <div className="mt-1 font-mono text-white">{sourceMode === 'auto' ? (displayedStarter || '-') : 'User session replay'}</div>
+
+              <div className="grid grid-cols-[30px_35px_35px_1fr] gap-2 mb-2 px-2 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 border-b border-white/5 pb-2 relative z-10">
+                <div>Idx</div>
+                <div>Line</div>
+                <div>Raw</div>
+                <div>Trans</div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Commons</div>
-                  <div className="mt-1 font-black text-emerald-100">{(patternProfile.commons || []).join(' / ')}</div>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Noise</div>
-                  <div className="mt-1 font-black text-rose-100">{(patternProfile.noise || []).join(' / ')}</div>
-                </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1 relative z-10">
+                {forceDisplayRows.length > 0 ? forceDisplayRows.map((row) => (
+                  <div key={row.index} className="gsap-pulse-row grid grid-cols-[30px_35px_35px_1fr] gap-2 items-center text-xs py-1.5 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
+                    <span className="text-slate-600 font-bold text-[9px]">{row.index}</span>
+                    <span className="text-slate-400 font-bold text-[10px]">L{row.fromLine}</span>
+                    <span className="text-slate-500 font-mono text-[10px]">{row.rawPair}</span>
+                    <span className={`font-mono font-bold text-sm ${themeColors.textLight}`}>{row.visibleRoll}</span>
+                  </div>
+                )) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-600 font-mono italic">
+                    &gt; awaiting input_stream...
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Phase</div>
-                  <div className="mt-1 font-black text-white">{patternProfile.phase}</div>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Noise</div>
-                  <div className="mt-1 font-black text-white">{Number(patternProfile.noisePressure || 0).toFixed(2)}</div>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Dominant</div>
-                  <div className="mt-1 font-black text-white">{patternProfile.dominantRoll || '-'}</div>
-                </div>
-              </div>
-              <p className="rounded-xl border border-white/5 bg-black/20 p-3 text-sm leading-relaxed text-slate-300">
-                {profileDescription}
-              </p>
+              <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-[#0B0D13] to-transparent pointer-events-none rounded-b-[2rem] z-20" />
             </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-7">
-            <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-5">
-              <div className="mb-4 flex items-center gap-2 text-fuchsia-200">
-                <BrainCircuit className="h-4 w-4" />
-                <div className="text-[10px] font-black uppercase tracking-[0.22em]">Svarog Assistance</div>
-              </div>
-              <div className="rounded-xl border border-white/5 bg-black/20 p-4">
-                <div className="text-sm font-black text-white">{svarogAssistance.title}</div>
-                <div className="mt-2 text-sm leading-relaxed text-slate-300">{svarogAssistance.summary}</div>
+            {/* Clara's lab (Tile 3) */}
+            <div className={`bento-tile md:col-span-12 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-black/40 backdrop-blur-2xl p-8 mt-12 md:mt-20 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.5)]`}>
+              {/* Surgical fix for Arctic/Glacial theme overflow:hidden !important */}
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                .force-overflow-visible { overflow: visible !important; }
+                .arctic-theme .theme-glass-card.force-overflow-visible,
+                .crimson-theme .theme-glass-card.force-overflow-visible { overflow: visible !important; }
+              `}} />
+
+              <div className="flex flex-col relative z-20">
+                <div className={`mb-5 flex items-center gap-6 ${themeColors.textLight} relative`}>
+
+                  {/* Anime/Manga Style Speech Bubble */}
+                  <div className="absolute -top-24 md:-top-32 left-10 md:left-33 z-[130] animate-float-gentle select-none pointer-events-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:scale-105">
+                    <div className="relative">
+                      {/* Organic Manga SVG Bubble */}
+                      <svg width="220" height="75" viewBox="0 0 220 75" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-[200px] md:w-[240px]">
+                        <path
+                          d="M10 32C10 15.4315 28.3563 2 51 2H169C191.644 2 210 15.4315 210 32C210 48.5685 191.644 62 169 62H65L38 73L46 62C25.4395 62 10 48.5685 10 32Z"
+                          fill="white"
+                          fillOpacity="0.95"
+                          stroke={themeColors.text.includes('cyan') ? '#0ea5e9' : '#000'}
+                          strokeWidth="3"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      {/* Interaction Text */}
+                      <div className="absolute inset-0 flex items-center justify-center pb-2.5 px-6">
+                        <span className="text-[12px] md:text-[13px] font-black uppercase tracking-tight text-black text-center leading-none">
+                          "I-I'm... I'm here to help, Mr. Svarog..."
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clara Assistant Massive Pop-out Icon */}
+                  <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-[120]">
+                    <div className={`absolute inset-0 rounded-full ${themeColors.bgGlow} blur-[60px] opacity-40 group-hover:scale-150 transition-transform duration-1000`} />
+                    <img
+                      src="/clara-prof-assistant.png"
+                      alt="Clara Assistant Icon"
+                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 select-none pointer-events-none drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+                      style={{
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                        maskComposite: 'intersect',
+                        WebkitMaskComposite: 'source-in'
+                      }}
+                    />
+                  </div>
+
+                  <div className="pt-4 relative z-10">
+                    <div className={`text-[10px] font-black uppercase tracking-[0.5em] ${themeColors.text} opacity-50 mb-1`}>Clara's Lab</div>
+                    <div className={`text-xl md:text-2xl font-black tracking-tight text-white drop-shadow-md`}>{svarogAssistance.title}</div>
+                  </div>
+                </div>
+
+                <div className="text-sm md:text-md leading-relaxed text-slate-200 font-semibold md:pl-6 border-l-2 border-white/10 mt-2 relative z-10">
+                  {svarogAssistance.summary}
+                </div>
+
                 {svarogAssistance.bullets.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    {svarogAssistance.bullets.map((bullet) => (
-                      <div key={bullet} className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-sm text-slate-200">
+                  <div className="mt-6 space-y-3">
+                    {svarogAssistance.bullets.map((bullet, idx) => (
+                      <div key={idx} className="relative pl-4 text-xs leading-relaxed text-slate-300 transition-colors hover:text-white group">
+                        <span className={`absolute left-0 top-1.5 h-1.5 w-1.5 rounded-full ${themeColors.accent} shadow-[0_0_10px_currentColor] group-hover:scale-150 transition-transform`} />
                         {bullet}
                       </div>
                     ))}
                   </div>
-                ) : null}
-              </div>
-            </div>
-            <ModernPairPredictorCard entries={entries} region={LAB_REGION} />
-            <div className="rounded-[1.5rem] border border-white/5 bg-slate-950/45 p-5">
-              <div className="mb-4 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-300">Raw vs Translated</div>
-              <div className="overflow-hidden rounded-xl border border-white/5">
-                <div className="grid grid-cols-[80px_90px_90px_80px_1fr] gap-0 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                  <div>Step</div>
-                  <div>From</div>
-                  <div>Raw</div>
-                  <div>Show</div>
-                  <div>State</div>
-                </div>
-                {forceDisplayRows.length > 0 ? (
-                  forceDisplayRows.map((row) => (
-                    <div
-                      key={`lab-row-${row.index}`}
-                      className="grid grid-cols-[80px_90px_90px_80px_1fr] gap-0 border-t border-white/5 px-4 py-3 text-sm text-slate-200"
-                    >
-                      <div className="font-black">{row.index}</div>
-                      <div>L{row.fromLine}</div>
-                      <div className="font-mono">{row.rawPair}</div>
-                      <div className="font-mono text-cyan-200">{row.visibleRoll}</div>
-                      <div className="text-xs text-slate-400">
-                        {row.family} / {row.phase} / {row.commons}
-                      </div>
-                    </div>
-                  ))
                 ) : (
-                  <div className="px-4 py-6 text-sm text-slate-400">
-                    No rolls yet. Step the session forward, import a TXT, or load a manual session.
-                  </div>
+                  <div className="mt-6 opacity-50">Awaiting Data Signature...</div>
                 )}
               </div>
             </div>
-          </div>
 
-          <div className="space-y-6 xl:col-span-5">
-            <ModernSessionTable
-              sessionTab={sessionTab}
-              setSessionTab={setSessionTab}
-              entries={entries}
-              prevSessions={[]}
-              compact
-            />
-            <ModernStatsPanel
-              entries={entries}
-              prediction2={prediction2}
-              prediction3={null}
-              prediction4={null}
-              currentRegion={LAB_REGION}
-              currentPatch={LAB_PATCH}
-              forcedLineOverride={currentLine}
-            />
-            <ModernNotesCard
-              notes={notes}
-              setNotes={setNotes}
-              prediction={prediction2}
-              region={LAB_REGION}
-              patch={LAB_PATCH}
-              entries={entries}
-            />
+            {/* User requested turning this off since we have log output now
+            <div className="bento-tile md:col-span-12">
+              <ModernSessionTable
+                sessionTab={sessionTab}
+                setSessionTab={setSessionTab}
+                entries={entries}
+                prevSessions={[]}
+                compact
+              />
+            </div>
+            */}
+
+            <div className="bento-tile md:col-span-12">
+              <ModernNotesCard
+                notes={notes}
+                setNotes={setNotes}
+                prediction={prediction2}
+                region={LAB_REGION}
+                patch={LAB_PATCH}
+                entries={entries}
+                themeColors={themeColors}
+              />
+            </div>
+
           </div>
         </div>
       </div>
