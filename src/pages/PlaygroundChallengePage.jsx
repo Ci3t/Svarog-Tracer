@@ -2424,6 +2424,135 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         </div>
         ) : null}
 
+        {!isPvpMode ? (
+        <div className="gsap-fade-up mb-6 rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 shadow-inner backdrop-blur-md">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="text-[8px] font-black uppercase tracking-[0.24em] text-cyan-300">Mission Brief</span>
+                {generatedScenario ? (
+                  <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100">
+                    Generated
+                  </span>
+                ) : null}
+                <span className="rounded-full border border-white/5 bg-black/30 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
+                  {currentContract.difficulty}
+                </span>
+              </div>
+              <div className="text-xl font-black uppercase tracking-tight text-amber-300">
+                {currentContract.title}
+              </div>
+              <p className="mt-2 max-w-3xl text-[11px] leading-relaxed text-slate-300">
+                {describeChallengeMission(currentContract.success)}
+              </p>
+            </div>
+
+            <div className="grid min-w-[220px] grid-cols-2 gap-3 lg:w-[260px]">
+              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">Tries</div>
+                <div className="mt-1 text-2xl font-black text-amber-200">
+                  {triesUsed}
+                  {maxTries ? <span className="text-sm text-slate-500"> / {maxTries}</span> : null}
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
+                <div className="mt-1 text-2xl font-black text-rose-300">{mistakes}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_280px]">
+            <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">Clear Rule</div>
+              <p className="text-[10px] leading-relaxed text-slate-300">
+                {describeChallengeWinRule(currentContract.success)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Goal Checklist</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {contractTargets.length > 0 ? contractTargets.map((target) => (
+                  <span key={target} className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
+                    {target}
+                  </span>
+                )) : (
+                  <span className="text-[10px] text-slate-400">No explicit target lines.</span>
+                )}
+              </div>
+              {currentContract.requiresSessionBuilder ? (
+                <p className="mt-3 text-[10px] leading-relaxed text-amber-100/85">
+                  Session-builder rule is active for this challenge. Read the board first, then convert that read into your target path.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div
+                className={`rounded-xl border p-3 ${
+                  challengeStatus.tone === 'clear'
+                    ? 'border-emerald-500/25 bg-emerald-500/10'
+                    : challengeStatus.tone === 'fail'
+                      ? 'border-rose-500/25 bg-rose-500/10'
+                      : 'border-cyan-400/20 bg-cyan-500/5'
+                }`}
+              >
+                <div
+                  className={`text-[9px] font-black uppercase tracking-[0.18em] mb-1 ${
+                    challengeStatus.tone === 'clear'
+                      ? 'text-emerald-200'
+                      : challengeStatus.tone === 'fail'
+                        ? 'text-rose-200'
+                        : 'text-cyan-200'
+                  }`}
+                >
+                  {challengeStatus.label}
+                </div>
+                <p className="text-[10px] leading-relaxed text-slate-200">{challengeStatus.text}</p>
+              </div>
+
+              {challengeStatus.tone === 'clear' && nextContractId ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenHandcraftedContract(nextContractId)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
+                >
+                  Next Contract
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : null}
+              {challengeStatus.tone === 'clear' && generatedScenario ? (
+                <button
+                  type="button"
+                  onClick={handleGenerateScenario}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
+                >
+                  Generate Next Challenge
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : null}
+              {challengeStatus.tone !== 'clear' ? (
+                <button
+                  type="button"
+                  onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  Show Hint
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {currentContract.seedLabel}</p>
+          </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-slate-400">{activeHint}</p>
+        </div>
+        ) : null}
+
         {/* 3-COLUMN TACTICAL COMMAND CENTER: 3-6-3 SPLIT */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
           
@@ -2489,6 +2618,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
              {/* 2. SESSION TABLE - CENTER BOTTOM */}
              {/* 2. MISSION BRIEF - CENTER BOTTOM */}
              <div className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 mt-6">
+              {isPvpMode ? (
+              <>
                 <div className="flex items-center gap-2 mb-3">
                    <Trophy className="h-3 w-3 text-amber-300" />
                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">Mission Card</span>
@@ -2683,6 +2814,27 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
                   <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {currentContract.seedLabel}</p>
                 </div>
+              </>
+              ) : (
+                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Challenge Intel</div>
+                      <div className="mt-1 text-[10px] leading-relaxed text-slate-300">
+                        Use the predictor on the left, builder/target relics above, then compare your read against the line helper before committing.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
+                      className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
+                    >
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      Hint
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
           </section>
 

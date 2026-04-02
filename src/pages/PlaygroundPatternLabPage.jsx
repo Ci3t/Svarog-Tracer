@@ -605,6 +605,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [claraTipIndex, setClaraTipIndex] = useState(0);
+  const [claraSpeaking, setClaraSpeaking] = useState(false);
   const lastRollIndexRef = useRef(0);
 
   useEffect(() => {
@@ -846,6 +847,14 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   useEffect(() => {
     setClaraTipIndex(0);
   }, [sourceMode, sourceCursor, labRows.length, prediction2?.pairSafety, prediction2?.freshOutsider?.value, nextObservedRoll]);
+
+  useEffect(() => {
+    setClaraSpeaking(true);
+    const timer = window.setTimeout(() => {
+      setClaraSpeaking(false);
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [claraTip]);
 
   useEffect(() => {
     if (claraTips.length <= 1) return undefined;
@@ -1277,7 +1286,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
                   <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 z-[120]">
                     <div className={`absolute inset-0 rounded-full ${themeColors.bgGlow} blur-[60px] opacity-40 group-hover:scale-150 transition-transform duration-1000`} />
                     <img
-                      src="/clara-prof-assistant.png"
+                      src={claraSpeaking ? "/clara-prof-OandMouth.gif" : "/clara-prof-assistant.png"}
                       alt="Clara Assistant Icon"
                       className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
                       style={{
