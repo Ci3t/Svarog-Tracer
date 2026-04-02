@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BrainCircuit, ChevronRight, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
@@ -377,6 +377,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const [score, setScore] = useState(0);
   const [answers, setAnswers] = useState({});
   const [sessionTab, setSessionTab] = useState('current');
+  const [claraSpeaking, setClaraSpeaking] = useState(false);
 
   const currentDrill = drills[currentIndex];
   const isComplete = currentIndex >= drills.length;
@@ -384,6 +385,22 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     () => buildEntryRows(currentDrill?.starterRolls || []),
     [currentDrill]
   );
+  const claraBubbleText = !revealed
+    ? 'Read the pattern first.'
+    : (selectedAnswer === currentDrill?.correctAnswer ? 'Perfect. That is the right read.' : 'Not quite. Check the clue you missed.');
+  const claraImageSrc = claraSpeaking
+    ? '/clara-prof-OandMouth.gif'
+    : (revealed && selectedAnswer !== currentDrill?.correctAnswer
+      ? '/clara-prof-assistant-sadface.png'
+      : '/clara-prof-assistant.png');
+
+  useEffect(() => {
+    setClaraSpeaking(true);
+    const timer = window.setTimeout(() => {
+      setClaraSpeaking(false);
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [claraBubbleText]);
 
   const handleReveal = (answer) => {
     if (revealed || isComplete) return;
@@ -611,7 +628,6 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                     __html: `
                     .force-overflow-visible { overflow: visible !important; }
                   `}} />
-
                   {/* CLARA AVATAR & BUBBLE CONTAINER */}
                   <div className="relative shrink-0 w-24 sm:w-32 flex flex-col justify-end mt-10 z-[120]">
                      <div className="absolute inset-0 rounded-full bg-cyan-500 blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity duration-1000" />
@@ -630,7 +646,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                            </svg>
                            <div className="absolute inset-0 flex items-center justify-center pb-3 px-8 z-20">
                               <span className="text-[10px] md:text-[11px] font-black uppercase tracking-tight text-center leading-[1.05]" style={{ color: '#000000' }}>
-                                {!revealed ? "Analyze the board!" : (selectedAnswer === currentDrill.correctAnswer ? "Excellent read!" : "Wait, recalculating...")}
+                                {claraBubbleText}
                               </span>
                            </div>
                         </div>
@@ -638,15 +654,15 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-[130] w-full text-center pointer-events-none drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
                          <div className="text-[9px] font-black uppercase tracking-widest text-cyan-300 drop-shadow-md pb-1 border-b border-cyan-500/30 bg-black/40 px-2 rounded-t-xl inline-block backdrop-blur-sm">
                            Clara
-                         </div>
+                        </div>
                      </div>
                      <img
-                       src={revealed && selectedAnswer !== currentDrill.correctAnswer ? "/clara-prof-assistant.png" : "/clara-prof-OandMouth.gif"}
+                       src={claraImageSrc}
                        alt="Clara Assistant Icon"
                        className="relative w-[140%] max-w-none -ml-4 object-contain z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform duration-700 pointer-events-none"
                        style={{
-                         maskImage: 'linear-gradient(to bottom, black 60%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
-                         WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 95%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                         maskImage: 'linear-gradient(to bottom, black 0%, black 68%, rgba(0,0,0,0.85) 78%, rgba(0,0,0,0.35) 90%, transparent 100%), linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%)',
+                         WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 68%, rgba(0,0,0,0.85) 78%, rgba(0,0,0,0.35) 90%, transparent 100%), linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%)',
                        }}
                      />
                   </div>
