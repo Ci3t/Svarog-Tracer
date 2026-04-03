@@ -19,6 +19,7 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 import PvpVsMark from '../components/modern/PvpVsMark';
+import { withBaseUrl } from '../utils/assetPaths';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
 const TARGET_SUB_OPTIONS = [
@@ -382,7 +383,7 @@ function LobbyTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-rose-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -432,7 +433,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const location = useLocation();
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, roleMode } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
   const [selectedSeedMode, setSelectedSeedMode] = useState('shared');
   const [selectedSetName, setSelectedSetName] = useState('');
@@ -449,7 +450,8 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const roomCode = room?.code || '';
   const roomStatus = room?.status || 'idle';
   const isHost = room?.viewerRole === 'host';
-  const canDevFill = isLocalHost() && isHost && room?.status === 'lobby' && !room?.guest?.userId;
+  const isAdminMode = roleMode === 'admin';
+  const canDevFill = isHost && room?.status === 'lobby' && !room?.guest?.userId && (isLocalHost() || isAdminMode);
 
   const opponent = useMemo(() => {
     if (!room) return null;
@@ -1065,7 +1067,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                           className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:border-white/20 hover:text-white disabled:opacity-50"
                         >
                           <Users className="h-4 w-4" />
-                          Svarog #2 Fair
+                          Clara Bot
                         </button>
                       </>
                     ) : null}

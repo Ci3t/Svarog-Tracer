@@ -13,6 +13,12 @@ const isGithubPagesHost =
 const RouterComponent = isGithubPagesHost ? HashRouter : BrowserRouter;
 const routerProps = isGithubPagesHost ? {} : { basename: import.meta.env.BASE_URL };
 
+const assetBase = import.meta.env.BASE_URL || '/';
+const normalizedAssetBase = assetBase.endsWith('/') ? assetBase : `${assetBase}/`;
+if (typeof document !== 'undefined') {
+  document.documentElement.style.setProperty('--asset-base', normalizedAssetBase);
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <RouterComponent {...routerProps}>

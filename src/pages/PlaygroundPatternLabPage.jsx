@@ -25,6 +25,7 @@ import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { decodeLongString, translateTo4 } from '../utils/stringHelpers';
+import { withBaseUrl } from '../utils/assetPaths';
 import {
   advancePatternProfile,
   createPatternProfile,
@@ -218,7 +219,7 @@ function PatternLabTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -1309,7 +1310,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
                   <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 z-[120]">
                     <div className={`absolute inset-0 rounded-full ${themeColors.bgGlow} blur-[60px] opacity-40 group-hover:scale-150 transition-transform duration-1000`} />
                     <img
-                      src={claraSpeaking ? "/clara-prof-OandMouth.gif" : "/clara-prof-assistant.png"}
+                      src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
                       alt="Clara Assistant Icon"
                       className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
                       style={{

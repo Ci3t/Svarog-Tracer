@@ -20,7 +20,7 @@
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url('/clara.jpg');
+  background-image: url(var(--asset-base)clara.jpg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
@@ -54,7 +54,7 @@
 
 /* 🧊 OPTIMIZED GLACIAL CARD 🧊 */
 .arctic-theme .theme-glass-card {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(14, 165, 233, 0.25) 100%) !important;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(14, 165, 233, 0.18) 100%) !important;
   backdrop-filter: blur(3px) saturate(110%) !important;
   -webkit-backdrop-filter: blur(3px) saturate(110%) !important;
   border: 1px solid rgba(125, 211, 252, 0.3) !important;
@@ -65,6 +65,11 @@
   z-index: 1;
   transition: transform 0.3s ease, box-shadow 0.3s ease !important;
   will-change: auto;
+}
+
+.arctic-theme .theme-subpanel {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.68) 0%, rgba(125, 211, 252, 0.12) 100%) !important;
+  border: 1px solid rgba(125, 211, 252, 0.24) !important;
 }
 
 .arctic-theme .theme-glass-card:hover {

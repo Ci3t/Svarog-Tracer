@@ -17,6 +17,7 @@ import { predictWithPairs } from '../../../src/utils/pairTransitionPredictor.js'
 import {
   extractDiscordDisplayName,
   HttpError,
+  isZoneAdminUser,
   requireAuthenticatedUser,
   setCorsHeaders,
   supabaseAdminRequest,
@@ -2949,8 +2950,8 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
 }
 
 async function devFillRoomForUser(req, user, code, body = {}) {
-  if (!isLocalDevRequest(req)) {
-    throw new HttpError(403, 'Dev fill is only available on local development.');
+  if (!isLocalDevRequest(req) && !isZoneAdminUser(user)) {
+    throw new HttpError(403, 'Dev fill is only available on local development or admin accounts.');
   }
 
   const room = await loadRoomByCode(code);

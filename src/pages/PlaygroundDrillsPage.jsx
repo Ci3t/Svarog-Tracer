@@ -6,6 +6,7 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
 import { translateTo4 } from '../utils/stringHelpers';
+import { withBaseUrl } from '../utils/assetPaths';
 
 const ALL_PAIRS = [
   ['41', '42'],
@@ -116,6 +117,87 @@ const DRILL_DEFS = [
     options: ['The repeated 41 lane', 'The single 44 outsider', 'Neither, because one break deletes the history'],
     explanation:
       'History gives context. The right read usually starts from what kept happening, not the one loud interruption.',
+  },
+  {
+    id: 'trend-share-meaning',
+    chapter: 'Predictor Basics',
+    title: 'What Is Trend Share?',
+    subtitle: 'Read the visible percent correctly.',
+    skill: 'Trend Share',
+    type: 'decision',
+    prompt: 'In the predictor, what does “trend share 40%” mean?',
+    answer: 'That value owned 40% of the latest trend window',
+    options: [
+      'That value owned 40% of the latest trend window',
+      'The predictor is 40% sure the value is correct',
+      'The value will repeat 40% of the rest of the session',
+    ],
+    explanation:
+      'Trend share is just recent ownership of the window. It is not the same thing as confidence.',
+  },
+  {
+    id: 'trust-meaning',
+    chapter: 'Predictor Basics',
+    title: 'What Is Trust?',
+    subtitle: 'Trust is not the same thing as share.',
+    skill: 'Trend Trust',
+    type: 'decision',
+    prompt: 'What does “trust 100%” actually mean?',
+    answer: 'The predictor strongly believes the arrow direction itself',
+    options: [
+      'The predictor strongly believes the arrow direction itself',
+      'That value appeared in 100% of the recent rolls',
+      'The board is safe and cannot break',
+    ],
+    explanation:
+      'Trust is internal confidence in the direction label like rising, stable, or falling. It is not the same as visible frequency.',
+  },
+  {
+    id: 'freshness-meaning',
+    chapter: 'Predictor Basics',
+    title: 'What Is Freshness?',
+    subtitle: 'Freshness tells you how new the arrow is.',
+    skill: 'Freshness',
+    type: 'decision',
+    prompt: 'What does freshness measure in the predictor?',
+    answer: 'How recently that same arrow changed or stayed alive',
+    options: [
+      'How recently that same arrow changed or stayed alive',
+      'How many total times the value appeared this session',
+      'How much junk the relic currently has',
+    ],
+    explanation:
+      'Freshness is timing. It helps you tell a new push apart from an old signal that has been hanging around for several windows.',
+  },
+  {
+    id: 'fresh-held-stale',
+    chapter: 'Predictor Basics',
+    title: 'Fresh, Held, Or Stale?',
+    subtitle: 'Know what the state label is trying to tell you.',
+    skill: 'Freshness State',
+    type: 'decision',
+    prompt: 'If an arrow has repeated for multiple windows without changing, what should the predictor call it?',
+    answer: 'Stale',
+    options: ['Fresh', 'Held', 'Stale'],
+    explanation:
+      'Fresh means new. Held means it kept going for another window. Stale means the same arrow has been around long enough that you should start watching for a break.',
+  },
+  {
+    id: 'share-vs-trust-example',
+    chapter: 'Predictor Basics',
+    title: 'Share vs Trust',
+    subtitle: 'Use both numbers together.',
+    skill: 'Trend Interpretation',
+    type: 'decision',
+    prompt: 'Which read is stronger: share 40% + trust 100% + fresh, or share 40% + trust 100% + stale?',
+    answer: 'The fresh one is stronger',
+    options: [
+      'The fresh one is stronger',
+      'They are exactly the same read',
+      'The stale one is stronger because it lasted longer',
+    ],
+    explanation:
+      'Equal share does not mean equal timing. Freshness helps you tell whether the signal is newly pushing or just lingering.',
   },
   {
     id: 'carry-line-read',
@@ -389,10 +471,10 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     ? 'Read the pattern first.'
     : (selectedAnswer === currentDrill?.correctAnswer ? 'Perfect. That is the right read.' : 'Not quite. Check the clue you missed.');
   const claraImageSrc = claraSpeaking
-    ? '/clara-prof-OandMouth.gif'
+    ? withBaseUrl('clara-prof-OandMouth.gif')
     : (revealed && selectedAnswer !== currentDrill?.correctAnswer
-      ? '/clara-prof-assistant-sadface.png'
-      : '/clara-prof-assistant.png');
+      ? withBaseUrl('clara-prof-assistant-sadface.png')
+      : withBaseUrl('clara-prof-assistant.png'));
 
   useEffect(() => {
     setClaraSpeaking(true);

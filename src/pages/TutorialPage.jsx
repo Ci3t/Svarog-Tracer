@@ -23,6 +23,7 @@ import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import { withBaseUrl } from '../utils/assetPaths';
 import tutorialStageOneScript from '../guides/tutorialStageOneScript';
 
 const CHAPTERS = [
@@ -344,7 +345,7 @@ function TutorialTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -1262,7 +1263,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                   </div>
                   <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 tracking-[0.1em]">
                     <Sparkles className="h-3 w-3 text-amber-400" />
-                    SYNCCON_V4.1.1
+                    SYNCCON_V4.1.2
                   </div>
                 </div>
 
@@ -1278,16 +1279,16 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 <div className="stagger-item grid gap-5 md:grid-cols-2 mt-4">
                   <button
                     type="button"
-                    onClick={() => navigate('/live')}
+                    onClick={() => navigate('/playground/drills')}
                     className="group relative overflow-hidden rounded-[2rem] border border-cyan-500/30 bg-cyan-500/10 p-1 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-cyan-500/10"
                   >
                     <div className="relative z-10 flex flex-col items-start p-6 text-left">
                       <div className="mb-4 rounded-xl bg-cyan-400/20 p-3 text-cyan-300 group-hover:bg-cyan-400/30 transition-colors">
-                        <Activity className="h-6 w-6" />
+                        <BookOpen className="h-6 w-6" />
                       </div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-300/70 mb-1">Live Deployment</div>
-                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-cyan-100 transition-colors">Go Live Mode</div>
-                      <p className="mt-3 text-sm text-slate-300 leading-relaxed"> Apply your training to real-time predictive sessions immediately. </p>
+                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-300/70 mb-1">Guided Reps</div>
+                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-cyan-100 transition-colors">Beginner Drills</div>
+                      <p className="mt-3 text-sm text-slate-300 leading-relaxed"> Lock in your board vocabulary with short guided reps before moving into the wider playground. </p>
                     </div>
                     {/* Hover Glow */}
                     <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-cyan-400/10 blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1581,7 +1582,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 <div id="tutorial-input-rolls" className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">
                   <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Algorithm Status</div>
                   <div className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                    <span className="text-cyan-400">SYNCED</span> / V4.1.1
+                    <span className="text-cyan-400">SYNCED</span> / V4.1.2
                   </div>
                 </div>
                 <div className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">

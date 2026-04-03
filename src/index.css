@@ -3,6 +3,7 @@
 :root {
   --font-sans: Outfit, Inter, system-ui, sans-serif;
   --font-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  --asset-base: '/';
   --spacing: 0.25rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;

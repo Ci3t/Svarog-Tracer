@@ -39,6 +39,7 @@ import ModernSessionTable from '../components/modern/ModernSessionTable';
 import PvpVsMark from '../components/modern/PvpVsMark';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
+import { withBaseUrl } from '../utils/assetPaths';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import relicSets from '../data/relics.json';
 import { CHALLENGE_CONTRACT_ORDER, getChallengeContract, getNextChallengeContractId } from '../data/challengeContracts';
@@ -241,6 +242,35 @@ const PVP_TOUR_STEPS = [
 function isLocalHost() {
   if (typeof window === 'undefined') return false;
   return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+}
+
+function resolveAuthDisplayName(user) {
+  if (!user || typeof user !== 'object') return '';
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find((identity) => {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    return provider === 'discord';
+  });
+  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+  const picks = [
+    metadata.global_name,
+    metadata.full_name,
+    identityData.global_name,
+    metadata.user_name,
+    identityData.username,
+    metadata.preferred_username,
+    metadata.name,
+    user.email,
+    user.id,
+  ];
+  for (const value of picks) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+  return '';
 }
 
 function getPvpFetchErrorMessage(error, fallback) {
@@ -667,7 +697,7 @@ function ChallengeTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -1374,13 +1404,6 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [pvpTourAutoFreeze, setPvpTourAutoFreeze] = useState(false);
 
   const containerRef = useRef(null);
-  const debugRef = useRef({
-    bucketKey: null,
-    historyLength: 0,
-    family: null,
-    commons: null,
-    phase: null,
-  });
   const lastPvpSyncRef = useRef('');
   const loadedPvpScenarioRef = useRef('');
   const lastPvpStartedAtRef = useRef('');
@@ -1567,6 +1590,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) return 0;
     return Math.max(0, 5 - Math.floor((clockNow - startedAtMs) / 1000));
   }, [clockNow, isPvpMode, pvpRoom?.startedAt, pvpRoom?.status]);
+  const authDisplayName = useMemo(() => resolveAuthDisplayName(user), [user]);
   const isPvpCountdownLocked = isPvpMode && pvpRoom?.status === 'countdown' && pvpCountdownLeft > 0;
   const isPvpTourFreezeActive = isPvpMode && pvpTourAutoFreeze && tourRunning && pvpRoom?.status === 'active';
   const isPvpInteractionLocked = isPvpCountdownLocked || isPvpTourFreezeActive;
@@ -1684,6 +1708,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     secondsLeft,
     triesUsed,
   ]);
+  const viewerDisplayName = localPvpState.displayName || authDisplayName || 'Trailblazer';
   const pvpPressureLabel = useMemo(() => {
     if (!isPvpMode) return '';
     const yourLevel = relic.level || 0;
@@ -2071,78 +2096,6 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     setCompletedContracts((existing) => (existing.includes(currentContract.id) ? existing : [...existing, currentContract.id]));
   }, [challengeStatus.tone, currentContract.id, isGeneratedChallengeActive]);
 
-  useEffect(() => {
-    const lastSessionRoll = patternProfile?.history?.[patternProfile.history.length - 1] || '-';
-    const historyLength = patternProfile?.history?.length || 0;
-    const commons = patternProfile?.commons?.join('/') || '-';
-    const previous = debugRef.current;
-
-    if (previous.bucketKey && previous.bucketKey !== bucketKey) {
-      console.info(
-        `[FreeMode] bucket rollover ${previous.bucketKey} -> ${bucketKey} | seed=${patternProfile?.seed} | mood=${patternProfile?.mood}`
-      );
-    }
-
-    if (
-      previous.family &&
-      (
-        previous.family !== (patternProfile?.family || null) ||
-        previous.commons !== commons ||
-        previous.phase !== (patternProfile?.phase || null)
-      )
-    ) {
-      console.info(
-        `[FreeMode] regime update ${previous.family}(${previous.commons || '-'}) -> ${patternProfile?.family || '-'}(${commons}) | phase=${patternProfile?.phase || '-'} | noise=${patternProfile?.noisePressure ?? 0}`
-      );
-    }
-
-    if (historyLength > previous.historyLength) {
-      console.groupCollapsed(
-        `[FreeMode] consumed ${lastSessionRoll} | bucket=${bucketKey} | family=${patternProfile?.family || '-'} | phase=${patternProfile?.phase || '-'}`
-      );
-      console.table({
-        bucketKey,
-        seed: patternProfile?.seed,
-        mood: patternProfile?.mood,
-        family: patternProfile?.family,
-        phase: patternProfile?.phase,
-        commons,
-        noise: patternProfile?.noise?.join('/') || '-',
-        noisePressure: patternProfile?.noisePressure ?? 0,
-        dominantRoll: patternProfile?.dominantRoll || '-',
-        regimeShiftCount: patternProfile?.regimeShiftCount ?? 0,
-        historyLength,
-        lastSessionRoll,
-        target: `${relic.level} | L${relic.lastLine || '-'} | ${relic.lastRawPair || '-'} -> ${relic.lastVisibleRoll || '-'}`,
-        sessionBuilder: `${testRelic.level} | L${testRelic.lastLine || '-'} | ${testRelic.lastRawPair || '-'} -> ${testRelic.lastVisibleRoll || '-'} | loop=${testRelicLoopMode ? 'on' : 'off'}`,
-        forceRelic: `primed=${forceRelic.isPrimed} | line=${forceRelic.forcedLine} | base=${forceRelic.baseLines}`,
-      });
-      console.groupEnd();
-    }
-
-    debugRef.current = {
-      bucketKey,
-      historyLength,
-      family: patternProfile?.family || null,
-      commons,
-      phase: patternProfile?.phase || null,
-    };
-  }, [
-    bucketKey,
-    patternProfile,
-    relic.level,
-    relic.lastLine,
-    relic.lastRawPair,
-    relic.lastVisibleRoll,
-    testRelic.level,
-    testRelic.lastLine,
-    testRelic.lastRawPair,
-    testRelic.lastVisibleRoll,
-    forceRelic.isPrimed,
-    forceRelic.forcedLine,
-    forceRelic.baseLines,
-    testRelicLoopMode,
-  ]);
 
   useEffect(() => {
     if (!timerRunning) return undefined;
@@ -2706,7 +2659,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/70">You</div>
-                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">Trailblazer</div>
+                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">{viewerDisplayName}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">HP</div>

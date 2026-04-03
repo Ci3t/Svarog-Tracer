@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { useAuth } from '../hooks/useAuth';
+import { withBaseUrl } from '../utils/assetPaths';
 
 const CLARA_TIPS = [
   'Free Mode is the cleanest place to test line routes without pressure.',
@@ -30,37 +31,37 @@ const CLARA_TIPS = [
 const CLARA_IDLE_LINES = {
   en: [
     {
-      audio: '/VO_Archive_Clara_2_EN_KeepUpthework.ogg',
+      audio: withBaseUrl('VO_Archive_Clara_2_EN_KeepUpthework.ogg'),
       text: "Let's keep up the good work today!",
     },
     {
-      audio: '/VO_Archive_Clara_EN_Database.ogg',
+      audio: withBaseUrl('VO_Archive_Clara_EN_Database.ogg'),
       text: "Mr. Svarog has everything in his database.",
     },
     {
-      audio: '/VO_Clara_EN_Safehere.ogg',
+      audio: withBaseUrl('VO_Clara_EN_Safehere.ogg'),
       text: "Don't worry, Mr. Svarog. We'll be safe here.",
     },
     {
-      audio: '/VO_Clara_IHOPE DIDOKAY.ogg',
+      audio: withBaseUrl('VO_Clara_IHOPE DIDOKAY.ogg'),
       text: 'I hope I did okay...',
     },
   ],
   jp: [
     {
-      audio: '/VO_JP_Archive_Clara_2_Keepupthework.ogg',
+      audio: withBaseUrl('VO_JP_Archive_Clara_2_Keepupthework.ogg'),
       text: "I'll try my best today too.",
     },
     {
-      audio: '/VO_JP_Archive_Clara_Database.ogg',
+      audio: withBaseUrl('VO_JP_Archive_Clara_Database.ogg'),
       text: "Wow! Svarog's database has everything!",
     },
     {
-      audio: '/VO_JP_Clara_helpful.ogg',
+      audio: withBaseUrl('VO_JP_Clara_helpful.ogg'),
       text: 'I hope I was helpful to everyone',
     },
     {
-      audio: '/VO_JP_Clara_Successful_ right.ogg',
+      audio: withBaseUrl('VO_JP_Clara_Successful_ right.ogg'),
       text: 'Did Clara... do it right?',
     },
   ],
@@ -69,33 +70,33 @@ const CLARA_IDLE_LINES = {
 const CLARA_MAD_LINES = {
   en: [
     {
-      audio: '/VO_Clara_en_ouch.ogg',
+      audio: withBaseUrl('VO_Clara_en_ouch.ogg'),
       text: 'ouch...',
     },
     {
-      audio: '/VO_Clara_en_notafraid.ogg',
+      audio: withBaseUrl('VO_Clara_en_notafraid.ogg'),
       text: "I-I'm not afraid of you!",
     },
     {
-      audio: '/VO_JP_Clara_YAH.ogg',
+      audio: withBaseUrl('VO_JP_Clara_YAH.ogg'),
       text: 'Hyah!',
     },
   ],
   jp: [
     {
-      audio: '/VO_JP_Clara_YAH.ogg',
+      audio: withBaseUrl('VO_JP_Clara_YAH.ogg'),
       text: 'Hyah!',
     },
     {
-      audio: '/VO_JP_Clara_ouch.ogg',
+      audio: withBaseUrl('VO_JP_Clara_ouch.ogg'),
       text: 'Ouch..',
     },
     {
-      audio: '/VO_JP_Clara_notscared.ogg',
+      audio: withBaseUrl('VO_JP_Clara_notscared.ogg'),
       text: "I-I'm not scared!",
     },
     {
-      audio: '/VO_JP_Clara_HELPSvarog.ogg',
+      audio: withBaseUrl('VO_JP_Clara_HELPSvarog.ogg'),
       text: 'Help me, Svarog!',
     },
   ],
@@ -392,6 +393,16 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
   };
 
   useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClaraTipIndex((current) => (current + 1) % CLARA_TIPS.length);
+    }, 4200);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!containerRef.current) return;
     const q = gsap.utils.selector(containerRef.current);
     
@@ -492,18 +503,20 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                         src={
                           claraSpeaking
                             ? claraState === 'mad'
-                              ? '/clara-mad-playground-gif.gif'
-                              : '/clara-playground-gif.gif'
+                              ? withBaseUrl('clara-mad-playground-gif.gif')
+                              : withBaseUrl('clara-playground-gif.gif')
                             : claraState === 'mad'
-                              ? '/clara-playground-mad.png'
-                              : '/clara-playground.png'
+                              ? withBaseUrl('clara-playground-mad.png')
+                              : withBaseUrl('clara-playground.png')
                         }
                         alt="Clara Assistant"
                         className="relative z-10 mx-auto h-[450px] w-auto cursor-pointer object-contain transition-transform duration-700 hover:scale-[1.03]"
+                        style={{
+                          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.82) 82%, rgba(0,0,0,0.36) 91%, rgba(0,0,0,0) 100%)',
+                          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.82) 82%, rgba(0,0,0,0.36) 91%, rgba(0,0,0,0) 100%)',
+                        }}
                       />
                     </div>
-                    <div className="pointer-events-none absolute bottom-0 left-0 z-10 h-32 w-full bg-gradient-to-b from-transparent via-[rgba(10,12,16,0.2)] to-[rgba(10,12,16,0.94)]" />
-                    <div className="pointer-events-none absolute bottom-8 left-1/2 z-10 h-px w-[72%] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/18 to-transparent" />
                     {claraSpeaking && claraBubble ? (
                       <div className="absolute right-[-20px] top-[-10px] z-20 max-w-[280px] transition-transform group-hover:translate-x-2 lg:right-[-36px] lg:top-[-18px]">
                         <div className="relative rounded-[28px] border-[3px] border-sky-400 bg-white px-5 py-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.28)]">
@@ -519,7 +532,18 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                  </div>
 
                  <div className="mt-12 w-full space-y-4">
-                    <div className="theme-subpanel flex items-center justify-between rounded-2xl border border-white/8 p-3">
+                    <div className="theme-glass-card rounded-2xl border border-white/8 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Clara tip cycle</div>
+                          <div className="mt-2 text-sm leading-6 text-slate-200">{CLARA_TIPS[claraTipIndex]}</div>
+                        </div>
+                        <div className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-white/8 bg-white/[0.04] px-2 text-[11px] font-semibold text-slate-300">
+                          {claraTipIndex + 1}/{CLARA_TIPS.length}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="theme-glass-card flex items-center justify-between rounded-2xl border border-white/8 p-3">
                       <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Voice protocol</div>
                         <div className="mt-1 text-xs text-slate-400">Choose Clara's voice language for hub clicks.</div>
@@ -541,7 +565,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                         ))}
                       </div>
                     </div>
-                    <div className="theme-subpanel rounded-2xl border border-white/8 p-5">
+                    <div className="theme-glass-card rounded-2xl border border-white/8 p-5">
                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-4 flex items-center justify-between">
                           Quick Mission Summary
                           <Lock className="h-3 w-3" />
