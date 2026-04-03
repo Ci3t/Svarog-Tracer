@@ -97,6 +97,13 @@ function normalizeDisplayNameValue(value, { maxLength = 80 } = {}) {
   return normalized.slice(0, maxLength);
 }
 
+function normalizeBanReasonValue(value, { maxLength = 240 } = {}) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
 function pickFirstNonEmpty(values) {
   for (const value of Array.isArray(values) ? values : []) {
     const normalized = normalizeDisplayNameValue(value);
@@ -271,6 +278,49 @@ export function extractDiscordDisplayName(user) {
     metadata.preferred_username,
     metadata.name,
   ]);
+}
+
+export function getUserBanInfo(user) {
+  if (!user || typeof user !== 'object') return null;
+
+  const rawBan =
+    (user?.app_metadata && typeof user.app_metadata.svarog_ban === 'object' && user.app_metadata.svarog_ban) ||
+    (user?.user_metadata && typeof user.user_metadata.svarog_ban === 'object' && user.user_metadata.svarog_ban) ||
+    null;
+
+  if (!rawBan) return null;
+
+  const reason = normalizeBanReasonValue(rawBan.reason || rawBan.message || rawBan.note);
+  const bannedAt = String(rawBan.banned_at || rawBan.at || '').trim() || null;
+  const bannedBy = String(rawBan.banned_by || rawBan.by || '').trim() || null;
+  const bannedByName = normalizeDisplayNameValue(rawBan.banned_by_name || rawBan.by_name || rawBan.admin_name);
+
+  if (!reason && !bannedAt && !bannedBy && !bannedByName) {
+    return null;
+  }
+
+  return {
+    reason: reason || 'No reason provided.',
+    banned_at: bannedAt,
+    banned_by: bannedBy,
+    banned_by_name: bannedByName,
+  };
+}
+
+export function isUserBanned(user) {
+  return Boolean(getUserBanInfo(user));
+}
+
+function buildBanErrorDetails(user) {
+  const ban = getUserBanInfo(user);
+  if (!ban) return null;
+
+  return {
+    reason: ban.reason || null,
+    banned_at: ban.banned_at || null,
+    banned_by: ban.banned_by || null,
+    banned_by_name: ban.banned_by_name || null,
+  };
 }
 
 export function normalizeIntegerQuery(value, { field = 'value', min = 0, max = Number.MAX_SAFE_INTEGER, fallback = null } = {}) {
@@ -466,7 +516,46 @@ export async function requireAuthenticatedUser(req) {
     throw new HttpError(401, 'Token did not resolve to a user.');
   }
 
+  if (isUserBanned(user)) {
+    throw new HttpError(403, 'This account is banned.', buildBanErrorDetails(user));
+  }
+
   return { token, user };
+}
+
+export async function supabaseAuthAdminRequest(
+  path,
+  { method = 'GET', body } = {}
+) {
+  ensureSupabaseConfig();
+
+  const baseUrl = SUPABASE_URL.replace(/\/$/, '');
+  const headers = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  };
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${baseUrl}/auth/v1/admin/${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const rawError = await response.text();
+    const details = parseJsonMaybe(rawError) || rawError || null;
+    throw new HttpError(response.status, 'Supabase auth admin request failed.', details);
+  }
+
+  if (response.status === 204) return null;
+
+  const raw = await response.text();
+  if (!raw) return null;
+  return JSON.parse(raw);
 }
 
 export async function supabaseAdminRequest(

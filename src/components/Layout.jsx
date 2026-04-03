@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { Cpu, Flame, Palette, Sparkles, Snowflake, Star } from 'lucide-react';
+import { BookOpen, Cpu, Flame, Gamepad2, Palette, ShieldBan, ShieldCheck, Sparkles, Snowflake, Star } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
 import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
@@ -60,7 +60,7 @@ export default function Layout({
   onThemeChange = () => { },
 }) {
   const location = useLocation();
-  const { isAuthenticated, signOut, roleMode, setRoleMode } = useAuth();
+  const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo } = useAuth();
   const normalizedSessionTheme =
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const navRef = useRef(null);
@@ -68,9 +68,99 @@ export default function Layout({
   const tabRefs = useRef({});
   const themeMenuRef = useRef(null);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [adminModerationMode, setAdminModerationMode] = useState('');
+  const [adminUserModalOpen, setAdminUserModalOpen] = useState(false);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminUserSearch, setAdminUserSearch] = useState('');
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
+  const [adminBanReason, setAdminBanReason] = useState('');
+  const [adminUserActionLoading, setAdminUserActionLoading] = useState(false);
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
   const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
+
+  const loadAdminUsers = useCallback(async () => {
+    if (!isAuthenticated || roleMode !== 'admin') return;
+    setAdminUsersLoading(true);
+    try {
+      const response = await fetch('/api/admin-users?per_page=200', {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to load users.');
+      }
+      setAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
+    } catch (error) {
+      window.alert(error?.message || 'Failed to load users.');
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  }, [getAuthHeader, isAuthenticated, roleMode]);
+
+  const openAdminModerationModal = useCallback((action) => {
+    if (!isAuthenticated || roleMode !== 'admin') return;
+    setAdminModerationMode(action === 'unban' ? 'unban' : 'ban');
+    setAdminUserModalOpen(true);
+    setAdminUserSearch('');
+    setSelectedAdminUserId('');
+    setAdminBanReason('');
+  }, [isAuthenticated, roleMode]);
+
+  const closeAdminModerationModal = useCallback(() => {
+    setAdminUserModalOpen(false);
+    setAdminModerationMode('');
+    setAdminUserSearch('');
+    setSelectedAdminUserId('');
+    setAdminBanReason('');
+    setAdminUserActionLoading(false);
+  }, []);
+
+  const submitAdminModerationAction = useCallback(async () => {
+    if (!selectedAdminUserId || !adminModerationMode) return;
+    if (adminModerationMode === 'ban' && !adminBanReason.trim()) return;
+
+    const pickedUser = adminUsers.find((entry) => entry.id === selectedAdminUserId);
+    const confirmed = window.confirm(
+      adminModerationMode === 'ban'
+        ? `Ban ${pickedUser?.display_name || selectedAdminUserId}?`
+        : `Unban ${pickedUser?.display_name || selectedAdminUserId}?`
+    );
+    if (!confirmed) return;
+
+    setAdminUserActionLoading(true);
+    try {
+      const response = await fetch('/api/admin-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          action: adminModerationMode,
+          userId: selectedAdminUserId,
+          reason: adminModerationMode === 'ban' ? adminBanReason.trim() : undefined,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Admin moderation action failed.');
+      }
+
+      const displayName = payload?.user?.display_name || pickedUser?.display_name || selectedAdminUserId;
+      window.alert(adminModerationMode === 'ban' ? `Banned ${displayName}.` : `Unbanned ${displayName}.`);
+      await loadAdminUsers();
+      closeAdminModerationModal();
+    } catch (error) {
+      window.alert(error?.message || 'Admin moderation action failed.');
+    } finally {
+      setAdminUserActionLoading(false);
+    }
+  }, [adminBanReason, adminModerationMode, adminUsers, closeAdminModerationModal, getAuthHeader, loadAdminUsers, selectedAdminUserId]);
 
   const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;
@@ -123,6 +213,21 @@ export default function Layout({
       { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 0.2 }
     );
   }, []);
+
+  useEffect(() => {
+    if (!adminUserModalOpen || roleMode !== 'admin') return;
+    loadAdminUsers();
+  }, [adminUserModalOpen, loadAdminUsers, roleMode]);
+
+  const filteredAdminUsers = adminUsers.filter((entry) => {
+    const query = adminUserSearch.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      String(entry?.display_name || '').toLowerCase().includes(query) ||
+      String(entry?.email || '').toLowerCase().includes(query) ||
+      String(entry?.id || '').toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -315,7 +420,10 @@ export default function Layout({
                     }`
                   }
                 >
-                  Tutorial
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Tutorial
+                  </span>
                 </NavLink>
                 <NavLink
                   to="/playground"
@@ -327,7 +435,10 @@ export default function Layout({
                     }`
                   }
                 >
-                  Playground
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <Gamepad2 className="h-3.5 w-3.5" />
+                    Playground
+                  </span>
                 </NavLink>
               </nav>
 
@@ -434,6 +545,26 @@ export default function Layout({
                   </button>
                 </div>
               ) : null}
+              {isAuthenticated && roleMode === 'admin' ? (
+                <div className="w-full lg:w-auto inline-flex items-center gap-1 rounded-lg border border-slate-700/70 bg-slate-900/60 p-1 mt-2 lg:mt-0">
+                  <button
+                    type="button"
+                    onClick={() => openAdminModerationModal('ban')}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-500/35 bg-rose-500/12 px-2.5 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-rose-200 transition-all hover:bg-rose-500/18 cursor-pointer"
+                  >
+                    <ShieldBan className="h-3.5 w-3.5" />
+                    Ban User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAdminModerationModal('unban')}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-200 transition-all hover:bg-emerald-500/16 cursor-pointer"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Unban
+                  </button>
+                </div>
+              ) : null}
               {isAuthenticated ? (
                 <button
                   type="button"
@@ -455,10 +586,161 @@ export default function Layout({
         </div>
       </header>
 
+      {isAuthenticated && isBanned ? (
+        <div className="max-w-[1920px] mx-auto px-4 pt-4">
+          <div className="rounded-2xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 backdrop-blur-md">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-200">Account Restricted</div>
+            <p className="mt-1">
+              This account is banned.
+              {banInfo?.reason ? ` Reason: ${banInfo.reason}` : ''}
+              {banInfo?.bannedByName ? ` Banned by: ${banInfo.bannedByName}.` : ''}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Page Content */}
       <main className="max-w-[1920px] mx-auto p-4 flex-grow">
         <Outlet />
       </main>
+
+      {adminUserModalOpen && roleMode === 'admin' ? (
+        <div className="theme-modal-overlay fixed inset-0 z-[360] flex items-center justify-center p-4">
+          <div className="theme-modal-shell w-full max-w-4xl overflow-hidden rounded-[2rem]">
+            <div className="theme-modal-header flex items-center justify-between border-b border-white/10 px-6 py-5">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Admin Moderation</div>
+                <h3 className="mt-1 text-2xl font-black text-white">
+                  {adminModerationMode === 'ban' ? 'Ban User' : 'Unban User'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeAdminModerationModal}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-300 transition-all hover:bg-white/10 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-5 p-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="theme-subpanel rounded-2xl p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Supabase Users</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                    {adminUsersLoading ? 'Loading...' : `${filteredAdminUsers.length} users`}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={adminUserSearch}
+                  onChange={(event) => setAdminUserSearch(event.target.value)}
+                  placeholder="Search username, email, or user id"
+                  className="mb-3 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-all focus:border-white/20"
+                />
+                <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
+                  {filteredAdminUsers.map((entry) => {
+                    const isSelected = selectedAdminUserId === entry.id;
+                    const isBannedUser = Boolean(entry.banned);
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => setSelectedAdminUserId(entry.id)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-cyan-400/40 bg-cyan-500/10'
+                            : 'border-white/8 bg-white/[0.03] hover:bg-white/[0.06]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-black text-white">{entry.display_name}</div>
+                            <div className="mt-1 truncate text-xs text-slate-400">{entry.email || entry.id}</div>
+                            <div className="mt-1 truncate text-[10px] font-mono text-slate-500">{entry.id}</div>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
+                              isBannedUser
+                                ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+                                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                            }`}
+                          >
+                            {isBannedUser ? 'Banned' : 'Active'}
+                          </span>
+                        </div>
+                        {isBannedUser && entry.ban_reason ? (
+                          <div className="mt-2 text-xs text-rose-200/80">Reason: {entry.ban_reason}</div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                  {!adminUsersLoading && filteredAdminUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+                      No users matched your search.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="theme-subpanel rounded-2xl p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Action</div>
+                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Selected User</div>
+                  <div className="mt-2 text-lg font-black text-white">
+                    {selectedAdminUserId
+                      ? (adminUsers.find((entry) => entry.id === selectedAdminUserId)?.display_name || selectedAdminUserId)
+                      : 'No user selected'}
+                  </div>
+                  {selectedAdminUserId ? (
+                    <div className="mt-2 text-xs text-slate-400">
+                      {adminUsers.find((entry) => entry.id === selectedAdminUserId)?.email || selectedAdminUserId}
+                    </div>
+                  ) : null}
+                </div>
+
+                {adminModerationMode === 'ban' ? (
+                  <div className="mt-4">
+                    <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Ban Reason
+                    </label>
+                    <textarea
+                      value={adminBanReason}
+                      onChange={(event) => setAdminBanReason(event.target.value)}
+                      placeholder="Reason for ban"
+                      rows={4}
+                      className="w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-all focus:border-white/20"
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-100">
+                    This will remove the current ban flag from the selected account.
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={submitAdminModerationAction}
+                  disabled={
+                    adminUserActionLoading ||
+                    !selectedAdminUserId ||
+                    (adminModerationMode === 'ban' && !adminBanReason.trim())
+                  }
+                  className={`mt-5 w-full rounded-2xl border px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition-all ${
+                    adminModerationMode === 'ban'
+                      ? 'border-rose-500/35 bg-rose-500/12 text-rose-100 hover:bg-rose-500/18'
+                      : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/16'
+                  } disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer`}
+                >
+                  {adminUserActionLoading
+                    ? (adminModerationMode === 'ban' ? 'Banning...' : 'Unbanning...')
+                    : (adminModerationMode === 'ban' ? 'Ban Selected User' : 'Unban Selected User')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* GLOBAL FOOTER */}
       <footer className="mt-auto border-t border-slate-800/50 bg-slate-900/30 backdrop-blur-md py-8 px-4">
@@ -469,7 +751,7 @@ export default function Layout({
             <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
               Svarog Tracer <span className="text-slate-600">•</span> Relic RNG Observation Engine
               <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                Ver 4.1.1
+                Ver 4.1.2
               </span>
             </h4>
             <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">© 2026 Ciet</p>

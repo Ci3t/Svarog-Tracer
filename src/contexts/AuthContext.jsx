@@ -17,6 +17,28 @@ import { AuthContext } from './auth-context';
 const ROLE_MODE_STORAGE_KEY = 'hsr_role_mode';
 const SESSION_REFRESH_BUFFER_MS = 60 * 1000;
 
+function extractBanInfo(user) {
+  if (!user || typeof user !== 'object') return null;
+  const rawBan =
+    (user?.app_metadata && typeof user.app_metadata.svarog_ban === 'object' && user.app_metadata.svarog_ban) ||
+    (user?.user_metadata && typeof user.user_metadata.svarog_ban === 'object' && user.user_metadata.svarog_ban) ||
+    null;
+
+  if (!rawBan) return null;
+
+  const reason = String(rawBan.reason || rawBan.message || rawBan.note || '').trim();
+  const bannedAt = String(rawBan.banned_at || rawBan.at || '').trim();
+  const bannedByName = String(rawBan.banned_by_name || rawBan.by_name || rawBan.admin_name || '').trim();
+
+  if (!reason && !bannedAt && !bannedByName) return null;
+
+  return {
+    reason: reason || 'No reason provided.',
+    bannedAt: bannedAt || null,
+    bannedByName: bannedByName || null,
+  };
+}
+
 function readRoleMode() {
   try {
     const raw = String(window.localStorage.getItem(ROLE_MODE_STORAGE_KEY) || 'user').toLowerCase();
@@ -44,7 +66,8 @@ export function AuthProvider({ children }) {
     storeSession(nextSession);
     setSession(nextSession);
     setUser(nextUser || nextSession.user || null);
-    setAuthError('');
+    const nextBan = extractBanInfo(nextUser || nextSession.user || null);
+    setAuthError(nextBan ? `This account is banned. ${nextBan.reason}` : '');
   }, []);
 
   const resetAuth = useCallback(() => {
@@ -222,19 +245,24 @@ export function AuthProvider({ children }) {
   }, [refreshSession, resetAuth, session]);
 
   const value = useMemo(
-    () => ({
+    () => {
+      const banInfo = extractBanInfo(user);
+      return ({
       session,
       user,
       loading,
       authError,
       isAuthenticated: Boolean(session?.access_token && user?.id),
+      isBanned: Boolean(banInfo),
+      banInfo,
       signInWithDiscord,
       completeOAuthFromUrl,
       signOut,
       getAuthHeader,
       roleMode,
       setRoleMode,
-    }),
+    });
+    },
     [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, getAuthHeader, roleMode, setRoleMode]
   );
 
