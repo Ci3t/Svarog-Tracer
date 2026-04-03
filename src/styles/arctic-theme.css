@@ -82,8 +82,8 @@
   right: 0;
   height: 22px; /* Increased height for drift depth */
   pointer-events: none;
-  opacity: 0.95;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 30' preserveAspectRatio='none'%3E%3C!-- Shadow Layer --%3E%3Cpath d='M0 30c80-2 150-10 250-10s180 8 300 8 200-12 300-12 150 5 150 5V0H0z' fill='rgba(14, 165, 233, 0.15)'/%3E%3C!-- Main Accumulation --%3E%3Cpath d='M0 25c70 0 140-8 230-8s160 10 280 10 220-15 340-15 150 5 150 5V0H0z' fill='rgba(255, 255, 255, 0.85)'/%3E%3C!-- Highlights/Fresh Snow --%3E%3Cpath d='M0 20c60 0 130-10 210-10s150 12 260 12 200-18 320-18 160 8 210 8V0H0z' fill='white'/%3E%3C/svg%3E");
+  opacity: 0.98;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 30' preserveAspectRatio='none'%3E%3Cpath d='M0 30c80-2 150-10 250-10s180 8 300 8 200-12 300-12 150 5 150 5V0H0z' fill='rgba(103,232,249,0.22)'/%3E%3Cpath d='M0 25c70 0 140-8 230-8s160 10 280 10 220-15 340-15 150 5 150 5V0H0z' fill='rgba(246,250,255,0.94)'/%3E%3Cpath d='M0 20c60 0 130-10 210-10s150 12 260 12 200-18 320-18 160 8 210 8V0H0z' fill='rgba(255,255,255,1)'/%3E%3C/svg%3E");
   background-size: 100% 100%;
   background-repeat: no-repeat;
   border-top-left-radius: 12px;
