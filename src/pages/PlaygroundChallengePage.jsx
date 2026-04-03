@@ -36,6 +36,7 @@ import ModernStickyHeader from '../components/modern/ModernStickyHeader';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
+import PvpVsMark from '../components/modern/PvpVsMark';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
@@ -558,6 +559,7 @@ function ChallengeTourOverlay({
   isWaiting = false,
 }) {
   const [rect, setRect] = useState(null);
+  const [claraSpeaking, setClaraSpeaking] = useState(true);
 
   useEffect(() => {
     const step = steps[currentStep];
@@ -583,10 +585,16 @@ function ChallengeTourOverlay({
     };
   }, [steps, currentStep]);
 
+  useEffect(() => {
+    setClaraSpeaking(true);
+    const timer = window.setTimeout(() => setClaraSpeaking(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, [currentStep]);
+
   const step = steps[currentStep];
   if (!step || !rect) return null;
 
-  const cardWidth = 340;
+  const cardWidth = 404;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const placement = step.placement || 'auto';
@@ -641,10 +649,10 @@ function ChallengeTourOverlay({
         className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
         style={{ top, left, width: cardWidth }}
       >
-        <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
             <Map className="h-3.5 w-3.5" />
-            Guided Tour
+            Clara Guide
           </div>
           <button
             type="button"
@@ -654,8 +662,24 @@ function ChallengeTourOverlay({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="text-lg font-black uppercase tracking-tight text-white">{step.title}</div>
-        <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+        <div className="mb-4 grid grid-cols-[88px_minmax(0,1fr)] items-end gap-4">
+          <div className="relative flex h-[110px] items-end justify-center overflow-hidden">
+            <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
+            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
+            <img
+              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              alt="Clara guide"
+              className="relative z-[1] max-h-[108px] w-auto object-contain"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Clara says</div>
+            <div className="mt-2 rounded-[18px] border border-cyan-400/30 bg-white px-4 py-3 text-[13px] font-semibold leading-5 text-slate-950 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+              {step.title}
+            </div>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed text-slate-300">{step.body}</p>
         <div className="mt-5 flex items-center justify-between">
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
             {isWaiting ? 'Waiting For Action' : `${currentStep + 1} / ${steps.length}`}
@@ -1322,7 +1346,6 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [pvpBusted, setPvpBusted] = useState(false);
   const [copiedBotTrace, setCopiedBotTrace] = useState(false);
   const [signalFeedView, setSignalFeedView] = useState('feed');
-  const [devTreatBotAsPlayer, setDevTreatBotAsPlayer] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const ladderContract = useMemo(() => getChallengeContract(currentContractId), [currentContractId]);
   const currentContract = useMemo(
@@ -1704,11 +1727,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     () => [...opponentDebugLog].reverse(),
     [opponentDebugLog]
   );
-  const signalDetailsAsPlayerView = !isOpponentBot || devTreatBotAsPlayer;
   useEffect(() => {
     if (!isPvpMode) return;
     setSignalFeedView('details');
-    setDevTreatBotAsPlayer(false);
   }, [isOpponentBot, isPvpMode, roomCode]);
   const showBotTrace = isOpponentBot && opponentDebugLog.length > 0;
   const activePvpScenario = pvpRoom?.scenario || currentContract;
@@ -2723,8 +2744,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="mt-4">
                     <div className="mb-2 flex items-center justify-between text-[11px]">
-                      <div className="font-semibold text-white">Upgrade progress</div>
-                      <div className="font-semibold text-slate-300">+{localDisplayedPvpLevel}</div>
+                      <div className="font-semibold text-white">{pvpSubmittedAttempt ? 'Submitted' : 'Upgrade progress'}</div>
+                      <div className="font-semibold text-slate-300">{pvpSubmittedAttempt ? 'Locked' : `+${localDisplayedPvpLevel}`}</div>
                     </div>
                     <div className="grid grid-cols-5 gap-2">
                       {getPvpLevelSegments(localDisplayedPvpLevel).map((segment) => (
@@ -2744,7 +2765,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 <div id="challenge-tour-pvp-center" className="flex flex-col items-center justify-center gap-4 px-2 text-center">
                   <div className="space-y-2">
                     <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Score Duel</div>
-                    <div className="text-[3.1rem] font-semibold leading-none tracking-tight text-transparent bg-gradient-to-r from-sky-200 via-white to-amber-200 bg-clip-text [text-shadow:0_0_18px_rgba(255,255,255,0.08)]">VS</div>
+                    <PvpVsMark theme={sessionTheme} size="md" />
                   </div>
                   <div className="rounded-md border border-white/8 bg-white/[0.03] px-4 py-2 text-[11px] font-semibold text-slate-200">
                     {challengeStatus.label}
@@ -2827,8 +2848,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   </div>
                   <div className="mt-4">
                     <div className="mb-2 flex items-center justify-between text-[11px]">
-                      <div className="font-semibold text-white">Upgrade progress</div>
-                      <div className="font-semibold text-slate-300">+{pvpOpponent?.state?.currentLevel ?? 0}</div>
+                      <div className="font-semibold text-white">{Number(pvpOpponent?.state?.submittedAttempts || 0) > 0 ? 'Submitted' : 'Upgrade progress'}</div>
+                      <div className="font-semibold text-slate-300">
+                        {Number(pvpOpponent?.state?.submittedAttempts || 0) > 0 ? 'Locked' : `+${pvpOpponent?.state?.currentLevel ?? 0}`}
+                      </div>
                     </div>
                     <div className="grid grid-cols-5 gap-2">
                       {getPvpLevelSegments(pvpOpponent?.state?.currentLevel ?? 0).map((segment) => (
@@ -3279,33 +3302,33 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                          >
                            Feed
                          </button>
-                         <button
-                           type="button"
-                           onClick={() => setSignalFeedView('details')}
+                          <button
+                            type="button"
+                            onClick={() => setSignalFeedView('details')}
                            className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
                              signalFeedView === 'details'
                                ? 'bg-white/[0.08] text-white'
                                : 'text-slate-400 hover:text-slate-200'
                            }`}
-                         >
-                           {isOpponentBot ? 'Details' : 'Rolls'}
-                         </button>
-                       </div>
-                       {isOpponentBot ? (
-                         <button
-                           type="button"
-                           onClick={() => setDevTreatBotAsPlayer((current) => !current)}
-                           className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-[10px] font-semibold transition ${
-                             devTreatBotAsPlayer
-                               ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
-                               : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
-                           }`}
-                         >
-                           {devTreatBotAsPlayer ? 'Player view' : 'Bot view'}
-                         </button>
-                       ) : null}
-                     </div>
-                   </div>
+                          >
+                            Details
+                          </button>
+                          {isOpponentBot ? (
+                          <button
+                            type="button"
+                            onClick={() => setSignalFeedView('bot-decisions')}
+                            className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                              signalFeedView === 'bot-decisions'
+                                ? 'bg-white/[0.08] text-white'
+                                : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            Bot Decisions
+                          </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                    {signalFeedView === 'feed' ? (
                      <div className="max-h-[324px] overflow-y-auto space-y-2 pr-2 font-mono text-[11px] leading-relaxed">
                        {pvpFeed.length === 0 ? (
@@ -3326,118 +3349,44 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                          })
                        )}
                      </div>
+                   ) : signalFeedView === 'details' ? (
+                     <div className="min-h-[324px] rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                         {isOpponentBot ? 'Bot Session Data' : 'Opponent Session Rolls'}
+                       </div>
+                       <div className="mt-3 max-h-[276px] space-y-2 overflow-y-auto pr-1">
+                         {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
+                           <div key={`signal-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                             <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
+                             {' | raw '}
+                             <span className="text-cyan-100">{entry.rawPair || '-'}</span>
+                             {' -> '}
+                             <span className="text-violet-100">{entry.translated || '-'}</span>
+                             {entry.attemptNumber ? ` | try ${entry.attemptNumber}` : ''}
+                           </div>
+                         )) : (
+                           <div className="rounded-lg border border-dashed border-white/8 px-3 py-4 text-xs text-slate-500">
+                             {isOpponentBot ? 'No bot session entries recorded yet.' : 'No opponent session rolls recorded yet.'}
+                           </div>
+                         )}
+                       </div>
+                     </div>
                    ) : (
-                      <div className="min-h-[324px] rounded-lg border border-white/8 bg-white/[0.02] p-3">
-                       {!signalDetailsAsPlayerView ? (
-                          <div className="grid min-h-[296px] gap-4 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)]">
-                           <div>
-                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Session Data</div>
-                              <div className="mt-2 max-h-[238px] space-y-2 overflow-y-auto pr-1">
-                               {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
-                                 <div key={`bot-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                   <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
-                                   {' · raw '}
-                                   <span className="text-cyan-100">{entry.rawPair || '-'}</span>
-                                   {' -> '}
-                                   <span className="text-violet-100">{entry.translated || '-'}</span>
-                                   {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
-                                 </div>
-                               )) : (
-                                 <div className="text-xs text-slate-500">No bot session entries recorded yet.</div>
-                               )}
-                             </div>
+                     <div className="min-h-[324px] rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Decisions</div>
+                       <div className="mt-3 max-h-[276px] space-y-2 overflow-y-auto pr-1">
+                         {opponentDebugLogNewestFirst.length > 0 ? opponentDebugLogNewestFirst.map((entry, index) => (
+                           <div key={`bot-debug-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                             {entry}
                            </div>
-                           <div>
-                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Decisions</div>
-                              <div className="mt-2 max-h-[238px] space-y-2 overflow-y-auto pr-1">
-                               {opponentDebugLogNewestFirst.length > 0 ? opponentDebugLogNewestFirst.map((entry, index) => (
-                                 <div key={`bot-debug-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                   {entry}
-                                 </div>
-                               )) : (
-                                 <div className="text-xs text-slate-500">No bot reasoning recorded yet.</div>
-                               )}
-                             </div>
+                         )) : (
+                           <div className="rounded-lg border border-dashed border-white/8 px-3 py-4 text-xs text-slate-500">
+                             No bot reasoning recorded yet.
                            </div>
-                         </div>
-                       ) : (
-                         <div>
-                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                             {isOpponentBot ? 'Player-view Session Rolls' : 'Opponent Session Rolls'}
-                           </div>
-                            <div className="mt-2 max-h-[252px] space-y-2 overflow-y-auto pr-1">
-                             {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
-                               <div key={`player-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                 <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
-                                 {' · raw '}
-                                 <span className="text-cyan-100">{entry.rawPair || '-'}</span>
-                                 {' -> '}
-                                 <span className="text-violet-100">{entry.translated || '-'}</span>
-                                 {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
-                               </div>
-                             )) : (
-                               <div className="text-xs text-slate-500">No opponent session rolls recorded yet.</div>
-                             )}
-                           </div>
-                         </div>
-                       )}
+                         )}
+                       </div>
                      </div>
                    )}
-                    {false ? (
-                     <div className="mt-4 rounded-lg border border-white/8 bg-white/[0.02] p-3">
-                       {isOpponentBot ? (
-                         <div className="space-y-4">
-                           <div>
-                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Session Data</div>
-                             <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
-                               {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
-                                 <div key={`bot-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                   <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
-                                   {' · raw '}
-                                   <span className="text-cyan-100">{entry.rawPair || '-'}</span>
-                                   {' -> '}
-                                   <span className="text-violet-100">{entry.translated || '-'}</span>
-                                   {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
-                                 </div>
-                               )) : (
-                                 <div className="text-xs text-slate-500">No bot session entries recorded yet.</div>
-                               )}
-                             </div>
-                           </div>
-                           <div>
-                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Decisions</div>
-                             <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
-                               {opponentDebugLogNewestFirst.length > 0 ? opponentDebugLogNewestFirst.map((entry, index) => (
-                                 <div key={`bot-debug-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                   {entry}
-                                 </div>
-                               )) : (
-                                 <div className="text-xs text-slate-500">No bot reasoning recorded yet.</div>
-                               )}
-                             </div>
-                           </div>
-                         </div>
-                       ) : (
-                         <div>
-                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Opponent Session Rolls</div>
-                           <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
-                             {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
-                               <div key={`player-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                                 <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
-                                 {' · raw '}
-                                 <span className="text-cyan-100">{entry.rawPair || '-'}</span>
-                                 {' -> '}
-                                 <span className="text-violet-100">{entry.translated || '-'}</span>
-                                 {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
-                               </div>
-                             )) : (
-                               <div className="text-xs text-slate-500">No opponent session rolls recorded yet.</div>
-                             )}
-                           </div>
-                         </div>
-                       )}
-                     </div>
-                   ) : null}
                  </section>
                </div>
              ) : null}
@@ -3608,8 +3557,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       </div>
                       <div className="mt-4">
                         <div className="mb-2 flex items-center justify-between text-[11px]">
-                          <div className="font-semibold text-white">Upgrade progress</div>
-                          <div className="font-semibold text-slate-300">+{localResultLevel}</div>
+                          <div className="font-semibold text-white">{localPvpState.submittedAttempts > 0 ? 'Submitted' : 'Upgrade progress'}</div>
+                          <div className="font-semibold text-slate-300">{localPvpState.submittedAttempts > 0 ? 'Locked' : `+${localResultLevel}`}</div>
                         </div>
                         <div className="grid grid-cols-5 gap-2">
                           {getPvpLevelSegments(localResultLevel).map((segment) => (
@@ -3628,7 +3577,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
                     <div className="flex flex-col items-center justify-center gap-2 text-center">
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Score Duel</div>
-                  <div className="text-[3.1rem] font-semibold leading-none tracking-tight text-transparent bg-gradient-to-r from-sky-200 via-white to-amber-200 bg-clip-text [text-shadow:0_0_18px_rgba(255,255,255,0.08)]">VS</div>
+                  <PvpVsMark theme={sessionTheme} size="md" />
                       <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200">
                         {localWonPvp ? 'You took the room' : opponentWonPvp ? 'Opponent took the room' : 'Draw'}
                       </div>
@@ -3670,8 +3619,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       </div>
                       <div className="mt-4">
                         <div className="mb-2 flex items-center justify-between text-[11px]">
-                          <div className="font-semibold text-white">Upgrade progress</div>
-                          <div className="font-semibold text-slate-300">+{opponentResultLevel}</div>
+                          <div className="font-semibold text-white">{Number(pvpOpponent?.state?.submittedAttempts || 0) > 0 ? 'Submitted' : 'Upgrade progress'}</div>
+                          <div className="font-semibold text-slate-300">
+                            {Number(pvpOpponent?.state?.submittedAttempts || 0) > 0 ? 'Locked' : `+${opponentResultLevel}`}
+                          </div>
                         </div>
                         <div className="grid grid-cols-5 gap-2">
                           {getPvpLevelSegments(opponentResultLevel).map((segment) => (

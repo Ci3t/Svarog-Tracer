@@ -1791,7 +1791,7 @@ function buildBotState(room) {
 
   const nowMs = Date.now();
   const realElapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
-  const scenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
+  const scenario = resolveRoomScenarioForRole(room, 'guest');
   const seedLabel = String(scenario.seedLabel || room.seed_label || room.code || '');
   const seedHash = hashString(seedLabel);
   const fairMode = isFairBotUserId(guestUserId);
@@ -2318,6 +2318,66 @@ function sanitizeScenario(scenario) {
   return scenario;
 }
 
+function normalizePvpSeedMode(value, fallback = 'shared') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'random') return 'random';
+  if (normalized === 'shared') return 'shared';
+  return fallback;
+}
+
+function buildPvpScenarioPayload(baseScenario, seedMode = 'shared', variantScenario = null) {
+  const normalizedSeedMode = normalizePvpSeedMode(seedMode);
+  const base = sanitizeScenario({
+    ...baseScenario,
+    pvpSeedMode: normalizedSeedMode,
+  });
+
+  if (normalizedSeedMode !== 'random' || !variantScenario) {
+    return base;
+  }
+
+  return sanitizeScenario({
+    ...base,
+    pvpSeedMode: 'random',
+    playerScenarios: {
+      host: {
+        seedLabel: base.seedLabel,
+        starterRolls: base.starterRolls,
+        seedMeta: base.seedMeta,
+        expectedStyle: base.expectedStyle,
+        mood: base.mood,
+        region: base.region,
+        patch: base.patch,
+      },
+      guest: {
+        seedLabel: variantScenario.seedLabel,
+        starterRolls: variantScenario.starterRolls,
+        seedMeta: variantScenario.seedMeta,
+        expectedStyle: variantScenario.expectedStyle,
+        mood: variantScenario.mood,
+        region: variantScenario.region,
+        patch: variantScenario.patch,
+      },
+    },
+  });
+}
+
+function resolveRoomScenarioForRole(roomOrScenario, role = null) {
+  const rootScenario = roomOrScenario?.scenario && typeof roomOrScenario.scenario === 'object'
+    ? roomOrScenario.scenario
+    : (roomOrScenario && typeof roomOrScenario === 'object' ? roomOrScenario : {});
+  const seedMode = normalizePvpSeedMode(rootScenario?.pvpSeedMode, 'shared');
+  if (seedMode !== 'random') return rootScenario;
+  if (role !== 'host' && role !== 'guest') return rootScenario;
+  const variant = rootScenario?.playerScenarios?.[role];
+  if (!variant || typeof variant !== 'object') return rootScenario;
+  return {
+    ...rootScenario,
+    ...variant,
+    pvpSeedMode: seedMode,
+  };
+}
+
 function normalizePlayerState(input, currentState = {}) {
   const next = { ...(currentState || {}) };
   const nowIso = new Date().toISOString();
@@ -2565,14 +2625,15 @@ function toClientRoom(row, viewerId = '') {
   const guestUserId = String(row.guest_user_id || '');
   const normalizedViewerId = String(viewerId || '');
   const viewerRole = normalizedViewerId === hostUserId ? 'host' : normalizedViewerId === guestUserId ? 'guest' : null;
+  const resolvedScenario = resolveRoomScenarioForRole(row, viewerRole);
 
   return {
     code: row.code,
     status: row.status,
     tier: row.tier,
     difficulty: row.difficulty,
-    seedLabel: row.seed_label,
-    scenario: row.scenario,
+    seedLabel: resolvedScenario?.seedLabel || row.seed_label,
+    scenario: resolvedScenario,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     startedAt: row.started_at,
@@ -2601,16 +2662,28 @@ function ensureRoomParticipant(room, userId) {
 
 async function createRoomForUser(user, body) {
   const tier = String(body?.tier || 'beginner').trim().toLowerCase();
+  const seedMode = normalizePvpSeedMode(body?.seedMode, tier === 'expert_v2' ? 'random' : 'shared');
   const selectedSetName = String(body?.selectedSetName || '').trim() || null;
   const targetRelicOverride =
     body?.targetRelicOverride && typeof body.targetRelicOverride === 'object'
       ? body.targetRelicOverride
       : null;
-  const scenario = sanitizeScenario(
-    body?.scenario && typeof body.scenario === 'object'
-      ? body.scenario
-      : createChallengeScenario({ tier, generated: true, mode: 'pvp', selectedSetName, targetRelicOverride })
-  );
+  const baseScenario = body?.scenario && typeof body.scenario === 'object'
+    ? body.scenario
+    : createChallengeScenario({ tier, generated: true, mode: 'pvp', selectedSetName, targetRelicOverride });
+  const variantScenario = seedMode === 'random'
+    ? createChallengeScenario({
+        tier,
+        generated: true,
+        mode: 'pvp',
+        selectedSetName,
+        targetRelicOverride: baseScenario?.targetRelic || targetRelicOverride,
+        preferredStyle: baseScenario?.expectedStyle || null,
+        templateId: baseScenario?.templateMeta?.id || null,
+        excludeSeedId: baseScenario?.seedMeta?.id || null,
+      })
+    : null;
+  const scenario = buildPvpScenarioPayload(baseScenario, seedMode, variantScenario);
   const displayName = normalizeName(user);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -2720,6 +2793,7 @@ async function restartRoomForUser(user, code) {
   }
 
   const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
+  const seedMode = normalizePvpSeedMode(currentScenario?.pvpSeedMode, room?.tier === 'expert_v2' ? 'random' : 'shared');
   const selectedSetName = String(currentScenario?.targetRelic?.setNameHint || currentScenario?.targetRelic?.setName || '').trim() || null;
   const reseededScenario = createChallengeScenario({
     tier: room.tier || 'beginner',
@@ -2731,26 +2805,19 @@ async function restartRoomForUser(user, code) {
     excludeSeedId: currentScenario?.seedMeta?.id || null,
     templateId: currentScenario?.templateMeta?.id || null,
   });
-  const scenario = sanitizeScenario({
-    ...currentScenario,
-    id: reseededScenario.id,
-    slug: reseededScenario.slug,
-    title: reseededScenario.title,
-    mood: reseededScenario.mood,
-    region: reseededScenario.region,
-    patch: reseededScenario.patch,
-    seedLabel: reseededScenario.seedLabel,
-    pvpRollTier: reseededScenario.pvpRollTier,
-    starterRolls: reseededScenario.starterRolls,
-    tags: reseededScenario.tags,
-    expectedStyle: reseededScenario.expectedStyle,
-    goal: reseededScenario.goal,
-    win: reseededScenario.win,
-    progressText: reseededScenario.progressText,
-    hints: reseededScenario.hints,
-    hintPackId: reseededScenario.hintPackId,
-    seedMeta: reseededScenario.seedMeta,
-  });
+  const guestScenario = seedMode === 'random'
+    ? createChallengeScenario({
+        tier: room.tier || 'beginner',
+        generated: true,
+        mode: 'pvp',
+        selectedSetName,
+        targetRelicOverride: reseededScenario?.targetRelic || currentScenario?.targetRelic || null,
+        preferredStyle: reseededScenario?.expectedStyle || currentScenario?.expectedStyle || null,
+        templateId: reseededScenario?.templateMeta?.id || currentScenario?.templateMeta?.id || null,
+        excludeSeedId: reseededScenario?.seedMeta?.id || currentScenario?.seedMeta?.id || null,
+      })
+    : null;
+  const scenario = buildPvpScenarioPayload(reseededScenario, seedMode, guestScenario);
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
     status: 'countdown',
@@ -2786,7 +2853,8 @@ async function rerollRoomForUser(user, code, body = {}) {
       ? body.targetRelicOverride
       : null;
   const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
-  const scenario = createChallengeScenario({
+  const seedMode = normalizePvpSeedMode(currentScenario?.pvpSeedMode, room?.tier === 'expert_v2' ? 'random' : 'shared');
+  const baseScenario = createChallengeScenario({
     tier: room.tier || 'beginner',
     generated: true,
     mode: 'pvp',
@@ -2795,6 +2863,19 @@ async function rerollRoomForUser(user, code, body = {}) {
     excludeSeedId: currentScenario?.seedMeta?.id || null,
     excludeTemplateId: currentScenario?.templateMeta?.id || null,
   });
+  const guestScenario = seedMode === 'random'
+    ? createChallengeScenario({
+        tier: room.tier || 'beginner',
+        generated: true,
+        mode: 'pvp',
+        selectedSetName: selectedSetName || (baseScenario?.targetRelic?.setNameHint || baseScenario?.targetRelic?.setName || null),
+        targetRelicOverride: baseScenario?.targetRelic || targetRelicOverride,
+        preferredStyle: baseScenario?.expectedStyle || null,
+        templateId: baseScenario?.templateMeta?.id || null,
+        excludeSeedId: baseScenario?.seedMeta?.id || null,
+      })
+    : null;
+  const scenario = buildPvpScenarioPayload(baseScenario, seedMode, guestScenario);
   const updated = await patchRoom(code, {
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
@@ -2828,7 +2909,8 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
       ? body.targetRelicOverride
       : null;
   const currentScenario = room?.scenario && typeof room.scenario === 'object' ? room.scenario : {};
-  const scenario = createChallengeScenario({
+  const seedMode = normalizePvpSeedMode(currentScenario?.pvpSeedMode, room?.tier === 'expert_v2' ? 'random' : 'shared');
+  const baseScenario = createChallengeScenario({
     tier: room.tier || 'beginner',
     generated: true,
     mode: 'pvp',
@@ -2837,6 +2919,19 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
     excludeSeedId: currentScenario?.seedMeta?.id || null,
     excludeTemplateId: currentScenario?.templateMeta?.id || null,
   });
+  const guestScenario = seedMode === 'random'
+    ? createChallengeScenario({
+        tier: room.tier || 'beginner',
+        generated: true,
+        mode: 'pvp',
+        selectedSetName: selectedSetName || (baseScenario?.targetRelic?.setNameHint || baseScenario?.targetRelic?.setName || null),
+        targetRelicOverride: baseScenario?.targetRelic || targetRelicOverride,
+        preferredStyle: baseScenario?.expectedStyle || null,
+        templateId: baseScenario?.templateMeta?.id || null,
+        excludeSeedId: baseScenario?.seedMeta?.id || null,
+      })
+    : null;
+  const scenario = buildPvpScenarioPayload(baseScenario, seedMode, guestScenario);
   const startedAt = new Date().toISOString();
   const updated = await patchRoom(code, {
     status: 'countdown',

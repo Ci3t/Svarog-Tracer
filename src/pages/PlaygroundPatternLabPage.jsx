@@ -110,6 +110,7 @@ function PatternLabTourOverlay({
   isWaiting = false,
 }) {
   const [rect, setRect] = useState(null);
+  const [claraSpeaking, setClaraSpeaking] = useState(true);
 
   useEffect(() => {
     const step = steps[currentStep];
@@ -135,10 +136,16 @@ function PatternLabTourOverlay({
     };
   }, [steps, currentStep]);
 
+  useEffect(() => {
+    setClaraSpeaking(true);
+    const timer = window.setTimeout(() => setClaraSpeaking(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, [currentStep]);
+
   const step = steps[currentStep];
   if (!step || !rect) return null;
 
-  const cardWidth = 340;
+  const cardWidth = 404;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const placement = step.placement || 'auto';
@@ -193,10 +200,10 @@ function PatternLabTourOverlay({
         className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
         style={{ top, left, width: cardWidth }}
       >
-        <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
             <Map className="h-3.5 w-3.5" />
-            Guided Tour
+            Clara Guide
           </div>
           <button
             type="button"
@@ -206,8 +213,24 @@ function PatternLabTourOverlay({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="text-lg font-black uppercase tracking-tight text-white">{step.title}</div>
-        <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+        <div className="mb-4 grid grid-cols-[88px_minmax(0,1fr)] items-end gap-4">
+          <div className="relative flex h-[110px] items-end justify-center overflow-hidden">
+            <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
+            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
+            <img
+              src={claraSpeaking ? '/clara-prof-OandMouth.gif' : '/clara-prof-assistant.png'}
+              alt="Clara guide"
+              className="relative z-[1] max-h-[108px] w-auto object-contain"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Clara says</div>
+            <div className="mt-2 rounded-[18px] border border-cyan-400/30 bg-white px-4 py-3 text-[13px] font-semibold leading-5 text-slate-950 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+              {step.title}
+            </div>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed text-slate-300">{step.body}</p>
         {step.prompt ? (
           <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-semibold text-cyan-100">
             {step.prompt}
