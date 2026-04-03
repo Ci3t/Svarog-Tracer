@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { BookOpen, Cpu, Flame, Gamepad2, Palette, ShieldBan, ShieldCheck, Sparkles, Snowflake, Star } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, BookOpen, ChevronDown, Cpu, Flame, Gamepad2, LogOut, Palette, Shield, ShieldBan, ShieldCheck, Sparkles, Snowflake, Star, User } from 'lucide-react';
 import svarog from '/svarog.png';
 import LiveStatsBanner from './LiveStatsBanner';
 import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
@@ -46,6 +46,35 @@ const THEME_VISUALS = {
   },
 };
 
+function resolveAuthDisplayName(user) {
+  if (!user || typeof user !== 'object') return '';
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find((identity) => {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    return provider === 'discord';
+  });
+  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+  const picks = [
+    metadata.global_name,
+    metadata.full_name,
+    identityData.global_name,
+    metadata.user_name,
+    identityData.username,
+    metadata.preferred_username,
+    metadata.name,
+    user.email,
+    user.id,
+  ];
+  for (const value of picks) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+  return '';
+}
+
 export default function Layout({
   region,
   setRegion,
@@ -60,14 +89,17 @@ export default function Layout({
   onThemeChange = () => { },
 }) {
   const location = useLocation();
-  const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo } = useAuth();
+  const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo, user } = useAuth();
   const normalizedSessionTheme =
     sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
   const themeMenuRef = useRef(null);
+  const userMenuRef = useRef(null);
+  const userMenuButtonRef = useRef(null);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [adminModerationMode, setAdminModerationMode] = useState('');
   const [adminUserModalOpen, setAdminUserModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -204,6 +236,36 @@ export default function Layout({
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, []);
 
+  useEffect(() => {
+    if (!userMenuOpen || !userMenuRef.current) return;
+    const menuItems = userMenuRef.current.querySelectorAll('[data-user-menu-item="true"]');
+    const animation = gsap.timeline({ defaults: { ease: 'power2.out' } });
+    animation.fromTo(
+      userMenuRef.current,
+      { opacity: 0, y: -10, scale: 0.98 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.24 }
+    );
+    animation.fromTo(
+      menuItems,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.22, stagger: 0.04 },
+      0.04
+    );
+    return () => animation.kill();
+  }, [userMenuOpen]);
+
+  useEffect(() => {
+    const onPointerDown = (event) => {
+      if (!userMenuOpen) return;
+      const menu = userMenuRef.current;
+      const button = userMenuButtonRef.current;
+      if (menu?.contains(event.target) || button?.contains(event.target)) return;
+      setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [userMenuOpen]);
+
   // GSAP: Initial animation on mount
   useEffect(() => {
     if (!navRef.current) return;
@@ -219,6 +281,10 @@ export default function Layout({
     loadAdminUsers();
   }, [adminUserModalOpen, loadAdminUsers, roleMode]);
 
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [location.pathname]);
+
   const filteredAdminUsers = adminUsers.filter((entry) => {
     const query = adminUserSearch.trim().toLowerCase();
     if (!query) return true;
@@ -228,6 +294,58 @@ export default function Layout({
       String(entry?.id || '').toLowerCase().includes(query)
     );
   });
+  const authDisplayName = resolveAuthDisplayName(user) || 'Trailblazer';
+  const userInitial = authDisplayName.charAt(0).toUpperCase() || 'U';
+  const accountTriggerStyle = {
+    background: userMenuOpen ? 'var(--theme-surface-3)' : 'var(--theme-surface-2)',
+    borderColor: userMenuOpen ? 'var(--theme-border-strong)' : 'var(--theme-border-soft)',
+    boxShadow: userMenuOpen ? 'var(--theme-shadow-accent)' : 'none',
+  };
+  const accountMenuShellStyle = {
+    background: 'linear-gradient(180deg, var(--theme-surface-3), var(--theme-surface-overlay))',
+    borderColor: 'var(--theme-border-strong)',
+    boxShadow: 'var(--theme-shadow-lg)',
+  };
+  const accountHeaderStyle = {
+    background: 'var(--theme-surface-2)',
+    borderColor: 'var(--theme-border-soft)',
+  };
+  const accountTooltipStyle = {
+    background: 'var(--theme-surface-overlay)',
+    borderColor: 'var(--theme-border-soft)',
+    color: 'var(--theme-text-primary)',
+    boxShadow: 'var(--theme-shadow-lg)',
+  };
+  const accountPrimaryIconStyle = {
+    background: 'var(--theme-accent-soft)',
+    borderColor: 'var(--theme-border-strong)',
+    color: 'var(--theme-text-primary)',
+  };
+  const accountActivePillStyle = {
+    background: 'var(--theme-accent-soft)',
+    borderColor: 'var(--theme-border-strong)',
+    color: 'var(--theme-text-primary)',
+  };
+  const accountNeutralPillStyle = {
+    background: 'var(--theme-surface-2)',
+    borderColor: 'var(--theme-border-soft)',
+    color: 'var(--theme-text-muted)',
+  };
+  const accountModeActiveStyle = {
+    background: 'var(--theme-accent-soft)',
+    borderColor: 'var(--theme-border-strong)',
+    boxShadow: 'var(--theme-shadow-accent)',
+  };
+  const accountModeIdleStyle = {
+    background: 'var(--theme-surface-2)',
+    borderColor: 'var(--theme-border-soft)',
+  };
+  const accountDividerStyle = {
+    borderColor: 'var(--theme-border-soft)',
+  };
+  const accountTextMutedStyle = {
+    color: 'var(--theme-text-muted)',
+  };
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -384,20 +502,6 @@ export default function Layout({
                 >
                   🛖 Caverns
                 </NavLink>
-                {isAuthenticated && (
-                  <NavLink
-                    to="/zone-tracker"
-                    data-active={location.pathname === '/zone-tracker'}
-                    className={({ isActive }) =>
-                      `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive
-                        ? activeTabTextClass
-                        : inactiveTabTextClass
-                      }`
-                    }
-                  >
-                    🌀 Zone
-                  </NavLink>
-                )}
                 <NavLink
                   to="/guides"
                   data-active={location.pathname === '/guides'}
@@ -520,59 +624,283 @@ export default function Layout({
                 EXPORT CSV
               </button>
 
-              {/* Role Mode Toggle */}
+              {/* Account Menu */}
               {isAuthenticated ? (
-                <div className="w-full lg:w-auto inline-flex items-center gap-1 rounded-lg border border-slate-700/70 bg-slate-900/60 p-1 mt-2 lg:mt-0">
+                <div className="relative w-full lg:w-auto mt-2 lg:mt-0">
                   <button
                     type="button"
-                    onClick={() => setRoleMode('user')}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'user'
-                      ? 'bg-slate-700/80 text-slate-100 border border-slate-500/70'
-                      : 'text-slate-400 hover:text-slate-200'
-                      }`}
+                    ref={userMenuButtonRef}
+                    onClick={() => setUserMenuOpen((prev) => !prev)}
+                    className="group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 lg:min-w-[250px]"
+                    style={accountTriggerStyle}
+                    aria-expanded={userMenuOpen}
                   >
-                    User
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-black"
+                      style={accountPrimaryIconStyle}
+                    >
+                      {userInitial}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-white">{authDisplayName}</div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]">
+                        <span
+                          className="inline-flex h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'var(--theme-accent)' }}
+                        />
+                        {roleMode === 'admin' ? 'Admin Mode' : 'User Mode'}
+                      </div>
+                    </div>
+                    <div
+                      className={`transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}
+                      style={accountTextMutedStyle}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setRoleMode('admin')}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${roleMode === 'admin'
-                      ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60'
-                      : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                  >
-                    Admin
-                  </button>
+
+                  {userMenuOpen ? (
+                    <div
+                      ref={userMenuRef}
+                      className="absolute right-0 z-[340] mt-2 w-full min-w-[320px] max-w-[384px] rounded-[26px] border p-3 backdrop-blur-2xl overflow-visible"
+                      style={accountMenuShellStyle}
+                    >
+                      <div
+                        className="flex items-center gap-3 rounded-[20px] border px-3 py-3"
+                        data-user-menu-item="true"
+                        style={accountHeaderStyle}
+                      >
+                        <div
+                          className="flex h-11 w-11 items-center justify-center rounded-2xl border text-base font-black"
+                          style={accountPrimaryIconStyle}
+                        >
+                          {userInitial}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="truncate text-[15px] font-semibold text-white">{authDisplayName}</div>
+                            <span
+                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]"
+                              style={accountActivePillStyle}
+                            >
+                              {roleMode === 'admin' ? 'Admin' : 'User'}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs" style={accountTextMutedStyle}>
+                            Profile, moderation, and session controls
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="group relative" data-user-menu-item="true">
+                          <NavLink
+                            to="/profile"
+                            onClick={() => setUserMenuOpen(false)}
+                            title="Open your profile overview"
+                            className="flex w-full items-center gap-3 rounded-[20px] px-3 py-3 text-left transition-colors hover:bg-white/[0.05]"
+                          >
+                            <span
+                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border"
+                              style={accountPrimaryIconStyle}
+                            >
+                              <BadgeCheck className="h-5 w-5" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[15px] font-semibold text-white">Profile</span>
+                              <span className="mt-1 block text-xs" style={accountTextMutedStyle}>
+                                Stats, rewards, cosmetics, and match history
+                              </span>
+                            </span>
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em]"
+                              style={accountTextMutedStyle}
+                            >
+                              Open
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                            </span>
+                          </NavLink>
+                          <span
+                            className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border px-3 py-2 text-[11px] opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100"
+                            style={accountTooltipStyle}
+                          >
+                            View your profile overview
+                          </span>
+                        </div>
+
+                        <div className="mt-3 border-t pt-3" data-user-menu-item="true" style={accountDividerStyle}>
+                          <div className="flex items-center justify-between gap-3 px-3">
+                            <div>
+                              <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={accountTextMutedStyle}>
+                                Role Mode
+                              </div>
+                              <div className="mt-1 text-xs" style={accountTextMutedStyle}>
+                                Switch between player controls and admin tools
+                              </div>
+                            </div>
+                            <span
+                              className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em]"
+                              style={roleMode === 'admin' ? accountActivePillStyle : accountNeutralPillStyle}
+                            >
+                              {roleMode === 'admin' ? 'Current: Admin' : 'Current: User'}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid gap-2 px-3 sm:grid-cols-2">
+                            <div className="group relative">
+                              <button
+                                type="button"
+                                onClick={() => setRoleMode('user')}
+                                title="Standard player controls"
+                                className="flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                                style={roleMode === 'user' ? accountModeActiveStyle : accountModeIdleStyle}
+                              >
+                                <span
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+                                  style={roleMode === 'user' ? accountPrimaryIconStyle : accountNeutralPillStyle}
+                                >
+                                  <User className="h-[18px] w-[18px]" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-semibold text-white">User</span>
+                                  <span className="mt-1 block text-xs" style={accountTextMutedStyle}>
+                                    Standard player controls
+                                  </span>
+                                </span>
+                              </button>
+                              <span
+                                className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border px-3 py-2 text-[11px] opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100"
+                                style={accountTooltipStyle}
+                              >
+                                Use the standard player workspace
+                              </span>
+                            </div>
+                            <div className="group relative">
+                              <button
+                                type="button"
+                                onClick={() => setRoleMode('admin')}
+                                title="Moderation and control tools"
+                                className="flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                                style={roleMode === 'admin' ? accountModeActiveStyle : accountModeIdleStyle}
+                              >
+                                <span
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+                                  style={roleMode === 'admin' ? accountPrimaryIconStyle : accountNeutralPillStyle}
+                                >
+                                  <Shield className="h-[18px] w-[18px]" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-semibold text-white">Admin</span>
+                                  <span className="mt-1 block text-xs" style={accountTextMutedStyle}>
+                                    Moderation and control tools
+                                  </span>
+                                </span>
+                              </button>
+                              <span
+                                className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border px-3 py-2 text-[11px] opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100"
+                                style={accountTooltipStyle}
+                              >
+                                Enable admin moderation controls
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {roleMode === 'admin' ? (
+                          <div className="mt-3 border-t pt-3" data-user-menu-item="true" style={accountDividerStyle}>
+                            <div className="px-3">
+                              <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={accountTextMutedStyle}>
+                                Moderation
+                              </div>
+                              <div className="mt-1 text-xs" style={accountTextMutedStyle}>
+                                Direct account actions available in admin mode
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 px-3">
+                              <div className="group relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUserMenuOpen(false);
+                                    openAdminModerationModal('ban');
+                                  }}
+                                  title="Restrict a user account"
+                                  className="flex w-full items-center gap-3 rounded-[18px] border border-rose-500/28 bg-rose-500/10 px-3 py-3 text-left text-rose-100 transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/14 cursor-pointer"
+                                >
+                                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/16 text-rose-100">
+                                    <ShieldBan className="h-[18px] w-[18px]" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold">Ban User</span>
+                                    <span className="mt-1 block text-xs text-rose-200/75">Restrict account access</span>
+                                  </span>
+                                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200/75">
+                                    Admin
+                                  </span>
+                                </button>
+                                <span className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border border-rose-500/30 bg-rose-950/90 px-3 py-2 text-[11px] text-rose-100 opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100">
+                                  Restrict a user account
+                                </span>
+                              </div>
+                              <div className="group relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUserMenuOpen(false);
+                                    openAdminModerationModal('unban');
+                                  }}
+                                  title="Restore a user account"
+                                  className="flex w-full items-center gap-3 rounded-[18px] border border-emerald-500/28 bg-emerald-500/10 px-3 py-3 text-left text-emerald-100 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500/14 cursor-pointer"
+                                >
+                                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/16 text-emerald-100">
+                                    <ShieldCheck className="h-[18px] w-[18px]" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold">Unban User</span>
+                                    <span className="mt-1 block text-xs text-emerald-200/75">Restore account access</span>
+                                  </span>
+                                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/75">
+                                    Admin
+                                  </span>
+                                </button>
+                                <span className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border border-emerald-500/30 bg-emerald-950/90 px-3 py-2 text-[11px] text-emerald-100 opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100">
+                                  Restore a user account
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-3 border-t pt-3" data-user-menu-item="true" style={accountDividerStyle}>
+                          <div className="group relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUserMenuOpen(false);
+                                signOut();
+                              }}
+                              title="End the current session"
+                              className="flex w-full items-center gap-3 rounded-[20px] border border-rose-500/22 bg-rose-500/8 px-3 py-3 text-left text-rose-100 transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/14 cursor-pointer"
+                            >
+                              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/26 bg-rose-500/14 text-rose-100">
+                                <LogOut className="h-5 w-5" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-[15px] font-semibold">Sign Out</span>
+                                <span className="mt-1 block text-xs text-rose-200/75">End the current session</span>
+                              </span>
+                              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200/75">
+                                Exit
+                              </span>
+                            </button>
+                            <span className="pointer-events-none absolute right-[calc(100%+0.85rem)] top-1/2 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-xl border border-rose-500/30 bg-rose-950/90 px-3 py-2 text-[11px] text-rose-100 opacity-0 transition-all duration-200 xl:block group-hover:translate-x-0 group-hover:opacity-100">
+                              End your session
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-              {isAuthenticated && roleMode === 'admin' ? (
-                <div className="w-full lg:w-auto inline-flex items-center gap-1 rounded-lg border border-slate-700/70 bg-slate-900/60 p-1 mt-2 lg:mt-0">
-                  <button
-                    type="button"
-                    onClick={() => openAdminModerationModal('ban')}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-500/35 bg-rose-500/12 px-2.5 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-rose-200 transition-all hover:bg-rose-500/18 cursor-pointer"
-                  >
-                    <ShieldBan className="h-3.5 w-3.5" />
-                    Ban User
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAdminModerationModal('unban')}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-200 transition-all hover:bg-emerald-500/16 cursor-pointer"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    Unban
-                  </button>
-                </div>
-              ) : null}
-              {isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="w-full lg:w-auto px-4 py-2 text-[10px] sm:text-xs font-bold rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-all text-center mt-2 lg:mt-0"
-                >
-                  Sign Out
-                </button>
               ) : (
                 <NavLink
                   to="/auth"

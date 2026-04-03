@@ -294,6 +294,13 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1223.png"
   },
   {
+    "id": "march-7th-hunt",
+    "numId": 1224,
+    "name": "March 7th (Hunt)",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1224.png"
+  },
+  {
     "id": "fugue",
     "numId": 1225,
     "name": "Fugue",
@@ -609,4 +616,4 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8008.png"
   }
 ]
-
+

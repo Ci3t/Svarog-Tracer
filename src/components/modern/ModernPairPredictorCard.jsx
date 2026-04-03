@@ -9,7 +9,7 @@
  * 30s Explore (expandable):
  *   - Trends, Pair matrix, Noise gap analysis, Run/Flip data
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { predictWithPairs } from '../../utils/pairTransitionPredictor';
 
 const VALUES = ['41', '42', '43', '44'];
@@ -54,8 +54,10 @@ export default function ModernPairPredictorCard({
   advancedToggleId,
   advancedPanelId,
   tutorialIds = {},
+  onTrustGuideChange,
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeTrendGlossary, setActiveTrendGlossary] = useState(null);
 
   // Extract 2-str rolls from entries
   const rolls = useMemo(() => {
@@ -92,6 +94,55 @@ export default function ModernPairPredictorCard({
   const confidencePct = Math.round(confidence * 100);
   const cardStyle = getCardStyle(isChaotic, false);
   const badgeStyle = getBadgeStyle(label);
+  const trendGlossary = {
+    share: {
+      label: 'Trend share',
+      tone: 'text-slate-200',
+      body: 'Trend share is the visible percent. It tells you how much this value owns the latest 5-roll trend window.',
+      examples: [
+        '42 at 40% share means 42 owned 40% of the recent window.',
+        '20% share means the value is present, but not driving the board by itself.',
+      ],
+    },
+    trust: {
+      label: 'Trust',
+      tone: 'text-cyan-200',
+      body: 'Trust is internal confidence in the arrow direction itself. It is not the same thing as the visible share.',
+      examples: [
+        '100% trust means the predictor strongly believes the value is really rising.',
+        '25% trust means the arrow is weak and easier to distrust even if the value still appears.',
+      ],
+    },
+    freshness: {
+      label: 'Freshness',
+      tone: 'text-amber-200',
+      body: 'Freshness tells you how new or old that arrow state is. It answers whether the push just started or has been lingering.',
+      examples: [
+        'Fresh = this move is new and lively.',
+        'Low freshness means the arrow may still be valid, but it is getting old.',
+      ],
+    },
+    state: {
+      label: 'Fresh / Held / Stale',
+      tone: 'text-violet-200',
+      body: 'These are the freshness state labels. They tell you how long the same arrow has been alive.',
+      examples: [
+        'Fresh = the arrow changed this window.',
+        'Held = the same arrow survived another window.',
+        'Stale = the same arrow has repeated long enough that you should start watching for a break.',
+      ],
+    },
+    examples: {
+      label: 'Examples',
+      tone: 'text-emerald-200',
+      body: 'Use share, trust, and freshness together. One number alone is not the whole read.',
+      examples: [
+        '40% share + 100% trust + fresh = strong emerging read.',
+        '40% share + 100% trust + stale = still alive, but watch for a break.',
+        '20% share + 25% trust = visible, but the direction is weak and unreliable.',
+      ],
+    },
+  };
 
   // ── Dynamic tooltip: uses real session data ──────────────────────────────
   const tooltip = useMemo(() => {
@@ -163,6 +214,43 @@ export default function ModernPairPredictorCard({
     return { desc: descs[label] || '', ex };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [label, prediction, lastRoll, last2Rolls, currentRunLen, noiseRate, rolls.length]);
+
+  const trustGuideAssistText = useMemo(() => {
+    const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
+    const analyzerPicks = [];
+    if (analyzerPrediction) analyzerPicks.push(analyzerPrediction);
+    if (analyzerAlt && analyzerAlt !== analyzerPrediction) analyzerPicks.push(analyzerAlt);
+    if (!analyzerPicks.length) return null;
+
+    const analyzerMatchesLane = analyzerPicks.some((pick) => displayPair?.includes(pick));
+    const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
+
+    if (pairSafety === 'danger' && analyzerLeadsOutsider) {
+      return `Trust Svarog Eye here: ${freshOutsider.value} is the active break-pressure roll and the pair is fragile.`;
+    }
+    if (pairSafety === 'safe') {
+      return 'Trust the commons lane here. Use Svarog Eye mainly as a confirmation layer.';
+    }
+    if (pairSafety === 'caution' && analyzerMatchesLane) {
+      return 'The board is shaky, but the commons lane and Svarog Eye still overlap. Keep the main lane first.';
+    }
+    if (pairSafety === 'caution' && !analyzerMatchesLane) {
+      return 'Mixed pressure. Keep the lane as baseline, but watch Svarog Eye if the outsider keeps repeating.';
+    }
+    return null;
+  }, [
+    analyzerAlt,
+    analyzerPrediction,
+    commons,
+    freshOutsider?.value,
+    pairSafety,
+    trustedPair,
+  ]);
+
+  useEffect(() => {
+    if (!onTrustGuideChange) return;
+    onTrustGuideChange(trustGuideAssistText);
+  }, [onTrustGuideChange, trustGuideAssistText]);
 
   // 🚨 SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
@@ -616,7 +704,31 @@ export default function ModernPairPredictorCard({
 
           {/* Trend Indicators */}
           <div id={tutorialIds.advancedTrendsId}>
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Trends</div>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Trends</div>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {[
+                  ['share', 'trend share'],
+                  ['trust', 'trust'],
+                  ['freshness', 'freshness'],
+                  ['state', 'fresh/held/stale'],
+                  ['examples', 'examples'],
+                ].map(([key, labelText]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveTrendGlossary((current) => (current === key ? null : key))}
+                    className={`rounded-md border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] transition-colors ${
+                      activeTrendGlossary === key
+                        ? 'border-white/18 bg-white/[0.08] text-white'
+                        : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/18 hover:text-slate-200'
+                    }`}
+                  >
+                    {labelText}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
                 const t = trends?.[v] || { direction: 'stable', current: 0 };
@@ -630,16 +742,20 @@ export default function ModernPairPredictorCard({
                 const freshnessLabel = t.arrowAge === 0 ? 'fresh'
                   : t.arrowAge === 1 ? 'held'
                   : 'stale';
+                const freshnessStateColor = t.arrowAge === 0
+                  ? 'text-emerald-300'
+                  : t.arrowAge === 1
+                    ? 'text-amber-300'
+                    : 'text-rose-300';
                 return (
                   <div key={v} className={`flex-1 text-center py-1.5 rounded-md bg-slate-800/50
                     ${isMain ? 'border border-violet-500/40' : ''}`}>
                     <div className="text-xs font-bold text-slate-300">{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
                     <div className="text-[11px] text-slate-400">{t.current}%</div>
-                    <div className="mt-1 text-[10px] text-slate-500">trend share</div>
                     <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
                     <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
-                    <div className="text-[9px] uppercase tracking-wide text-slate-600">{freshnessLabel}</div>
+                    <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
                   </div>
                 );
               })}
@@ -649,6 +765,28 @@ export default function ModernPairPredictorCard({
               `trust` = internal confidence in the arrow direction.
               `fresh` = how recently that same arrow changed or stayed alive.
             </div>
+            {activeTrendGlossary && (
+              <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+                  <div className="rounded-lg border border-white/6 bg-black/20 p-3">
+                    <div className={`text-[10px] font-black uppercase tracking-[0.16em] ${trendGlossary[activeTrendGlossary].tone}`}>
+                      {trendGlossary[activeTrendGlossary].label}
+                    </div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                      {trendGlossary[activeTrendGlossary].body}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/6 bg-black/20 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">Examples</div>
+                    <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-slate-400">
+                      {trendGlossary[activeTrendGlossary].examples.map((example) => (
+                        <p key={example}>{example}</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pair matrix row for last roll */}

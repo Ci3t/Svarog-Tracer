@@ -17,6 +17,7 @@ const assetBase = import.meta.env.BASE_URL || '/';
 const normalizedAssetBase = assetBase.endsWith('/') ? assetBase : `${assetBase}/`;
 if (typeof document !== 'undefined') {
   document.documentElement.style.setProperty('--asset-base', normalizedAssetBase);
+  document.documentElement.style.setProperty('--asset-clara-bg', `url(${normalizedAssetBase}clara.jpg)`);
 }
 
 createRoot(document.getElementById('root')).render(

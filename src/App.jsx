@@ -41,6 +41,7 @@ import PlaygroundRacesPage from "./pages/PlaygroundRacesPage";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
+import UserProfilePage from "./pages/UserProfilePage";
 import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
@@ -1221,6 +1222,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <ZoneTrackerPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <RequireAuth>
+                  <UserProfilePage sessionTheme={sessionTheme} />
                 </RequireAuth>
               }
             />

@@ -413,4 +413,3 @@ const newReturnBlock = `  useEffect(() => {
 
 content = content.replace(mainReturnRegex, newReturnBlock);
 fs.writeFileSync(file, content, 'utf8');
-console.log('Successfully completed Rewrite PVP Layout script.');

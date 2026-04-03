@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { gsap } from "gsap";
-import { Cpu, Flame, Snowflake, Sparkles, Star } from "lucide-react";
+import { BookOpen, Cpu, Flame, Gamepad2, Snowflake, Sparkles, Star } from "lucide-react";
 import HomeStatsWidget from "../components/HomeStatsWidget";
 import { getSessionThemeConfig, THEME_OPTIONS } from "../theme/sessionThemeConfig";
 import ArcticSnow from "../components/snow/ArcticSnow";
@@ -106,14 +106,14 @@ export default function HomePage({
       label: "Tutorial",
       desc: "Scripted Svarog manip training for Live Mode, Caesar Shift, and force-line setups.",
       path: "/tutorial",
-      icon: "T",
+      icon: BookOpen,
     },
     {
       title: "Practice",
       label: "Playground",
       desc: "Practice custom and random relic scenarios without risking a real session.",
       path: "/playground",
-      icon: "P",
+      icon: Gamepad2,
     },
   ];
 
@@ -234,6 +234,9 @@ export default function HomePage({
         <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
           <div className="opacity-95">
             <CrimsonBloom />
+          </div>
+          <div className="opacity-85">
+            <VoidPetals />
           </div>
         </div>
       );
@@ -416,7 +419,7 @@ export default function HomePage({
                 homeTheme.chipPrimaryClass || "bg-slate-900/30 border-white/5 text-slate-400"
               }`}
             >
-              Ver.4.1.1 FCS
+              Ver.4.1.2 FCS
             </div>
             <div
               className={`px-6 py-2 border rounded-full text-[10px] uppercase tracking-widest font-medium backdrop-blur-sm ${
@@ -466,19 +469,21 @@ export default function HomePage({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mb-32 px-4 text-left">
-          {modes.map((mode) => (
+          {modes.map((mode) => {
+            const ModeIcon = typeof mode.icon === "string" ? null : mode.icon;
+            return (
             <div
               key={mode.path}
               onClick={() => navigate(mode.path)}
-              className={`mode-card group cursor-pointer relative p-10 rounded-3xl border backdrop-blur-xl transition-all duration-500 overflow-hidden ${
+              className={`mode-card theme-glass-card group cursor-pointer relative overflow-hidden rounded-[1.5rem] border p-10 transition-all duration-300 ${
                 homeTheme.modeCardClass ||
-                "bg-slate-900/40 border-white/10 hover:bg-slate-800/60 hover:border-cyan-500/40 hover:shadow-[0_8px_32px_rgba(6,182,212,0.15)]"
+                "hover:border-white/20"
               }`}
             >
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
               <div className="relative z-10 flex flex-col h-full">
-                <div className="flex items-center justify-between mb-8">
+                <div className="mb-8 flex items-center justify-between">
                   <div
                     className={`text-[10px] font-bold uppercase tracking-[0.2em] ${
                       homeTheme.modeTitleClass || "text-cyan-400"
@@ -486,8 +491,8 @@ export default function HomePage({
                   >
                     {mode.title}
                   </div>
-                  <div className="text-3xl group-hover:scale-110 group-hover:-rotate-[-10deg] transition-transform duration-500 ease-out">
-                    {mode.icon}
+                  <div className="text-3xl transition-transform duration-300 ease-out group-hover:scale-105">
+                    {ModeIcon ? <ModeIcon className="h-8 w-8" /> : mode.icon}
                   </div>
                 </div>
 
@@ -508,12 +513,13 @@ export default function HomePage({
               </div>
 
               <div
-                className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none ${
-                  homeTheme.modeGlowClass || "bg-cyan-600/20"
+                className={`pointer-events-none absolute -bottom-12 -right-12 h-28 w-28 rounded-full blur-[40px] opacity-0 transition-opacity duration-300 group-hover:opacity-100 ${
+                  homeTheme.modeGlowClass || "bg-cyan-600/16"
                 }`}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <footer

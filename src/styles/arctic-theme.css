@@ -20,7 +20,7 @@
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url(var(--asset-base)clara.jpg);
+  background-image: var(--asset-clara-bg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;

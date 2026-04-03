@@ -40,6 +40,7 @@ export const MAP_TARGET_PRESET_OPTIONS = [
 export const MAP_TARGET_CUSTOM_MAX_STATS = 4;
 export const RELIC_CARD_PIECES = ['Head', 'Hands', 'Body', 'Feet', 'Orb', 'Rope'];
 export const RELIC_SUBSTAT_OPTIONS = ['Flat HP', 'Flat ATK', 'Flat DEF', 'HP%', 'ATK%', 'DEF%', 'SPD', 'CRIT Rate', 'CRIT DMG', 'Effect Hit Rate', 'Effect RES', 'Break Effect'];
+export const RELIC_SUBSTAT_PAIR_OPTIONS = ['Flat HP', 'HP%', 'Flat ATK', 'ATK%', 'Flat DEF', 'DEF%', 'CRIT Rate', 'CRIT DMG', 'SPD', 'Break Effect', 'Effect Hit Rate', 'Effect RES'];
 export const RELIC_MAIN_STAT_OPTIONS_BY_PIECE = Object.freeze({
   Head: ['Flat HP'],
   Hands: ['Flat ATK'],
@@ -404,6 +405,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
   const [relicDropCount, setRelicDropCount] = useState(7);
   const [relicCards, setRelicCards] = useState(() => Array.from({ length: 7 }, (_, index) => buildEmptyRelicCard(index + 1)));
   const [relicGridCompact, setRelicGridCompact] = useState(false);
+  const [relicSubstatView, setRelicSubstatView] = useState('default');
   const [flagNotes, setFlagNotes] = useState('');
   const [clearTimeInput, setClearTimeInput] = useState('');
   const [workspaceView, setWorkspaceView] = useState('logger');
@@ -946,7 +948,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
   }, [buildSlots]);
 
   useEffect(() => {
-    const safeCount = Math.min(12, Math.max(1, Number(relicDropCount) || 1));
+    const safeCount = Math.min(18, Math.max(1, Number(relicDropCount) || 1));
     setRelicDropCount(safeCount);
     setRelicCards((prev) => {
       const next = [];
@@ -1583,6 +1585,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     relicDropCount, setRelicDropCount,
     relicCards, setRelicCards,
     relicGridCompact, setRelicGridCompact,
+    relicSubstatView, setRelicSubstatView,
     flagNotes, setFlagNotes,
     clearTimeInput, setClearTimeInput,
     workspaceView, setWorkspaceView,

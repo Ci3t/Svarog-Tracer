@@ -1617,7 +1617,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.1 Active</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.2 Active</p>
                       </div>
                       
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>

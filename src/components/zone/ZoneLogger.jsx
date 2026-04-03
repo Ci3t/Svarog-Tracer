@@ -12,6 +12,7 @@ import {
   RELIC_FIXED_MAIN_STATS, 
   getMainStatOptionsForPiece, 
   RELIC_SUBSTAT_OPTIONS,
+  RELIC_SUBSTAT_PAIR_OPTIONS,
   OUTCOME_OPTIONS,
   SERVER_REGION_SUBMIT_OPTIONS
 } from '../../hooks/useZoneTracker';
@@ -73,6 +74,8 @@ export default function ZoneLogger({
   handleRosterCharacterClick,
   relicGridCompact,
   setRelicGridCompact,
+  relicSubstatView,
+  setRelicSubstatView,
   relicDropCount,
   setRelicDropCount,
   suggestedOutcome,
@@ -111,6 +114,7 @@ export default function ZoneLogger({
   const fileInputRef = React.useRef(null);
   const visibleCharacters = rosterMode === 'owned' ? ownedOptions : characterOptions;
   const visibleSearchTerm = rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm;
+  const visibleSubstatOptions = relicSubstatView === 'pairs' ? RELIC_SUBSTAT_PAIR_OPTIONS : RELIC_SUBSTAT_OPTIONS;
 
   const handleRosterSearchChange = (value) => {
     if (rosterMode === 'owned') {
@@ -311,6 +315,9 @@ export default function ZoneLogger({
                 <div className="flex items-center gap-2">
                    <button type="button" onClick={() => setRelicGridCompact(false)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${!relicGridCompact ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Large</button>
                    <button type="button" onClick={() => setRelicGridCompact(true)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${relicGridCompact ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Compact</button>
+                   <div className="mx-1 h-6 w-px bg-slate-800/60" />
+                   <button type="button" onClick={() => setRelicSubstatView('default')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${relicSubstatView === 'default' ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Default</button>
+                   <button type="button" onClick={() => setRelicSubstatView('pairs')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${relicSubstatView === 'pairs' ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>Pairs</button>
                 </div>
               </div>
 
@@ -321,7 +328,7 @@ export default function ZoneLogger({
                     <input
                       type="number"
                       min={1}
-                      max={12}
+                      max={18}
                       value={relicDropCount}
                       onChange={(e) => setRelicDropCount(e.target.value)}
                       className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-cyan-300 outline-none focus:border-cyan-500/50"
@@ -360,7 +367,7 @@ export default function ZoneLogger({
                         </div>
 
                         <div className="grid grid-cols-2 gap-1.5">
-                          {RELIC_SUBSTAT_OPTIONS.map(substat => {
+                          {visibleSubstatOptions.map(substat => {
                             const active = card.substats.includes(substat);
                             return (
                               <button
