@@ -1908,7 +1908,7 @@ function buildBotState(room) {
   while (attemptsUsed <= MAX_RACE_TRIES) {
     pushBotDebug(debugLog, `Try ${attemptsUsed}: evaluating room ${room.code} on ${room.tier || 'beginner'} with seed ${seedLabel}.`);
     if (fairMode) {
-      pushBotDebug(debugLog, `This is Svarog #2 Fair. I only decide from observed session data, predictor, trends, commons/noise, and carry line. I do not use exact hidden future rolls for my choices.`);
+      pushBotDebug(debugLog, `This is Clara Bot. I only decide from observed session data, predictor, trends, commons/noise, and carry line. I do not use exact hidden future rolls for my choices.`);
     }
     if (scenario?.targetStatGuide) {
       const sTier = Array.isArray(scenario.targetStatGuide.s) && scenario.targetStatGuide.s.length > 0 ? scenario.targetStatGuide.s.join(', ') : 'none';
@@ -2967,7 +2967,7 @@ async function devFillRoomForUser(req, user, code, body = {}) {
 
   const botKind = String(body?.botKind || 'oracle').trim().toLowerCase();
   const isFairBot = botKind === 'fair';
-  const botName = isFairBot ? 'Svarog #2 Fair' : 'Svarog Bot';
+  const botName = isFairBot ? 'Clara Bot' : 'Svarog Bot';
   const updated = await patchRoom(code, {
     guest_user_id: isFairBot ? `dev-bot-fair:${room.code}` : `dev-bot:${room.code}`,
     guest_name: botName,
