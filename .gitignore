@@ -36,7 +36,8 @@ debugpatternfiles/
 
 # Local docs / guides / notes
 docs/
-src/guides/
+src/guides/*
+!src/guides/tutorialStageOneScript.js
 
 # Local SQL setup scripts
 *.sql
