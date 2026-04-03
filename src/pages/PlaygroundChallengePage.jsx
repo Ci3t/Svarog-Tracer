@@ -80,6 +80,7 @@ const SUBSTATS = [
 const REQUEST_TIMEOUT_MS = 8000;
 const LOCAL_REQUEST_TIMEOUT_MS = 30000;
 const CHALLENGE_TOUR_KEY = 'challenge-mode-tour-v1';
+const PVP_TOUR_KEY = 'challenge-mode-pvp-tour-v1';
 const CHALLENGE_TOUR_STEPS = [
   {
     target: '#challenge-tour-mode',
@@ -157,6 +158,75 @@ const CHALLENGE_TOUR_STEPS = [
     target: '#challenge-tour-session',
     title: 'Session History',
     body: 'This is the replay trail for the current run. Compare the history on the right with the predictor on the left and the helper panel to understand exactly where the session changed.',
+    placement: 'left',
+  },
+];
+
+const PVP_TOUR_STEPS = [
+  {
+    target: '#challenge-tour-pvp-room',
+    title: 'Score Duel Board',
+    body: 'This top duel board is the room overview. It tells you who is ahead, how far each side has progressed, and what the live room status feels like before you touch any relic.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-pvp-room-meta',
+    title: 'Room Controls',
+    body: 'This cluster is your quick room utility. Keep an eye on the room id, open tips, check the live room state, and reopen results once the duel finishes.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-pvp-center',
+    title: 'Center Lane',
+    body: 'The VS lane is the focal action rail. Use the main button here to submit at +15 or burn the current try and restart the target solve when the route is dead.',
+    placement: 'bottom',
+  },
+  {
+    target: '#challenge-tour-pvp-mission',
+    title: 'Mission Card',
+    body: 'This is the duel contract. Read the exact win rule, target stats, and aim-for versus avoid guide before you commit to any route.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-pvp-feed',
+    title: 'Signal Feed',
+    body: 'Feed shows the live room events. Switch to Details to study the opponent side: bot rooms show session data and reasoning, while player rooms only show opponent roll history.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-predictor',
+    title: 'Svarog Predictor',
+    body: 'This is still your first board read in PvP. Use commons, noise, lane lean, and Svarog Eye to decide whether the next target touch should be clean, forced, or delayed.',
+    placement: 'right',
+  },
+  {
+    target: '#challenge-tour-helper',
+    title: 'Stats And Line Helper',
+    body: 'Turn the read into a real route here. Check Caesar-style mapping, helper landing lines, and whether the next visible roll can actually reach your desired slot.',
+    placement: 'right',
+  },
+  {
+    target: '#challenge-tour-target',
+    title: 'Target Relic',
+    body: 'This is the relic that wins or loses the duel. Green goal rows are helping the contract, red rows are still missing, and your submit only matters once the solve is worth locking.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-builder',
+    title: 'Setup / Builder Relic',
+    body: 'Use the builder to scout or reposition when the live target route is bad. In builder rooms, this is where you create session evidence before touching the real relic.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-force',
+    title: 'Force Relic',
+    body: 'Use the force relic to redirect the next important hit. Prime it only when the default line drifts off the contract and the forced slot actually improves the board.',
+    placement: 'left',
+  },
+  {
+    target: '#challenge-tour-session',
+    title: 'Session History',
+    body: 'This is the replay trail of the duel. Compare it with the predictor and helper so you can explain why the board stayed clean, slipped, or broke into noise.',
     placement: 'left',
   },
 ];
@@ -701,6 +771,19 @@ function formatPvpStatusLabel(status, phase = '') {
   return normalized ? normalized.toUpperCase() : 'READY';
 }
 
+function getPvpLevelSegments(level = 0) {
+  const safeLevel = Math.max(0, Math.min(15, Number(level) || 0));
+  return Array.from({ length: 5 }, (_, index) => {
+    const segmentStart = index * 3;
+    const progress = Math.max(0, Math.min(1, (safeLevel - segmentStart) / 3));
+    return {
+      key: `seg-${index + 1}`,
+      label: `+${segmentStart + 3}`,
+      progress,
+    };
+  });
+}
+
 function formatScoreProfileLabel(profileId = 'crit') {
   return String(profileId || 'crit').replace(/_/g, ' ');
 }
@@ -737,6 +820,8 @@ function ModernRelicCard({
   onChangeOrderMode,
   footerSlot = null,
   disabled = false,
+  actionLabel = null,
+  actionDisabled = null,
 }) {
   const handleDragStart = (event, slot) => {
     event.dataTransfer.setData('text/plain', String(slot));
@@ -770,6 +855,8 @@ function ModernRelicCard({
   const visibleLines = [...relic.lines, ...(relic.hasFourthLine ? [relic.fourthLine] : [])];
   const mainStatDisplay = getMainStatDisplay(relic.mainStat, relic.level);
   const relicScore = scoreRelicWithProfile(relic, detectRelicScoreProfile(relic));
+  const resolvedActionDisabled = actionDisabled ?? (disabled || relic.level >= 15);
+  const resolvedActionLabel = actionLabel ?? (relic.level >= 15 ? 'MAXED' : (relic.hasFourthLine ? `UPGRADE +${Math.min(relic.level + 3, 15)}` : 'ADD LINE'));
 
   return (
     <article className="theme-glass-card force-overflow-visible group relative mt-16 flex-1 rounded-[1.5rem] border border-white/5 bg-transparent p-1 shadow-2xl transition-all duration-500 hover:border-white/10">
@@ -792,7 +879,7 @@ function ModernRelicCard({
             <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${themeClasses.border} bg-black/50`}>
               <Icon className={`h-4 w-4 ${themeClasses.text}`} />
             </div>
-            <div>
+                            <div className="rounded-lg border border-white/8 bg-white/[0.02] p-3">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={`h-1 w-1 rounded-full ${themeClasses.accent}`} />
                 <span className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-500/50">{title}</span>
@@ -835,11 +922,11 @@ function ModernRelicCard({
         </div>
 
         <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2">
-          <div>
+                            <div className="rounded-lg border border-white/8 bg-white/[0.02] p-3">
             <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Score</div>
             <div className="text-[10px] font-black text-white">{relicScore.score}</div>
           </div>
-          <div>
+                          <div className="rounded-lg border border-white/8 bg-white/[0.02] p-3">
             <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Grade</div>
             <div className="text-[10px] font-black text-amber-200">{relicScore.grade}</div>
           </div>
@@ -946,15 +1033,15 @@ function ModernRelicCard({
           <button
             type="button"
             onClick={onAction}
-            disabled={disabled || relic.level >= 15}
+            disabled={resolvedActionDisabled}
             className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
-              disabled || relic.level >= 15 
+              resolvedActionDisabled 
                 ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-800' 
                 : `${themeClasses.button}`
             }`}
           >
-             {relic.level >= 15 ? 'MAXED' : (relic.hasFourthLine ? `UPGRADE +${Math.min(relic.level + 3, 15)}` : 'ADD LINE')}
-             {relic.level < 15 && <ChevronRight className="h-3 w-3" />}
+             {resolvedActionLabel}
+             {!resolvedActionDisabled && <ChevronRight className="h-3 w-3" />}
           </button>
           
           <button
@@ -1103,9 +1190,9 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType, disabled = false
 function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
   if (!relic) {
     return (
-      <div className="rounded-[1.15rem] border border-white/5 bg-black/20 p-4">
+      <div className="theme-subpanel rounded-xl p-4">
         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
-        <div className="mt-3 rounded-xl border border-dashed border-white/5 bg-white/[0.02] px-4 py-6 text-center text-xs font-black uppercase tracking-[0.18em] text-slate-600">
+        <div className="mt-3 rounded-lg border border-dashed border-white/8 bg-white/[0.02] px-4 py-6 text-center text-xs font-black uppercase tracking-[0.18em] text-slate-500">
           No submitted relic
         </div>
       </div>
@@ -1126,28 +1213,28 @@ function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
       };
 
   return (
-    <div className="theme-glass-card rounded-[1.15rem] border border-white/5 bg-transparent p-4">
+    <div className="theme-subpanel rounded-xl p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
           <div className="mt-1 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-white">
             <span>{relic.pieceLabel}</span>
-            <span className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[9px] text-slate-200">+{relic.level || 0}</span>
+            <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] text-slate-200">+{relic.level || 0}</span>
           </div>
         </div>
-        <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${accentClasses.chip}`}>
+        <div className={`rounded-md border px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${accentClasses.chip}`}>
           {relicScore.grade} · {relicScore.score}
         </div>
       </div>
       <div className="mb-3 flex items-center gap-3">
-        <div className="h-16 w-16 overflow-hidden rounded-2xl border border-white/5 bg-black/30 p-1">
+        <div className="h-16 w-16 overflow-hidden rounded-xl border border-white/8 bg-white/[0.04] p-1">
           {relic.setImage ? (
             <img src={relic.setImage} alt={relic.setName} className="h-full w-full object-contain" />
           ) : null}
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">{relic.setName}</div>
-          <div className="mt-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+          <div className="mt-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">Main Stat</div>
             <div className="mt-1 flex items-center justify-between gap-2">
               <span className="text-[10px] font-black uppercase text-white">{mainStatDisplay.label}</span>
@@ -1162,7 +1249,7 @@ function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
           return (
           <div
             key={`result-${title}-${line.slot}`}
-            className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
+            className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
               feedback.isGoalHit
                 ? 'border-emerald-400/25 bg-emerald-500/8'
                 : feedback.isGoalMiss
@@ -1191,7 +1278,7 @@ function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
                   ? 'border border-emerald-400/20 bg-emerald-500/15 text-emerald-100'
                   : feedback.isGoalMiss
                     ? 'border border-rose-400/20 bg-rose-500/15 text-rose-100'
-                    : 'border border-white/5 bg-black/25 text-white'
+                    : 'border border-white/8 bg-white/[0.04] text-white'
               }`}>
                 x{line.hits || 0}
               </div>
@@ -1228,6 +1315,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [pvpSubmittedAttempt, setPvpSubmittedAttempt] = useState(null);
   const [pvpBusted, setPvpBusted] = useState(false);
   const [copiedBotTrace, setCopiedBotTrace] = useState(false);
+  const [signalFeedView, setSignalFeedView] = useState('feed');
+  const [devTreatBotAsPlayer, setDevTreatBotAsPlayer] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const ladderContract = useMemo(() => getChallengeContract(currentContractId), [currentContractId]);
   const currentContract = useMemo(
@@ -1265,6 +1354,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const lastPvpSyncRef = useRef('');
   const loadedPvpScenarioRef = useRef('');
   const lastPvpStartedAtRef = useRef('');
+  const lastSegmentWidthsRef = useRef({});
   const pvpTrackerRef = useRef({
     localLevel: 0,
     localStatus: '',
@@ -1283,6 +1373,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     ? forceRelic.forcedLine
     : sharedCarryLine || relic.lastLine || testRelic.lastLine || null;
   const activeHint = hintStep > 0 ? currentContract.hints[Math.min(hintStep - 1, currentContract.hints.length - 1)] : null;
+  const activeTourSteps = isPvpMode ? PVP_TOUR_STEPS : CHALLENGE_TOUR_STEPS;
   const lineHitsByStat = useMemo(() => getLineHitsByStat(relic), [relic]);
   const helpfulHits = useMemo(
     () => getHelpfulHitsForContract(lineHitsByStat, currentContract.success),
@@ -1313,9 +1404,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   );
 
   useEffect(() => {
-    if (isPvpMode) return undefined;
+    if (isPvpMode && !pvpRoom) return undefined;
+    const storageKey = isPvpMode ? PVP_TOUR_KEY : CHALLENGE_TOUR_KEY;
     try {
-      const seenTour = window.localStorage.getItem(CHALLENGE_TOUR_KEY);
+      const seenTour = window.localStorage.getItem(storageKey);
       if (!seenTour) {
         setTourStepIndex(0);
         setTourRunning(true);
@@ -1325,7 +1417,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       setTourRunning(true);
     }
     return undefined;
-  }, [isPvpMode]);
+  }, [isPvpMode, pvpRoom]);
 
   const challengeStatus = useMemo(() => {
     if (relic.level < 15) {
@@ -1572,10 +1664,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const localResultGrade = localResultUsesTimeout ? localPvpState.finalGrade : (localPvpState.bestGrade ?? localPvpState.grade);
   const localResultMistakes = localResultUsesTimeout ? localPvpState.finalMistakes : (localPvpState.bestMistakes ?? localPvpState.mistakes);
   const localResultHelpful = localResultUsesTimeout ? localPvpState.finalHelpfulHits : (localPvpState.bestHelpfulHits ?? localPvpState.helpfulHits);
+  const localResultLevel = localBestRelicSnapshot?.level ?? localPvpState?.currentLevel ?? 0;
   const opponentResultScore = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalScore ?? 0) : (pvpOpponent?.state?.bestScore ?? pvpOpponent?.state?.score ?? 0);
   const opponentResultGrade = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalGrade || 'F') : (pvpOpponent?.state?.bestGrade || pvpOpponent?.state?.grade || 'F');
   const opponentResultMistakes = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalMistakes ?? 0) : (pvpOpponent?.state?.bestMistakes ?? pvpOpponent?.state?.mistakes ?? 0);
   const opponentResultHelpful = opponentResultUsesTimeout ? (pvpOpponent?.state?.finalHelpfulHits ?? 0) : (pvpOpponent?.state?.bestHelpfulHits ?? pvpOpponent?.state?.helpfulHits ?? 0);
+  const opponentResultLevel = opponentBestRelicSnapshot?.level ?? pvpOpponent?.state?.currentLevel ?? 0;
+  const localWonPvp = Boolean(pvpRoom?.winnerUserId) && String(pvpRoom?.winnerUserId) === String(user?.id || '');
+  const opponentWonPvp = Boolean(pvpRoom?.winnerUserId) && !localWonPvp;
+  const localResultStateLabel = localResultUsesTimeout ? 'Timed out' : localPvpState.bestScore > 0 ? 'Submitted' : 'No clear';
+  const opponentResultStateLabel = opponentResultUsesTimeout ? 'Timed out' : Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'Submitted' : 'No clear';
   const opponentDebugLog = Array.isArray(pvpOpponent?.state?.debugLog) ? pvpOpponent.state.debugLog : [];
   const opponentSessionEntries = Array.isArray(pvpOpponent?.state?.sessionArchive)
     ? pvpOpponent.state.sessionArchive
@@ -1588,6 +1686,13 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     () => [...opponentDebugLog].reverse(),
     [opponentDebugLog]
   );
+  const signalDetailsAsPlayerView = !isOpponentBot || devTreatBotAsPlayer;
+  useEffect(() => {
+    if (!isPvpMode) return;
+    setSignalFeedView('details');
+    setDevTreatBotAsPlayer(false);
+  }, [isOpponentBot, isPvpMode, roomCode]);
+  const showBotTrace = isOpponentBot && opponentDebugLog.length > 0;
   const activePvpScenario = pvpRoom?.scenario || currentContract;
   const botTraceExport = useMemo(() => JSON.stringify({
     roomCode: pvpRoom?.code || roomCode || null,
@@ -1774,12 +1879,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       return;
     }
     setRelic(createChallengeRelic(currentContract.targetRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
-    setTestRelic(createChallengeRelic(currentContract.builderRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
+    if (!currentContract.requiresSessionBuilder) {
+      setTestRelic(createChallengeRelic(currentContract.builderRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
+    }
     setForceRelic(createChallengeForceRelic({
       ...currentContract.forceRelic,
       baseLines: currentContract.forceRelic.baseLines,
     }, { rollTierMode: currentContract?.pvpRollTier || null }));
-    if (currentContract.requiresSessionBuilder) {
+    if (!currentContract.requiresSessionBuilder) {
       setSessionRolls([]);
       setSharedCarryLine(null);
     }
@@ -1796,6 +1903,62 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
     );
   }, []);
+
+  useEffect(() => {
+    if (!isPvpMode || !containerRef.current) return;
+    const q = gsap.utils.selector(containerRef.current);
+    const bars = q('.pvp-animate-width');
+    bars.forEach((bar) => {
+      const targetWidth = bar.getAttribute('data-target-width') || bar.style.width || '0%';
+      gsap.fromTo(bar, {
+        x: -12,
+        opacity: 0.75,
+      }, {
+        width: targetWidth,
+        x: 0,
+        opacity: 1,
+        duration: 0.7,
+        ease: 'power2.out',
+        overwrite: 'auto',
+      });
+    });
+    const segments = q('.pvp-segment-fill');
+    segments.forEach((segment) => {
+      const targetWidth = segment.getAttribute('data-target-width') || '0%';
+      const progressKey = segment.getAttribute('data-progress-key') || '';
+      const previousWidth = lastSegmentWidthsRef.current[progressKey];
+      if (previousWidth == null) {
+        gsap.set(segment, { width: targetWidth, x: 0, opacity: 1 });
+      } else if (previousWidth !== targetWidth) {
+        gsap.fromTo(segment, {
+          width: previousWidth,
+          x: -8,
+          opacity: 0.72,
+        }, {
+          width: targetWidth,
+          x: 0,
+          opacity: 1,
+          duration: 0.42,
+          ease: 'power2.out',
+          overwrite: 'auto',
+        });
+      } else {
+        gsap.set(segment, { width: targetWidth, x: 0, opacity: 1 });
+      }
+      lastSegmentWidthsRef.current[progressKey] = targetWidth;
+    });
+    gsap.fromTo(q('.pvp-stat-pill'), {
+      y: 6,
+      opacity: 0.55,
+    }, {
+      y: 0,
+      opacity: 1,
+      duration: 0.28,
+      stagger: 0.03,
+      ease: 'power2.out',
+      overwrite: 'auto',
+    });
+  }, [isPvpMode, localDisplayedPvpLevel, opponentHp, playerHp, pvpOpponent?.state?.currentLevel]);
 
   useEffect(() => {
     if (!isPvpMode) return;
@@ -2200,45 +2363,104 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const handleTestRelicAction = () => {
     if (isPvpPreStartLocked) return;
-    const startingRelic =
-      testRelicLoopMode && testRelic.level >= 15
-        ? createChallengeRelic(currentContract.builderRelic, {
-            readyForUpgrades: true,
-            carryLine: testRelic.lastLine,
-            rollTierMode: currentContract?.pvpRollTier || null,
-          })
-        : testRelic;
-    let nextRelic = handleBaseUpgrade(startingRelic, patternProfile);
-    const previousLevel = startingRelic.level;
-    let sessionEntry = null;
-    let sessionVisibleRoll = '';
+    const rollTierMode = currentContract?.pvpRollTier || null;
+    const applyBuilderStep = (startingRelic, startingProfile) => {
+      let nextRelic = handleBaseUpgrade(startingRelic, startingProfile);
+      const previousLevel = startingRelic.level;
+      let nextProfile = startingProfile;
+      let nextCarryLine = nextRelic.lastLine || null;
+      const builtEntries = [];
 
-    if (currentContract.requiresSessionBuilder && nextRelic.level > previousLevel) {
-      if (!startingRelic.hasFourthLine && nextRelic.level === 3) {
-        sessionEntry = createSessionEntry('44');
-        sessionVisibleRoll = '44';
-        nextRelic = {
-          ...nextRelic,
-          lastLine: 4,
-          lastRawPair: '44',
-          lastVisibleRoll: '44',
-        };
-      } else if (nextRelic.lastRawPair) {
-        sessionEntry = createSessionEntry(nextRelic.lastRawPair);
-        sessionVisibleRoll = sessionEntry?.translated || nextRelic.lastVisibleRoll || '';
+      if (currentContract.requiresSessionBuilder && nextRelic.level > previousLevel) {
+        if (!startingRelic.hasFourthLine && nextRelic.level === 3) {
+          const sessionEntry = createSessionEntry('44');
+          nextRelic = {
+            ...nextRelic,
+            lastLine: 4,
+            lastRawPair: '44',
+            lastVisibleRoll: '44',
+          };
+          if (sessionEntry) {
+            builtEntries.push(sessionEntry);
+            nextProfile = advancePatternProfile(nextProfile, '44');
+            nextCarryLine = 4;
+          }
+        } else if (nextRelic.lastRawPair) {
+          const sessionEntry = createSessionEntry(nextRelic.lastRawPair);
+          const sessionVisibleRoll = sessionEntry?.translated || nextRelic.lastVisibleRoll || '';
+          if (sessionEntry) {
+            builtEntries.push(sessionEntry);
+          }
+          if (sessionVisibleRoll) {
+            nextProfile = advancePatternProfile(nextProfile, sessionVisibleRoll);
+            nextCarryLine = nextRelic.lastLine || nextCarryLine;
+          }
+        }
+      } else if (nextRelic.level > previousLevel && nextRelic.lastVisibleRoll) {
+        nextProfile = advancePatternProfile(nextProfile, nextRelic.lastVisibleRoll);
+        nextCarryLine = nextRelic.lastLine || nextCarryLine;
       }
+
+      return {
+        relic: nextRelic,
+        profile: nextProfile,
+        carryLine: nextCarryLine,
+        entries: builtEntries,
+      };
+    };
+
+    const runBuilderLoop = () => {
+      let workingRelic =
+        testRelic.level >= 15
+          ? createChallengeRelic(currentContract.builderRelic, {
+              readyForUpgrades: true,
+              carryLine: testRelic.lastLine,
+              rollTierMode,
+            })
+          : testRelic;
+      let workingProfile = patternProfile;
+      let workingCarryLine = sharedCarryLine;
+      const builtEntries = [];
+      let safety = 0;
+
+      while (workingRelic.level < 15 && safety < 8) {
+        const result = applyBuilderStep(workingRelic, workingProfile);
+        workingRelic = result.relic;
+        workingProfile = result.profile;
+        workingCarryLine = result.carryLine;
+        if (result.entries.length > 0) {
+          builtEntries.push(...result.entries);
+        }
+        safety += 1;
+      }
+
+      setTestRelic(workingRelic);
+      setPatternProfile(workingProfile);
+      setSharedCarryLine(workingCarryLine || null);
+      if (builtEntries.length > 0) {
+        setSessionRolls((existing) => [...existing, ...builtEntries]);
+      }
+    };
+
+    if (testRelicLoopMode) {
+      runBuilderLoop();
+      return;
     }
 
-    setTestRelic(nextRelic);
-
-    if (sessionEntry) {
-      setSessionRolls((existing) => [...existing, sessionEntry]);
-      setPatternProfile((current) => advancePatternProfile(current, sessionVisibleRoll));
-      setSharedCarryLine(nextRelic.lastLine || null);
-    } else if (nextRelic.level > previousLevel && nextRelic.lastVisibleRoll) {
-      setPatternProfile((current) => advancePatternProfile(current, nextRelic.lastVisibleRoll));
-      setSharedCarryLine(nextRelic.lastLine || null);
+    const result = applyBuilderStep(testRelic, patternProfile);
+    setTestRelic(result.relic);
+    setPatternProfile(result.profile);
+    setSharedCarryLine(result.carryLine || null);
+    if (result.entries.length > 0) {
+      setSessionRolls((existing) => [...existing, ...result.entries]);
     }
+  };
+
+  const handleResetTestRelic = () => {
+    if (isPvpPreStartLocked) return;
+    setTestRelic(createChallengeRelic(currentContract.builderRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
+    setSessionRolls([]);
+    setSharedCarryLine(null);
   };
 
   const handleAddManualRoll = () => {
@@ -2293,21 +2515,26 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     }, { rollTierMode: currentContract?.pvpRollTier || null }));
   };
 
+  const handleOpenIntel = useCallback(() => {
+    setHintStep((current) => Math.min(current + 1, currentContract.hints.length));
+    setHintVisible(true);
+  }, [currentContract.hints.length]);
+
   const handleCloseTour = () => {
     setTourRunning(false);
     try {
-      window.localStorage.setItem(CHALLENGE_TOUR_KEY, 'seen');
+      window.localStorage.setItem(isPvpMode ? PVP_TOUR_KEY : CHALLENGE_TOUR_KEY, 'seen');
     } catch {
       // ignore localStorage issues
     }
   };
 
   const handleNextTourStep = () => {
-    if (tourStepIndex >= CHALLENGE_TOUR_STEPS.length - 1) {
+    if (tourStepIndex >= activeTourSteps.length - 1) {
       handleCloseTour();
       return;
     }
-    setTourStepIndex((current) => Math.min(current + 1, CHALLENGE_TOUR_STEPS.length - 1));
+    setTourStepIndex((current) => Math.min(current + 1, activeTourSteps.length - 1));
   };
 
   const handleBackTourStep = () => {
@@ -2319,19 +2546,21 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       ref={containerRef}
       className={`playground-theme-shell min-h-screen bg-transparent text-slate-200 relative [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`}
     >
-      <ModernStickyHeader
-        containerId="challenge-tour-stickybar"
-        topOffsetClass={themeConfig.rootClassName === 'arctic-theme' ? 'top-[112px] md:top-[128px]' : 'top-[72px] md:top-[84px]'}
-        secondsLeft={secondsLeft}
-        onStart={handleStartSession}
-        onStop={isPvpPreStartLocked ? undefined : (() => setTimerRunning(false))}
-        onRestart={isPvpPreStartLocked ? undefined : (() => resetChallengeMode())}
-        timerRunning={timerRunning}
-        rollInput={rollInput}
-        setRollInput={setRollInput}
-        onAddRoll={isPvpPreStartLocked ? undefined : handleAddManualRoll}
-        entriesCount={predictorEntries.length}
-      />
+      {!(isPvpMode && showPvpResults) ? (
+        <ModernStickyHeader
+          containerId="challenge-tour-stickybar"
+          topOffsetClass={themeConfig.rootClassName === 'arctic-theme' ? 'top-[112px] md:top-[128px]' : 'top-[72px] md:top-[84px]'}
+          secondsLeft={secondsLeft}
+          onStart={handleStartSession}
+          onStop={isPvpPreStartLocked ? undefined : (() => setTimerRunning(false))}
+          onRestart={isPvpPreStartLocked ? undefined : (() => resetChallengeMode())}
+          timerRunning={timerRunning}
+          rollInput={rollInput}
+          setRollInput={setRollInput}
+          onAddRoll={isPvpPreStartLocked ? undefined : handleAddManualRoll}
+          entriesCount={predictorEntries.length}
+        />
+      ) : null}
 
       <div className="relative z-10 mx-auto max-w-[1900px] px-4 pt-16 pb-12 md:px-6 md:pt-20">
         
@@ -2351,292 +2580,255 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
             </div>
           </div>
         </header>
-
         {isPvpMode ? (
-          <div className="gsap-fade-up mb-6 space-y-4">
-            <div className="overflow-hidden rounded-[1.5rem] border border-rose-400/15 bg-[radial-gradient(circle_at_top,rgba(120,18,36,0.2),rgba(5,8,16,0.92))] p-5 shadow-[0_0_50px_rgba(120,18,36,0.14)]">
-              <div className="grid gap-4 xl:grid-cols-[1fr_auto_1fr] xl:items-center">
-                <div className="rounded-[1.1rem] border border-cyan-400/15 bg-cyan-500/6 px-4 py-4">
-                  <div className="mb-1 text-[9px] font-black uppercase tracking-[0.24em] text-cyan-200/70">You</div>
-                  <div className="text-2xl font-black uppercase tracking-tight text-white">Trailblazer</div>
-                  <div className="mt-3">
-                    <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/80">
-                      <span>HP</span>
-                      <span>{playerHp} / 100</span>
-                    </div>
-                    <div className="h-3 overflow-hidden rounded-full border border-cyan-400/15 bg-black/35">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-cyan-500 transition-all duration-500"
-                        style={{ width: `${playerHp}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.16em]">
-                    <span className="rounded-full border border-cyan-400/15 bg-black/25 px-3 py-1 text-cyan-100">
-                      {formatPvpStatusLabel(localPvpState.status, localPvpState.phase)}
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
-                      +{localDisplayedPvpLevel}
-                    </span>
-                    {currentContract.requiresSessionBuilder ? (
-                      <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-violet-200">
-                        Session {sessionRolls.length}
-                      </span>
-                    ) : null}
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-amber-200">
-                      Attempts {pvpAttemptsUsed}/3
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-emerald-200">
-                      Hits {helpfulHits}
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
-                      Mistakes {mistakes}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="px-2 text-center">
-                  <div className="mb-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-rose-200">
-                    <Swords className="h-4 w-4" />
+          <div className="gsap-fade-up mb-8">
+            <section id="challenge-tour-pvp-room" className="theme-glass-card rounded-xl p-5">
+              <div className="flex flex-col gap-4 border-b border-white/8 pb-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-[12px] font-semibold tracking-tight text-white">
+                    <Swords className="h-4 w-4 text-slate-400" />
                     Score Duel
                   </div>
-                  <div className="text-3xl font-black uppercase tracking-[0.18em] text-white">
-                    VS
-                  </div>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
-                    <TimerReset className="h-3.5 w-3.5 text-rose-200" />
-                    {pvpRoom?.status || (pvpLoading ? 'loading' : 'waiting')}
-                  </div>
-                  <div className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">
-                    {pvpPressureLabel}
-                  </div>
-                  <div className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Seed {currentContract.seedLabel}
-                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Same seed, same contract, best clear wins. Read fast, route cleanly, and don&apos;t hand away mistakes.
+                  </p>
                 </div>
-
-                <div className="rounded-[1.1rem] border border-rose-400/15 bg-rose-500/6 px-4 py-4 text-right">
-                  <div className="mb-1 text-[9px] font-black uppercase tracking-[0.24em] text-rose-200/70">Opponent</div>
-                  <div className="text-2xl font-black uppercase tracking-tight text-white">{pvpOpponent?.name || 'Waiting'}</div>
-                  <div className="mt-3">
-                    <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/80">
-                      <span>HP</span>
-                      <span>{opponentHp} / 100</span>
+                <div id="challenge-tour-pvp-room-meta" className="flex max-w-[420px] flex-col items-stretch gap-2">
+                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                    <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200">
+                    Room {roomCode || '----'}
                     </div>
-                    <div className="h-3 overflow-hidden rounded-full border border-rose-400/15 bg-black/35">
-                      <div
-                        className="ml-auto h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all duration-500"
-                        style={{ width: `${opponentHp}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap justify-end gap-2 text-[10px] font-black uppercase tracking-[0.16em]">
-                    <span className="rounded-full border border-rose-400/15 bg-black/25 px-3 py-1 text-rose-100">
-                      {formatPvpStatusLabel(pvpOpponent?.state?.status || 'idle', pvpOpponent?.state?.phase || '')}
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
-                      +{pvpOpponent?.state?.currentLevel ?? 0}
-                    </span>
-                    {currentContract.requiresSessionBuilder ? (
-                      <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-violet-200">
-                        Session {pvpOpponent?.state?.sessionEntriesBuilt ?? 0}
-                      </span>
+                    {pvpRoom?.status === 'finished' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowPvpResults(true)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/[0.06]"
+                        >
+                          View results
+                        </button>
+                        {pvpViewerRole === 'host' ? (
+                          <button
+                            type="button"
+                            onClick={handleRestartPvpMatch}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-100 transition-all hover:bg-cyan-500/18"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Restart
+                          </button>
+                        ) : null}
+                      </>
                     ) : null}
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-amber-200">
-                      Attempts {pvpOpponent?.state?.attemptsUsed ?? 0}/3
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-emerald-200">
-                      Hits {pvpOpponent?.state?.helpfulHits ?? 0}
-                    </span>
-                    <span className="rounded-full border border-white/5 bg-black/25 px-3 py-1 text-slate-200">
-                      Mistakes {pvpOpponent?.state?.mistakes ?? 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              {pvpError ? <p className="mt-4 text-xs text-rose-200">{pvpError}</p> : null}
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-[1.3rem] border border-white/5 bg-slate-950/35 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <Flag className="h-4 w-4 text-amber-300" />
-                  <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-300">Race Tracker</div>
-                </div>
-                {[
-                  { label: 'You', color: 'cyan', level: localDisplayedPvpLevel, status: localPvpState.status },
-                  { label: pvpOpponent?.name || 'Opponent', color: 'rose', level: Number(pvpOpponent?.state?.currentLevel || 0), status: pvpOpponent?.state?.status || 'idle' },
-                ].map((lane) => {
-                  const checkpoints = [3, 6, 9, 12, 15];
-                  const laneClasses = lane.color === 'cyan'
-                    ? {
-                        glow: 'from-cyan-400/30 to-cyan-600/10',
-                        fill: 'from-cyan-300 to-cyan-500',
-                        badge: 'text-cyan-100 border-cyan-400/15 bg-cyan-500/10',
-                      }
-                    : {
-                        glow: 'from-rose-400/30 to-rose-600/10',
-                        fill: 'from-rose-300 to-rose-500',
-                        badge: 'text-rose-100 border-rose-400/15 bg-rose-500/10',
-                      };
-                  const progressWidth = `${Math.max(0, Math.min(100, (lane.level / 15) * 100))}%`;
-                  return (
-                    <div key={`${lane.label}-${lane.color}`} className="mb-4 last:mb-0">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div className="text-sm font-black uppercase tracking-[0.14em] text-white">{lane.label}</div>
-                        <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${laneClasses.badge}`}>
-                          {lane.status}
-                        </div>
-                      </div>
-                      <div className={`relative overflow-hidden rounded-2xl border border-white/5 bg-black/30 px-4 py-5`}>
-                        <div className={`absolute inset-y-0 left-0 bg-gradient-to-r ${laneClasses.glow}`} style={{ width: progressWidth }} />
-                        <div className="relative">
-                          <div className="relative mb-3 h-3 rounded-full bg-white/5">
-                            <div className={`h-full rounded-full bg-gradient-to-r ${laneClasses.fill} shadow-[0_0_18px_rgba(255,255,255,0.12)]`} style={{ width: progressWidth }} />
-                          </div>
-                          <div className="grid grid-cols-5 gap-2 text-center text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                            {checkpoints.map((checkpoint) => (
-                              <div
-                                key={`${lane.label}-${checkpoint}`}
-                                className={`rounded-lg border px-2 py-1 ${lane.level >= checkpoint ? 'border-white/10 bg-white/5 text-white' : 'border-white/5 bg-black/20'}`}
-                              >
-                                +{checkpoint}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenIntel}
+                      disabled={isPvpPreStartLocked}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-100 transition-all hover:bg-cyan-500/18 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Lightbulb className="h-4 w-4" />
+                      Tips
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTourStepIndex(0);
+                        setTourRunning(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/[0.06]"
+                    >
+                      <CircleHelp className="h-4 w-4" />
+                      Guide
+                    </button>
+                    <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200">
+                    {pvpRoom?.status || (pvpLoading ? 'Loading' : 'Waiting')}
                     </div>
-                  );
-                })}
+                    <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200">
+                    {pvpPressureLabel}
+                    </div>
+                  </div>
+                  {hintVisible && activeHint ? (
+                    <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/8 px-3 py-2 text-[11px] leading-5 text-cyan-100/90">
+                      {activeHint}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-[1.3rem] border border-white/5 bg-slate-950/35 p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 text-rose-300" />
-                    <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-300">Match Feed</div>
+              <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_auto_1fr] xl:items-stretch">
+                <div className="theme-subpanel rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/70">You</div>
+                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">Trailblazer</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">HP</div>
+                      <div className="mt-1 text-2xl font-semibold tracking-tight text-white">{playerHp}%</div>
+                    </div>
                   </div>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full border border-white/8 bg-black/20">
+                    <div
+                      className="pvp-animate-width h-full rounded-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300"
+                      data-target-width={`${playerHp}%`}
+                      style={{ width: `${playerHp}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Status</span>
+                      <span className="font-semibold text-cyan-100">{formatPvpStatusLabel(localPvpState.status, localPvpState.phase)}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Level</span>
+                      <span className="font-semibold text-white">+{localDisplayedPvpLevel}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Attempts</span>
+                      <span className="font-semibold text-amber-200">{pvpAttemptsUsed}/3</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Hits</span>
+                      <span className="font-semibold text-emerald-100">{helpfulHits}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Mistakes</span>
+                      <span className="font-semibold text-rose-200">{mistakes}</span>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between text-[11px]">
+                      <div className="font-semibold text-white">Upgrade progress</div>
+                      <div className="font-semibold text-slate-300">+{localDisplayedPvpLevel}</div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {getPvpLevelSegments(localDisplayedPvpLevel).map((segment) => (
+                        <div key={`local-${segment.key}`} className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.03]">
+                          <div
+                            className="pvp-segment-fill h-full rounded-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300"
+                            data-progress-key={`duel-local-${segment.key}`}
+                            data-target-width={`${segment.progress * 100}%`}
+                            style={{ width: `${segment.progress * 100}%` }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div id="challenge-tour-pvp-center" className="flex flex-col items-center justify-center gap-4 px-2 text-center">
                   <div className="space-y-2">
-                  {pvpFeed.length === 0 ? (
-                    <div className="rounded-xl border border-white/5 bg-black/25 px-4 py-3 text-sm text-slate-500">
-                      Waiting for the duel to develop.
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Score Duel</div>
+                    <div className="text-[3.1rem] font-semibold leading-none tracking-tight text-transparent bg-gradient-to-r from-sky-200 via-white to-amber-200 bg-clip-text [text-shadow:0_0_18px_rgba(255,255,255,0.08)]">VS</div>
+                  </div>
+                  <div className="rounded-md border border-white/8 bg-white/[0.03] px-4 py-2 text-[11px] font-semibold text-slate-200">
+                    {challengeStatus.label}
+                  </div>
+                  <p className="max-w-[210px] text-xs leading-5 text-slate-400">{challengeStatus.text}</p>
+                  <div className="h-px w-24 bg-white/8" />
+                  <button
+                    type="button"
+                    onClick={pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
+                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked)}
+                    className={`inline-flex min-w-[220px] items-center justify-center gap-2 rounded-lg border px-5 py-3.5 text-[12px] font-semibold transition-all ${
+                      pvpSubmittedAttempt || pvpBusted
+                        ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
+                        : relic.level >= 15
+                          ? 'border-cyan-400/30 bg-cyan-500/14 text-cyan-50 hover:bg-cyan-500/20'
+                          : 'border-violet-400/30 bg-violet-500/14 text-violet-50 hover:bg-violet-500/20'
+                    }`}
+                  >
+                    {pvpSubmittedAttempt
+                      ? 'Final relic submitted'
+                      : pvpBusted
+                        ? 'Duel lost'
+                        : relic.level >= 15
+                            ? 'Submit final relic'
+                            : pvpAttemptsUsed >= 3
+                              ? 'Reset loses duel'
+                              : `Reset to try ${pvpAttemptsUsed + 1}`}
+                    {!pvpSubmittedAttempt && !pvpBusted ? <ChevronRight className="h-4 w-4" /> : null}
+                  </button>
+                  {!pvpSubmittedAttempt && !pvpBusted ? (
+                    <div className="text-[10px] font-medium leading-5 text-slate-500">
+                      {relic.level >= 15
+                        ? 'Lock the final relic and end the duel.'
+                        : pvpAttemptsUsed >= 3
+                          ? 'This reset ends the room if you still cannot clear.'
+                          : 'Reset now if the route is dead, or keep pushing the current solve.'}
                     </div>
-                  ) : (
-                    pvpFeed.map((entry) => {
-                      const toneClasses = entry.tone === 'player'
-                        ? 'border-cyan-400/15 bg-cyan-500/8 text-cyan-100'
-                        : entry.tone === 'opponent'
-                          ? 'border-rose-400/15 bg-rose-500/8 text-rose-100'
-                          : 'border-amber-400/15 bg-amber-500/8 text-amber-100';
-                      return (
-                        <div key={entry.id} className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${toneClasses}`}>
-                          {entry.text}
-                        </div>
-                      );
-                    })
-                  )}
+                  ) : null}
                 </div>
-                </div>
-                {currentContract.requiresSessionBuilder && false ? (
-                  <div className="rounded-[1.3rem] border border-violet-400/15 bg-violet-500/6 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <History className="h-4 w-4 text-violet-300" />
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">
-                          {isOpponentBot ? 'Bot Read Notes' : 'Opponent Session Data'}
-                        </div>
-                      </div>
-                      <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
-                        {opponentSessionEntries.length} entries
-                      </div>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
-                      {opponentSessionEntriesNewestFirst.length > 0 ? (
-                        <div className="space-y-2">
-                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
-                            <div key={`${entry.id || index}-${entry.raw || index}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-200">
-                              <div className="flex items-center justify-between gap-3 font-black uppercase tracking-[0.12em]">
-                                <span className="text-slate-400">A{entry.attempt || 1} • #{entry.step || 1}</span>
-                                <span>{entry.raw || '--'}</span>
-                                <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
-                              </div>
-                              <div className="mt-2 grid gap-1 text-[9px] uppercase tracking-[0.1em] text-slate-400">
-                                <div>Try {entry.attempt || 1}</div>
-                                <div>Carry L{entry.carryLine || '-'} • Commons {entry.commons || '-'} • Noise {entry.noise || '-'}</div>
-                                <div>Dominant {entry.dominantRoll || '-'} • Noise {Number(entry.noisePressure || 0).toFixed(2)} • Eye {entry.trustedPair || '-'} / {entry.pairSafety || '-'}</div>
-                                <div>Risk {entry.noiseRisk || 0}%{entry.trendSummary ? ` • Trends ${entry.trendSummary}` : ''}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] leading-relaxed text-slate-400">No opponent session entries recorded yet.</div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-                {currentContract.requiresSessionBuilder && isOpponentBot ? (
-                  <div className="rounded-[1.3rem] border border-cyan-400/15 bg-cyan-500/6 p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <History className="h-4 w-4 text-cyan-300" />
-                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200">Readable Bot Notes</div>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
-                      {opponentSessionEntriesNewestFirst.length > 0 ? (
-                        <div className="space-y-2">
-                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
-                            <div key={`readable-${entry.id || index}-${entry.raw || index}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                              Try {entry.attempt || 1}, read {entry.step || 1}: the bot entered {entry.raw || '--'}, translated it to {entry.translated || entry.s2 || '--'}, and ended on line L{entry.carryLine || '-'}. It was comparing commons {entry.commons || '-'} against noise {entry.noise || '-'}, leaning on Svarog eye {entry.trustedPair || '-'} with {entry.pairSafety || 'unknown'} safety and {entry.noiseRisk || 0}% noise risk.{entry.trendSummary ? ` Trends: ${entry.trendSummary}.` : ''}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] leading-relaxed text-slate-400">The bot has not recorded readable session notes yet.</div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-                {currentContract.requiresSessionBuilder && !isOpponentBot ? (
-                  <div className="rounded-[1.3rem] border border-violet-400/15 bg-violet-500/6 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <History className="h-4 w-4 text-violet-300" />
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200">Opponent Session Data</div>
-                      </div>
-                      <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100">
-                        {opponentSessionEntries.length} entries
-                      </div>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
-                      {opponentSessionEntriesNewestFirst.length > 0 ? (
-                        <div className="space-y-2">
-                          {opponentSessionEntriesNewestFirst.map((entry, index) => (
-                            <div key={`${entry.id || index}-${entry.raw || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
-                              <span className="text-slate-400">Try {entry.attempt || 1} • #{entry.step || 1}</span>
-                              <span>{entry.raw || '--'}</span>
-                              <span className="text-violet-200">{entry.translated || entry.s2 || '--'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] leading-relaxed text-slate-400">No opponent session entries recorded yet.</div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
 
-        {/* HYPER-MINIMALIST TACTICAL COMMAND CENTER */}
-        {!isPvpMode ? (
-        <div className="gsap-fade-up mb-6">
-          {/* TOP BAR: Mode & Mission Selector */}
-          <div id="challenge-tour-mode" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-3">
-             <div className="flex items-center gap-3">
-                <div className="inline-flex rounded-xl border border-white/5 bg-slate-950/40 p-1 backdrop-blur-md">
+                <div className="theme-subpanel rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-200/70">Opponent</div>
+                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">{pvpOpponent?.name || 'Awaiting'}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">HP</div>
+                      <div className="mt-1 text-2xl font-semibold tracking-tight text-white">{opponentHp}%</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full border border-white/8 bg-black/20">
+                    <div
+                      className="pvp-animate-width ml-auto h-full rounded-full bg-rose-400"
+                      data-target-width={`${opponentHp}%`}
+                      style={{ width: `${opponentHp}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2 text-[11px]">
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Status</span>
+                      <span className="font-semibold text-rose-100">{formatPvpStatusLabel(pvpOpponent?.state?.status || 'idle', pvpOpponent?.state?.phase || '')}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Level</span>
+                      <span className="font-semibold text-white">+{pvpOpponent?.state?.currentLevel ?? 0}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Attempts</span>
+                      <span className="font-semibold text-amber-200">{pvpOpponent?.state?.attemptsUsed ?? 0}/3</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Hits</span>
+                      <span className="font-semibold text-emerald-100">{pvpOpponent?.state?.helpfulHits ?? 0}</span>
+                    </div>
+                    <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Mistakes</span>
+                      <span className="font-semibold text-rose-200">{pvpOpponent?.state?.mistakes ?? 0}</span>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between text-[11px]">
+                      <div className="font-semibold text-white">Upgrade progress</div>
+                      <div className="font-semibold text-slate-300">+{pvpOpponent?.state?.currentLevel ?? 0}</div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {getPvpLevelSegments(pvpOpponent?.state?.currentLevel ?? 0).map((segment) => (
+                            <div key={`opponent-${segment.key}`} className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.03]">
+                              <div
+                                className="pvp-segment-fill h-full rounded-full bg-gradient-to-r from-rose-300 via-rose-400 to-pink-500"
+                                data-progress-key={`duel-opponent-${segment.key}`}
+                                data-target-width={`${segment.progress * 100}%`}
+                                style={{ width: `${segment.progress * 100}%` }}
+                              />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {pvpError ? <p className="mt-4 text-sm text-rose-200">{pvpError}</p> : null}
+            </section>
+          </div>
+        ) : (
+          /* STATIC CONTRACT MODE - UNCODIXIFIED BENTO */
+          <div className="gsap-fade-up mb-8 space-y-4">
+            <div id="challenge-tour-mode" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex rounded-lg border border-white/10 bg-slate-900/40 p-1 backdrop-blur-md">
                   {[
                     { id: 'ladder', label: 'Ladder' },
                     { id: 'generated', label: 'Generated' },
@@ -2645,9 +2837,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       key={view.id}
                       type="button"
                       onClick={() => setChallengeModeView(view.id)}
-                      className={`rounded-lg px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] transition-all ${
+                      className={`rounded-md px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
                         challengeModeView === view.id
-                          ? 'bg-cyan-500/20 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                          ? 'bg-cyan-500/20 text-cyan-100'
                           : 'text-slate-500 hover:text-white'
                       }`}
                     >
@@ -2655,223 +2847,142 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </button>
                   ))}
                 </div>
-                {challengeModeView === 'ladder' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCompletedContracts([]);
-                      setCurrentContractId('level01');
-                    }}
-                    className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-rose-500/50 hover:text-rose-400 transition-colors"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Reset
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
                     setTourStepIndex(0);
                     setTourRunning(true);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/18"
+                  className="rounded-lg border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-all"
                 >
-                  <Map className="h-3 w-3" />
-                  Tour
+                  Guide
                 </button>
-             </div>
+              </div>
 
-             {challengeModeView === 'ladder' ? (
-                <div className="flex-1 max-w-full lg:max-w-3xl flex flex-col justify-center xl:ml-8">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                       <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Operation Track</span>
-                       <span className="rounded-full border border-white/5 bg-black/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-500/70">
-                         {CHALLENGE_CONTRACT_ORDER.length} Nodes
-                       </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {CHALLENGE_CONTRACT_ORDER.map((contractId, index) => {
-                      const contract = getChallengeContract(contractId);
-                      const isCurrent = contractId === currentContractId;
-                      const isCompleted = completedContracts.includes(contractId);
-                      const num = (index + 1).toString().padStart(2, '0');
-                      
-                      return (
-                        <button
-                          key={contractId}
-                          type="button"
-                          onClick={() => handleOpenHandcraftedContract(contractId)}
-                          className={`group relative flex h-7 w-7 items-center justify-center rounded-lg border text-[10px] font-black transition-all ${
-                            isCurrent
-                              ? 'border-amber-400/50 bg-amber-500/20 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.2)] ring-1 ring-amber-400/30 scale-110 z-10'
-                              : isCompleted
-                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400/80 hover:bg-emerald-500/20 hover:text-emerald-300'
-                                : 'border-white/5 bg-white/[0.02] text-slate-500 hover:border-white/20 hover:bg-white/[0.05] hover:text-slate-300'
-                          }`}
-                        >
-                          <span className="relative z-10">{num}</span>
-                          
-                          {/* Inner status dot */}
-                          {isCompleted && !isCurrent && (
-                            <div className="absolute top-1 right-1 h-1 w-1 rounded-full bg-emerald-400/70" />
-                          )}
-
-                          {/* Custom Tooltip */}
-                          <div className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-50 flex -translate-x-1/2 flex-col items-center opacity-0 transition-opacity group-hover:opacity-100">
-                             <div className="whitespace-nowrap rounded border border-white/10 bg-slate-900/95 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-xl backdrop-blur-md">
-                               <span className="text-slate-400 mr-2">OP {num}:</span>
-                               {contract.title.replace(/^Level\s*\d+\s*-\s*/i, '')}
-                             </div>
-                             <div className="h-1.5 w-1.5 rotate-45 border-b border-r border-white/10 bg-slate-900/95 -mt-[4px]" />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-             ) : (
-                <div className="flex-1 flex flex-wrap lg:justify-end items-center gap-2 max-w-full">
-                  {['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'].map((tier) => {
-                    const isSelected = selectedTier === tier;
+              {challengeModeView === 'ladder' ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {CHALLENGE_CONTRACT_ORDER.map((contractId, index) => {
+                    const contract = getChallengeContract(contractId);
+                    const isCurrent = contractId === currentContractId;
+                    const isCompleted = completedContracts.includes(contractId);
+                    const num = (index + 1).toString().padStart(2, '0');
                     return (
                       <button
-                        key={tier}
+                        key={contractId}
                         type="button"
-                        onClick={() => setSelectedTier(tier)}
-                        className={`rounded-lg border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap ${
-                          isSelected
-                            ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-400/30'
-                            : 'border-white/5 bg-white/[0.02] text-slate-500 hover:text-slate-300'
+                        onClick={() => handleOpenHandcraftedContract(contractId)}
+                        className={`h-8 w-8 rounded-lg border text-[10px] font-black transition-all ${
+                          isCurrent
+                            ? 'border-amber-500/40 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30'
+                            : isCompleted
+                              ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                              : 'border-white/5 bg-black/20 text-slate-500 hover:text-slate-300'
                         }`}
                       >
-                        {tier.replace('_', ' ')}
+                        {num}
                       </button>
                     );
                   })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {['new_player', 'beginner', 'intermediate', 'veteran', 'expert'].map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() => setSelectedTier(tier)}
+                      className={`rounded-lg border px-3 py-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${
+                        selectedTier === tier
+                          ? 'border-cyan-500/40 bg-cyan-500/20 text-cyan-100'
+                          : 'border-white/5 bg-black/20 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {tier.replace('_', ' ')}
+                    </button>
+                  ))}
                   <button
-                    type="button"
                     onClick={handleGenerateScenario}
-                    className="ml-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-500/25 transition-all"
+                    className="ml-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 transition-all"
                   >
-                    <Radar className="h-3 w-3" />
-                    Load
+                    Sync
                   </button>
                 </div>
-             )}
-          </div>
+              )}
+            </div>
 
-          {/* MISSION BRIEF: SINGLE SLIM CARD */}
-          <div id="challenge-tour-mission" className="relative rounded-2xl border border-white/10 bg-slate-950/70 p-5 shadow-2xl backdrop-blur-2xl flex flex-col lg:flex-row gap-5 items-start lg:items-center overflow-hidden">
-             {/* Decorative subtle pulse */}
-             <div className="absolute -left-10 top-0 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
-
-             {/* INFO BLOCK */}
-             <div className="flex-1 min-w-0 z-10 w-full">
-                <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                   <div className="text-2xl font-black uppercase tracking-tight text-white drop-shadow-md">
-                     {currentContract.title}
-                   </div>
-                   <div className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400/80">
-                     {generatedScenario ? 'Generated' : currentContract.difficulty}
-                   </div>
-                   <div className="rounded bg-black/40 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.2em] text-slate-600">
-                     Seed {currentContract.seedLabel}
-                   </div>
-                </div>
-                
-                <p className="text-[12px] leading-relaxed text-slate-300 mb-3 max-w-4xl">
-                   {describeChallengeMission(currentContract.success)}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                   <div className="flex items-center gap-2">
-                      <span className="text-[8px] uppercase tracking-[0.25em] text-emerald-400/60 font-black">Rule:</span>
-                      <span className="text-[11px] text-emerald-100/90 font-medium leading-relaxed">{describeChallengeWinRule(currentContract.success)}</span>
-                   </div>
-                   {contractTargets.length > 0 && (
-                     <div className="flex items-center gap-2">
-                        <span className="text-[8px] uppercase tracking-[0.25em] text-amber-400/60 font-black">Targets:</span>
-                        <div className="flex gap-1.5">
-                          {contractTargets.map(t => (
-                            <span key={t} className="bg-amber-500/10 border border-amber-500/20 text-amber-200 text-[9px] uppercase tracking-[0.14em] px-2 py-1 rounded shadow-sm">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                     </div>
-                   )}
-                   {currentContract.requiresSessionBuilder && (
-                     <div className="text-[8px] uppercase tracking-widest text-violet-300 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded">
-                       Session-builder Active
-                     </div>
-                   )}
-                </div>
-             </div>
-
-             {/* STATS & ACTION BLOCK */}
-             <div className="w-full lg:w-auto shrink-0 flex items-center justify-between lg:justify-end gap-5 lg:border-l lg:border-white/5 lg:pl-5 z-10">
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <span className="text-[7px] text-slate-500 uppercase tracking-[0.2em] font-black mb-0.5">Attempts</span>
-                    <span className="text-2xl font-black text-amber-300 leading-none">{triesUsed}{maxTries ? <span className="text-sm text-slate-600">/{maxTries}</span> : ''}</span>
+            <div className="rounded-xl border border-white/10 bg-slate-900/40 p-1 backdrop-blur-md">
+              <div className="rounded-lg border border-white/5 bg-black/40 p-8 flex flex-col lg:flex-row gap-8 items-start lg:items-center">
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-black uppercase tracking-tight text-white">{currentContract.title}</h2>
+                    <span className="rounded border border-white/10 bg-black/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-400">
+                      {currentContract.difficulty}
+                    </span>
                   </div>
-                  <div className="flex flex-col items-center">
-                    <span className="text-[7px] text-slate-500 uppercase tracking-[0.2em] font-black mb-0.5">Deviations</span>
-                    <span className="text-2xl font-black text-rose-400 leading-none">{mistakes}</span>
+                  <p className="text-[14px] leading-relaxed text-slate-300 max-w-4xl">
+                    {describeChallengeMission(currentContract.success)}
+                  </p>
+                  <div className="flex flex-wrap gap-6 items-center pt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vector:</span>
+                      <div className="flex gap-2">
+                        {contractTargets.map(t => (
+                          <span key={t} className="rounded-md border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black text-slate-200">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                <div id="challenge-tour-hints" className="flex flex-col gap-1.5 min-w-[120px]">
-                   <div className={`text-[8px] text-center uppercase font-black tracking-[0.25em] ${challengeStatus.tone === 'clear' ? 'text-emerald-400' : challengeStatus.tone === 'fail' ? 'text-rose-400' : 'text-cyan-400'}`}>
+
+                <div className="w-full lg:w-auto flex items-center justify-between lg:justify-end gap-10 lg:border-l lg:border-white/5 lg:pl-10">
+                  <div className="flex gap-8">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Tries</span>
+                      <span className="text-3xl font-black text-white">{triesUsed}</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Errors</span>
+                      <span className="text-3xl font-black text-rose-500">{mistakes}</span>
+                    </div>
+                  </div>
+                  <div className="min-w-[140px] text-center space-y-3">
+                    <div className={`text-[11px] font-black uppercase tracking-widest ${challengeStatus.tone === 'clear' ? 'text-emerald-400' : challengeStatus.tone === 'fail' ? 'text-rose-400' : 'text-cyan-400'}`}>
                       {challengeStatus.label}
-                   </div>
-                   
-                   {challengeStatus.tone === 'clear' ? (
-                     <button
-                       type="button"
-                       onClick={() => {
+                    </div>
+                    {challengeStatus.tone === 'clear' ? (
+                      <button
+                        onClick={() => {
                           if (generatedScenario) handleGenerateScenario();
                           else if (nextContractId) handleOpenHandcraftedContract(nextContractId);
-                       }}
-                       className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 hover:bg-emerald-500/30 transition-all"
-                     >
-                       Next <StepForward className="h-3 w-3" />
-                     </button>
-                   ) : (
-                     <button
-                       type="button"
-                       onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
-                       className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 hover:bg-cyan-500/15 hover:border-cyan-400/30 hover:text-cyan-200 transition-all"
-                     >
-                       <CircleHelp className="h-3 w-3" />
-                       Intel {activeHint && <span className="text-[7px] bg-cyan-500/30 px-1 py-0.5 rounded ml-0.5">✓</span>}
-                     </button>
-                   )}
+                        }}
+                        className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/20 py-3 text-[10px] font-black uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/20 transition-all"
+                      >
+                        Advance
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleOpenIntel}
+                        className="w-full rounded-lg border border-white/10 bg-black/20 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all"
+                      >
+                        Hint {activeHint && '✓'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-             </div>
-          </div>
-          
-          {/* Subtle Env info at bottom */}
-          <div className="mt-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] uppercase tracking-[0.2em] text-slate-600 font-black">Env:</span>
-              <span className="text-[8.5px] uppercase tracking-wider text-slate-500">{describePatternProfile(patternProfile)}</span>
+              </div>
             </div>
             {activeHint && (
-               <div className="text-[9px] leading-relaxed text-cyan-200/90 font-medium">
-                 {activeHint}
-               </div>
+              <div className="rounded-lg border border-cyan-500/10 bg-cyan-500/5 p-4 text-[13px] leading-relaxed text-cyan-100/90 border-l-2 border-l-cyan-500">
+                {activeHint}
+              </div>
             )}
           </div>
-        </div>
-        ) : null}
+        )}
 
         {/* 3-COLUMN TACTICAL COMMAND CENTER: 3-6-3 SPLIT */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-          
-          {/* COLUMN 1: FAR LEFT (3/12) - PREDICTOR */}
           <aside className="gsap-fade-up flex flex-col gap-6 lg:col-span-3">
              <div id="challenge-tour-predictor">
                <ModernPairPredictorCard entries={predictorEntries} region={currentContract.region} advancedToggleId="challenge-tour-advanced-toggle" />
@@ -2915,8 +3026,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   icon={FlaskConical}
                   success={currentContract.success}
                   onAction={isPvpPreStartLocked ? undefined : handleTestRelicAction}
-                  onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
+                  onReset={isPvpPreStartLocked ? undefined : handleResetTestRelic}
                   disabled={isPvpPreStartLocked}
+                  actionDisabled={isPvpPreStartLocked ? true : (!testRelicLoopMode && testRelic.level >= 15)}
+                  actionLabel={
+                    testRelicLoopMode
+                      ? (testRelic.level >= 15 ? 'Loop Again' : 'Loop To Max')
+                      : null
+                  }
                   footerSlot={
                     <button
                       type="button"
@@ -2938,225 +3055,366 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                 </div>
              </div>
 
-             {/* 2. SESSION TABLE - CENTER BOTTOM */}
-             {/* 2. MISSION BRIEF - CENTER BOTTOM */}
-             <div className="rounded-[1.25rem] border border-white/5 bg-slate-950/40 p-5 mt-6">
-              {isPvpMode ? (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                   <Trophy className="h-3 w-3 text-amber-300" />
-                   <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">Mission Card</span>
-                </div>
-                <div className="mb-1 flex items-center justify-between gap-3">
-               <div className="text-lg font-black uppercase tracking-tight text-amber-300">{isPvpMode ? 'PVP Score Duel' : currentContract.title}</div>
-                  <div className="flex items-center gap-2">
-                    {generatedScenario ? (
-                      <div className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100">
-                        Generated
-                      </div>
-                    ) : null}
-                    <div className="rounded-full border border-white/5 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
-                      {currentContract.difficulty}
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[11px] leading-relaxed text-slate-300 mb-3">
-                  {isPvpMode
-                    ? 'You both get the same seed, target relic, and setup tools. Clear the contract first. If both sides fail the contract, the duel ends in a draw.'
-                    : describeChallengeMission(currentContract.success)}
-                </p>
-                {isPvpPreStartLocked ? (
-                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 mb-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">Match Countdown</div>
-                    <p className="mt-1 text-[10px] leading-relaxed text-amber-50/90">
-                      Shared seed is locking in. Duel controls unlock in {pvpCountdownLeft}s, then the 5-minute timer begins.
-                    </p>
-                  </div>
-                ) : null}
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">{isPvpMode ? 'Win Condition' : 'Clear Rule'}</div>
-                  <p className="text-[10px] leading-relaxed text-slate-300">
-                    {isPvpMode
-                      ? `If one side clears the contract and the other fails, the clear wins. If both clear, higher score wins. Mistakes reduce duel score by ${PVP_MISTAKE_SCORE_PENALTY} each. If both fail, the duel is a draw.`
-                      : describeChallengeWinRule(currentContract.success)}
-                  </p>
-                </div>
-                {contractTargets.length > 0 ? (
-                  <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-3 mb-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">{isPvpMode ? 'Contract Target' : 'Goal Checklist'}</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {contractTargets.map((target) => (
-                        <span key={target} className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
-                          {target}
-                        </span>
-                      ))}
-                    </div>
-                    {currentContract.requiresSessionBuilder ? (
-                      <p className="mt-3 text-[10px] leading-relaxed text-amber-100/85">
-                        Expert v2 rule: no starter session data is given. Use the session builder relic first and let it record raw pairs into the session table.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {isPvpMode ? (
-                  <div className="rounded-xl border border-fuchsia-400/15 bg-fuchsia-500/5 p-3 mb-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fuchsia-200">Set Score Guide</div>
-                      <div className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">
-                        {formatScoreProfileLabel(scoreGuide.profileId)}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <div>
-                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-200">Aim For</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {scoreGuide.targetStats.length > 0 ? scoreGuide.targetStats.map((stat) => (
-                            <span key={stat} className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100">
-                              {stat}
-                            </span>
-                          )) : (
-                            <span className="text-[10px] text-slate-400">No preferred lines found.</span>
+             {/* 2. MISSION BRIEF / PVP ACTION STRIP */}
+             {isPvpMode ? null : (
+              <div id="challenge-tour-mission" className="rounded-xl border border-white/10 bg-slate-950/40 p-8 mt-6 backdrop-blur-md">
+                 <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center justify-between">
+                    <div className="flex-1 space-y-4">
+                       <div className="flex items-center gap-3">
+                          <Trophy className="h-4 w-4 text-amber-500/80" />
+                          <h2 className="text-2xl font-black uppercase tracking-tight text-white">
+                             {currentContract.title}
+                          </h2>
+                          <div className="rounded border border-white/10 bg-black/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-400">
+                             {currentContract.difficulty}
+                          </div>
+                       </div>
+                       
+                       <p className="text-[13px] leading-relaxed text-slate-300 max-w-2xl">
+                          {describeChallengeMission(currentContract.success)}
+                       </p>
+
+                       <div className="flex flex-wrap items-center gap-6 pt-2">
+                          <div className="flex items-center gap-2">
+                             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60">Success Vector:</span>
+                             <span className="text-[11px] text-slate-200 font-medium">
+                                {describeChallengeWinRule(currentContract.success)}
+                             </span>
+                          </div>
+                          {contractTargets.length > 0 && (
+                             <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500/60">Checkpoints:</span>
+                                <div className="flex gap-1.5">
+                                   {contractTargets.map(t => (
+                                      <span key={t} className="rounded-md border border-white/5 bg-black/40 px-2 py-0.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                         {t}
+                                      </span>
+                                   ))}
+                                </div>
+                             </div>
                           )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-rose-200">Avoid</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {scoreGuide.avoidStats.length > 0 ? scoreGuide.avoidStats.map((stat) => (
-                            <span key={stat} className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-rose-100">
-                              {stat}
-                            </span>
-                          )) : (
-                            <span className="text-[10px] text-slate-400">No dead lines on this relic.</span>
+                       </div>
+                    </div>
+
+                    <div className="w-full lg:w-auto shrink-0 flex items-center justify-between lg:justify-end gap-10 lg:border-l lg:border-white/5 lg:pl-10">
+                       <div className="flex gap-8">
+                          <div className="flex flex-col items-center">
+                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Tries</span>
+                             <span className="text-3xl font-black text-white leading-tight">{triesUsed}</span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Errors</span>
+                             <span className="text-3xl font-black text-rose-500 leading-tight">{mistakes}</span>
+                          </div>
+                       </div>
+
+                       <div className="min-w-[140px] space-y-3">
+                          <div className="text-center font-black uppercase tracking-[0.2em] text-[10px]">
+                             <span className={challengeStatus.tone === 'clear' ? 'text-emerald-400' : challengeStatus.tone === 'fail' ? 'text-rose-400' : 'text-cyan-400'}>
+                                {challengeStatus.label}
+                             </span>
+                          </div>
+
+                          {challengeStatus.tone === 'clear' ? (
+                             <button
+                                type="button"
+                                onClick={() => {
+                                   if (generatedScenario) handleGenerateScenario();
+                                   else if (nextContractId) handleOpenHandcraftedContract(nextContractId);
+                                }}
+                                className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/20 py-3 text-[10px] font-black uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                             >
+                                Next <ChevronRight className="h-4 w-4" />
+                             </button>
+                          ) : (
+                             <button
+                                type="button"
+                                onClick={handleOpenIntel}
+                                className="w-full rounded-lg border border-white/10 bg-white/5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                             >
+                                <Lightbulb className="h-3.5 w-3.5" /> Intel {activeHint && '✓'}
+                             </button>
                           )}
-                        </div>
-                      </div>
+                       </div>
                     </div>
-                  </div>
-                ) : null}
-                <div
-                  className={`rounded-xl border p-3 mb-3 ${
-                    challengeStatus.tone === 'clear'
-                      ? 'border-emerald-500/25 bg-emerald-500/10'
-                      : challengeStatus.tone === 'fail'
-                        ? 'border-rose-500/25 bg-rose-500/10'
-                        : 'border-cyan-400/20 bg-cyan-500/5'
-                  }`}
-                >
-                  <div
-                    className={`text-[9px] font-black uppercase tracking-[0.18em] mb-1 ${
-                      challengeStatus.tone === 'clear'
-                        ? 'text-emerald-200'
-                        : challengeStatus.tone === 'fail'
-                          ? 'text-rose-200'
-                          : 'text-cyan-200'
-                    }`}
-                  >
-                    {challengeStatus.label}
-                  </div>
-                  <p className="text-[10px] leading-relaxed text-slate-200">{challengeStatus.text}</p>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3 mb-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{isPvpMode ? 'Attempts' : 'Tries'}</div>
-                      <div className="mt-1 text-xl font-black text-amber-200">
-                        {isPvpMode ? `${pvpAttemptsUsed}/3` : triesUsed}
-                        {!isPvpMode && maxTries ? <span className="text-sm text-slate-500"> / {maxTries}</span> : null}
-                      </div>
+                 </div>
+                 {activeHint && (
+                    <div className="mt-8 rounded-lg border border-cyan-500/10 bg-cyan-500/5 p-4 text-[13px] leading-relaxed text-cyan-100/90 border-l-2 border-l-cyan-500">
+                       {activeHint}
                     </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                      <div className="mt-1 text-2xl font-black text-rose-300">{mistakes}</div>
+                 )}
+                 
+                 <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
+                    <div className="flex items-center gap-2 opacity-40">
+                       <span className="text-[10px] font-black uppercase tracking-widest">Environment:</span>
+                       <span className="text-[10px] font-black">{describePatternProfile(patternProfile)}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setHintStep((current) => Math.min(current + 1, currentContract.hints.length))}
-                      disabled={isPvpPreStartLocked}
-                      className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                    >
-                      <Lightbulb className="h-3.5 w-3.5" />
-                      Hint
-                    </button>
-                  </div>
-                  <p className="mt-3 text-[10px] leading-relaxed text-slate-300">{activeHint}</p>
-                  {isPvpMode && pvpSubmittedAttempt && !pvpBusted ? (
-                    <p className="mt-2 text-[10px] leading-relaxed text-violet-200">
-                      Your final relic is locked in. You are now waiting for the opponent to finish or bust.
-                    </p>
-                  ) : null}
-                </div>
-                {isPvpMode ? (
-                  <button
-                    type="button"
-                    onClick={pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
-                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked)}
-                    className={`mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
-                      pvpSubmittedAttempt || pvpBusted
-                        ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
-                        : relic.level >= 15
-                          ? 'border-cyan-400/30 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/20'
-                          : 'border-violet-400/30 bg-violet-500/12 text-violet-100 hover:bg-violet-500/20'
-                    }`}
-                  >
-                    {pvpSubmittedAttempt
-                      ? 'Final Relic Submitted'
-                      : pvpBusted
-                        ? 'Duel Lost'
-                        : relic.level >= 15
-                          ? `Submit Final Relic`
-                          : pvpAttemptsUsed >= 3
-                            ? 'Reset Loses Duel'
-                            : `Reset To Try ${pvpAttemptsUsed + 1}`}
-                    {(!pvpSubmittedAttempt && !pvpBusted)
-                      ? <ChevronRight className="h-4 w-4" />
-                      : null}
-                  </button>
-                ) : null}
-                {challengeStatus.tone === 'clear' && nextContractId && !isPvpMode ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenHandcraftedContract(nextContractId)}
-                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition-all hover:bg-emerald-500/20"
-                  >
-                    Next Contract
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                ) : null}
-                {challengeStatus.tone === 'clear' && generatedScenario && !isPvpMode ? (
-                  <button
-                    type="button"
-                    onClick={handleGenerateScenario}
-                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition-all hover:bg-cyan-500/20"
-                  >
-                    Generate Next Challenge
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                ) : null}
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black leading-tight">{describePatternProfile(patternProfile)}</p>
-                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Seed {currentContract.seedLabel}</p>
-                </div>
-              </>
-              ) : (
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Challenge Intel</div>
-                      <div className="mt-1 text-[10px] leading-relaxed text-slate-300">
-                        Use the predictor on the left, builder/target relics above, then compare your read against the line helper before committing.
-                      </div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">
+                       Trace Seed: {currentContract.seedLabel}
                     </div>
-                    {activeHint ? (
-                      <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-right">
-                        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">Active Hint</div>
-                        <div className="mt-1 text-[10px] leading-relaxed text-cyan-50/90">{activeHint}</div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
+                 </div>
               </div>
+             )}
+
+             {isPvpMode ? (
+               <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                  <section id="challenge-tour-pvp-mission" className="theme-glass-card rounded-xl p-5">
+                   <div className="flex items-start justify-between gap-3 border-b border-white/8 pb-4">
+                     <div>
+                       <div className="text-[11px] font-semibold tracking-tight text-white">Mission card</div>
+                       <p className="mt-2 text-sm leading-6 text-slate-400">
+                         Clear the contract first. If both sides fail the contract, the duel ends in a draw.
+                       </p>
+                     </div>
+                     <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200">
+                       {currentContract.difficulty}
+                     </div>
+                   </div>
+
+                   <div className="mt-4 space-y-4">
+                     <div>
+                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Win condition</div>
+                       <p className="mt-2 text-sm leading-6 text-slate-300">{describeChallengeWinRule(currentContract.success)}</p>
+                     </div>
+
+                     <div>
+                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Contract target</div>
+                       <div className="mt-3 flex flex-wrap gap-2">
+                         {contractTargets.map((target) => (
+                           <span key={target} className="rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-200">
+                             {target}
+                           </span>
+                         ))}
+                       </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-3">
+                       <div className="rounded-lg border border-white/6 bg-black/15 px-3 py-3">
+                         <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Aim for</div>
+                         <div className="mt-2 flex flex-wrap gap-2">
+                           {scoreGuide.targetStats.length > 0 ? scoreGuide.targetStats.map((stat) => (
+                             <span key={stat} className="rounded-lg border border-emerald-400/15 bg-emerald-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
+                               {stat}
+                             </span>
+                           )) : <span className="text-xs text-slate-500">No preferred lines.</span>}
+                         </div>
+                       </div>
+                       <div className="rounded-lg border border-white/6 bg-black/15 px-3 py-3">
+                         <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Avoid</div>
+                         <div className="mt-2 flex flex-wrap gap-2">
+                           {scoreGuide.avoidStats.length > 0 ? scoreGuide.avoidStats.map((stat) => (
+                             <span key={stat} className="rounded-lg border border-rose-400/15 bg-rose-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-rose-100">
+                               {stat}
+                             </span>
+                           )) : <span className="text-xs text-slate-500">No dead lines.</span>}
+                         </div>
+                       </div>
+                     </div>
+
+                     <div className={`rounded-lg border px-3 py-3 ${
+                       challengeStatus.tone === 'clear'
+                         ? 'border-emerald-500/20 bg-emerald-500/10'
+                         : challengeStatus.tone === 'fail'
+                           ? 'border-rose-500/20 bg-rose-500/10'
+                           : 'border-cyan-400/15 bg-cyan-500/8'
+                     }`}>
+                       <div className={`text-[10px] font-black uppercase tracking-[0.16em] ${
+                         challengeStatus.tone === 'clear'
+                           ? 'text-emerald-200'
+                           : challengeStatus.tone === 'fail'
+                             ? 'text-rose-200'
+                             : 'text-cyan-200'
+                       }`}>
+                         {challengeStatus.label}
+                       </div>
+                       <p className="mt-2 text-sm leading-6 text-slate-200">
+                         {activeHint || 'Open Intel from the duel board if you want a nudge before committing to the next route.'}
+                       </p>
+                     </div>
+                   </div>
+                 </section>
+
+                  <section id="challenge-tour-pvp-feed" className="theme-glass-card rounded-xl p-5">
+                   <div className="mb-4 flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                     <div className="flex items-center gap-2">
+                       <ShieldAlert className="h-4 w-4 text-rose-300" />
+                       <div className="text-[11px] font-semibold tracking-tight text-white">Signal feed</div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <div className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-1">
+                         <button
+                           type="button"
+                           onClick={() => setSignalFeedView('feed')}
+                           className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                             signalFeedView === 'feed'
+                               ? 'bg-white/[0.08] text-white'
+                               : 'text-slate-400 hover:text-slate-200'
+                           }`}
+                         >
+                           Feed
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => setSignalFeedView('details')}
+                           className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${
+                             signalFeedView === 'details'
+                               ? 'bg-white/[0.08] text-white'
+                               : 'text-slate-400 hover:text-slate-200'
+                           }`}
+                         >
+                           {isOpponentBot ? 'Details' : 'Rolls'}
+                         </button>
+                       </div>
+                       {isOpponentBot ? (
+                         <button
+                           type="button"
+                           onClick={() => setDevTreatBotAsPlayer((current) => !current)}
+                           className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-[10px] font-semibold transition ${
+                             devTreatBotAsPlayer
+                               ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                               : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
+                           }`}
+                         >
+                           {devTreatBotAsPlayer ? 'Player view' : 'Bot view'}
+                         </button>
+                       ) : null}
+                     </div>
+                   </div>
+                   {signalFeedView === 'feed' ? (
+                     <div className="max-h-[324px] overflow-y-auto space-y-2 pr-2 font-mono text-[11px] leading-relaxed">
+                       {pvpFeed.length === 0 ? (
+                         <div className="pt-4 text-slate-600 italic">{'>'} AUTHENTICATING SIGNAL...</div>
+                       ) : (
+                         pvpFeed.map((entry) => {
+                           const toneClasses = entry.tone === 'player'
+                             ? 'text-cyan-400'
+                             : entry.tone === 'opponent'
+                               ? 'text-rose-400'
+                               : 'text-amber-400';
+                           return (
+                             <div key={entry.id} className={`flex items-start gap-3 border-b border-white/5 py-1 last:border-0 ${toneClasses}`}>
+                               <span className="shrink-0 opacity-40">[{new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' })}]</span>
+                               <span>{'>'} {entry.text}</span>
+                             </div>
+                           );
+                         })
+                       )}
+                     </div>
+                   ) : (
+                      <div className="min-h-[324px] rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                       {!signalDetailsAsPlayerView ? (
+                          <div className="grid min-h-[296px] gap-4 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)]">
+                           <div>
+                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Session Data</div>
+                              <div className="mt-2 max-h-[238px] space-y-2 overflow-y-auto pr-1">
+                               {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
+                                 <div key={`bot-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                   <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
+                                   {' · raw '}
+                                   <span className="text-cyan-100">{entry.rawPair || '-'}</span>
+                                   {' -> '}
+                                   <span className="text-violet-100">{entry.translated || '-'}</span>
+                                   {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
+                                 </div>
+                               )) : (
+                                 <div className="text-xs text-slate-500">No bot session entries recorded yet.</div>
+                               )}
+                             </div>
+                           </div>
+                           <div>
+                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Decisions</div>
+                              <div className="mt-2 max-h-[238px] space-y-2 overflow-y-auto pr-1">
+                               {opponentDebugLogNewestFirst.length > 0 ? opponentDebugLogNewestFirst.map((entry, index) => (
+                                 <div key={`bot-debug-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                   {entry}
+                                 </div>
+                               )) : (
+                                 <div className="text-xs text-slate-500">No bot reasoning recorded yet.</div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       ) : (
+                         <div>
+                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                             {isOpponentBot ? 'Player-view Session Rolls' : 'Opponent Session Rolls'}
+                           </div>
+                            <div className="mt-2 max-h-[252px] space-y-2 overflow-y-auto pr-1">
+                             {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
+                               <div key={`player-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                 <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
+                                 {' · raw '}
+                                 <span className="text-cyan-100">{entry.rawPair || '-'}</span>
+                                 {' -> '}
+                                 <span className="text-violet-100">{entry.translated || '-'}</span>
+                                 {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
+                               </div>
+                             )) : (
+                               <div className="text-xs text-slate-500">No opponent session rolls recorded yet.</div>
+                             )}
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   )}
+                    {false ? (
+                     <div className="mt-4 rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                       {isOpponentBot ? (
+                         <div className="space-y-4">
+                           <div>
+                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Session Data</div>
+                             <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
+                               {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
+                                 <div key={`bot-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                   <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
+                                   {' · raw '}
+                                   <span className="text-cyan-100">{entry.rawPair || '-'}</span>
+                                   {' -> '}
+                                   <span className="text-violet-100">{entry.translated || '-'}</span>
+                                   {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
+                                 </div>
+                               )) : (
+                                 <div className="text-xs text-slate-500">No bot session entries recorded yet.</div>
+                               )}
+                             </div>
+                           </div>
+                           <div>
+                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Bot Decisions</div>
+                             <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                               {opponentDebugLogNewestFirst.length > 0 ? opponentDebugLogNewestFirst.map((entry, index) => (
+                                 <div key={`bot-debug-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                   {entry}
+                                 </div>
+                               )) : (
+                                 <div className="text-xs text-slate-500">No bot reasoning recorded yet.</div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       ) : (
+                         <div>
+                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Opponent Session Rolls</div>
+                           <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+                             {opponentSessionEntriesNewestFirst.length > 0 ? opponentSessionEntriesNewestFirst.map((entry, index) => (
+                               <div key={`player-session-${entry.id || index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                                 <span className="font-semibold text-white">#{entry.step || opponentSessionEntriesNewestFirst.length - index}</span>
+                                 {' · raw '}
+                                 <span className="text-cyan-100">{entry.rawPair || '-'}</span>
+                                 {' -> '}
+                                 <span className="text-violet-100">{entry.translated || '-'}</span>
+                                 {entry.attemptNumber ? ` · try ${entry.attemptNumber}` : ''}
+                               </div>
+                             )) : (
+                               <div className="text-xs text-slate-500">No opponent session rolls recorded yet.</div>
+                             )}
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   ) : null}
+                 </section>
+               </div>
+             ) : null}
           </section>
 
           {/* COLUMN 3: FAR RIGHT (3/12) - STATS & INTEL */}
@@ -3194,9 +3452,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         </div>
       </div>
 
-      {!isPvpMode && tourRunning ? (
+      {tourRunning ? (
         <ChallengeTourOverlay
-          steps={CHALLENGE_TOUR_STEPS}
+          steps={activeTourSteps}
           currentStep={tourStepIndex}
           onNext={handleNextTourStep}
           onBack={handleBackTourStep}
@@ -3223,53 +3481,60 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
       {isPvpMode && showPvpResults && pvpRoom ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md">
-          <div className="w-full max-w-5xl rounded-[1.8rem] border border-white/10 bg-[#0A0F1B]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.55)] md:p-8">
-            <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="theme-glass-card w-full max-w-[1400px] rounded-xl p-5 md:p-6">
+            <div className="flex flex-col gap-5 border-b border-white/8 pb-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-rose-200">Match Results</div>
-                <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.08em] text-white">
-                  {pvpRoom?.winnerUserId
-                    ? (pvpRoom?.winnerUserId === String(user?.id || '') ? 'You Won The Duel' : `${pvpOpponent?.name || 'Opponent'} Won The Duel`)
-                    : 'Match Draw'}
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Match results</div>
+                <h2 className="mt-2 text-[2rem] font-semibold tracking-tight text-white">
+                  {localWonPvp ? 'You won the duel' : opponentWonPvp ? `${pvpOpponent?.name || 'Opponent'} won the duel` : 'Match draw'}
                 </h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  {pvpRoom?.winnerUserId
-                    ? (pvpRoom?.winnerUserId === String(user?.id || '')
-                      ? 'Your submitted relic satisfied the duel rules better than the opponent.'
-                      : `${pvpOpponent?.name || 'Opponent'} satisfied the duel rules better than you did.`)
-                    : 'Neither side cleared the contract, so the duel ended in a draw.'}
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                  {localWonPvp
+                    ? 'Your relic satisfied the room rules better than the opponent.'
+                    : opponentWonPvp
+                      ? `${pvpOpponent?.name || 'Opponent'} satisfied the room rules better than you did.`
+                      : 'Neither side cleared the contract strongly enough to break the tie.'}
                 </p>
-                {(localResultUsesTimeout || opponentResultUsesTimeout) ? (
-                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-200">
-                    Timeout rule: unfinished relics were scored from their live level with a reduced timeout value.
-                  </p>
-                ) : null}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className={`rounded-md border px-3 py-2 text-[11px] font-semibold ${
+                  localWonPvp
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+                    : opponentWonPvp
+                      ? 'border-rose-400/20 bg-rose-500/10 text-rose-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-200'
+                }`}>
+                  {localWonPvp ? 'Winner: You' : opponentWonPvp ? `Winner: ${pvpOpponent?.name || 'Opponent'}` : 'Result: Draw'}
+                </div>
+                {(localResultUsesTimeout || opponentResultUsesTimeout) ? (
+                  <div className="rounded-md border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100">
+                    Timeout scoring applied
+                  </div>
+                ) : null}
                 {pvpViewerRole === 'host' ? (
                   <>
                     <button
                       type="button"
                       onClick={handleRerollPvpMatch}
-                      className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-100 transition hover:bg-fuchsia-500/20"
+                      className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] font-semibold text-slate-100 transition hover:bg-white/[0.06]"
                     >
                       <Dice5 className="h-4 w-4" />
-                      Reroll Relics & Restart
+                      Reroll relics
                     </button>
                     <button
                       type="button"
                       onClick={handleRestartPvpMatch}
-                      className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:bg-emerald-500/20"
+                      className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] font-semibold text-slate-100 transition hover:bg-white/[0.06]"
                     >
                       <RefreshCw className="h-4 w-4" />
-                      Restart Same Match
+                      Restart same match
                     </button>
                   </>
                 ) : null}
                 <button
                   type="button"
                   onClick={() => setShowPvpResults(false)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/25 text-slate-200 transition hover:border-white/20 hover:text-white"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-slate-200 transition hover:bg-white/[0.06] hover:text-white"
                   aria-label="Close results"
                 >
                   <X className="h-5 w-5" />
@@ -3277,116 +3542,167 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[1.35rem] border border-cyan-400/15 bg-cyan-500/6 p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">You</div>
-                    <div className="mt-1 text-xl font-black uppercase text-white">{localPvpState.displayName || 'Player'}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Best Attempt</div>
-                    <div className={`mt-1 text-sm font-black uppercase ${localResultUsesTimeout ? 'text-amber-200' : localPvpState.bestScore > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-                      {localResultUsesTimeout ? 'Timed Out' : localPvpState.bestScore > 0 ? 'Submitted' : 'None'}
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-4 grid grid-cols-5 gap-3 text-center">
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Score</div>
-                    <div className="mt-1 text-lg font-black text-white">{localResultScore}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Grade</div>
-                    <div className="mt-1 text-lg font-black text-amber-200">{localResultGrade}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                    <div className="mt-1 text-lg font-black text-rose-200">{localResultMistakes}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Attempts</div>
-                    <div className="mt-1 text-lg font-black text-slate-100">{localPvpState.attemptsUsed ?? 0} / 3</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Helpful</div>
-                    <div className="mt-1 text-lg font-black text-emerald-200">{localResultHelpful}</div>
-                  </div>
-                </div>
-                <ResultRelicCard relic={localBestRelicSnapshot} title={localPvpState.status === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="cyan" success={currentContract.success} />
-              </div>
-
-              <div className="rounded-[1.35rem] border border-rose-400/15 bg-rose-500/6 p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-200">Opponent</div>
-                    <div className="mt-1 text-xl font-black uppercase text-white">{pvpOpponent?.name || 'Opponent'}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Best Attempt</div>
-                    <div className={`mt-1 text-sm font-black uppercase ${opponentResultUsesTimeout ? 'text-amber-200' : Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-                      {opponentResultUsesTimeout ? 'Timed Out' : Number(pvpOpponent?.state?.bestScore || 0) > 0 ? 'Submitted' : 'None'}
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-4 grid grid-cols-5 gap-3 text-center">
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Score</div>
-                    <div className="mt-1 text-lg font-black text-white">{opponentResultScore}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Grade</div>
-                    <div className="mt-1 text-lg font-black text-amber-200">{opponentResultGrade}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Mistakes</div>
-                    <div className="mt-1 text-lg font-black text-rose-200">{opponentResultMistakes}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Attempts</div>
-                    <div className="mt-1 text-lg font-black text-slate-100">{pvpOpponent?.state?.attemptsUsed ?? 0} / 3</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-3">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Helpful</div>
-                    <div className="mt-1 text-lg font-black text-emerald-200">{opponentResultHelpful}</div>
-                  </div>
-                </div>
-                <ResultRelicCard relic={opponentBestRelicSnapshot} title={String(pvpOpponent?.state?.status || '') === 'timeout' ? 'Timed Out Relic' : 'Best Target Relic'} accent="rose" success={currentContract.success} />
-              </div>
-            </div>
-
-            {opponentDebugLog.length > 0 ? (
-              <div className="mt-5 rounded-[1.35rem] border border-violet-400/15 bg-violet-500/6 p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200">Bot Decision Trace</div>
-                    <div className="mt-1 text-sm text-slate-300">Expert debug log of what the bot looked at and why it moved.</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyBotTrace}
-                      className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-violet-100 transition hover:bg-violet-500/20"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      {copiedBotTrace ? 'Copied' : 'Copy Trace'}
-                    </button>
-                    <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
-                      {opponentDebugLog.length} steps
-                    </div>
-                  </div>
-                </div>
-                <div className="max-h-96 overflow-y-auto rounded-2xl border border-white/5 bg-black/25 p-3">
-                  <div className="space-y-2">
-                    {opponentDebugLogNewestFirst.map((entry, index) => (
-                      <div key={`${index}-${entry.slice(0, 24)}`} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
-                        {entry}
+            <div className={`mt-5 grid gap-4 ${showBotTrace ? 'xl:grid-cols-[minmax(0,1.38fr)_390px]' : ''}`}>
+              <div className="min-w-0 space-y-4">
+                <div className="theme-subpanel rounded-xl p-5">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_92px_minmax(0,1fr)] lg:items-center">
+                    <div className={`rounded-xl border p-4 ${localWonPvp ? 'border-emerald-400/20 bg-emerald-500/[0.04]' : 'border-white/8 bg-white/[0.02]'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">You</div>
+                          <div className="mt-1 text-[1.45rem] font-semibold tracking-tight text-white">{localPvpState.displayName || 'Player'}</div>
+                        </div>
+                        <div className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-slate-200">
+                          {localResultStateLabel}
+                        </div>
                       </div>
-                    ))}
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300"
+                          style={{ width: `${Math.max(0, Math.min(100, Number(playerHp) || 0))}%` }}
+                        />
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Score</span>
+                          <span className="font-semibold text-white">{localResultScore}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Grade</span>
+                          <span className="font-semibold text-white">{localResultGrade}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Helpful</span>
+                          <span className="font-semibold text-emerald-100">{localResultHelpful}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Mistakes</span>
+                          <span className="font-semibold text-rose-200">{localResultMistakes}</span>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="mb-2 flex items-center justify-between text-[11px]">
+                          <div className="font-semibold text-white">Upgrade progress</div>
+                          <div className="font-semibold text-slate-300">+{localResultLevel}</div>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {getPvpLevelSegments(localResultLevel).map((segment) => (
+                            <div key={`result-local-${segment.key}`} className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.03]">
+                              <div
+                                className="pvp-segment-fill h-full rounded-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300"
+                                data-progress-key={`result-local-${segment.key}`}
+                                data-target-width={`${segment.progress * 100}%`}
+                                style={{ width: `${segment.progress * 100}%` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center gap-2 text-center">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Score Duel</div>
+                  <div className="text-[3.1rem] font-semibold leading-none tracking-tight text-transparent bg-gradient-to-r from-sky-200 via-white to-amber-200 bg-clip-text [text-shadow:0_0_18px_rgba(255,255,255,0.08)]">VS</div>
+                      <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200">
+                        {localWonPvp ? 'You took the room' : opponentWonPvp ? 'Opponent took the room' : 'Draw'}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-xl border p-4 ${opponentWonPvp ? 'border-rose-400/20 bg-rose-500/[0.04]' : 'border-white/8 bg-white/[0.02]'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Opponent</div>
+                          <div className="mt-1 text-[1.45rem] font-semibold tracking-tight text-white">{pvpOpponent?.name || 'Opponent'}</div>
+                        </div>
+                        <div className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-slate-200">
+                          {opponentResultStateLabel}
+                        </div>
+                      </div>
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-rose-300 via-rose-400 to-pink-500"
+                          style={{ width: `${Math.max(0, Math.min(100, Number(opponentHp) || 0))}%` }}
+                        />
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Score</span>
+                          <span className="font-semibold text-white">{opponentResultScore}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Grade</span>
+                          <span className="font-semibold text-white">{opponentResultGrade}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Helpful</span>
+                          <span className="font-semibold text-emerald-100">{opponentResultHelpful}</span>
+                        </div>
+                        <div className="pvp-stat-pill inline-flex items-center gap-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Mistakes</span>
+                          <span className="font-semibold text-rose-200">{opponentResultMistakes}</span>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="mb-2 flex items-center justify-between text-[11px]">
+                          <div className="font-semibold text-white">Upgrade progress</div>
+                          <div className="font-semibold text-slate-300">+{opponentResultLevel}</div>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {getPvpLevelSegments(opponentResultLevel).map((segment) => (
+                            <div key={`result-opponent-${segment.key}`} className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.03]">
+                              <div
+                                className="pvp-segment-fill h-full rounded-full bg-gradient-to-r from-rose-300 via-rose-400 to-pink-500"
+                                data-progress-key={`result-opponent-${segment.key}`}
+                                data-target-width={`${segment.progress * 100}%`}
+                                style={{ width: `${segment.progress * 100}%` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <ResultRelicCard relic={localBestRelicSnapshot} title={localResultUsesTimeout ? 'Timed out relic' : 'Best target relic'} accent="cyan" success={currentContract.success} />
+                  <ResultRelicCard relic={opponentBestRelicSnapshot} title={opponentResultUsesTimeout ? 'Timed out relic' : 'Best target relic'} accent="rose" success={currentContract.success} />
+                </div>
               </div>
-            ) : null}
+
+              {showBotTrace ? (
+                <aside className="theme-subpanel rounded-xl p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Bot Decision Trace</div>
+                      <div className="mt-1 text-sm leading-6 text-slate-300">What the bot compared, rejected, and committed to during the duel.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyBotTrace}
+                        className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-semibold text-slate-100 transition hover:bg-white/[0.06]"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        {copiedBotTrace ? 'Copied' : 'Copy Trace'}
+                      </button>
+                      <div className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-semibold text-slate-300">
+                        {opponentDebugLog.length} steps
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-[620px] overflow-y-auto rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                    <div className="space-y-2">
+                      {opponentDebugLogNewestFirst.map((entry, index) => (
+                        <div key={`${index}-${entry.slice(0, 24)}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] leading-relaxed text-slate-200">
+                          {entry}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </aside>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
