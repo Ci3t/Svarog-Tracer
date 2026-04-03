@@ -172,8 +172,14 @@ const PVP_TOUR_STEPS = [
   {
     target: '#challenge-tour-pvp-room-meta',
     title: 'Room Controls',
-    body: 'This cluster is your quick room utility. Keep an eye on the room id, open tips, check the live room state, and reopen results once the duel finishes.',
+    body: 'This cluster is your quick room utility. Keep an eye on the room id, open tips, check the live room state, reopen results once the duel finishes, and open this guide again while you are learning against bots.',
     placement: 'left',
+  },
+  {
+    target: '#challenge-tour-pvp-you',
+    title: 'Your Duel Card',
+    body: 'This card is your live combat read. HP shows how badly the opponent is pressuring you, the inline chips show status, level, attempts, hits, and mistakes, and the segmented bar below tells you exactly how far your current relic has climbed.',
+    placement: 'bottom',
   },
   {
     target: '#challenge-tour-pvp-center',
@@ -214,7 +220,7 @@ const PVP_TOUR_STEPS = [
   {
     target: '#challenge-tour-builder',
     title: 'Setup / Builder Relic',
-    body: 'Use the builder to scout or reposition when the live target route is bad. In builder rooms, this is where you create session evidence before touching the real relic.',
+    body: 'Use the builder to scout or reposition when the live target route is bad. The Loop Builder switch turns repeated upgrades on or off, and the builder progress bar shows each upgrade chunk as the setup relic climbs toward max.',
     placement: 'left',
   },
   {
@@ -1342,6 +1348,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [triesUsed, setTriesUsed] = useState(1);
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [pvpTourAutoFreeze, setPvpTourAutoFreeze] = useState(false);
 
   const containerRef = useRef(null);
   const debugRef = useRef({
@@ -1405,16 +1412,24 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (isPvpMode && !pvpRoom) return undefined;
+    if (isPvpMode) {
+      const viewerRole = pvpRoom?.viewerRole || null;
+      const opponentUserId = String((viewerRole === 'host' ? pvpRoom?.guest?.userId : pvpRoom?.host?.userId) || '');
+      if (!/^dev-bot/.test(opponentUserId)) return undefined;
+    }
+    if (isPvpMode && (pvpRoom?.status === 'active' || pvpRoom?.status === 'finished')) return undefined;
     const storageKey = isPvpMode ? PVP_TOUR_KEY : CHALLENGE_TOUR_KEY;
     try {
       const seenTour = window.localStorage.getItem(storageKey);
       if (!seenTour) {
         setTourStepIndex(0);
         setTourRunning(true);
+        setPvpTourAutoFreeze(isPvpMode);
       }
     } catch {
       setTourStepIndex(0);
       setTourRunning(true);
+      setPvpTourAutoFreeze(isPvpMode);
     }
     return undefined;
   }, [isPvpMode, pvpRoom]);
@@ -1522,13 +1537,16 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     return pvpViewerRole === 'host' ? pvpRoom.guest : pvpRoom.host;
   }, [pvpRoom, pvpViewerRole]);
   const isOpponentBot = /^dev-bot/.test(String(pvpOpponent?.userId || ''));
+  const canUsePvpGuide = !isPvpMode || isOpponentBot;
   const pvpCountdownLeft = useMemo(() => {
     if (!isPvpMode || pvpRoom?.status !== 'countdown') return 0;
     const startedAtMs = new Date(pvpRoom?.startedAt || 0).getTime();
     if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) return 0;
     return Math.max(0, 5 - Math.floor((clockNow - startedAtMs) / 1000));
   }, [clockNow, isPvpMode, pvpRoom?.startedAt, pvpRoom?.status]);
-  const isPvpPreStartLocked = isPvpMode && pvpRoom?.status === 'countdown' && pvpCountdownLeft > 0;
+  const isPvpCountdownLocked = isPvpMode && pvpRoom?.status === 'countdown' && pvpCountdownLeft > 0;
+  const isPvpTourFreezeActive = isPvpMode && pvpTourAutoFreeze && tourRunning && pvpRoom?.status === 'active';
+  const isPvpInteractionLocked = isPvpCountdownLocked || isPvpTourFreezeActive;
   const opponentHelpfulHits = Math.max(0, Number(pvpOpponent?.state?.helpfulHits || 0));
   const playerHp = Math.max(0, 100 - opponentHelpfulHits * 25);
   const opponentHp = Math.max(0, 100 - helpfulHits * 25);
@@ -1829,7 +1847,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const handleSubmitPvpAttempt = useCallback(() => {
     if (!isPvpMode) return;
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     if (pvpAttemptsUsed > 3) return;
     if (relic.level < 15) return;
     if (pvpSubmittedAttempt || pvpBusted) return;
@@ -1845,14 +1863,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       },
       ...current,
     ].slice(0, 8));
-  }, [currentPvpAttempt, isPvpMode, isPvpPreStartLocked, pvpAttemptsUsed, pvpBusted, pvpSubmittedAttempt, relic.level]);
+  }, [currentPvpAttempt, isPvpMode, isPvpInteractionLocked, pvpAttemptsUsed, pvpBusted, pvpSubmittedAttempt, relic.level]);
 
   const handleResetPvpAttempt = useCallback(() => {
     if (!isPvpMode) {
       resetChallengeMode();
       return;
     }
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     if (pvpSubmittedAttempt || pvpBusted) {
       return;
     }
@@ -1893,7 +1911,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     setMistakes(0);
     setHintStep(0);
     setHintVisible(false);
-  }, [currentContract, currentPvpAttempt, isPvpMode, isPvpPreStartLocked, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt, sessionRolls.length, testRelic.level]);
+  }, [currentContract, currentPvpAttempt, isPvpMode, isPvpInteractionLocked, mistakes, pvpAttemptsUsed, relic.hasFourthLine, relic.level, pvpBusted, pvpSubmittedAttempt, sessionRolls.length, testRelic.level]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1967,11 +1985,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (!isPvpMode || !roomCode) return undefined;
+    if (isPvpTourFreezeActive) return undefined;
     const interval = window.setInterval(() => {
       fetchPvpRoom({ silent: true });
     }, 2500);
     return () => window.clearInterval(interval);
-  }, [fetchPvpRoom, isPvpMode, roomCode]);
+  }, [fetchPvpRoom, isPvpMode, isPvpTourFreezeActive, roomCode]);
 
   useEffect(() => {
     if (!isPvpMode) return undefined;
@@ -2013,13 +2032,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   useEffect(() => {
     if (!isPvpMode) return;
+    if (isPvpTourFreezeActive) {
+      setTimerRunning(false);
+      return;
+    }
     if (pvpRoom?.status === 'active') {
       setTimerRunning(true);
     }
     if (pvpRoom?.status === 'finished') {
       setTimerRunning(false);
     }
-  }, [isPvpMode, pvpRoom?.status]);
+  }, [isPvpMode, isPvpTourFreezeActive, pvpRoom?.status]);
 
   useEffect(() => {
     if (challengeStatus.tone !== 'clear') return;
@@ -2279,7 +2302,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   }, [isPvpMode, pvpRoom?.status]);
 
   const handleStartSession = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     setTimerRunning(true);
   };
 
@@ -2345,7 +2368,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handlePracticeRelicAction = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     const nextRelic = handleBaseUpgrade(relic, patternProfile, forceRelic.isPrimed && relic.hasFourthLine ? forceRelic.forcedLine : null);
     setRelic(nextRelic);
 
@@ -2362,7 +2385,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleTestRelicAction = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     const rollTierMode = currentContract?.pvpRollTier || null;
     const applyBuilderStep = (startingRelic, startingProfile) => {
       let nextRelic = handleBaseUpgrade(startingRelic, startingProfile);
@@ -2457,14 +2480,14 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleResetTestRelic = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     setTestRelic(createChallengeRelic(currentContract.builderRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
     setSessionRolls([]);
     setSharedCarryLine(null);
   };
 
   const handleAddManualRoll = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     const parts = String(rollInput || '')
       .trim()
       .split(/[\s,]+/)
@@ -2478,12 +2501,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleDeleteEntry = (entryId) => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     setSessionRolls((existing) => existing.filter((entry) => entry.id !== entryId));
   };
 
   const handlePrimeForceRelic = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     setForceRelic((current) => {
       if (current.isPrimed || current.currentLineCount >= 4) return current;
       return {
@@ -2499,7 +2522,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleResetForceRelic = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     setForceRelic(createChallengeForceRelic({
       ...currentContract.forceRelic,
       baseLines: forceRelic.baseLines,
@@ -2507,7 +2530,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   };
 
   const handleCycleForceRelicType = () => {
-    if (isPvpPreStartLocked) return;
+    if (isPvpInteractionLocked) return;
     const nextBaseLines = forceRelic.baseLines >= 3 ? 1 : forceRelic.baseLines + 1;
     setForceRelic(createChallengeForceRelic({
       ...currentContract.forceRelic,
@@ -2522,6 +2545,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const handleCloseTour = () => {
     setTourRunning(false);
+    setPvpTourAutoFreeze(false);
     try {
       window.localStorage.setItem(isPvpMode ? PVP_TOUR_KEY : CHALLENGE_TOUR_KEY, 'seen');
     } catch {
@@ -2552,12 +2576,12 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           topOffsetClass={themeConfig.rootClassName === 'arctic-theme' ? 'top-[112px] md:top-[128px]' : 'top-[72px] md:top-[84px]'}
           secondsLeft={secondsLeft}
           onStart={handleStartSession}
-          onStop={isPvpPreStartLocked ? undefined : (() => setTimerRunning(false))}
-          onRestart={isPvpPreStartLocked ? undefined : (() => resetChallengeMode())}
+          onStop={isPvpInteractionLocked ? undefined : (() => setTimerRunning(false))}
+          onRestart={isPvpInteractionLocked ? undefined : (() => resetChallengeMode())}
           timerRunning={timerRunning}
           rollInput={rollInput}
           setRollInput={setRollInput}
-          onAddRoll={isPvpPreStartLocked ? undefined : handleAddManualRoll}
+          onAddRoll={isPvpInteractionLocked ? undefined : handleAddManualRoll}
           entriesCount={predictorEntries.length}
         />
       ) : null}
@@ -2622,23 +2646,25 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <button
                       type="button"
                       onClick={handleOpenIntel}
-                      disabled={isPvpPreStartLocked}
+                      disabled={isPvpInteractionLocked}
                       className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-100 transition-all hover:bg-cyan-500/18 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Lightbulb className="h-4 w-4" />
                       Tips
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTourStepIndex(0);
-                        setTourRunning(true);
-                      }}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/[0.06]"
-                    >
-                      <CircleHelp className="h-4 w-4" />
-                      Guide
-                    </button>
+                    {canUsePvpGuide ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTourStepIndex(0);
+                          setTourRunning(true);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/[0.06]"
+                      >
+                        <CircleHelp className="h-4 w-4" />
+                        Guide
+                      </button>
+                    ) : null}
                     <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-slate-200">
                     {pvpRoom?.status || (pvpLoading ? 'Loading' : 'Waiting')}
                     </div>
@@ -2655,7 +2681,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
               </div>
 
               <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_auto_1fr] xl:items-stretch">
-                <div className="theme-subpanel rounded-xl p-4">
+                <div id="challenge-tour-pvp-you" className="theme-subpanel rounded-xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/70">You</div>
@@ -2727,8 +2753,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="h-px w-24 bg-white/8" />
                   <button
                     type="button"
-                    onClick={pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
-                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted || isPvpPreStartLocked)}
+                    onClick={pvpSubmittedAttempt || pvpBusted || isPvpInteractionLocked ? undefined : (relic.level >= 15 ? handleSubmitPvpAttempt : handleResetPvpAttempt)}
+                    disabled={Boolean(pvpSubmittedAttempt || pvpBusted || isPvpInteractionLocked)}
                     className={`inline-flex min-w-[220px] items-center justify-center gap-2 rounded-lg border px-5 py-3.5 text-[12px] font-semibold transition-all ${
                       pvpSubmittedAttempt || pvpBusted
                         ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
@@ -3012,9 +3038,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   themeColor="cyan"
                   icon={Target}
                   success={currentContract.success}
-                  onAction={isPvpPreStartLocked ? undefined : handlePracticeRelicAction}
-                  onReset={isPvpPreStartLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
-                  disabled={isPvpPreStartLocked}
+                  onAction={isPvpInteractionLocked ? undefined : handlePracticeRelicAction}
+                  onReset={isPvpInteractionLocked ? undefined : (isPvpMode ? handleResetPvpAttempt : () => resetChallengeMode())}
+                  disabled={isPvpInteractionLocked}
                 />
                 </div>
 
@@ -3025,10 +3051,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   themeColor="violet"
                   icon={FlaskConical}
                   success={currentContract.success}
-                  onAction={isPvpPreStartLocked ? undefined : handleTestRelicAction}
-                  onReset={isPvpPreStartLocked ? undefined : handleResetTestRelic}
-                  disabled={isPvpPreStartLocked}
-                  actionDisabled={isPvpPreStartLocked ? true : (!testRelicLoopMode && testRelic.level >= 15)}
+                  onAction={isPvpInteractionLocked ? undefined : handleTestRelicAction}
+                  onReset={isPvpInteractionLocked ? undefined : handleResetTestRelic}
+                  disabled={isPvpInteractionLocked}
+                  actionDisabled={isPvpInteractionLocked ? true : (!testRelicLoopMode && testRelic.level >= 15)}
                   actionLabel={
                     testRelicLoopMode
                       ? (testRelic.level >= 15 ? 'Loop Again' : 'Loop To Max')
@@ -3038,7 +3064,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     <button
                       type="button"
                       onClick={() => setTestRelicLoopMode((current) => !current)}
-                      disabled={isPvpPreStartLocked}
+                      disabled={isPvpInteractionLocked}
                       className={`mt-1 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-[8px] font-black uppercase tracking-[0.16em] transition-all ${
                         testRelicLoopMode
                           ? 'border-violet-500/30 bg-violet-500/10 text-violet-200'
@@ -3423,10 +3449,10 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
              <div id="challenge-tour-force">
              <ForceRelicCard
                 relic={forceRelic}
-                onPrime={isPvpPreStartLocked ? undefined : handlePrimeForceRelic}
-                onReset={isPvpPreStartLocked ? undefined : handleResetForceRelic}
-                onCycleType={isPvpPreStartLocked ? undefined : handleCycleForceRelicType}
-                disabled={isPvpPreStartLocked}
+                onPrime={isPvpInteractionLocked ? undefined : handlePrimeForceRelic}
+                onReset={isPvpInteractionLocked ? undefined : handleResetForceRelic}
+                onCycleType={isPvpInteractionLocked ? undefined : handleCycleForceRelicType}
+                disabled={isPvpInteractionLocked}
              />
              </div>
 
@@ -3462,7 +3488,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         />
       ) : null}
 
-      {isPvpPreStartLocked ? (
+      {isPvpCountdownLocked ? (
         <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[#05070dcc]/95 backdrop-blur-md">
           <div className="flex flex-col items-center gap-4 px-6 text-center">
             <div className="text-[12px] font-black uppercase tracking-[0.4em] text-amber-200">PVP Countdown</div>
