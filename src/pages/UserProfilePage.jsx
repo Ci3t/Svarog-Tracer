@@ -1,7 +1,6 @@
 ﻿import React, { useMemo, useState } from 'react';
 import {
   BadgeCheck,
-  Crown,
   Sparkles,
   Trophy,
   Users,
@@ -417,49 +416,6 @@ function MarketplaceItemCard({ item, actionBusy, locked, onPurchase, onEquip, eq
   );
 }
 
-function LeaderboardList({ entries, profileUserId, metricLabel = 'Points', metricKey = 'seasonPoints', emptyText = 'No entries yet.' }) {
-  return (
-    <div className="space-y-2">
-      {entries.length === 0 ? (
-        <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-          {emptyText}
-        </div>
-      ) : null}
-
-      {entries.map((entry) => {
-        const isViewer = String(entry.userId) === String(profileUserId || '');
-        return (
-          <div
-            key={`${metricKey}-${entry.rank}-${entry.userId}`}
-            className="grid items-center gap-3 rounded-lg border px-4 py-3"
-            style={isViewer ? panelStyle({ borderColor: 'var(--theme-border-strong)' }) : subtlePanelStyle()}
-          >
-            <div className="grid grid-cols-[40px_minmax(0,1fr)_84px_72px] items-center gap-3">
-              <div className="text-sm font-semibold" style={{ color: isViewer ? 'var(--theme-accent)' : 'var(--theme-text-muted)' }}>
-                #{entry.rank}
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{entry.displayName}</div>
-                <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                  {entry.wins}-{entry.losses}-{entry.draws} • {entry.winRate}% WR
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{metricLabel}</div>
-                <div className="text-sm font-semibold">{entry[metricKey] ?? 0}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Best</div>
-                <div className="text-sm font-semibold">{entry.bestScore}</div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function MatchList({ matches, seasonLabel, emptyText, badgeText }) {
   return (
     <div className="space-y-3">
@@ -742,6 +698,40 @@ function buildBotSessionTables(matches, summaries) {
   }));
 }
 
+const CHALLENGE_ORDER_INDEX = new Map(CHALLENGE_CONTRACT_ORDER.map((contractId, index) => [String(contractId), index]));
+
+function getChallengeLevelLabel(row) {
+  const contractId = String(row?.contract_id || '').trim();
+  if (CHALLENGE_ORDER_INDEX.has(contractId)) {
+    return `L${String(CHALLENGE_ORDER_INDEX.get(contractId) + 1).padStart(2, '0')}`;
+  }
+
+  const titleMatch = String(row?.contract_title || '').match(/level\s*0*(\d+)/i);
+  if (titleMatch) {
+    return `L${String(titleMatch[1]).padStart(2, '0')}`;
+  }
+
+  return row?.generated ? 'GEN' : '--';
+}
+
+function sortChallengeTableRows(rows) {
+  return (Array.isArray(rows) ? rows : []).slice().sort((left, right) => {
+    const leftGenerated = Boolean(left?.generated);
+    const rightGenerated = Boolean(right?.generated);
+    if (leftGenerated !== rightGenerated) return leftGenerated ? 1 : -1;
+
+    const leftIndex = CHALLENGE_ORDER_INDEX.has(String(left?.contract_id || '').trim())
+      ? CHALLENGE_ORDER_INDEX.get(String(left?.contract_id || '').trim())
+      : Number.MAX_SAFE_INTEGER;
+    const rightIndex = CHALLENGE_ORDER_INDEX.has(String(right?.contract_id || '').trim())
+      ? CHALLENGE_ORDER_INDEX.get(String(right?.contract_id || '').trim())
+      : Number.MAX_SAFE_INTEGER;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+
+    return new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime();
+  });
+}
+
 function BotSessionTable({ botName, summary, matches }) {
   const summaryBits = summary
     ? [
@@ -797,6 +787,61 @@ function BotSessionTable({ botName, summary, matches }) {
                     <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>
                       {match.submitted ? 'Submitted relic' : 'Timed out / locked'}
                     </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChallengeLadderTable({ rows }) {
+  const sortedRows = sortChallengeTableRows(rows);
+  const scrollClassName = sortedRows.length > 5 ? 'max-h-[300px] overflow-y-auto' : '';
+
+  return (
+    <div className="overflow-hidden rounded-lg border" style={subtlePanelStyle()}>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr style={{ color: 'var(--theme-text-muted)', background: 'var(--theme-surface-1)' }}>
+              <th className="px-4 py-2 text-left font-medium">Level</th>
+              <th className="px-4 py-2 text-left font-medium">Contract</th>
+              <th className="px-4 py-2 text-left font-medium">Mode</th>
+              <th className="px-4 py-2 text-left font-medium">Seed</th>
+              <th className="px-4 py-2 text-right font-medium">Score</th>
+              <th className="px-4 py-2 text-right font-medium">Grade</th>
+              <th className="px-4 py-2 text-right font-medium">Time</th>
+              <th className="px-4 py-2 text-left font-medium">Updated</th>
+            </tr>
+          </thead>
+        </table>
+        <div className={scrollClassName}>
+          <table className="min-w-full text-sm">
+            <tbody>
+              {sortedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-6 text-center" style={{ color: 'var(--theme-text-muted)' }}>
+                    No challenge clears recorded yet for this account.
+                  </td>
+                </tr>
+              ) : (
+                sortedRows.map((row, index) => (
+                  <tr key={`${row.id}-${row.contract_id}-${index}`} style={index > 0 ? { borderTop: '1px solid var(--theme-border-soft)' } : undefined}>
+                    <td className="px-4 py-3 font-semibold">{getChallengeLevelLabel(row)}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{row.contract_title}</div>
+                      <div className="mt-1 text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{row.difficulty}</div>
+                    </td>
+                    <td className="px-4 py-3">{row.generated ? 'Generated' : 'Ladder'}</td>
+                    <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>{row.seed_label || '--'}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{row.score}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{row.grade}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{row.clear_time_seconds > 0 ? `${row.clear_time_seconds}s` : '--'}</td>
+                    <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>{formatRelativeTime(row.created_at)}</td>
                   </tr>
                 ))
               )}
@@ -865,8 +910,6 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
   const profile = seasonData?.profile || null;
   const progression = profile?.progression || null;
   const rankTier = profile?.rankTier || null;
-  const leaderboard = Array.isArray(seasonData?.leaderboard) ? seasonData.leaderboard : [];
-  const practiceLeaderboard = Array.isArray(seasonData?.practiceLeaderboard) ? seasonData.practiceLeaderboard : [];
   const rewardTrack = Array.isArray(profile?.rewardTrack) ? profile.rewardTrack : [];
   const claimedRewards = useMemo(() => rewardTrack.filter((entry) => entry.claimed), [rewardTrack]);
   const recentMatches = Array.isArray(profile?.competitiveMatches) ? profile.competitiveMatches : [];
@@ -1044,27 +1087,6 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
       setMarketActionKey('');
     }
   };
-
-  const leaderboardUserIds = useMemo(() => new Set(leaderboard.map((entry) => String(entry.userId))), [leaderboard]);
-  const visibleLeaderboard = useMemo(() => {
-    if (!profile?.userId || leaderboardUserIds.has(String(profile.userId))) return leaderboard;
-    const fallbackEntry = {
-      rank: profile.leaderboardRank || leaderboard.length + 1,
-      userId: profile.userId,
-      displayName: profile.displayName || displayName,
-      seasonPoints: profile.competitive?.seasonPoints || 0,
-      matches: profile.competitive?.matches || 0,
-      wins: profile.competitive?.wins || 0,
-      losses: profile.competitive?.losses || 0,
-      draws: profile.competitive?.draws || 0,
-      winRate: profile.competitive?.winRate || 0,
-      bestScore: profile.competitive?.bestScore || 0,
-      averageScore: profile.competitive?.averageScore || 0,
-      bestWinStreak: profile.bestWinStreak || 0,
-      lastPlayedAt: profile.lastPlayedAt || null,
-    };
-    return [...leaderboard, fallbackEntry];
-  }, [displayName, leaderboard, leaderboardUserIds, profile]);
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
@@ -1359,7 +1381,7 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
           </SectionCard>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.95fr)]">
+        <div className="grid gap-6">
           <SectionCard
             title="Recent PvP results"
             description="Finished human-vs-human rooms for this season. These are the ones that count toward standings."
@@ -1378,23 +1400,9 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
               />
             )}
           </SectionCard>
-
-          <SectionCard
-            title="Season leaderboard"
-            description="Competitive standings only. Bot rooms stay out of the ladder."
-            icon={Crown}
-          >
-            <LeaderboardList
-              entries={visibleLeaderboard}
-              profileUserId={profile?.userId}
-              metricLabel="Points"
-              metricKey="seasonPoints"
-              emptyText="No competitive PvP rooms have closed yet this season."
-            />
-          </SectionCard>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="grid gap-6">
           <SectionCard
             title="Bot rooms"
             description="Compact bot-season readout. Finished bot rooms roll into profile without needing a long room log."
@@ -1423,20 +1431,6 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
               ))}
             </div>
           </SectionCard>
-
-          <SectionCard
-            title="Bot leaderboard"
-            description="Bot-room standings only. Useful for testing and consistency outside ranked rooms."
-            icon={Crown}
-          >
-            <LeaderboardList
-              entries={practiceLeaderboard}
-              profileUserId={profile?.userId}
-              metricLabel="Avg"
-              metricKey="averageScore"
-              emptyText="No bot rooms have closed yet this season."
-            />
-          </SectionCard>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
@@ -1458,53 +1452,13 @@ export default function UserProfilePage({ sessionTheme = 'modern' }) {
               </div>
             ) : null}
 
-            <div className="space-y-3">
-              {challengeLoading && challengeDisplayRows.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  Loading challenge results...
-                </div>
-              ) : null}
-
-              {!challengeLoading && challengeDisplayRows.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  No challenge clears recorded yet for this account.
-                </div>
-              ) : null}
-
-              {challengeDisplayRows.slice(0, 8).map((row) => (
-                <div key={`${row.id}-${row.contract_id}`} className="grid gap-3 rounded-lg border px-4 py-4 md:grid-cols-[minmax(0,1fr)_86px_86px_86px]" style={subtlePanelStyle()}>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{row.contract_title}</span>
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-                        {row.generated ? 'Generated' : 'Ladder'}
-                      </span>
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-                        {row.difficulty}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                      {row.seed_label || 'No seed'} • {formatRelativeTime(row.created_at)}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Score</div>
-                    <div className="text-sm font-semibold">{row.score}</div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Grade</div>
-                    <div className="text-sm font-semibold">{row.grade}</div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Time</div>
-                    <div className="text-sm font-semibold">{row.clear_time_seconds > 0 ? `${row.clear_time_seconds}s` : '--'}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {challengeLoading && challengeDisplayRows.length === 0 ? (
+              <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
+                Loading challenge results...
+              </div>
+            ) : (
+              <ChallengeLadderTable rows={challengeDisplayRows} />
+            )}
           </SectionCard>
 
           <SectionCard

@@ -200,7 +200,7 @@ function summarizePracticeRows(rows) {
     if (mode === 'drills') {
       summary.drillsBestScore = Math.max(summary.drillsBestScore, score);
       if (row?.success) summary.drillsClears += 1;
-      if (detail?.perfect || row?.success) summary.drillsPerfectClears += 1;
+      if (detail?.perfect) summary.drillsPerfectClears += 1;
       continue;
     }
 

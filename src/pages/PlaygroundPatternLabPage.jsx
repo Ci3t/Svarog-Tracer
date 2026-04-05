@@ -680,6 +680,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const profileDescription = useMemo(() => describePatternProfile(patternProfile), [patternProfile]);
   const displayedStarter = (patternProfile?.starterSequence || []).join(' ');
   const remainingSourceRolls = Math.max(0, sourceSequence.length - sourceCursor);
+  const nextObservedRoll = sourceMode === 'auto'
+    ? getVisibleRollForUpgrade(patternProfile, labRows.length)
+    : sourceSequence[sourceCursor]?.visibleRoll || null;
   const familyOptionMatchesMood = familyId === 'auto'
     || familyOptions.some((option) => option.id === familyId && option.mood === mood);
 
@@ -895,9 +898,6 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     : sourceMode === 'import'
       ? `Imported replay mode. ${remainingSourceRolls > 0 ? `${remainingSourceRolls} rolls left to step.` : 'Imported session loaded. Step through it or import another file.'}`
       : `Manual replay mode. ${remainingSourceRolls > 0 ? `${remainingSourceRolls} rolls left to step.` : 'Load a pasted roll list to begin stepping.'}`;
-  const nextObservedRoll = sourceMode === 'auto'
-    ? getVisibleRollForUpgrade(patternProfile, labRows.length)
-    : sourceSequence[sourceCursor]?.visibleRoll || null;
   const svarogAssistance = useMemo(
     () => buildSvarogAssistance(prediction2, nextObservedRoll),
     [prediction2, nextObservedRoll],

@@ -20,6 +20,7 @@ import {
   Snowflake, 
   Star, 
   Store,
+  Trophy,
   Users,
   User 
 } from 'lucide-react';
@@ -593,6 +594,15 @@ export default function Layout({
                            >
                               <Store className="h-3.5 w-3.5" />
                               Market
+                           </button>
+                           <button
+                             type="button"
+                             onClick={() => { navigate('/leaderboard'); setUserMenuOpen(false); }}
+                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                             style={themedActionTileStyle}
+                           >
+                              <Trophy className="h-3.5 w-3.5" />
+                              Ladder
                            </button>
                            <button
                              type="button"

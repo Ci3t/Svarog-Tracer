@@ -760,7 +760,7 @@ function getChallengeLineFeedback(success = {}, line = {}) {
 }
 
 function getDisplayedLineRollCount(line = {}) {
-  return Math.max(0, Array.isArray(line.rolls) ? line.rolls.length : 0);
+  return Math.max(0, Number(line.hits || 0));
 }
 
 function getHelpfulHitsForContract(hitMap, success) {
