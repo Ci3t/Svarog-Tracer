@@ -37,6 +37,7 @@ import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCar
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
 import PvpVsMark from '../components/modern/PvpVsMark';
+import UserIdentityBlock from '../components/UserIdentityBlock';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
@@ -758,6 +759,10 @@ function getChallengeLineFeedback(success = {}, line = {}) {
   };
 }
 
+function getDisplayedLineRollCount(line = {}) {
+  return Math.max(0, Array.isArray(line.rolls) ? line.rolls.length : 0);
+}
+
 function getHelpfulHitsForContract(hitMap, success) {
   if (!success || typeof success !== 'object') return 0;
 
@@ -1067,7 +1072,7 @@ function ModernRelicCard({
                           ? themeClasses.button
                           : 'bg-white/5 text-slate-700'
                   }`}>
-                  x{line.hits}
+                  x{getDisplayedLineRollCount(line)}
                   </div>
                 </div>
               </div>
@@ -1340,7 +1345,7 @@ function ResultRelicCard({ relic, title, accent = 'cyan', success = null }) {
                     ? 'border border-rose-400/20 bg-rose-500/15 text-rose-100'
                     : 'border border-white/8 bg-white/[0.04] text-white'
               }`}>
-                x{line.hits || 0}
+                x{getDisplayedLineRollCount(line)}
               </div>
             </div>
           </div>
@@ -1408,6 +1413,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const loadedPvpScenarioRef = useRef('');
   const lastPvpStartedAtRef = useRef('');
   const lastSegmentWidthsRef = useRef({});
+  const lastLoggedChallengeResultRef = useRef('');
   const pvpTrackerRef = useRef({
     localLevel: 0,
     localStatus: '',
@@ -1678,6 +1684,8 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       bestRelicSummary: bestPvpAttempt?.summary || '',
       relicSummary: summary,
       displayName: pvpViewerRole === 'host' ? pvpRoom?.host?.name : pvpRoom?.guest?.name,
+      displayTitle: pvpViewerRole === 'host' ? pvpRoom?.host?.state?.displayTitle : pvpRoom?.guest?.state?.displayTitle,
+      displayTitleRarity: pvpViewerRole === 'host' ? pvpRoom?.host?.state?.displayTitleRarity : pvpRoom?.guest?.state?.displayTitleRarity,
     };
   }, [
     challengeStatus.label,
@@ -2096,6 +2104,63 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     setCompletedContracts((existing) => (existing.includes(currentContract.id) ? existing : [...existing, currentContract.id]));
   }, [challengeStatus.tone, currentContract.id, isGeneratedChallengeActive]);
 
+  useEffect(() => {
+    if (isPvpMode) return;
+    if (!user?.id) return;
+    if (challengeStatus.tone !== 'clear') return;
+
+    const clearTimeSeconds = Math.max(0, 300 - Number(secondsLeft || 0));
+    const logKey = [
+      currentContract.id,
+      currentContract.seedLabel,
+      relicScore.score,
+      triesUsed,
+      clearTimeSeconds,
+    ].join('|');
+
+    if (lastLoggedChallengeResultRef.current === logKey) return;
+    lastLoggedChallengeResultRef.current = logKey;
+
+    fetch(buildApiUrl('/api/challenge-results'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        contractId: currentContract.id,
+        contractTitle: currentContract.title,
+        difficulty: currentContract.difficulty,
+        seedLabel: currentContract.seedLabel,
+        region: currentContract.region,
+        score: relicScore.score,
+        grade: relicScore.grade,
+        helpfulHits,
+        mistakes,
+        clearTimeSeconds,
+        triesUsed,
+        generated: isGeneratedChallengeActive,
+      }),
+    }).catch(() => {});
+  }, [
+    challengeStatus.tone,
+    currentContract.difficulty,
+    currentContract.id,
+    currentContract.region,
+    currentContract.seedLabel,
+    currentContract.title,
+    getAuthHeader,
+    helpfulHits,
+    isGeneratedChallengeActive,
+    isPvpMode,
+    mistakes,
+    relicScore.grade,
+    relicScore.score,
+    secondsLeft,
+    triesUsed,
+    user?.id,
+  ]);
+
 
   useEffect(() => {
     if (!timerRunning) return undefined;
@@ -2420,6 +2485,18 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
       const builtEntries = [];
       let safety = 0;
 
+      // Opening line 4 is a distinct step. Loop mode should not skip past it on the first click.
+      if (!workingRelic.hasFourthLine) {
+        const firstStep = applyBuilderStep(workingRelic, workingProfile);
+        setTestRelic(firstStep.relic);
+        setPatternProfile(firstStep.profile);
+        setSharedCarryLine(firstStep.carryLine || null);
+        if (firstStep.entries.length > 0) {
+          setSessionRolls((existing) => [...existing, ...firstStep.entries]);
+        }
+        return;
+      }
+
       while (workingRelic.level < 15 && safety < 8) {
         const result = applyBuilderStep(workingRelic, workingProfile);
         workingRelic = result.relic;
@@ -2456,8 +2533,6 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const handleResetTestRelic = () => {
     if (isPvpInteractionLocked) return;
     setTestRelic(createChallengeRelic(currentContract.builderRelic, { rollTierMode: currentContract?.pvpRollTier || null }));
-    setSessionRolls([]);
-    setSharedCarryLine(null);
   };
 
   const handleAddManualRoll = () => {
@@ -2659,7 +2734,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/70">You</div>
-                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">{viewerDisplayName}</div>
+                      <UserIdentityBlock
+                        name={viewerDisplayName}
+                        title={localPvpState.displayTitle || ''}
+                        rarity={localPvpState.displayTitleRarity || 'common'}
+                        badge={localPvpState.displayBadge || ''}
+                        badgeRarity={localPvpState.displayBadgeRarity || 'common'}
+                        nameplate={localPvpState.displayNameplate || ''}
+                        nameplateRarity={localPvpState.displayNameplateRarity || 'common'}
+                        nameClassName="mt-1 text-3xl font-semibold tracking-tight text-white"
+                        titleClassName="mt-1 text-[12px]"
+                      />
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">HP</div>
@@ -2763,7 +2848,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-200/70">Opponent</div>
-                      <div className="mt-1 text-3xl font-semibold tracking-tight text-white">{pvpOpponent?.name || 'Awaiting'}</div>
+                      <UserIdentityBlock
+                        name={pvpOpponent?.name || 'Awaiting'}
+                        title={pvpOpponent?.state?.displayTitle || ''}
+                        rarity={pvpOpponent?.state?.displayTitleRarity || 'common'}
+                        badge={pvpOpponent?.state?.displayBadge || ''}
+                        badgeRarity={pvpOpponent?.state?.displayBadgeRarity || 'common'}
+                        nameplate={pvpOpponent?.state?.displayNameplate || ''}
+                        nameplateRarity={pvpOpponent?.state?.displayNameplateRarity || 'common'}
+                        nameClassName="mt-1 text-3xl font-semibold tracking-tight text-white"
+                        titleClassName="mt-1 text-[12px]"
+                      />
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">HP</div>
@@ -3478,7 +3573,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">You</div>
-                          <div className="mt-1 text-[1.45rem] font-semibold tracking-tight text-white">{localPvpState.displayName || 'Player'}</div>
+                          <UserIdentityBlock
+                            name={localPvpState.displayName || 'Player'}
+                            title={localPvpState.displayTitle || ''}
+                            rarity={localPvpState.displayTitleRarity || 'common'}
+                            badge={localPvpState.displayBadge || ''}
+                            badgeRarity={localPvpState.displayBadgeRarity || 'common'}
+                            nameplate={localPvpState.displayNameplate || ''}
+                            nameplateRarity={localPvpState.displayNameplateRarity || 'common'}
+                            nameClassName="mt-1 text-[1.45rem] font-semibold tracking-tight text-white"
+                            titleClassName="mt-1 text-[11px]"
+                          />
                         </div>
                         <div className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-slate-200">
                           {localResultStateLabel}
@@ -3540,7 +3645,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Opponent</div>
-                          <div className="mt-1 text-[1.45rem] font-semibold tracking-tight text-white">{pvpOpponent?.name || 'Opponent'}</div>
+                          <UserIdentityBlock
+                            name={pvpOpponent?.name || 'Opponent'}
+                            title={pvpOpponent?.state?.displayTitle || ''}
+                            rarity={pvpOpponent?.state?.displayTitleRarity || 'common'}
+                            badge={pvpOpponent?.state?.displayBadge || ''}
+                            badgeRarity={pvpOpponent?.state?.displayBadgeRarity || 'common'}
+                            nameplate={pvpOpponent?.state?.displayNameplate || ''}
+                            nameplateRarity={pvpOpponent?.state?.displayNameplateRarity || 'common'}
+                            nameClassName="mt-1 text-[1.45rem] font-semibold tracking-tight text-white"
+                            titleClassName="mt-1 text-[11px]"
+                          />
                         </div>
                         <div className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-slate-200">
                           {opponentResultStateLabel}

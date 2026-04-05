@@ -20,6 +20,7 @@ import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 import PvpVsMark from '../components/modern/PvpVsMark';
 import { withBaseUrl } from '../utils/assetPaths';
+import UserIdentityBlock from '../components/UserIdentityBlock';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
 const TARGET_SUB_OPTIONS = [
@@ -1120,7 +1121,17 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                           <div className="mb-1 inline-flex rounded-sm border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
                             Host
                           </div>
-                          <div className="text-lg font-semibold text-white">{room.host?.name || 'Host'}</div>
+                          <UserIdentityBlock
+                            name={room.host?.name || 'Host'}
+                            title={room.host?.state?.displayTitle || ''}
+                            rarity={room.host?.state?.displayTitleRarity || 'common'}
+                            badge={room.host?.state?.displayBadge || ''}
+                            badgeRarity={room.host?.state?.displayBadgeRarity || 'common'}
+                            nameplate={room.host?.state?.displayNameplate || ''}
+                            nameplateRarity={room.host?.state?.displayNameplateRarity || 'common'}
+                            nameClassName="text-lg font-semibold text-white"
+                            titleClassName="mt-1 text-[11px]"
+                          />
                         </div>
                       </div>
                       <div className="text-right">
@@ -1143,7 +1154,17 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                           <div className="mb-1 inline-flex rounded-sm border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
                             Guest
                           </div>
-                          <div className="text-lg font-semibold text-white">{room.guest?.name || 'Waiting for opponent'}</div>
+                          <UserIdentityBlock
+                            name={room.guest?.name || 'Waiting for opponent'}
+                            title={room.guest?.state?.displayTitle || ''}
+                            rarity={room.guest?.state?.displayTitleRarity || 'common'}
+                            badge={room.guest?.state?.displayBadge || ''}
+                            badgeRarity={room.guest?.state?.displayBadgeRarity || 'common'}
+                            nameplate={room.guest?.state?.displayNameplate || ''}
+                            nameplateRarity={room.guest?.state?.displayNameplateRarity || 'common'}
+                            nameClassName="text-lg font-semibold text-white"
+                            titleClassName="mt-1 text-[11px]"
+                          />
                         </div>
                       </div>
                       <div className="text-right">

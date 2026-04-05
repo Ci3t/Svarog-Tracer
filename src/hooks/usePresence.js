@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from './useAuth';
 import { buildApiUrl } from '../utils/apiBase';
 
-// Generate a unique session ID
+const PRESENCE_API = buildApiUrl('/api/presence');
+const STORAGE_KEY = 'hsr_presence_stats';
+const SESSION_KEY = 'hsr_presence_session_id';
+const ACTIVE_INTERVAL_MS = 45000;
+const ACTIVE_GRACE_MS = 60000;
+const PREDICTION_GRACE_MS = 100;
+
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
     return window.crypto.randomUUID();
@@ -13,116 +21,184 @@ const generateSessionId = () => {
   });
 };
 
-const PRESENCE_API = buildApiUrl('/api/presence');
+function readCachedStats() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
-const STORAGE_KEY = 'hsr_presence_stats';
-const SESSION_KEY = 'hsr_presence_session_id';
+function sendPresenceBeacon(sessionId, type = 'offline') {
+  if (typeof navigator === 'undefined' || !navigator.sendBeacon || !sessionId) return false;
+  const payload = JSON.stringify({ sessionId, type, includeUsers: false });
+  return navigator.sendBeacon(PRESENCE_API, new Blob([payload], { type: 'application/json' }));
+}
 
 export function usePresence() {
+  const location = useLocation();
+  const { isAuthenticated, getAuthHeader } = useAuth();
   const [stats, setStats] = useState(() => {
-    // Try to load from localStorage on init
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          return { ...parsed, loading: false, error: null };
-        } catch (e) { /* ignore */ }
-      }
-    }
+    const cached = readCachedStats();
     return {
-      active: 0,
-      online: 0,
-      today: 0,
-      total: 0,
+      active: cached?.active || 0,
+      online: cached?.online || 0,
+      today: cached?.today || 0,
+      total: cached?.total || 0,
+      users: Array.isArray(cached?.users) ? cached.users : [],
+      self: cached?.self || null,
       loading: true,
-      error: null
+      error: null,
     };
   });
-  
+
   const sessionIdRef = useRef(null);
   const lastActiveRef = useRef(0);
   const lastPredictionRef = useRef(0);
-  const MIN_PING_INTERVAL = 30000; // 30 seconds
-  
-  // Initialize session ID
+  const previousAuthRef = useRef(false);
+
   useEffect(() => {
-    if (!sessionIdRef.current) {
-      const savedId = localStorage.getItem(SESSION_KEY);
-      if (savedId) {
-        sessionIdRef.current = savedId;
-      } else {
-        const newId = generateSessionId();
-        sessionIdRef.current = newId;
-        localStorage.setItem(SESSION_KEY, newId);
-      }
+    if (sessionIdRef.current || typeof window === 'undefined') return;
+    const savedId = localStorage.getItem(SESSION_KEY);
+    if (savedId) {
+      sessionIdRef.current = savedId;
+      return;
     }
+    const nextId = generateSessionId();
+    sessionIdRef.current = nextId;
+    localStorage.setItem(SESSION_KEY, nextId);
   }, []);
-  
-  const pingPresence = useCallback(async (type = 'fetch') => {
-    if (!sessionIdRef.current) return;
-    
+
+  const pingPresence = useCallback(async (type = 'fetch', options = {}) => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) return null;
+
     const now = Date.now();
-    
-    // Throttling for non-fetch types
-    if (type === 'active' && now - lastActiveRef.current < 60000) return; // 1 min grace
-    if (type === 'prediction' && now - lastPredictionRef.current < 100) return; 
-    
+    const { force = false, includeUsers = isAuthenticated, keepalive = false } = options;
+    if (!force) {
+      if (type === 'active' && now - lastActiveRef.current < ACTIVE_GRACE_MS) return null;
+      if (type === 'prediction' && now - lastPredictionRef.current < PREDICTION_GRACE_MS) return null;
+    }
+
     if (type === 'active') lastActiveRef.current = now;
     if (type === 'prediction') lastPredictionRef.current = now;
-    
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(isAuthenticated ? getAuthHeader() : {}),
+    };
+
     try {
       const response = await fetch(PRESENCE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        keepalive,
         body: JSON.stringify({
-          sessionId: sessionIdRef.current,
-          type
-        })
+          sessionId,
+          type,
+          includeUsers,
+          pagePath: location.pathname,
+        }),
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          const newStats = {
-            active: data.count || 0,
-            online: data.online || 0,
-            today: data.today || 0,
-            total: data.total || 0,
-            loading: false,
-            error: null
-          };
-          setStats(newStats);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newStats));
-        }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        throw new Error(data?.error || data?.message || 'Presence request failed.');
       }
+
+      const nextStats = {
+        active: data.count || 0,
+        online: data.online || 0,
+        today: data.today || 0,
+        total: data.total || 0,
+        users: Array.isArray(data.users) ? data.users : [],
+        self: data.self || null,
+        loading: false,
+        error: null,
+      };
+      setStats(nextStats);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStats));
+      }
+      return nextStats;
     } catch (error) {
-      console.error('Presence API Error:', error);
-      setStats(prev => ({ ...prev, loading: false, error: true }));
+      setStats((prev) => ({ ...prev, loading: false, error: error?.message || true }));
+      return null;
     }
+  }, [getAuthHeader, isAuthenticated, location.pathname]);
+
+  const markOffline = useCallback(() => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) return;
+
+    if (sendPresenceBeacon(sessionId, 'offline')) {
+      return;
+    }
+
+    fetch(PRESENCE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ sessionId, type: 'offline', includeUsers: false }),
+    }).catch(() => {});
   }, []);
-  
-  // PASSIVE LOAD ONLY: Fetch stats once on mount without counting as 'Online'
+
   useEffect(() => {
-    // Just get the numbers, don't register a session yet
-    pingPresence('fetch');
-    
-    // No background intervals - save Vercel Execution time
-  }, [pingPresence]);
-  
+    pingPresence('fetch', { force: true, includeUsers: isAuthenticated });
+  }, [isAuthenticated, pingPresence]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    pingPresence('active', { force: true, includeUsers: true });
+    const timer = window.setInterval(() => {
+      pingPresence('active', { force: true, includeUsers: true });
+    }, ACTIVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated, pingPresence]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    pingPresence('active', { force: true, includeUsers: true });
+  }, [isAuthenticated, location.pathname, pingPresence]);
+
+  useEffect(() => {
+    const wasAuthenticated = previousAuthRef.current;
+    if (wasAuthenticated && !isAuthenticated) {
+      markOffline();
+      setStats((prev) => ({ ...prev, self: null }));
+    }
+    previousAuthRef.current = isAuthenticated;
+  }, [isAuthenticated, markOffline]);
+
+  useEffect(() => {
+    const handleUnload = () => {
+      if (previousAuthRef.current) {
+        markOffline();
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [markOffline]);
+
   const trackPrediction = useCallback(() => {
-    // Register as 'active' only when they actually roll
-    pingPresence('prediction');
-  }, [pingPresence]);
+    pingPresence('prediction', { includeUsers: isAuthenticated });
+  }, [isAuthenticated, pingPresence]);
 
   const trackActivity = useCallback(() => {
-    // Only used when explicitly called (e.g. entering a live session)
-    pingPresence('active');
-  }, [pingPresence]);
-  
+    pingPresence('active', { includeUsers: isAuthenticated });
+  }, [isAuthenticated, pingPresence]);
+
+  const refreshPresence = useCallback(() => {
+    return pingPresence('fetch', { force: true, includeUsers: isAuthenticated });
+  }, [isAuthenticated, pingPresence]);
+
   return {
     stats,
     trackPrediction,
-    trackActivity
+    trackActivity,
+    refreshPresence,
   };
 }

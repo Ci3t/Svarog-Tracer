@@ -20,6 +20,8 @@ import ModernStickyHeader from '../components/modern/ModernStickyHeader';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
+import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl } from '../utils/apiBase';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
@@ -553,6 +555,7 @@ function ForceRelicCard({ relic, onPrime, onReset, onCycleType }) {
 export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
+  const { user, getAuthHeader } = useAuth();
   const createProfileForBucket = (mood, nextBucketKey) =>
     createBucketPatternProfile(mood, nextBucketKey, FREE_MODE_REGION, FREE_MODE_PATCH);
   const [seedMood, setSeedMood] = useState('mixed');
@@ -571,6 +574,8 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const [testRelicLoopMode, setTestRelicLoopMode] = useState(true);
 
   const containerRef = useRef(null);
+  const freeSessionKeyRef = useRef(`free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const lastLoggedFreeSessionRef = useRef('');
   const debugRef = useRef({
     bucketKey: null,
     historyLength: 0,
@@ -583,9 +588,61 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const predictorEntries = useMemo(() => buildEntryRows(sessionRolls), [sessionRolls]);
   const translatedRolls = useMemo(() => sessionRolls.map((entry) => entry.translated), [sessionRolls]);
   const prediction2 = useMemo(() => predictWithPairs(translatedRolls, { region: FREE_MODE_REGION }), [translatedRolls]);
+  const freeTrainingScore = useMemo(() => scoreRelicWithProfile(relic, detectRelicScoreProfile(relic)), [relic]);
+  const freeBuilderScore = useMemo(() => scoreRelicWithProfile(testRelic, detectRelicScoreProfile(testRelic)), [testRelic]);
   const helperLineOverride = forceRelic.isPrimed
     ? forceRelic.forcedLine
     : sharedCarryLine || relic.lastLine || testRelic.lastLine || null;
+
+  const submitFreeTrainingSession = React.useCallback((reason = 'manual') => {
+    if (!user?.id) return;
+    const meaningful = sessionRolls.length >= 4 || relic.level >= 9 || testRelic.level >= 9;
+    if (!meaningful) return;
+
+    const sessionKey = freeSessionKeyRef.current;
+    if (!sessionKey || lastLoggedFreeSessionRef.current === sessionKey) return;
+    lastLoggedFreeSessionRef.current = sessionKey;
+
+    const bestScore = Math.max(Number(freeTrainingScore?.score || 0), Number(freeBuilderScore?.score || 0));
+    const success = relic.level >= 15 || testRelic.level >= 15;
+
+    fetch(buildApiUrl('/api/practice-results'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      keepalive: true,
+      body: JSON.stringify({
+        mode: 'free_training',
+        sessionKey,
+        score: bestScore,
+        success,
+        sourceMode: seedMood,
+        rowsCount: sessionRolls.length,
+        detail: {
+          reason,
+          seed_mood: seedMood,
+          timer_started: timerRunning,
+          target_level: relic.level,
+          builder_level: testRelic.level,
+          manual_rolls: sessionRolls.length,
+          target_score: Number(freeTrainingScore?.score || 0),
+          builder_score: Number(freeBuilderScore?.score || 0),
+        },
+      }),
+    }).catch(() => {});
+  }, [
+    freeBuilderScore,
+    freeTrainingScore,
+    getAuthHeader,
+    relic.level,
+    seedMood,
+    sessionRolls.length,
+    testRelic.level,
+    timerRunning,
+    user?.id,
+  ]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -696,6 +753,9 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   }, [timerRunning, seedMood]);
 
   const resetFreeMode = (nextMood = seedMood) => {
+    submitFreeTrainingSession('reset');
+    freeSessionKeyRef.current = `free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    lastLoggedFreeSessionRef.current = '';
     const nextBucketKey = getFiveMinuteBucketKey();
     setBucketKey(nextBucketKey);
     setPatternProfile(createProfileForBucket(nextMood, nextBucketKey));
@@ -725,6 +785,17 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     setSeedMood(nextMood);
     resetFreeMode(nextMood);
   };
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      submitFreeTrainingSession('pagehide');
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      handlePageHide();
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [submitFreeTrainingSession]);
 
   const updateRelicState = (kind, updater) => {
     if (kind === 'target') {

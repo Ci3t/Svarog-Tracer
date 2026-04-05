@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { predictWithPairs } from '../../utils/pairTransitionPredictor';
+import { withBaseUrl } from '../../utils/assetPaths';
 
 const VALUES = ['41', '42', '43', '44'];
 
@@ -522,7 +523,7 @@ export default function ModernPairPredictorCard({
               <div className="relative">
                 {/* The Svarog logo breaking out of the top/left corner */}
                 <img 
-                  src="/svarog.png" 
+                  src={withBaseUrl('svarog.png')} 
                   alt="Svarog Eye" 
                   className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
                 />

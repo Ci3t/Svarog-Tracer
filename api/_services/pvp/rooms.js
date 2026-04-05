@@ -14,6 +14,8 @@ import {
   scoreRelicWithProfile,
 } from '../../../src/utils/relicScoring.js';
 import { predictWithPairs } from '../../../src/utils/pairTransitionPredictor.js';
+import { resolveEquippedTitleFromUser } from '../../../src/utils/titleCatalog.js';
+import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../../../src/utils/marketplaceCatalog.js';
 import {
   extractDiscordDisplayName,
   HttpError,
@@ -88,7 +90,7 @@ function generateRoomCode(length = 6) {
   return output;
 }
 
-function createPlayerState(name = '') {
+function createPlayerState(name = '', options = {}) {
   const nowIso = new Date().toISOString();
   return {
     status: 'ready',
@@ -132,7 +134,61 @@ function createPlayerState(name = '') {
     relicSummary: '',
     debugLog: [],
     displayName: String(name || ''),
+    displayTitleKey: String(options?.titleKey || '').slice(0, 80),
+    displayTitle: String(options?.titleLabel || '').slice(0, 120),
+    displayTitleRarity: String(options?.titleRarity || '').slice(0, 24),
+    displayBadgeKey: String(options?.badgeKey || '').slice(0, 80),
+    displayBadge: String(options?.badgeLabel || '').slice(0, 80),
+    displayBadgeRarity: String(options?.badgeRarity || '').slice(0, 24),
+    displayNameplateKey: String(options?.nameplateKey || '').slice(0, 80),
+    displayNameplate: String(options?.nameplateLabel || '').slice(0, 80),
+    displayNameplateRarity: String(options?.nameplateRarity || '').slice(0, 24),
+    displayFrameKey: String(options?.frameKey || '').slice(0, 80),
+    displayFrame: String(options?.frameLabel || '').slice(0, 80),
+    displayFrameRarity: String(options?.frameRarity || '').slice(0, 24),
     updatedAt: nowIso,
+  };
+}
+
+function resolveUserIdentity(user) {
+  const displayName = normalizeName(user);
+  const equippedTitle = resolveEquippedTitleFromUser(user);
+  const cosmetics = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
+  const equippedBadge = getMarketplaceItem(cosmetics.badgeKey);
+  const equippedNameplate = getMarketplaceItem(cosmetics.nameplateKey);
+  const equippedFrame = getMarketplaceItem(cosmetics.frameKey);
+  return {
+    displayName,
+    titleKey: equippedTitle?.key || '',
+    titleLabel: equippedTitle?.name || '',
+    titleRarity: equippedTitle?.rarity || '',
+    badgeKey: equippedBadge?.key || '',
+    badgeLabel: equippedBadge?.name || '',
+    badgeRarity: equippedBadge?.rarity || '',
+    nameplateKey: equippedNameplate?.key || '',
+    nameplateLabel: equippedNameplate?.name || '',
+    nameplateRarity: equippedNameplate?.rarity || '',
+    frameKey: equippedFrame?.key || '',
+    frameLabel: equippedFrame?.name || '',
+    frameRarity: equippedFrame?.rarity || '',
+  };
+}
+
+function extractStateIdentity(state = {}, fallbackName = '') {
+  return {
+    displayName: String(state?.displayName || fallbackName || '').trim(),
+    titleKey: String(state?.displayTitleKey || '').trim(),
+    titleLabel: String(state?.displayTitle || '').trim(),
+    titleRarity: String(state?.displayTitleRarity || '').trim(),
+    badgeKey: String(state?.displayBadgeKey || '').trim(),
+    badgeLabel: String(state?.displayBadge || '').trim(),
+    badgeRarity: String(state?.displayBadgeRarity || '').trim(),
+    nameplateKey: String(state?.displayNameplateKey || '').trim(),
+    nameplateLabel: String(state?.displayNameplate || '').trim(),
+    nameplateRarity: String(state?.displayNameplateRarity || '').trim(),
+    frameKey: String(state?.displayFrameKey || '').trim(),
+    frameLabel: String(state?.displayFrame || '').trim(),
+    frameRarity: String(state?.displayFrameRarity || '').trim(),
   };
 }
 
@@ -2239,6 +2295,14 @@ function buildBotState(room) {
     }
 
     if (!fairMode && remainingSeconds < config.retryDelay) {
+      const hostAlreadyLocked = String(room?.host_state?.status || '') === 'submitted';
+      if (hostAlreadyLocked) {
+        pushBotDebug(debugLog, `Try ${attemptsUsed}: host already submitted, so I am locking the best available bot attempt now instead of stalling in maxed state.`);
+        return buildSubmittedStateFromAttempt(
+          bestAttempt && compareAttemptPayload(bestAttempt, attempt) >= 0 ? bestAttempt : attempt,
+          `Bot locked its best available relic after the host submitted first.`
+        );
+      }
       pushBotDebug(debugLog, `Try ${attemptsUsed}: reached +15 but is holding. Waiting for retry window before deciding reset.`);
       return {
         ...createPlayerState(room.guest_name || 'Svarog Bot'),
@@ -2492,6 +2556,18 @@ function normalizePlayerState(input, currentState = {}) {
     ? input.debugLog.map((entry) => String(entry).slice(0, 500)).slice(-120)
     : (Array.isArray(next.debugLog) ? next.debugLog.slice(-120) : []);
   next.displayName = String(input?.displayName || next.displayName || '').slice(0, 80);
+  next.displayTitleKey = String(input?.displayTitleKey || next.displayTitleKey || '').slice(0, 80);
+  next.displayTitle = String(input?.displayTitle || next.displayTitle || '').slice(0, 120);
+  next.displayTitleRarity = String(input?.displayTitleRarity || next.displayTitleRarity || '').slice(0, 24);
+  next.displayBadgeKey = String(input?.displayBadgeKey || next.displayBadgeKey || '').slice(0, 80);
+  next.displayBadge = String(input?.displayBadge || next.displayBadge || '').slice(0, 80);
+  next.displayBadgeRarity = String(input?.displayBadgeRarity || next.displayBadgeRarity || '').slice(0, 24);
+  next.displayNameplateKey = String(input?.displayNameplateKey || next.displayNameplateKey || '').slice(0, 80);
+  next.displayNameplate = String(input?.displayNameplate || next.displayNameplate || '').slice(0, 80);
+  next.displayNameplateRarity = String(input?.displayNameplateRarity || next.displayNameplateRarity || '').slice(0, 24);
+  next.displayFrameKey = String(input?.displayFrameKey || next.displayFrameKey || '').slice(0, 80);
+  next.displayFrame = String(input?.displayFrame || next.displayFrame || '').slice(0, 80);
+  next.displayFrameRarity = String(input?.displayFrameRarity || next.displayFrameRarity || '').slice(0, 24);
   next.updatedAt = nowIso;
   return next;
 }
@@ -2685,7 +2761,7 @@ async function createRoomForUser(user, body) {
       })
     : null;
   const scenario = buildPvpScenarioPayload(baseScenario, seedMode, variantScenario);
-  const displayName = normalizeName(user);
+  const identity = resolveUserIdentity(user);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const code = generateRoomCode();
@@ -2697,10 +2773,10 @@ async function createRoomForUser(user, body) {
       seed_label: scenario.seedLabel || '',
       scenario,
       host_user_id: user.id,
-      host_name: displayName,
+      host_name: identity.displayName,
       guest_user_id: null,
       guest_name: null,
-      host_state: createPlayerState(displayName),
+      host_state: createPlayerState(identity.displayName, identity),
       guest_state: createPlayerState('Opponent'),
       winner_user_id: null,
       started_at: null,
@@ -2743,11 +2819,11 @@ async function joinRoomForUser(user, code) {
     throw new HttpError(409, 'Room is no longer joinable.');
   }
 
-  const displayName = normalizeName(user);
-  const nextGuestState = createPlayerState(displayName);
+  const identity = resolveUserIdentity(user);
+  const nextGuestState = createPlayerState(identity.displayName, identity);
   const updated = await patchRoom(code, {
     guest_user_id: user.id,
-    guest_name: displayName,
+    guest_name: identity.displayName,
     guest_state: nextGuestState,
     updated_at: new Date().toISOString(),
   });
@@ -2768,13 +2844,15 @@ async function startRoomForUser(user, code) {
   }
 
   const startedAt = new Date().toISOString();
+  const hostIdentity = extractStateIdentity(room.host_state, room.host_name);
+  const guestIdentity = extractStateIdentity(room.guest_state, room.guest_name || 'Opponent');
   const updated = await patchRoom(code, {
     status: 'countdown',
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
-    host_state: createPlayerState(room.host_name),
-    guest_state: createPlayerState(room.guest_name || 'Opponent'),
+    host_state: createPlayerState(room.host_name, hostIdentity),
+    guest_state: createPlayerState(room.guest_name || 'Opponent', guestIdentity),
     updated_at: startedAt,
   });
   return toClientRoom(updated || room, user.id);
@@ -2820,6 +2898,8 @@ async function restartRoomForUser(user, code) {
     : null;
   const scenario = buildPvpScenarioPayload(reseededScenario, seedMode, guestScenario);
   const startedAt = new Date().toISOString();
+  const hostIdentity = extractStateIdentity(room.host_state, room.host_name);
+  const guestIdentity = extractStateIdentity(room.guest_state, room.guest_name || 'Opponent');
   const updated = await patchRoom(code, {
     status: 'countdown',
     difficulty: scenario.difficulty || room.tier,
@@ -2828,8 +2908,8 @@ async function restartRoomForUser(user, code) {
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
-    host_state: createPlayerState(room.host_name),
-    guest_state: createPlayerState(room.guest_name || 'Opponent'),
+    host_state: createPlayerState(room.host_name, hostIdentity),
+    guest_state: createPlayerState(room.guest_name || 'Opponent', guestIdentity),
     updated_at: startedAt,
   });
   return toClientRoom(updated || room, user.id);
@@ -2877,6 +2957,8 @@ async function rerollRoomForUser(user, code, body = {}) {
       })
     : null;
   const scenario = buildPvpScenarioPayload(baseScenario, seedMode, guestScenario);
+  const hostIdentity = extractStateIdentity(room.host_state, room.host_name);
+  const guestIdentity = extractStateIdentity(room.guest_state, room.guest_name || 'Opponent');
   const updated = await patchRoom(code, {
     difficulty: scenario.difficulty || room.tier,
     seed_label: scenario.seedLabel || '',
@@ -2884,8 +2966,8 @@ async function rerollRoomForUser(user, code, body = {}) {
     winner_user_id: null,
     started_at: null,
     finished_at: null,
-    host_state: createPlayerState(room.host_name),
-    guest_state: createPlayerState(room.guest_name || 'Opponent'),
+    host_state: createPlayerState(room.host_name, hostIdentity),
+    guest_state: createPlayerState(room.guest_name || 'Opponent', guestIdentity),
     updated_at: new Date().toISOString(),
   });
   return toClientRoom(updated || room, user.id);
@@ -2934,6 +3016,8 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
     : null;
   const scenario = buildPvpScenarioPayload(baseScenario, seedMode, guestScenario);
   const startedAt = new Date().toISOString();
+  const hostIdentity = extractStateIdentity(room.host_state, room.host_name);
+  const guestIdentity = extractStateIdentity(room.guest_state, room.guest_name || 'Opponent');
   const updated = await patchRoom(code, {
     status: 'countdown',
     difficulty: scenario.difficulty || room.tier,
@@ -2942,8 +3026,8 @@ async function rerollAndRestartRoomForUser(user, code, body = {}) {
     started_at: startedAt,
     finished_at: null,
     winner_user_id: null,
-    host_state: createPlayerState(room.host_name),
-    guest_state: createPlayerState(room.guest_name || 'Opponent'),
+    host_state: createPlayerState(room.host_name, hostIdentity),
+    guest_state: createPlayerState(room.guest_name || 'Opponent', guestIdentity),
     updated_at: startedAt,
   });
   return toClientRoom(updated || room, user.id);
@@ -2985,11 +3069,24 @@ async function updateRoomStateForUser(user, code, body) {
   }
 
   const role = ensureRoomParticipant(room, user.id);
+  const identity = resolveUserIdentity(user);
   const key = role === 'host' ? 'host_state' : 'guest_state';
   const currentState = room[key] && typeof room[key] === 'object' ? room[key] : createPlayerState();
   const nextState = normalizePlayerState({
     ...(body?.state && typeof body.state === 'object' ? body.state : {}),
     displayName: role === 'host' ? room.host_name : room.guest_name,
+    displayTitleKey: identity.titleKey || currentState.displayTitleKey,
+    displayTitle: identity.titleLabel || currentState.displayTitle,
+    displayTitleRarity: identity.titleRarity || currentState.displayTitleRarity,
+    displayBadgeKey: identity.badgeKey || currentState.displayBadgeKey,
+    displayBadge: identity.badgeLabel || currentState.displayBadge,
+    displayBadgeRarity: identity.badgeRarity || currentState.displayBadgeRarity,
+    displayNameplateKey: identity.nameplateKey || currentState.displayNameplateKey,
+    displayNameplate: identity.nameplateLabel || currentState.displayNameplate,
+    displayNameplateRarity: identity.nameplateRarity || currentState.displayNameplateRarity,
+    displayFrameKey: identity.frameKey || currentState.displayFrameKey,
+    displayFrame: identity.frameLabel || currentState.displayFrame,
+    displayFrameRarity: identity.frameRarity || currentState.displayFrameRarity,
   }, currentState);
 
   const patch = {

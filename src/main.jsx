@@ -23,11 +23,11 @@ if (typeof document !== 'undefined') {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <RouterComponent {...routerProps}>
-      <PresenceProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <PresenceProvider>
           <App />
-        </AuthProvider>
-      </PresenceProvider>
+        </PresenceProvider>
+      </AuthProvider>
     </RouterComponent>
   </StrictMode>
 );

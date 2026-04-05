@@ -26,6 +26,8 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { decodeLongString, translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
+import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl } from '../utils/apiBase';
 import {
   advancePatternProfile,
   createPatternProfile,
@@ -553,6 +555,7 @@ function buildSvarogAssistance(prediction, nextObservedRoll) {
 
 export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const navigate = useNavigate();
+  const { user, getAuthHeader } = useAuth();
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
   const themeConfig = getSessionThemeConfig(sessionTheme);
@@ -631,6 +634,8 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [claraTipIndex, setClaraTipIndex] = useState(0);
   const [claraSpeaking, setClaraSpeaking] = useState(false);
   const lastRollIndexRef = useRef(0);
+  const patternLabSessionKeyRef = useRef(`patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const loggedPatternLabSessionRef = useRef('');
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -678,7 +683,55 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const familyOptionMatchesMood = familyId === 'auto'
     || familyOptions.some((option) => option.id === familyId && option.mood === mood);
 
+  const submitPatternLabSession = React.useCallback((reason = 'manual') => {
+    if (!user?.id) return;
+    if (labRows.length < 10) return;
+    const sessionKey = patternLabSessionKeyRef.current;
+    if (!sessionKey || loggedPatternLabSessionRef.current === sessionKey) return;
+    loggedPatternLabSessionRef.current = sessionKey;
+
+    fetch(buildApiUrl('/api/practice-results'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      keepalive: true,
+      body: JSON.stringify({
+        mode: 'pattern_lab',
+        sessionKey,
+        score: labRows.length,
+        success: true,
+        sourceMode: sourceMode,
+        rowsCount: labRows.length,
+        detail: {
+          reason,
+          mood,
+          family_id: familyId,
+          notes_length: String(notes || '').trim().length,
+          imported_file_name: importedFileName || '',
+          pair_safety: prediction2?.pairSafety || '',
+          next_observed_roll: nextObservedRoll || '',
+        },
+      }),
+    }).catch(() => {});
+  }, [
+    familyId,
+    getAuthHeader,
+    importedFileName,
+    labRows.length,
+    mood,
+    nextObservedRoll,
+    notes,
+    prediction2?.pairSafety,
+    sourceMode,
+    user?.id,
+  ]);
+
   const resetLab = (nextMood = mood, nextFamilyId = familyId) => {
+    submitPatternLabSession('reset');
+    patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    loggedPatternLabSessionRef.current = '';
     setMood(nextMood);
     setFamilyId(nextFamilyId);
     setCurrentLine(4);
@@ -689,6 +742,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   };
 
   const loadExplicitSequence = (mode, nextSequence, message = '', filename = '') => {
+    submitPatternLabSession('load-sequence');
+    patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    loggedPatternLabSessionRef.current = '';
     setSourceMode(mode);
     setSourceSequence(nextSequence);
     setSourceCursor(0);
@@ -787,6 +843,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   };
 
   const loadStarterMotif = () => {
+    submitPatternLabSession('starter-motif');
+    patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    loggedPatternLabSessionRef.current = '';
     const fresh = createLabProfile(mood, familyId);
     let workingProfile = fresh;
     let workingLine = 4;
@@ -818,6 +877,17 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     setSourceCursor(0);
     setSourceMessage('Loaded the profile starter motif.');
   };
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      submitPatternLabSession('pagehide');
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      handlePageHide();
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [submitPatternLabSession]);
 
   const forceDisplayRows = labRows.slice(-10).reverse();
   const sourceStatusText = sourceMode === 'auto'

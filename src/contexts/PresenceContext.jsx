@@ -43,9 +43,10 @@ export function usePresenceContext() {
   const context = useContext(PresenceContext);
   if (!context) {
     return {
-      stats: { active: 0, online: 0, today: 0, total: 0, loading: false, error: null },
+      stats: { active: 0, online: 0, today: 0, total: 0, users: [], self: null, loading: false, error: null },
       trackPrediction: () => {},
       trackActivity: () => {},
+      refreshPresence: () => {},
     };
   }
   return context;

@@ -7,6 +7,8 @@ import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCar
 import ModernSessionTable from '../components/modern/ModernSessionTable';
 import { translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
+import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl } from '../utils/apiBase';
 
 const ALL_PAIRS = [
   ['41', '42'],
@@ -451,6 +453,7 @@ function buildEntryRows(entries = []) {
 
 export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const navigate = useNavigate();
+  const { user, getAuthHeader } = useAuth();
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const drills = useMemo(() => DRILL_DEFS.map(buildDrill), []);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -460,6 +463,8 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const [answers, setAnswers] = useState({});
   const [sessionTab, setSessionTab] = useState('current');
   const [claraSpeaking, setClaraSpeaking] = useState(false);
+  const drillSessionKeyRef = React.useRef(`drills-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const loggedDrillSessionRef = React.useRef('');
 
   const currentDrill = drills[currentIndex];
   const isComplete = currentIndex >= drills.length;
@@ -518,6 +523,8 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   };
 
   const handleRestart = () => {
+    drillSessionKeyRef.current = `drills-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    loggedDrillSessionRef.current = '';
     setCurrentIndex(0);
     setSelectedAnswer('');
     setRevealed(false);
@@ -525,6 +532,34 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     setAnswers({});
     setSessionTab('current');
   };
+
+  useEffect(() => {
+    if (!isComplete || !user?.id) return;
+    const sessionKey = drillSessionKeyRef.current;
+    if (!sessionKey || loggedDrillSessionRef.current === sessionKey) return;
+    loggedDrillSessionRef.current = sessionKey;
+
+    fetch(buildApiUrl('/api/practice-results'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        mode: 'drills',
+        sessionKey,
+        score,
+        success: true,
+        sourceMode: 'guided',
+        rowsCount: drills.length,
+        detail: {
+          perfect: score >= drills.length,
+          answered_count: Object.keys(answers || {}).length,
+          drill_count: drills.length,
+        },
+      }),
+    }).catch(() => {});
+  }, [answers, drills.length, getAuthHeader, isComplete, score, user?.id]);
 
   return (
     <div className={`playground-theme-shell min-h-screen bg-[#080b12] px-4 py-8 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>

@@ -1337,7 +1337,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
             
             <div className="floating-svarog relative z-10 w-full max-w-[550px]">
               <img
-                src="/prof-Svarog.png"
+                src={withBaseUrl('prof-Svarog.png')}
                 alt="Professor Svarog"
                 className="w-full h-auto object-contain drop-shadow-[0_45px_70px_rgba(0,0,0,0.65)] grayscale-[0.2] hover:grayscale-0 transition-all duration-700"
               />
@@ -1365,7 +1365,12 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
         <div className="absolute right-[-10%] top-[40%] h-[800px] w-[800px] rounded-full bg-cyan-600/15 blur-[120px] mix-blend-screen"></div>
         <div className="absolute bottom-[-10%] left-[20%] h-[900px] w-[900px] rounded-full bg-rose-600/5 blur-[180px] mix-blend-screen"></div>
         <div className="absolute inset-0 bg-[#0B0F19]/20 backdrop-brightness-50"></div>
-        <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay"></div>
+        <div
+          className="absolute inset-0 opacity-[0.02] mix-blend-overlay"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0px, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 3px)',
+          }}
+        ></div>
       </div>
 
       <div className="mx-auto w-full max-w-[1900px] relative z-10 flex flex-col gap-6">

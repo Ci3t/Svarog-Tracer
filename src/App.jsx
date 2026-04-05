@@ -42,6 +42,7 @@ import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
 import UserProfilePage from "./pages/UserProfilePage";
+import MarketplacePage from "./pages/MarketplacePage";
 import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
@@ -1230,6 +1231,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <UserProfilePage sessionTheme={sessionTheme} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/marketplace"
+              element={
+                <RequireAuth>
+                  <MarketplacePage />
                 </RequireAuth>
               }
             />

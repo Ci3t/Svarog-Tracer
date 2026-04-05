@@ -186,6 +186,31 @@ export function AuthProvider({ children }) {
     await revokeSupabaseSession(accessToken);
   }, [resetAuth, session?.access_token]);
 
+  const replaceUser = useCallback((nextUser) => {
+    if (!nextUser || typeof nextUser !== 'object') return;
+    setUser(nextUser);
+    setAuthError(extractBanInfo(nextUser) ? `This account is banned. ${extractBanInfo(nextUser).reason}` : '');
+    if (session?.access_token) {
+      const nextSession = {
+        ...session,
+        user: {
+          id: nextUser.id || session?.user?.id || null,
+          email: nextUser.email || session?.user?.email || null,
+          user_metadata: nextUser.user_metadata || session?.user?.user_metadata || {},
+        },
+      };
+      storeSession(nextSession);
+      setSession(nextSession);
+    }
+  }, [session]);
+
+  const refreshUser = useCallback(async () => {
+    if (!session?.access_token) return null;
+    const nextUser = await fetchSupabaseUser(session.access_token);
+    replaceUser(nextUser);
+    return nextUser;
+  }, [replaceUser, session?.access_token]);
+
   const getAuthHeader = useCallback(() => {
     if (!session?.access_token) return {};
     return { Authorization: `Bearer ${session.access_token}` };
@@ -258,12 +283,14 @@ export function AuthProvider({ children }) {
       signInWithDiscord,
       completeOAuthFromUrl,
       signOut,
+      replaceUser,
+      refreshUser,
       getAuthHeader,
       roleMode,
       setRoleMode,
     });
     },
-    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, getAuthHeader, roleMode, setRoleMode]
+    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, replaceUser, refreshUser, getAuthHeader, roleMode, setRoleMode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
