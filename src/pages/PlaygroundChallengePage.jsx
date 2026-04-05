@@ -240,6 +240,43 @@ const PVP_TOUR_STEPS = [
   },
 ];
 
+const PROGRESSION_RARITY_TONE = {
+  common: {
+    border: 'border-white/10',
+    background: 'bg-white/[0.03]',
+    text: 'text-slate-100',
+    meta: 'text-slate-400',
+  },
+  rare: {
+    border: 'border-cyan-400/20',
+    background: 'bg-cyan-500/[0.08]',
+    text: 'text-cyan-100',
+    meta: 'text-cyan-200/70',
+  },
+  epic: {
+    border: 'border-violet-400/20',
+    background: 'bg-violet-500/[0.08]',
+    text: 'text-violet-100',
+    meta: 'text-violet-200/70',
+  },
+  legendary: {
+    border: 'border-amber-400/20',
+    background: 'bg-amber-500/[0.08]',
+    text: 'text-amber-100',
+    meta: 'text-amber-200/70',
+  },
+  mythic: {
+    border: 'border-fuchsia-400/20',
+    background: 'bg-fuchsia-500/[0.08]',
+    text: 'text-fuchsia-100',
+    meta: 'text-fuchsia-200/70',
+  },
+};
+
+function getProgressionTone(rarity = 'common') {
+  return PROGRESSION_RARITY_TONE[String(rarity || 'common').trim().toLowerCase()] || PROGRESSION_RARITY_TONE.common;
+}
+
 function isLocalHost() {
   if (typeof window === 'undefined') return false;
   return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -1407,8 +1444,17 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [pvpTourAutoFreeze, setPvpTourAutoFreeze] = useState(false);
+  const [challengeProgressResult, setChallengeProgressResult] = useState(null);
+  const [challengeProgressPopup, setChallengeProgressPopup] = useState(null);
+  const [pendingAdvanceAction, setPendingAdvanceAction] = useState(null);
 
   const containerRef = useRef(null);
+  const challengeProgressPopupRef = useRef(null);
+  const challengeProgressLevelRef = useRef(null);
+  const challengeProgressRewardRef = useRef(null);
+  const challengeProgressActionsRef = useRef(null);
+  const challengeProgressBarRef = useRef(null);
+  const isMountedRef = useRef(true);
   const lastPvpSyncRef = useRef('');
   const loadedPvpScenarioRef = useRef('');
   const lastPvpStartedAtRef = useRef('');
@@ -1461,6 +1507,67 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     () => pvpAttempts.reduce((best, attempt) => (comparePvpAttempts(attempt, best) > 0 ? attempt : best), null),
     [pvpAttempts]
   );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!challengeProgressPopup || !challengeProgressPopupRef.current) return undefined;
+    const panel = challengeProgressPopupRef.current;
+    const ctx = gsap.context(() => {
+      gsap.killTweensOf(panel);
+      gsap.killTweensOf(challengeProgressBarRef.current);
+      gsap.fromTo(
+        panel,
+        { opacity: 0, y: 16, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: 'power2.out' },
+      );
+      if (challengeProgressLevelRef.current) {
+        gsap.fromTo(
+          challengeProgressLevelRef.current,
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.22, delay: 0.08, ease: 'power2.out' },
+        );
+      }
+      if (challengeProgressBarRef.current) {
+        gsap.fromTo(
+          challengeProgressBarRef.current,
+          { width: '0%' },
+          {
+            width: `${Math.max(0, Math.min(100, challengeProgressPopup.progressPercent || 0))}%`,
+            duration: 0.35,
+            delay: 0.14,
+            ease: 'power2.out',
+          },
+        );
+      }
+      if (challengeProgressRewardRef.current) {
+        gsap.fromTo(
+          challengeProgressRewardRef.current,
+          { opacity: 0, x: 12 },
+          { opacity: 1, x: 0, duration: 0.24, delay: 0.24, ease: 'power2.out' },
+        );
+      }
+      if (challengeProgressActionsRef.current) {
+        gsap.fromTo(
+          challengeProgressActionsRef.current,
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.2, delay: 0.32, ease: 'power2.out' },
+        );
+      }
+    }, panel);
+    return () => ctx.revert();
+  }, [challengeProgressPopup]);
+
+  useEffect(() => {
+    setChallengeProgressResult(null);
+    setChallengeProgressPopup(null);
+    setPendingAdvanceAction(null);
+  }, [currentContract.id, challengeModeView, isPvpMode]);
 
   useEffect(() => {
     if (isPvpMode && !pvpRoom) return undefined;
@@ -2141,7 +2248,43 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         triesUsed,
         generated: isGeneratedChallengeActive,
       }),
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json().catch(() => null);
+      })
+      .then((payload) => {
+        if (!isMountedRef.current || !payload?.success || !payload?.progressionDelta) return;
+        const delta = payload.progressionDelta;
+        const nextProgressResult = {
+          contractTitle: currentContract.title,
+          score: relicScore.score,
+          grade: relicScore.grade,
+          xpGained: Number(delta.xpGained || 0),
+          levelBefore: Number(delta.levelBefore || 1),
+          levelAfter: Number(delta.levelAfter || 1),
+          leveledUp: Boolean(delta.leveledUp),
+          totalXp: Number(delta.totalXp || 0),
+          currentLevelXp: Number(delta.currentLevelXp || 0),
+          nextLevelXp: Number(delta.nextLevelXp || 0),
+          xpToNextLevel: Number(delta.xpToNextLevel || 0),
+          progressPercent: Number(delta.progressPercent || 0),
+          unlockedRewards: Array.isArray(delta.unlockedRewards) ? delta.unlockedRewards : [],
+          nextReward: delta.nextReward || null,
+          loading: false,
+        };
+        setChallengeProgressResult(nextProgressResult);
+        setChallengeProgressPopup((current) => (
+          current
+            ? {
+              ...current,
+              ...nextProgressResult,
+              loading: false,
+            }
+            : current
+        ));
+      })
+      .catch(() => {});
   }, [
     challengeStatus.tone,
     currentContract.difficulty,
@@ -2181,6 +2324,9 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
 
   const resetChallengeMode = (options = {}) => {
     const { nextContract = currentContract, incrementTry = true } = options;
+    setChallengeProgressResult(null);
+    setChallengeProgressPopup(null);
+    setPendingAdvanceAction(null);
     setPatternProfile(createChallengePatternProfile(nextContract));
     setRelic(createChallengeRelic(nextContract.targetRelic, { rollTierMode: nextContract?.pvpRollTier || null }));
     setTestRelic(createChallengeRelic(nextContract.builderRelic, { rollTierMode: nextContract?.pvpRollTier || null }));
@@ -2355,6 +2501,64 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
     setGeneratedScenario(nextScenario);
     setChallengeModeView('generated');
   };
+
+  const executeAdvanceAction = useCallback((action) => {
+    if (!action) return;
+    if (action.type === 'generated') {
+      handleGenerateScenario();
+      return;
+    }
+    if (action.type === 'ladder' && action.contractId) {
+      handleOpenHandcraftedContract(action.contractId);
+    }
+  }, [handleGenerateScenario, handleOpenHandcraftedContract]);
+
+  const handleAdvanceAfterClear = useCallback(() => {
+    const action = generatedScenario
+      ? { type: 'generated' }
+      : nextContractId
+        ? { type: 'ladder', contractId: nextContractId }
+        : null;
+
+    if (!action) return;
+
+    if (!user?.id) {
+      executeAdvanceAction(action);
+      return;
+    }
+
+    setPendingAdvanceAction(action);
+    setChallengeProgressPopup(
+      challengeProgressResult
+        ? { ...challengeProgressResult, loading: false }
+        : {
+          contractTitle: currentContract.title,
+          score: relicScore.score,
+          grade: relicScore.grade,
+          xpGained: 0,
+          levelBefore: 1,
+          levelAfter: 1,
+          leveledUp: false,
+          totalXp: 0,
+          currentLevelXp: 0,
+          nextLevelXp: 0,
+          xpToNextLevel: 0,
+          progressPercent: 0,
+          unlockedRewards: [],
+          nextReward: null,
+          loading: true,
+        }
+    );
+  }, [
+    challengeProgressResult,
+    currentContract.title,
+    executeAdvanceAction,
+    generatedScenario,
+    nextContractId,
+    relicScore.grade,
+    relicScore.score,
+    user?.id,
+  ]);
 
   const updateRelicState = (kind, updater) => {
     if (kind === 'target') {
@@ -3050,10 +3254,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </div>
                     {challengeStatus.tone === 'clear' ? (
                       <button
-                        onClick={() => {
-                          if (generatedScenario) handleGenerateScenario();
-                          else if (nextContractId) handleOpenHandcraftedContract(nextContractId);
-                        }}
+                        onClick={handleAdvanceAfterClear}
                         className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/20 py-3 text-[10px] font-black uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/20 transition-all"
                       >
                         Advance
@@ -3215,10 +3416,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                           {challengeStatus.tone === 'clear' ? (
                              <button
                                 type="button"
-                                onClick={() => {
-                                   if (generatedScenario) handleGenerateScenario();
-                                   else if (nextContractId) handleOpenHandcraftedContract(nextContractId);
-                                }}
+                                onClick={handleAdvanceAfterClear}
                                 className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/20 py-3 text-[10px] font-black uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
                              >
                                 Next <ChevronRight className="h-4 w-4" />
@@ -3746,6 +3944,150 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
                     </div>
                   </div>
                 </aside>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!isPvpMode && challengeProgressPopup ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[92] flex justify-center px-4">
+          <div
+            ref={challengeProgressPopupRef}
+            className="pointer-events-auto w-full max-w-[560px] rounded-xl border border-white/10 bg-[#0b1020]/95 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur-md"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-white/8 pb-4">
+              <div>
+                <div className="text-[11px] font-semibold text-slate-300">Challenge clear</div>
+                <div className="mt-1 text-lg font-semibold tracking-tight text-white">{challengeProgressPopup.contractTitle}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-slate-400">
+                  <span>Score {challengeProgressPopup.score}</span>
+                  <span>Grade {challengeProgressPopup.grade}</span>
+                  <span>+{challengeProgressPopup.xpGained} XP</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setChallengeProgressPopup(null);
+                  setPendingAdvanceAction(null);
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                aria-label="Close progression summary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+              <div ref={challengeProgressLevelRef} className="rounded-lg border border-white/8 bg-white/[0.03] p-4">
+                <div className="text-[11px] font-medium text-slate-400">Season level</div>
+                <div className="mt-1 flex items-end gap-2">
+                  <div className="text-3xl font-semibold tracking-tight text-white">Lv {challengeProgressPopup.levelAfter}</div>
+                  {challengeProgressPopup.leveledUp ? (
+                    <div className="rounded-md border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-200">
+                      Level up
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div
+                    ref={challengeProgressBarRef}
+                    className="h-full rounded-full bg-[var(--theme-accent)]"
+                    style={{ width: `${Math.max(0, Math.min(100, challengeProgressPopup.progressPercent || 0))}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-[12px] text-slate-400">
+                  {challengeProgressPopup.currentLevelXp} / {challengeProgressPopup.nextLevelXp} XP this level
+                </div>
+              </div>
+
+              <div ref={challengeProgressRewardRef} className="rounded-lg border border-white/8 bg-white/[0.03] p-4">
+                {challengeProgressPopup.loading ? (
+                  <>
+                    <div className="text-[11px] font-medium text-slate-400">Progression sync</div>
+                    <div className="mt-3 rounded-lg border border-white/8 bg-black/20 px-3 py-3 text-[12px] text-slate-300">
+                      Updating XP and reward data for this clear.
+                    </div>
+                  </>
+                ) : challengeProgressPopup.unlockedRewards.length > 0 ? (
+                  <>
+                    <div className="text-[11px] font-medium text-slate-400">Unlocked rewards</div>
+                    <div className="mt-3 grid gap-2">
+                      {challengeProgressPopup.unlockedRewards.map((reward) => {
+                        const tone = getProgressionTone(reward.rarity);
+                        return (
+                          <div
+                            key={reward.key}
+                            className={`rounded-lg border px-3 py-3 ${tone.border} ${tone.background}`}
+                          >
+                            <div className={`text-[13px] font-semibold ${tone.text}`}>{reward.name}</div>
+                            <div className={`mt-1 text-[11px] ${tone.meta}`}>
+                              {reward.grantTokens > 0 ? `${reward.grantTokens} tokens ready to claim` : `${reward.rewardType} unlocked`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 text-[11px] text-slate-500">
+                      Rewards stay in your profile track until you claim them.
+                    </div>
+                  </>
+                ) : challengeProgressPopup.nextReward ? (
+                  <>
+                    <div className="text-[11px] font-medium text-slate-400">Next level reward</div>
+                    <div className="mt-3 rounded-lg border border-white/8 bg-black/20 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[13px] font-semibold text-white">{challengeProgressPopup.nextReward.name}</div>
+                          <div className="mt-1 text-[11px] text-slate-400">Unlocks at level {challengeProgressPopup.nextReward.targetLevel}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[11px] font-semibold text-slate-200">{challengeProgressPopup.nextReward.xpRemaining} XP left</div>
+                          <div className="mt-1 text-[10px] text-slate-500">until next reward</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-[11px] font-medium text-slate-400">Progression</div>
+                    <div className="mt-3 rounded-lg border border-white/8 bg-black/20 px-3 py-3 text-[12px] text-slate-300">
+                      You have cleared the current level reward track for this season. New XP still pushes your level and overall profile forward.
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div ref={challengeProgressActionsRef} className="mt-4 flex items-center justify-end gap-3 border-t border-white/8 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setChallengeProgressPopup(null);
+                  setPendingAdvanceAction(null);
+                }}
+                className="rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-[12px] font-semibold text-slate-200 transition hover:bg-white/[0.06]"
+              >
+                Stay here
+              </button>
+              {pendingAdvanceAction ? (
+                <button
+                  type="button"
+                  disabled={Boolean(challengeProgressPopup.loading)}
+                  onClick={() => {
+                    const nextAction = pendingAdvanceAction;
+                    setChallengeProgressPopup(null);
+                    setPendingAdvanceAction(null);
+                    executeAdvanceAction(nextAction);
+                  }}
+                  className="rounded-md border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-[12px] font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {challengeProgressPopup.loading
+                    ? 'Syncing...'
+                    : pendingAdvanceAction.type === 'generated'
+                      ? 'Load next challenge'
+                      : 'Next challenge'}
+                </button>
               ) : null}
             </div>
           </div>

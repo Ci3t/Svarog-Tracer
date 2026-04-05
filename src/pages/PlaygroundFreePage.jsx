@@ -22,6 +22,7 @@ import ModernStatsPanel from '../components/modern/ModernStatsPanel';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
 import { useAuth } from '../hooks/useAuth';
 import { buildApiUrl } from '../utils/apiBase';
+import ProgressionSummaryToast from '../components/ProgressionSummaryToast';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
@@ -572,6 +573,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const [secondsLeft, setSecondsLeft] = useState(300);
   const [timerRunning, setTimerRunning] = useState(false);
   const [testRelicLoopMode, setTestRelicLoopMode] = useState(true);
+  const [progressionSummary, setProgressionSummary] = useState(null);
 
   const containerRef = useRef(null);
   const freeSessionKeyRef = useRef(`free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -631,7 +633,17 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
           builder_score: Number(freeBuilderScore?.score || 0),
         },
       }),
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json().catch(() => null);
+      })
+      .then((payload) => {
+        if (!payload?.success || payload?.duplicate || !payload?.progressionDelta) return;
+        if (reason === 'pagehide') return;
+        setProgressionSummary(payload.progressionDelta);
+      })
+      .catch(() => {});
   }, [
     freeBuilderScore,
     freeTrainingScore,
@@ -756,6 +768,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     submitFreeTrainingSession('reset');
     freeSessionKeyRef.current = `free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     lastLoggedFreeSessionRef.current = '';
+    setProgressionSummary(null);
     const nextBucketKey = getFiveMinuteBucketKey();
     setBucketKey(nextBucketKey);
     setPatternProfile(createProfileForBucket(nextMood, nextBucketKey));
@@ -1127,6 +1140,12 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
            max-height: 355px !important;
         }
       `}} />
+      <ProgressionSummaryToast
+        summary={progressionSummary}
+        title="Free training logged"
+        subtitle={`${moodConfig.label} session`}
+        onClose={() => setProgressionSummary(null)}
+      />
     </div>
   );
 }

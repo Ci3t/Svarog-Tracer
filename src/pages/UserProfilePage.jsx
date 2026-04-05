@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   BadgeCheck,
   Sparkles,
@@ -9,7 +9,23 @@ import {
   RefreshCw,
   Store,
   Wallet,
+  Cpu,
+  Monitor,
+  Layers,
+  Info,
+  History,
+  Activity,
+  Award,
+  Gamepad2,
+  ChevronRight,
+  Flame,
+  Binary,
+  Zap,
+  Shield,
+  Search,
+  BookOpen
 } from 'lucide-react';
+import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
 import { CHALLENGE_CONTRACT_ORDER } from '../data/challengeContracts';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
@@ -31,52 +47,21 @@ import {
   resolveEquippedTitleKeyFromMetadata,
 } from '../utils/titleCatalog';
 
+/* HELPER: Resolve Discord and Profile Names */
 function resolveAuthDisplayName(user) {
   if (!user || typeof user !== 'object') return '';
-  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const metadata = user.user_metadata || {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
-  const discordIdentity = identities.find((identity) => {
-    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
-    return provider === 'discord';
-  });
-  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
-    ? discordIdentity.identity_data
-    : {};
-  const picks = [
-    metadata.global_name,
-    metadata.full_name,
-    identityData.global_name,
-    metadata.user_name,
-    identityData.username,
-    metadata.preferred_username,
-    metadata.name,
-    user.email,
-    user.id,
-  ];
-  for (const value of picks) {
-    const normalized = String(value || '').trim();
-    if (normalized) return normalized;
-  }
-  return '';
+  const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
+  return metadata.global_name || metadata.full_name || discord.global_name || discord.username || metadata.user_name || user.email || user.id || '';
 }
 
 function resolveAvatarUrl(user) {
-  if (!user || typeof user !== 'object') return '';
-  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  if (!user) return '';
+  const metadata = user.user_metadata || {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
-  const discordIdentity = identities.find((identity) => {
-    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
-    return provider === 'discord';
-  });
-  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
-    ? discordIdentity.identity_data
-    : {};
-  const candidates = [
-    metadata.avatar_url,
-    metadata.avatar,
-    identityData.avatar_url,
-    identityData.picture,
-  ];
+  const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
+  const candidates = [metadata.avatar_url, metadata.avatar, discord.avatar_url, discord.picture];
   for (const value of candidates) {
     const normalized = String(value || '').trim();
     if (!normalized) continue;
@@ -86,1637 +71,934 @@ function resolveAvatarUrl(user) {
   return '';
 }
 
-function resolvePresenceArea(pathname) {
-  const value = String(pathname || '').trim().toLowerCase();
-  if (!value) return 'On site';
-  if (value === '/' || value === '/home') return 'Home';
-  if (value.startsWith('/live')) return 'Live';
-  if (value.startsWith('/long-string')) return 'Lab';
-  if (value.startsWith('/kiyo')) return 'Kiyo';
-  if (value.startsWith('/warp-analyzer')) return 'Warp Analyzer';
-  if (value.startsWith('/banner-tracker')) return 'Banner Tracker';
-  if (value.startsWith('/caverns')) return 'Caverns';
-  if (value.startsWith('/guides')) return 'Guides';
-  if (value.startsWith('/tutorial')) return 'Tutorial';
-  if (value.startsWith('/playground')) return 'Playground';
-  if (value.startsWith('/profile')) return 'Profile';
-  if (value.startsWith('/auth')) return 'Auth';
-  return value
-    .replace(/^\//, '')
-    .split('/')
-    .filter(Boolean)
-    .map((part) => part.replace(/[-_]+/g, ' '))
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' / ') || 'On site';
-}
-
-function panelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-1)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
-  };
-}
-
-function subtlePanelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-2)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
-  };
-}
-
 function formatRelativeTime(value) {
   if (!value) return 'Not yet';
   const date = new Date(value);
   const diffMs = Date.now() - date.getTime();
   if (Number.isNaN(diffMs)) return 'Not yet';
-
   const minutes = Math.floor(diffMs / 60000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
-}
-
-function compareChallengeResultRows(left, right) {
-  const scoreDiff = Number(left?.score || 0) - Number(right?.score || 0);
-  if (scoreDiff !== 0) return scoreDiff;
-
-  const leftTime = Number(left?.clear_time_seconds || 0);
-  const rightTime = Number(right?.clear_time_seconds || 0);
-  const leftHasTime = leftTime > 0;
-  const rightHasTime = rightTime > 0;
-  if (leftHasTime !== rightHasTime) return leftHasTime ? 1 : -1;
-  if (leftHasTime && rightHasTime && leftTime !== rightTime) return rightTime - leftTime;
-
-  const helpfulHitsDiff = Number(left?.helpful_hits || 0) - Number(right?.helpful_hits || 0);
-  if (helpfulHitsDiff !== 0) return helpfulHitsDiff;
-
-  const mistakesDiff = Number(right?.mistakes || 0) - Number(left?.mistakes || 0);
-  if (mistakesDiff !== 0) return mistakesDiff;
-
-  return new Date(left?.created_at || 0).getTime() - new Date(right?.created_at || 0).getTime();
-}
-
-function dedupeChallengeRows(rows) {
-  const generatedRows = [];
-  const bestByContract = new Map();
-
-  for (const row of Array.isArray(rows) ? rows : []) {
-    if (row?.generated) {
-      generatedRows.push(row);
-      continue;
-    }
-
-    const key = String(row?.contract_id || '').trim();
-    if (!key) continue;
-    const current = bestByContract.get(key);
-    if (!current || compareChallengeResultRows(row, current) > 0) {
-      bestByContract.set(key, row);
-    }
-  }
-
-  return [
-    ...Array.from(bestByContract.values()),
-    ...generatedRows,
-  ].sort((left, right) => new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime());
-}
-
-function getInitials(value) {
-  const text = String(value || '').trim();
-  if (!text) return '??';
-  return text
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
+  return days < 7 ? `${days}d ago` : date.toLocaleDateString();
 }
 
 function formatTokenCount(value) {
   return new Intl.NumberFormat('en-US').format(Number(value || 0));
 }
 
-function SectionCard({ title, description, icon: Icon, action, children, className = '' }) {
-  return (
-    <section className={`rounded-xl border p-5 sm:p-6 ${className}`} style={panelStyle()}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border" style={subtlePanelStyle({ color: 'var(--theme-accent)' })}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold">{title}</h2>
-            {description ? (
-              <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-                {description}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        {action}
-      </div>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
-
-function StatTile({ label, value, hint, accent = false }) {
-  return (
-    <div className="rounded-lg border p-4" style={subtlePanelStyle()}>
-      <div className="text-xs font-medium" style={{ color: 'var(--theme-text-muted)' }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold" style={accent ? { color: 'var(--theme-accent)' } : undefined}>{value}</div>
-      {hint ? (
-        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-soft)' }}>{hint}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function ResultPill({ result }) {
-  const normalized = String(result || '').toLowerCase();
-  const style = normalized === 'win'
-    ? { background: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', borderColor: 'rgba(16, 185, 129, 0.32)' }
-    : normalized === 'loss'
-      ? { background: 'rgba(239, 68, 68, 0.12)', color: '#fca5a5', borderColor: 'rgba(239, 68, 68, 0.32)' }
-      : { background: 'var(--theme-accent-soft)', color: 'var(--theme-accent)', borderColor: 'var(--theme-border-strong)' };
-
-  return (
-    <span className="inline-flex min-w-[56px] items-center justify-center rounded-md border px-2 py-1 text-[11px] font-semibold capitalize" style={style}>
-      {normalized || 'draw'}
-    </span>
-  );
-}
-
-function RankTierBadge({ tier }) {
-  if (!tier) {
-    return (
-      <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold" style={subtlePanelStyle()}>
-        Unranked
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold"
-      style={{
-        borderColor: tier.color,
-        background: tier.accent,
-        color: tier.color,
-      }}
-    >
-      {tier.name}
-    </span>
-  );
-}
-
-function RewardTrackRow({ item, claiming, onClaim }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-      <div>
-        <div className="text-sm font-medium">{item.name}</div>
-        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{item.requirement}</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getTitleBadgeStyle(item.rarity || 'common')}>
-            {item.rarity || 'common'}
-          </span>
-          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-            {item.rewardType || 'reward'}
-          </span>
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-2">
-        <span
-          className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold"
-          style={item.claimed
-            ? { background: 'rgba(59, 130, 246, 0.12)', color: '#93c5fd', borderColor: 'rgba(59, 130, 246, 0.24)' }
-            : item.unlocked
-              ? { background: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', borderColor: 'rgba(16, 185, 129, 0.28)' }
-              : { background: 'transparent', color: 'var(--theme-text-muted)', borderColor: 'var(--theme-border-soft)' }}
-        >
-          {item.claimed ? 'Claimed' : item.unlocked ? 'Ready' : 'Locked'}
-        </span>
-        <button
-          type="button"
-          disabled={!item.unlocked || item.claimed || claiming}
-          onClick={() => onClaim?.(item.key)}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          style={item.unlocked && !item.claimed
-            ? { borderColor: 'rgba(16, 185, 129, 0.28)', background: 'rgba(16, 185, 129, 0.08)', color: '#6ee7b7' }
-            : subtlePanelStyle()}
-        >
-          {item.claimed ? 'Claimed' : claiming ? 'Claiming...' : 'Claim'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EquippedCosmeticRow({ label, item, clearing, locked, onClear }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-          {item ? item.name : `No ${label.toLowerCase()} equipped`}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {item ? (
-          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getCosmeticAccentStyle(item.rarity)}>
-            {item.rarity}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          disabled={!item || clearing || locked}
-          onClick={onClear}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          style={subtlePanelStyle()}
-        >
-          {clearing ? 'Clearing...' : 'Clear'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MarketplaceItemCard({ item, actionBusy, locked, onPurchase, onEquip, equippedKey }) {
-  const accentStyle = getCosmeticAccentStyle(item.rarity || 'common');
-  const isTitle = item.type === 'title';
-  const isOwned = Boolean(item.owned);
-  const isEquipped = !isTitle && String(equippedKey || '') === String(item.key || '');
-  const actionLabel = !isOwned
-    ? `Buy for ${formatTokenCount(item.cost)}`
-    : isTitle
-      ? 'Owned in Titles'
-      : isEquipped
-        ? 'Equipped'
-        : 'Equip';
-
-  return (
-    <div className="rounded-lg border p-4" style={subtlePanelStyle()}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {isTitle ? (
-              <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-sm font-medium" />
-            ) : (
-              <div className="text-sm font-medium">{item.name}</div>
-            )}
-            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={accentStyle}>
-              {item.rarity}
-            </span>
-            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-              {item.type}
-            </span>
-          </div>
-          <div className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            {item.description}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Cost</div>
-          <div className="mt-1 text-sm font-semibold">{formatTokenCount(item.cost)}</div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <span
-          className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold"
-          style={isOwned ? accentStyle : subtlePanelStyle()}
-        >
-          {isOwned ? 'Owned' : 'Available'}
-        </span>
-        <button
-          type="button"
-          disabled={actionBusy || locked || (isOwned && isTitle) || isEquipped}
-          onClick={() => {
-            if (!isOwned) {
-              onPurchase?.(item.key);
-              return;
-            }
-            if (!isTitle) {
-              onEquip?.(item);
-            }
-          }}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          style={!isOwned || (!isTitle && !isEquipped) ? accentStyle : subtlePanelStyle()}
-        >
-          {actionBusy ? 'Working...' : actionLabel}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MatchList({ matches, seasonLabel, emptyText, badgeText }) {
-  return (
-    <div className="space-y-3">
-      {matches.length === 0 ? (
-        <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-          {emptyText.replace('{seasonLabel}', seasonLabel)}
-        </div>
-      ) : null}
-
-      {matches.map((match) => (
-        <div key={`${match.roomCode}-${match.finishedAt}-${match.opponentId}`} className="grid gap-3 rounded-lg border px-4 py-4 md:grid-cols-[84px_minmax(0,1fr)_108px_88px]" style={subtlePanelStyle()}>
-          <div className="flex items-center">
-            <ResultPill result={match.result} />
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium">{match.opponentName}</span>
-              <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-                {badgeText}
-              </span>
-              <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-                {match.tier}
-              </span>
-            </div>
-            <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-              {match.submitted ? 'Submitted relic' : 'Timed out / locked by state'} • {formatRelativeTime(match.finishedAt)}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between md:block">
-            <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Score</div>
-            <div className="text-base font-semibold">{match.score}</div>
-          </div>
-
-          <div className="flex items-center justify-between md:block">
-            <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Helpful / mistakes</div>
-            <div className="text-sm font-medium">{match.helpfulHits} / {match.mistakes}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const BOT_ORDER = ['Svarog Bot', 'Clara Bot'];
-const BOT_TIER_ORDER = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
-
-function summarizePracticeByBot(matches) {
-  const groups = new Map();
-
-  for (const match of Array.isArray(matches) ? matches : []) {
-    const name = normalizeBotGroupName(match?.opponentName || 'Bot');
-    const current = groups.get(name) || {
-      botName: name,
-      matches: 0,
-      wins: 0,
-      losses: 0,
-      draws: 0,
-      totalScore: 0,
-      bestScore: 0,
-      totalHelpfulHits: 0,
-      totalMistakes: 0,
-      lastPlayedAt: null,
-      lastResult: '',
-      submittedMatches: 0,
-      tierCounts: {},
-    };
-
-    current.matches += 1;
-    current.totalScore += Number(match?.score || 0);
-    current.bestScore = Math.max(current.bestScore, Number(match?.score || 0));
-    current.totalHelpfulHits += Number(match?.helpfulHits || 0);
-    current.totalMistakes += Number(match?.mistakes || 0);
-    current.submittedMatches += match?.submitted ? 1 : 0;
-
-    const result = String(match?.result || 'draw').toLowerCase();
-    if (result === 'win') current.wins += 1;
-    else if (result === 'loss') current.losses += 1;
-    else current.draws += 1;
-
-    const tierKey = String(match?.tier || 'unknown').trim() || 'unknown';
-    current.tierCounts[tierKey] = Number(current.tierCounts[tierKey] || 0) + 1;
-
-    const finishedAt = String(match?.finishedAt || '').trim();
-    if (!current.lastPlayedAt || new Date(finishedAt) > new Date(current.lastPlayedAt)) {
-      current.lastPlayedAt = finishedAt || current.lastPlayedAt;
-      current.lastResult = result;
-    }
-
-    groups.set(name, current);
-  }
-
-  return Array.from(groups.values())
-    .map((entry) => ({
-      ...entry,
-      winRate: entry.matches > 0 ? Math.round((entry.wins / entry.matches) * 1000) / 10 : 0,
-      averageScore: entry.matches > 0 ? Math.round((entry.totalScore / entry.matches) * 10) / 10 : 0,
-      averageHelpfulHits: entry.matches > 0 ? Math.round((entry.totalHelpfulHits / entry.matches) * 10) / 10 : 0,
-      averageMistakes: entry.matches > 0 ? Math.round((entry.totalMistakes / entry.matches) * 10) / 10 : 0,
-      tiers: Object.entries(entry.tierCounts)
-        .sort((left, right) => {
-          const leftIndex = BOT_TIER_ORDER.indexOf(left[0]);
-          const rightIndex = BOT_TIER_ORDER.indexOf(right[0]);
-          if (leftIndex === -1 && rightIndex === -1) return left[0].localeCompare(right[0]);
-          if (leftIndex === -1) return 1;
-          if (rightIndex === -1) return -1;
-          return leftIndex - rightIndex;
-        })
-        .map(([tier, count]) => ({ tier, count })),
-    }))
-    .sort((left, right) => {
-      const leftIndex = BOT_ORDER.indexOf(left.botName);
-      const rightIndex = BOT_ORDER.indexOf(right.botName);
-      if (leftIndex !== -1 || rightIndex !== -1) {
-        if (leftIndex === -1) return 1;
-        if (rightIndex === -1) return -1;
-        return leftIndex - rightIndex;
-      }
-      return right.matches - left.matches;
-    });
-}
-
-function buildAchievementList({ profile, solvedChallengeCount, generatedClears, bestChallengeScore, practiceByBot }) {
-  const competitiveMatches = Number(profile?.competitive?.matches || 0);
-  const competitiveWins = Number(profile?.competitive?.wins || 0);
-  const seasonPoints = Number(profile?.competitive?.seasonPoints || 0);
-  const bestWinStreak = Number(profile?.bestWinStreak || 0);
-  const practiceWins = Number(profile?.practice?.wins || 0);
-  const claraMatches = Number(practiceByBot.find((entry) => entry.botName === 'Clara Bot')?.matches || 0);
-  const svarogMatches = Number(practiceByBot.find((entry) => entry.botName === 'Svarog Bot')?.matches || 0);
-
-  const definitions = [
-    {
-      key: 'first-duel',
-      name: 'First Contact',
-      description: 'Finish one competitive room.',
-      value: competitiveMatches,
-      target: 1,
-    },
-    {
-      key: 'room-breaker',
-      name: 'Rank Breaker',
-      description: 'Win five competitive rooms.',
-      value: competitiveWins,
-      target: 5,
-    },
-    {
-      key: 'season-climber',
-      name: 'Astral Ascent',
-      description: 'Reach 10 season points.',
-      value: seasonPoints,
-      target: 10,
-    },
-    {
-      key: 'streak-line',
-      name: 'Win Sequence',
-      description: 'Hold a 3-win competitive streak.',
-      value: bestWinStreak,
-      target: 3,
-    },
-    {
-      key: 'bot-calibration',
-      name: 'Calibration Cycle',
-      description: 'Win five bot rooms in season.',
-      value: practiceWins,
-      target: 5,
-    },
-    {
-      key: 'clara-notes',
-      name: 'Clara Field Notes',
-      description: 'Finish three Clara Bot rooms.',
-      value: claraMatches,
-      target: 3,
-    },
-    {
-      key: 'svarog-notes',
-      name: 'Svarog Field Notes',
-      description: 'Finish three Svarog Bot rooms.',
-      value: svarogMatches,
-      target: 3,
-    },
-    {
-      key: 'contract-reader',
-      name: 'Briefing Accepted',
-      description: 'Clear one handcrafted challenge.',
-      value: solvedChallengeCount,
-      target: 1,
-    },
-    {
-      key: 'solver-route',
-      name: 'Route Engraved',
-      description: 'Clear five handcrafted challenges.',
-      value: solvedChallengeCount,
-      target: 5,
-    },
-    {
-      key: 'practice-draft',
-      name: 'Proxy Warmup',
-      description: 'Clear three generated challenges.',
-      value: Number(generatedClears || 0),
-      target: 3,
-    },
-    {
-      key: 'sharp-score',
-      name: 'Critical Route',
-      description: 'Reach 90 challenge score.',
-      value: Number(bestChallengeScore || 0),
-      target: 90,
-      format: 'score',
-    },
-  ];
-
-  return definitions.map((entry) => ({
-    ...entry,
-    unlocked: entry.value >= entry.target,
-    progressLabel: entry.format === 'score'
-      ? `${Number(entry.value || 0).toFixed(1)} / ${entry.target}`
-      : `${Math.min(entry.value, entry.target)} / ${entry.target}`,
-  }));
-}
-
-function buildTitleCatalog({ unlockedTitles, profile, solvedChallengeCount }) {
-  const unlocked = new Set((Array.isArray(unlockedTitles) ? unlockedTitles : []).map((entry) => String(entry?.key || '').trim()).filter(Boolean));
-  const leaderboardRank = Number(profile?.leaderboardRank || 0);
-  const competitiveWins = Number(profile?.competitive?.wins || 0);
-  const bestCompetitiveScore = Number(profile?.competitive?.bestScore || 0);
-  const practiceWins = Number(profile?.practice?.wins || 0);
-  const statusByKey = new Map([
-    ['astral-marshal', unlocked.has('astral-marshal') || leaderboardRank === 1],
-    ['proxy-prime', unlocked.has('proxy-prime') || (leaderboardRank > 0 && leaderboardRank <= 3)],
-    ['leyline-tactician', unlocked.has('leyline-tactician') || (leaderboardRank > 0 && leaderboardRank <= 10)],
-    ['ranked-riftwalker', unlocked.has('ranked-riftwalker') || competitiveWins >= 5],
-    ['resonium-savant', unlocked.has('resonium-savant') || bestCompetitiveScore >= 90],
-    ['svarog-calibrated', unlocked.has('svarog-calibrated') || practiceWins >= 8],
-    ['signal-initiate', solvedChallengeCount >= 1],
-    ['hollow-cartographer', solvedChallengeCount >= 5],
-    ['tracer-sovereign', solvedChallengeCount >= 10],
-  ]);
-
-  return Array.from(statusByKey.entries()).map(([key, isUnlocked]) => {
-    const definition = getTitleDefinition(key);
-    return {
-      ...(definition || { key, name: key, requirement: '', rarity: 'common' }),
-      unlocked: Boolean(isUnlocked),
-    };
-  });
+function getInitials(value) {
+  const text = String(value || '').trim();
+  if (!text) return '??';
+  return text.split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
 }
 
 function normalizeBotGroupName(value) {
-  const normalized = String(value || '').trim();
-  const lower = normalized.toLowerCase();
-  if (!normalized) return 'Bot';
-  if (lower.includes('clara') || lower.includes('fair')) return 'Clara Bot';
-  if (lower.includes('svarog')) return 'Svarog Bot';
-  return normalized;
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.includes('clara') || normalized.includes('fair')) return 'Clara Bot';
+  if (normalized.includes('svarog')) return 'Svarog Bot';
+  return String(value || 'Bot');
 }
 
-function buildBotSessionTables(matches, summaries) {
-  const summaryMap = new Map((Array.isArray(summaries) ? summaries : []).map((entry) => [normalizeBotGroupName(entry?.botName), entry]));
-  const groups = new Map([
-    ['Svarog Bot', []],
-    ['Clara Bot', []],
-  ]);
+/* -------------------------------------------------------------------------- */
+/*                               CORE UI MODULES                              */
+/* -------------------------------------------------------------------------- */
 
-  for (const match of Array.isArray(matches) ? matches : []) {
-    const key = normalizeBotGroupName(match?.opponentName);
-    const nextRows = groups.get(key) || [];
-    nextRows.push({
-      ...match,
-      opponentName: key,
+const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initials, rankTier }) => {
+  const heroRef = useRef(null);
+  const { title, badge, banner, frame } = credentials;
+  const accent = getCosmeticAccentStyle(title?.rarity || 'common');
+
+  useEffect(() => {
+    if (!heroRef.current) return;
+    gsap.fromTo(heroRef.current, {
+      opacity: 0,
+      scale: 0.95,
+      y: 20,
+    }, {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 1,
+      ease: "power3.out",
+      clearProps: 'opacity,transform',
     });
-    groups.set(key, nextRows);
-  }
-
-  return ['Svarog Bot', 'Clara Bot'].map((botName) => ({
-    botName,
-    summary: summaryMap.get(botName) || null,
-    matches: (groups.get(botName) || []).slice().sort((left, right) => new Date(right?.finishedAt || 0) - new Date(left?.finishedAt || 0)),
-  }));
-}
-
-const CHALLENGE_ORDER_INDEX = new Map(CHALLENGE_CONTRACT_ORDER.map((contractId, index) => [String(contractId), index]));
-
-function getChallengeLevelLabel(row) {
-  const contractId = String(row?.contract_id || '').trim();
-  if (CHALLENGE_ORDER_INDEX.has(contractId)) {
-    return `L${String(CHALLENGE_ORDER_INDEX.get(contractId) + 1).padStart(2, '0')}`;
-  }
-
-  const titleMatch = String(row?.contract_title || '').match(/level\s*0*(\d+)/i);
-  if (titleMatch) {
-    return `L${String(titleMatch[1]).padStart(2, '0')}`;
-  }
-
-  return row?.generated ? 'GEN' : '--';
-}
-
-function sortChallengeTableRows(rows) {
-  return (Array.isArray(rows) ? rows : []).slice().sort((left, right) => {
-    const leftGenerated = Boolean(left?.generated);
-    const rightGenerated = Boolean(right?.generated);
-    if (leftGenerated !== rightGenerated) return leftGenerated ? 1 : -1;
-
-    const leftIndex = CHALLENGE_ORDER_INDEX.has(String(left?.contract_id || '').trim())
-      ? CHALLENGE_ORDER_INDEX.get(String(left?.contract_id || '').trim())
-      : Number.MAX_SAFE_INTEGER;
-    const rightIndex = CHALLENGE_ORDER_INDEX.has(String(right?.contract_id || '').trim())
-      ? CHALLENGE_ORDER_INDEX.get(String(right?.contract_id || '').trim())
-      : Number.MAX_SAFE_INTEGER;
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-
-    return new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime();
-  });
-}
-
-function BotSessionTable({ botName, summary, matches }) {
-  const summaryBits = summary
-    ? [
-        `${summary.wins}-${summary.losses}-${summary.draws}`,
-        `${summary.winRate}% WR`,
-        `Avg ${summary.averageScore}`,
-        `Best ${summary.bestScore}`,
-      ]
-    : [];
+  }, []);
 
   return (
-    <div className="overflow-hidden rounded-lg border" style={subtlePanelStyle()}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: 'var(--theme-border-soft)' }}>
-        <div>
-          <div className="text-sm font-semibold">{botName}</div>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
-            {summary ? summaryBits.map((bit) => <span key={`${botName}-${bit}`}>{bit}</span>) : <span>No season sessions yet.</span>}
-          </div>
-        </div>
-        {summary ? <ResultPill result={summary.lastResult || 'draw'} /> : null}
-      </div>
+    <div 
+      ref={heroRef}
+      className="relative isolate z-20 mb-10 overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0b]/75 p-8 md:p-12 backdrop-blur-2xl shadow-[0_0_50px_rgba(0,0,0,0.3)]"
+    >
+      {/* Dynamic Energy Core (Rarity Based Glow) - Increased visibility */}
+      <div 
+        className="absolute -top-20 -right-20 h-96 w-96 blur-[120px] opacity-50 animate-pulse pointer-events-none transition-all duration-1000"
+        style={{ backgroundColor: accent.color || 'var(--theme-accent)' }} 
+      />
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 pointer-events-none" />
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr style={{ color: 'var(--theme-text-muted)', background: 'var(--theme-surface-1)' }}>
-              <th className="px-4 py-2 text-left font-medium">Result</th>
-              <th className="px-4 py-2 text-left font-medium">When</th>
-              <th className="px-4 py-2 text-left font-medium">Tier</th>
-              <th className="px-4 py-2 text-right font-medium">Score</th>
-              <th className="px-4 py-2 text-right font-medium">Hits / Mistakes</th>
-              <th className="px-4 py-2 text-left font-medium">End state</th>
-            </tr>
-          </thead>
-        </table>
-        <div className={matches.length > 9 ? 'max-h-[432px] overflow-y-auto' : ''}>
-          <table className="min-w-full text-sm">
-            <tbody>
-              {matches.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center" style={{ color: 'var(--theme-text-muted)' }}>
-                    No finished sessions recorded against {botName} this season.
-                  </td>
-                </tr>
-              ) : (
-                matches.map((match, index) => (
-                  <tr key={`${botName}-${match.roomCode}-${match.finishedAt}-${index}`} style={index > 0 ? { borderTop: '1px solid var(--theme-border-soft)' } : undefined}>
-                    <td className="px-4 py-3"><ResultPill result={match.result} /></td>
-                    <td className="px-4 py-3">{formatRelativeTime(match.finishedAt)}</td>
-                    <td className="px-4 py-3">{match.tier}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{match.score}</td>
-                    <td className="px-4 py-3 text-right">{match.helpfulHits} / {match.mistakes}</td>
-                    <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>
-                      {match.submitted ? 'Submitted relic' : 'Timed out / locked'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChallengeLadderTable({ rows }) {
-  const sortedRows = sortChallengeTableRows(rows);
-  const scrollClassName = sortedRows.length > 5 ? 'max-h-[300px] overflow-y-auto' : '';
-
-  return (
-    <div className="overflow-hidden rounded-lg border" style={subtlePanelStyle()}>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr style={{ color: 'var(--theme-text-muted)', background: 'var(--theme-surface-1)' }}>
-              <th className="px-4 py-2 text-left font-medium">Level</th>
-              <th className="px-4 py-2 text-left font-medium">Contract</th>
-              <th className="px-4 py-2 text-left font-medium">Mode</th>
-              <th className="px-4 py-2 text-left font-medium">Seed</th>
-              <th className="px-4 py-2 text-right font-medium">Score</th>
-              <th className="px-4 py-2 text-right font-medium">Grade</th>
-              <th className="px-4 py-2 text-right font-medium">Time</th>
-              <th className="px-4 py-2 text-left font-medium">Updated</th>
-            </tr>
-          </thead>
-        </table>
-        <div className={scrollClassName}>
-          <table className="min-w-full text-sm">
-            <tbody>
-              {sortedRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center" style={{ color: 'var(--theme-text-muted)' }}>
-                    No challenge clears recorded yet for this account.
-                  </td>
-                </tr>
-              ) : (
-                sortedRows.map((row, index) => (
-                  <tr key={`${row.id}-${row.contract_id}-${index}`} style={index > 0 ? { borderTop: '1px solid var(--theme-border-soft)' } : undefined}>
-                    <td className="px-4 py-3 font-semibold">{getChallengeLevelLabel(row)}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{row.contract_title}</div>
-                      <div className="mt-1 text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{row.difficulty}</div>
-                    </td>
-                    <td className="px-4 py-3">{row.generated ? 'Generated' : 'Ladder'}</td>
-                    <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>{row.seed_label || '--'}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{row.score}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{row.grade}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{row.clear_time_seconds > 0 ? `${row.clear_time_seconds}s` : '--'}</td>
-                    <td className="px-4 py-3" style={{ color: 'var(--theme-text-muted)' }}>{formatRelativeTime(row.created_at)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AchievementList({ items }) {
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-          <div>
-            <div className="text-sm font-medium">{item.name}</div>
-            <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{item.description}</div>
-            {item.unlockedAt ? (
-              <div className="mt-2 text-[11px]" style={{ color: 'var(--theme-text-soft)' }}>
-                Unlocked {formatRelativeTime(item.unlockedAt)}
-              </div>
-            ) : null}
-          </div>
-          <div className="text-right">
-            <div
-              className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold"
-              style={item.unlocked
-                ? { background: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', borderColor: 'rgba(16, 185, 129, 0.28)' }
-                : { background: 'transparent', color: 'var(--theme-text-muted)', borderColor: 'var(--theme-border-soft)' }}
-            >
-              {item.unlocked ? 'Unlocked' : item.progressLabel}
+      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-between gap-12 relative z-10">
+        <div className="flex flex-col md:flex-row items-center gap-8 md:gap-10">
+          {/* Avatar with Animated Frame */}
+          <div 
+            className="relative isolate h-40 w-40 md:h-48 md:w-48 rounded-full border-4 flex items-center justify-center overflow-hidden bg-slate-950 group shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-all duration-500"
+            style={{ ...getAvatarFrameStyle(frame?.key), borderColor: frame ? 'transparent' : 'rgba(255,255,255,0.1)' }}
+          >
+            <div className="absolute inset-[6px] z-0 rounded-full bg-black/35" />
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="relative z-10 h-full w-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-700" />
+            ) : (
+              <span className="relative z-10 font-['Orbitron'] text-4xl font-black">{initials}</span>
+            )}
+            <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+              Avatar
             </div>
+          </div>
+
+          <div className="text-center md:text-left">
+            <UserIdentityBlock
+              name={displayName}
+              title={title?.name || ''}
+              rarity={title?.rarity || 'common'}
+              badge={badge?.name || ''}
+              badgeRarity={badge?.rarity || 'common'}
+              nameplate={banner?.name || ''}
+              nameplateRarity={banner?.rarity || 'common'}
+              nameClassName="text-3xl md:text-5xl font-black uppercase tracking-[0.1em] text-white italic"
+              titleClassName="mt-3 text-[14px] md:text-base opacity-90"
+            />
+            
+            <div className="mt-8 flex flex-wrap items-center justify-center md:justify-start gap-3">
+              <div 
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-xl"
+                style={{ borderColor: rankTier?.color || 'rgba(255,255,255,0.1)', color: rankTier?.color || 'white' }}
+              >
+                <Award className="h-4 w-4" /> {rankTier?.name || 'Unranked'}
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-300">
+                <Sparkles className="h-4 w-4" /> Lv {stats.level || 1}
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--theme-accent)]">
+                <Target className="h-4 w-4" /> {stats.leaderboardRank ? `Rank #${stats.leaderboardRank}` : 'No Rank Yet'}
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-400">
+                <Activity className="h-4 w-4" /> Online
+              </div>
+            </div>
+
+            <div className="mt-5 w-full max-w-xl">
+              <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                <span>Season XP</span>
+                <span>{stats.currentLevelXp || 0} / {stats.nextLevelXp || 0}</span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="h-full rounded-full bg-[var(--theme-accent)] transition-all duration-500"
+                  style={{ width: `${Math.max(0, Math.min(100, Number(stats.levelProgressPercent || 0)))}%` }}
+                />
+              </div>
+              <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                {stats.xpToNextLevel || 0} XP to next level
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Core Metrics */}
+        <div className="grid grid-cols-2 gap-4 w-full lg:w-72 relative z-30">
+          <div className="rounded-2xl border border-white/20 bg-white/[0.08] p-5 backdrop-blur-md shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">Best Score</div>
+            <div className="font-['Orbitron'] text-2xl font-black text-white">{stats.bestScore || 0}</div>
+            <div className="mt-2 text-[9px] uppercase tracking-widest text-slate-400">Across Logged Modes</div>
+          </div>
+          <div className="rounded-2xl border border-white/20 bg-white/[0.08] p-5 backdrop-blur-md shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">Win Rate</div>
+            <div className="font-['Orbitron'] text-2xl font-black text-[var(--theme-accent)]">{stats.winRate || 0}%</div>
+            <div className="mt-2 text-[9px] uppercase tracking-widest text-slate-400">Competitive PvP</div>
+          </div>
+          <div className="rounded-2xl border border-white/20 bg-white/[0.08] p-5 backdrop-blur-md shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">Challenge Clears</div>
+            <div className="font-['Orbitron'] text-2xl font-black text-white">{stats.handcraftedClears || 0}</div>
+            <div className="mt-2 text-[9px] uppercase tracking-widest text-slate-400">Handcrafted Only</div>
+          </div>
+          <div className="rounded-2xl border border-white/20 bg-white/[0.08] p-5 backdrop-blur-md shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">Level</div>
+            <div className="font-['Orbitron'] text-2xl font-black text-white">{stats.level || 1}</div>
+            <div className="mt-2 text-[9px] uppercase tracking-widest text-slate-400">{stats.totalXp || 0} Total XP</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MetricRadar = ({ stats }) => {
+  // Purely visual radar-like chart using SVG
+  const points = [
+    { label: 'ACC', val: Math.min(stats.accuracy || 80, 100), x: 50, y: 10 },
+    { label: 'SPD', val: Math.min(stats.speed || 70, 100), x: 90, y: 35 },
+    { label: 'STR', val: Math.min(stats.streak || 60, 100), x: 90, y: 75 },
+    { label: 'CON', val: Math.min(stats.consistency || 85, 100), x: 50, y: 95 },
+    { label: 'EXP', val: Math.min(stats.experience || 50, 100), x: 10, y: 75 },
+    { label: 'PWR', val: Math.min(stats.power || 40, 100), x: 10, y: 35 },
+  ];
+
+  const polyPoints = points.map(p => {
+    const rx = 50 + (p.x - 50) * (p.val / 100);
+    const ry = 50 + (p.y - 50) * (p.val / 100);
+    return `${rx},${ry}`;
+  }).join(' ');
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative h-60 w-60">
+        <svg viewBox="0 0 100 100" className="h-full w-full opacity-60">
+          <polygon points="50,10 90,35 90,75 50,95 10,75 10,35" className="fill-none stroke-white/20 stroke-[0.5]" />
+          <polygon points="50,30 70,42.5 70,62.5 50,72.5 30,62.5 30,42.5" className="fill-none stroke-white/10 stroke-[0.5]" />
+          <polygon points={polyPoints} className="fill-[var(--theme-accent-soft)]/20 stroke-[var(--theme-accent)] stroke-1" />
+          {points.map(p => (
+            <circle key={p.label} cx={50 + (p.x - 50) * (p.val / 100)} cy={50 + (p.y - 50) * (p.val / 100)} r="2" className="fill-[var(--theme-accent)] shadow-[0_0_10px_var(--theme-accent)]" />
+          ))}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center font-['Orbitron'] text-[10px] font-black text-white/40">SVAROG_S_RATIO</div>
+        
+        {/* Labels */}
+        {points.map(p => (
+          <div key={p.label} className="absolute text-[8px] font-black uppercase tracking-widest text-slate-500" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -50%)' }}>
+            {p.label}
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-6 w-full text-center">
+        {points.slice(0,3).map(p => (
+          <div key={p.label}>
+            <div className="text-[8px] uppercase tracking-widest text-slate-600 font-black">{p.label} INDEX</div>
+            <div className="mt-1 font-['Orbitron'] text-xs text-white">{p.val}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ClaraOSFeedback = ({ bestScore, winRate }) => (
+  <div className="rounded-2xl border border-[var(--theme-accent-soft)] bg-[var(--theme-accent-soft)]/5 p-6 relative overflow-hidden group">
+    <div className="absolute top-0 right-0 p-3 opacity-20"><Binary className="h-10 w-10 text-[var(--theme-accent)]" /></div>
+    <div className="flex items-start gap-4">
+      <div className="h-10 w-10 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+        <Cpu className="h-5 w-5 text-pink-400" />
+      </div>
+      <div>
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-pink-400 mb-1">Clara Note</div>
+        <p className="text-[11px] leading-relaxed text-slate-300 italic">
+          "{bestScore > 100 
+            ? "Your score pace is ahead of the current baseline. Keep pushing while the reads are still clean."
+            : "Your runs look stable so far. More PvP and challenge clears will give this profile a stronger read."}"
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+/* -------------------------------------------------------------------------- */
+/*                                SUB-VIEWS                                   */
+/* -------------------------------------------------------------------------- */
+
+const DossierView = ({ stats, profile, presence }) => (
+  <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+    <div className="space-y-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 hover:border-white/10 transition-colors">
+          <div className="flex items-center gap-3 text-slate-500 mb-6">
+            <Trophy className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">PvP Snapshot</span>
+          </div>
+          <div className="space-y-5">
+            <div className="flex justify-between items-end">
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Win Rate</span>
+              <span className="font-['Orbitron'] text-lg font-bold text-white">{profile.competitive?.winRate || 0}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-[var(--theme-accent)]" style={{ width: `${profile.competitive?.winRate || 0}%` }} />
+            </div>
+            <div className="flex justify-between items-end">
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Average Score</span>
+              <span className="font-['Orbitron'] text-lg font-bold text-white">{profile.competitive?.averageScore || 0}</span>
+            </div>
+            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${(profile.competitive?.averageScore || 0) / 1.5}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+          <div className="flex items-center gap-3 text-slate-500 mb-6">
+            <Gamepad2 className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Bot Rooms</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Rooms</div>
+              <div className="font-['Orbitron'] text-xl font-bold text-white">{profile.practice?.matches || 0}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Wins</div>
+              <div className="font-['Orbitron'] text-xl font-bold text-emerald-400">{profile.practice?.wins || 0}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Avg Helpful Hits</div>
+              <div className="font-['Orbitron'] text-xl font-bold text-white">{profile.practice?.averageHelpfulHits || 0}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Best Score</div>
+              <div className="font-['Orbitron'] text-xl font-bold text-white">{profile.practice?.bestScore || 0}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 col-span-1 md:col-span-2 lg:col-span-1">
+          <div className="flex items-center gap-3 text-slate-500 mb-6">
+            <Binary className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Season Metrics</span>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Level</span>
+              <span className="text-sm font-black text-amber-300">Lv {stats.level || 1}</span>
+            </div>
+            <div className="rounded-xl bg-white/[0.03] border border-white/5 p-3">
+              <div className="mb-2 flex items-center justify-between text-[10px] uppercase font-bold text-slate-400">
+                <span>XP Progress</span>
+                <span>{stats.currentLevelXp || 0}/{stats.nextLevelXp || 0}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-full rounded-full bg-[var(--theme-accent)]" style={{ width: `${Math.max(0, Math.min(100, Number(stats.levelProgressPercent || 0)))}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Best Streak</span>
+              <span className="text-sm font-black text-[var(--theme-accent)]">{profile.bestWinStreak || 0}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Season Points</span>
+              <span className="text-sm font-black text-white">{profile.competitive?.seasonPoints || 0}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Best Challenge Grade</span>
+              <span className="text-sm font-black text-white">{stats.bestChallengeGrade || 'C-'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+        <div className="flex items-center gap-3 text-slate-500 mb-8">
+          <Users className="h-4 w-4" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Presence</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+          <div className="text-center">
+            <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">User ID</div>
+            <div className="font-['Orbitron'] text-xl font-black text-white">{stats.userId?.slice(0, 8)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Status</div>
+            <div className="font-['Orbitron'] text-xl font-black text-emerald-400">ONLINE</div>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Site Online</div>
+            <div className="font-['Orbitron'] text-xl font-black text-white">{presence.online || 0}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Members Online</div>
+            <div className="font-['Orbitron'] text-xl font-black text-white">{(presence.users || []).length}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 pb-8">
+        <div className="flex items-center gap-3 text-slate-500 mb-8">
+          <Activity className="h-4 w-4" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Performance Radar</span>
+        </div>
+        <MetricRadar
+          stats={{
+            accuracy: Math.min(100, profile.competitive?.winRate || 0),
+            speed: Math.min(100, Math.round((profile.competitive?.averageScore || 0) * 2)),
+            consistency: Math.min(100, Math.round((profile.bestWinStreak || 0) * 12)),
+            experience: Math.min(100, stats.levelProgressPercent || 0),
+            power: Math.min(100, Math.round((stats.bestScore || 0) * 1.1)),
+            streak: Math.min(100, Math.round((profile.competitive?.seasonPoints || 0) * 4)),
+          }}
+        />
+      </div>
+      <ClaraOSFeedback bestScore={stats.bestScore} winRate={profile.competitive?.winRate} />
+    </div>
+  </div>
+);
+
+const CombatLogView = ({ recentMatches, practiceMatches, botTables }) => (
+  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3 text-slate-500">
+            <Target className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Recent PvP Results</span>
+          </div>
+        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Current Season</span>
+        </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-separate border-spacing-y-3">
+          <thead>
+            <tr className="text-[9px] uppercase tracking-widest text-slate-500 px-4">
+              <th className="pb-4 pl-4">Result</th>
+              <th className="pb-4">Opponent</th>
+              <th className="pb-4">Tier</th>
+              <th className="pb-4 text-center">Score</th>
+              <th className="pb-4 text-center">Hits/Mistakes</th>
+              <th className="pb-4 pr-4 text-right">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(recentMatches || []).length === 0 ? (
+              <tr><td colSpan={6} className="py-20 text-center text-slate-600 text-[10px] uppercase font-bold">No PvP matches logged this season.</td></tr>
+            ) : (
+              recentMatches.map((m, idx) => (
+                <tr key={idx} className="group transition-colors hover:bg-white/[0.02]">
+                  <td className="py-4 pl-4 rounded-l-xl border-y border-l border-white/5">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-tighter border ${m.result === 'win' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' : 'border-rose-500/30 text-rose-400 bg-rose-500/5'}`}>
+                      {m.result || 'DRAW'}
+                    </span>
+                  </td>
+                  <td className="py-4 border-y border-white/5 font-medium text-slate-300">{m.opponentName}</td>
+                  <td className="py-4 border-y border-white/5 text-[10px] uppercase font-bold text-slate-500">{m.tier || 'Standard'}</td>
+                  <td className="py-4 border-y border-white/5 text-center font-['Orbitron'] text-xs text-white">{m.score}</td>
+                  <td className="py-4 border-y border-white/5 text-center text-[10px] text-slate-400">{m.helpfulHits} / {m.mistakes}</td>
+                  <td className="py-4 pr-4 rounded-r-xl border-y border-r border-white/5 text-right text-[10px] text-slate-600 font-mono tracking-tighter">{formatRelativeTime(m.finishedAt)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div className="grid gap-6 lg:grid-cols-2">
+      {botTables.map(bot => (
+        <div key={bot.botName} className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 lg:p-8">
+          <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3 text-slate-500">
+                <Cpu className="h-4 w-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">{bot.botName} Sessions</span>
+              </div>
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{bot.summary?.winRate || 0}% WR</span>
+          </div>
+          <div className="space-y-3">
+            {bot.matches.slice(0, 5).map((m, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/[0.01]">
+                <div className="flex items-center gap-4">
+                  <div className={`h-2 w-2 rounded-full ${m.result === 'win' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-rose-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]'}`} />
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-300">{m.tier}</div>
+                    <div className="text-[9px] text-slate-600 uppercase font-mono">{formatRelativeTime(m.finishedAt)}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-['Orbitron'] text-xs text-white pb-1">{m.score}</div>
+                  <div className="text-[9px] text-slate-600">{m.helpfulHits}H / {m.mistakes}M</div>
+                </div>
+              </div>
+            ))}
+            {bot.matches.length === 0 && <div className="py-10 text-center text-slate-600 text-[10px] uppercase font-bold tracking-widest">No bot rooms logged yet.</div>}
           </div>
         </div>
       ))}
     </div>
-  );
-}
+  </div>
+);
 
-export default function UserProfilePage({ sessionTheme = 'modern' }) {
+const ArsenalView = ({ unlockedTitles, lockedTitles, ownedItems, credentials, onEquipTitle, clearTitle, activeTitleKey, buyItem, equipItem, clearSlot, walletBalance }) => (
+  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
+      <div className="space-y-10">
+        <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+            <div className="flex items-center gap-3 text-slate-500 mb-8">
+              <Award className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Titles</span>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[...unlockedTitles, ...lockedTitles].map(title => {
+              const isUnlocked = unlockedTitles.find(t => t.key === title.key);
+              const isActive = activeTitleKey === title.key;
+              const accent = getTitleBadgeStyle(title.rarity);
+              return (
+                <div key={title.key} className={`relative group rounded-2xl border p-5 transition-all duration-300 ${isUnlocked ? (isActive ? 'border-[var(--theme-accent)] bg-[var(--theme-accent-soft)]/10' : 'border-white/5 bg-white/[0.02] hover:border-white/20') : 'border-white/5 bg-white/[0.01] grayscale opacity-50'}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 border border-white/5">
+                      <Trophy className={`h-4 w-4 ${isUnlocked ? 'text-[var(--theme-accent)]' : 'text-slate-700'}`} />
+                    </div>
+                    {isUnlocked && (
+                      <button 
+                        disabled={isActive}
+                        onClick={() => onEquipTitle(title.key)}
+                        className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all ${isActive ? 'border-transparent text-[var(--theme-accent)]' : 'border-white/10 text-slate-400 hover:text-white hover:bg-white/5'}`}
+                      >
+                        {isActive ? 'Active' : 'Equip'}
+                      </button>
+                    )}
+                  </div>
+                  <AnimatedTitleText title={title.name} rarity={title.rarity} className="text-sm font-black uppercase tracking-wider block mb-1" />
+                  <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-3" style={{ color: accent.color }}>Tier: {title.rarity}</div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed font-medium">{title.requirement}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+          <div className="flex items-center gap-3 text-slate-500 mb-8">
+            <Layers className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Equipped Cosmetics</span>
+          </div>
+          <div className="space-y-4">
+            {['frame', 'badge', 'banner'].map(slot => {
+              const item = credentials[slot];
+              return (
+                <div key={slot} className="flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.02] group">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-lg border border-white/5 bg-slate-900 flex items-center justify-center">
+                      {slot === 'frame' ? <Monitor className="h-4 w-4 text-slate-600" /> : slot === 'badge' ? <BadgeCheck className="h-4 w-4 text-slate-600" /> : <Layers className="h-4 w-4 text-slate-600" />}
+                    </div>
+                    <div>
+                      <div className="text-[9px] uppercase tracking-[0.2em] text-slate-600">{slot}</div>
+                      <div className="text-[11px] font-bold text-white uppercase">{item?.name || 'Standard v1'}</div>
+                    </div>
+                  </div>
+                  {item && (
+                    <button 
+                      onClick={() => clearSlot(slot)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white"
+                    >
+                      CLEAR
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-[var(--theme-accent-soft)]/20 bg-[var(--theme-accent-soft)]/5 p-8">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3 text-slate-500">
+                <Wallet className="h-4 w-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Token Balance</span>
+              </div>
+            <div className="font-['Orbitron'] text-lg font-bold text-[var(--theme-accent)]">{formatTokenCount(walletBalance)}</div>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-wider mb-6">
+            Tokens come from season rewards and future ranked progression.
+          </p>
+          <button 
+            onClick={() => window.location.href='/marketplace'}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--theme-accent-soft)] bg-[var(--theme-accent-soft)]/10 text-[10px] font-black uppercase tracking-widest text-[var(--theme-accent)] hover:bg-[var(--theme-accent-soft)]/20 transition-all"
+          >
+            Open Marketplace <RefreshCw className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const MilestonesView = ({ achievements, challenges, seasonRewards, onClaimReward, claimingKey }) => (
+  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+      <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+        <div className="flex items-center gap-3 text-slate-500 mb-8">
+          <Award className="h-4 w-4" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Achievements</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {achievements.map(a => {
+            const currentValue = Number(a.currentValue ?? a.value ?? 0);
+            const targetValue = Math.max(1, Number(a.target || 1));
+            const progressPercent = a.unlocked ? 100 : Math.max(0, Math.min(100, Math.floor((currentValue / targetValue) * 100)));
+            return (
+            <div key={a.key} className={`flex flex-col p-4 rounded-2xl border ${a.unlocked ? 'border-emerald-500/20 bg-emerald-500/[0.02]' : 'border-white/5 bg-white/[0.01] opacity-60'}`}>
+              <div className="flex items-start justify-between mb-2">
+                <div className={`text-[11px] font-black uppercase tracking-wider ${a.unlocked ? 'text-white' : 'text-slate-500'}`}>{a.name}</div>
+                {a.unlocked ? <BadgeCheck className="h-4 w-4 text-emerald-400" /> : <Binary className="h-4 w-4 text-slate-800" />}
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed mb-4 font-medium">{a.description}</p>
+              <div className="mt-auto pt-2 border-t border-white/5 flex items-center justify-between">
+                <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden mr-3">
+                  <div className={`h-full ${a.unlocked ? 'bg-emerald-400' : 'bg-slate-700'}`} style={{ width: `${progressPercent}%` }} />
+                </div>
+                <span className="text-[9px] font-mono text-slate-600">{a.unlocked ? '100%' : `${progressPercent}%`}</span>
+              </div>
+            </div>
+          )})}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+          <div className="flex items-center gap-3 text-slate-500 mb-8">
+            <History className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Challenge Ladder</span>
+          </div>
+          <div className="space-y-3">
+            {challenges.slice(0, 8).map((c, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.02] group hover:border-white/10 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="h-9 w-9 rounded-lg border border-white/5 bg-slate-900 flex items-center justify-center font-['Orbitron'] text-[10px] font-black text-slate-500">
+                    L{String(i + 1).padStart(2, '0')}
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-300">{c.contract_title}</div>
+                    <div className="text-[9px] text-slate-600 uppercase font-mono tracking-tighter">{c.difficulty} SEC_CLEAR</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-right">
+                  <div>
+                    <div className="font-['Orbitron'] text-xs text-white pb-0.5">{c.score}</div>
+                    <div className="text-[9px] text-emerald-500 uppercase font-black">{c.grade}</div>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-800" />
+                </div>
+              </div>
+            ))}
+            {challenges.length === 0 && <div className="py-20 text-center text-slate-600 text-[10px] uppercase font-bold tracking-widest">No ladder clears recorded.</div>}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-[var(--theme-accent-soft)]/20 bg-[var(--theme-accent-soft)]/5 p-8">
+          <div className="flex items-center gap-3 text-slate-500 mb-8">
+            <Sparkles className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Season Rewards</span>
+          </div>
+          <div className="space-y-4">
+            {seasonRewards.slice(0, 3).map(r => (
+              <div key={r.key} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-white truncate">{r.name}</div>
+                  <div className="text-[9px] text-slate-600 uppercase mt-0.5">{r.requirement}</div>
+                </div>
+                <button 
+                  disabled={!r.unlocked || r.claimed || claimingKey === r.key}
+                  onClick={() => onClaimReward(r.key)}
+                  className={`ml-4 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${r.claimed ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : r.unlocked ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-transparent border-white/5 text-slate-700'}`}
+                >
+                  {r.claimed ? 'Claimed' : r.unlocked ? 'Ready' : 'Locked'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const RecentUnlocksView = ({ items }) => (
+  <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+      <div className="mb-8 flex items-center gap-3 text-slate-500">
+        <History className="h-4 w-4" />
+        <span className="text-[10px] font-black uppercase tracking-widest">Recent Unlocks</span>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-white/5 bg-white/[0.01] px-6 py-16 text-center">
+          <div className="text-[11px] font-semibold text-slate-300">No recent progression unlocks yet.</div>
+          <div className="mt-2 text-[10px] uppercase tracking-widest text-slate-600">
+            New titles, achievements, and reward-ready items will appear here.
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {items.map((item) => (
+            <div key={`${item.type}-${item.key}`} className="flex items-center justify-between gap-4 rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{item.typeLabel}</span>
+                  <span className={`rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                    item.status === 'ready'
+                      ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
+                      : 'border-white/10 bg-white/[0.03] text-slate-300'
+                  }`}>
+                    {item.statusLabel}
+                  </span>
+                </div>
+                <div className="mt-2 text-[13px] font-semibold text-white">{item.name}</div>
+                <div className="mt-1 text-[11px] text-slate-500">{item.meta}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-[11px] font-semibold text-slate-200">{item.whenLabel}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-600">{item.rarity || 'standard'}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+/* -------------------------------------------------------------------------- */
+/*                               MAIN PAGE                                     */
+/* -------------------------------------------------------------------------- */
+
+export default function UserProfilePage() {
   const { user, replaceUser, getAuthHeader } = useAuth();
-  const { data: seasonData, loading: statsLoading, error: statsError, refresh: refreshStats } = usePvpSeasonStats();
-  const { data: challengeData, loading: challengeLoading, error: challengeError, refresh: refreshChallenge } = useChallengeResults();
-  const { data: marketplaceData, loading: marketplaceLoading, error: marketplaceError, refresh: refreshMarketplace } = useProfileMarketplace();
+  const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
+  const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
+  const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
   const { stats: presenceStats, refreshPresence } = usePresenceContext();
-  const [equippingTitleKey, setEquippingTitleKey] = useState('');
-  const [titleActionError, setTitleActionError] = useState('');
-  const [claimingRewardKey, setClaimingRewardKey] = useState('');
-  const [rewardActionError, setRewardActionError] = useState('');
-  const [marketActionKey, setMarketActionKey] = useState('');
-  const [marketActionError, setMarketActionError] = useState('');
-  const displayName = useMemo(() => resolveAuthDisplayName(user) || 'Trailblazer', [user]);
-  const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
-  const initial = displayName.charAt(0).toUpperCase() || 'T';
-  const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const equippedTitle = useMemo(() => getTitleDefinition(equippedTitleKey), [equippedTitleKey]);
-  const equippedCosmetics = useMemo(() => resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const equippedBadgeItem = useMemo(() => getMarketplaceItem(equippedCosmetics.badgeKey), [equippedCosmetics.badgeKey]);
-  const equippedNameplateItem = useMemo(() => getMarketplaceItem(equippedCosmetics.nameplateKey), [equippedCosmetics.nameplateKey]);
-  const equippedFrameItem = useMemo(() => getMarketplaceItem(equippedCosmetics.frameKey), [equippedCosmetics.frameKey]);
-  const memberDirectory = useMemo(() => Array.isArray(presenceStats?.users) ? presenceStats.users : [], [presenceStats?.users]);
-  const onlineMembers = useMemo(() => memberDirectory.filter((entry) => entry.status === 'online'), [memberDirectory]);
-  const siteOnlineCount = Number(presenceStats?.online || 0);
-  const profile = seasonData?.profile || null;
-  const progression = profile?.progression || null;
-  const rankTier = profile?.rankTier || null;
-  const rewardTrack = Array.isArray(profile?.rewardTrack) ? profile.rewardTrack : [];
-  const claimedRewards = useMemo(() => rewardTrack.filter((entry) => entry.claimed), [rewardTrack]);
-  const recentMatches = Array.isArray(profile?.competitiveMatches) ? profile.competitiveMatches : [];
-  const practiceMatches = Array.isArray(profile?.practiceMatches) ? profile.practiceMatches : [];
-  const seasonLabel = String(seasonData?.season?.label || 'Current season');
-  const challengeRows = Array.isArray(challengeData?.rows) ? challengeData.rows : [];
-  const challengeDisplayRows = useMemo(() => dedupeChallengeRows(challengeRows), [challengeRows]);
-  const solvedContractIds = useMemo(
-    () => new Set(challengeDisplayRows.filter((row) => !row?.generated).map((row) => String(row.contract_id || ''))),
-    [challengeDisplayRows]
-  );
-  const totalChallengeContracts = CHALLENGE_CONTRACT_ORDER.length;
-  const solvedChallengeCount = solvedContractIds.size;
-  const unsolvedChallengeCount = Math.max(0, totalChallengeContracts - solvedChallengeCount);
-  const practiceByBot = useMemo(
-    () => (Array.isArray(profile?.practiceByBot) && profile.practiceByBot.length > 0 ? profile.practiceByBot : summarizePracticeByBot(practiceMatches)),
-    [practiceMatches, profile?.practiceByBot],
-  );
-  const botSessionTables = useMemo(
-    () => buildBotSessionTables(practiceMatches, practiceByBot),
-    [practiceByBot, practiceMatches],
-  );
-  const titleCatalog = useMemo(() => Array.isArray(progression?.titles) ? progression.titles : [], [progression?.titles]);
-  const unlockedTitles = useMemo(() => titleCatalog.filter((entry) => entry.unlocked), [titleCatalog]);
-  const lockedTitles = useMemo(() => titleCatalog.filter((entry) => !entry.unlocked), [titleCatalog]);
-  const achievementList = useMemo(() => Array.isArray(progression?.achievements) ? progression.achievements : [], [progression?.achievements]);
-  const unlockedAchievements = useMemo(() => achievementList.filter((entry) => entry.unlocked), [achievementList]);
-  const lockedAchievements = useMemo(() => achievementList.filter((entry) => !entry.unlocked), [achievementList]);
-  const inventoryReady = progression?.inventoryReady !== false;
-  const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
-  const testingGrant = Number(marketplaceData?.wallet?.testingGrant || 0);
-  const marketplaceCatalog = useMemo(() => Array.isArray(marketplaceData?.catalog) ? marketplaceData.catalog : [], [marketplaceData?.catalog]);
-  const ownedMarketItems = useMemo(() => marketplaceCatalog.filter((entry) => entry.owned), [marketplaceCatalog]);
-  const cosmeticMarketItems = useMemo(() => marketplaceCatalog.filter((entry) => entry.type !== 'title' && entry.availableInShop !== false), [marketplaceCatalog]);
-  const ownedCosmeticItems = useMemo(() => marketplaceCatalog.filter((entry) => entry.type !== 'title' && entry.owned), [marketplaceCatalog]);
-  const marketTitleItems = useMemo(() => marketplaceCatalog.filter((entry) => entry.type === 'title' && entry.availableInShop !== false), [marketplaceCatalog]);
-  const marketBusy = marketActionKey !== '';
 
-  const handleEquipTitle = async (nextTitleKey = '') => {
-    setEquippingTitleKey(nextTitleKey || 'clear');
-    setTitleActionError('');
+  const [activeTab, setActiveTab] = useState('dossier');
+  const [equippingKey, setEquippingKey] = useState('');
+  const [claimingKey, setClaimingKey] = useState('');
+
+  const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
+  const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
+  const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
+  
+  const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
+  const credentials = {
+    title: getTitleDefinition(equippedTitleKey),
+    ...resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {})
+  };
+
+  const equippedItems = {
+    badge: getMarketplaceItem(credentials.badgeKey),
+    banner: getMarketplaceItem(credentials.nameplateKey),
+    frame: getMarketplaceItem(credentials.frameKey),
+    title: credentials.title
+  };
+
+  const profile = seasonData?.profile || {};
+  const challengeRows = challengeData?.rows || [];
+  const marketplaceCatalog = marketplaceData?.catalog || [];
+  
+  const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
+
+  const statsOverview = {
+    userId: user?.id,
+    leaderboardRank: profile.leaderboardRank,
+    bestScore: profile.competitive?.bestScore || profile.all?.bestScore || 0,
+    winRate: profile.competitive?.winRate || 0,
+    handcraftedClears: new Set(challengeRows.filter(r => !r.generated).map(r => r.contract_id)).size,
+    bestChallengeGrade: challengeData?.summary?.bestGrade || 'C-',
+    ownedItemsCount: marketplaceCatalog.filter(it => it.owned).length,
+    level: profile.progression?.levelProgress?.level || 1,
+    totalXp: profile.progression?.levelProgress?.totalXp || 0,
+    currentLevelXp: profile.progression?.levelProgress?.currentLevelXp || 0,
+    nextLevelXp: profile.progression?.levelProgress?.nextLevelXp || 0,
+    xpToNextLevel: profile.progression?.levelProgress?.xpToNextLevel || 0,
+    levelProgressPercent: profile.progression?.levelProgress?.progressPercent || 0,
+  };
+
+  const titleCatalog = useMemo(() => {
+    const progressionTitles = Array.isArray(profile.progression?.titles) ? profile.progression.titles : [];
+    return progressionTitles
+      .map((entry) => ({
+        ...getTitleDefinition(entry.key),
+        ...entry,
+      }))
+      .filter((entry) => entry?.key);
+  }, [profile.progression?.titles]);
+
+  const botTables = useMemo(() => {
+    const pm = profile.practiceMatches || [];
+    const pb = profile.practiceByBot || [];
+    return ['Svarog Bot', 'Clara Bot'].map(name => ({
+      botName: name,
+      summary: pb.find(e => normalizeBotGroupName(e.botName) === name),
+      matches: pm.filter(m => normalizeBotGroupName(m.opponentName) === name).sort((a,b) => new Date(b.finishedAt) - new Date(a.finishedAt))
+    }));
+  }, [profile]);
+
+  const recentUnlocks = useMemo(() => {
+    const titleItems = (profile.progression?.titles || [])
+      .filter((entry) => entry.unlocked && entry.unlockedAt)
+      .map((entry) => ({
+        type: 'title',
+        typeLabel: 'Title',
+        status: 'unlocked',
+        statusLabel: 'Unlocked',
+        key: entry.key,
+        name: entry.name,
+        rarity: entry.rarity,
+        whenValue: new Date(entry.unlockedAt).getTime(),
+        whenLabel: formatRelativeTime(entry.unlockedAt),
+        meta: entry.requirement || 'Progression title unlocked.',
+      }));
+
+    const achievementItems = (profile.progression?.achievements || [])
+      .filter((entry) => entry.unlocked && entry.unlockedAt)
+      .map((entry) => ({
+        type: 'achievement',
+        typeLabel: 'Achievement',
+        status: 'unlocked',
+        statusLabel: 'Unlocked',
+        key: entry.key,
+        name: entry.name,
+        rarity: entry.category || 'standard',
+        whenValue: new Date(entry.unlockedAt).getTime(),
+        whenLabel: formatRelativeTime(entry.unlockedAt),
+        meta: entry.description || entry.progressLabel || 'Achievement complete.',
+      }));
+
+    const rewardItems = (profile.rewardTrack || [])
+      .filter((entry) => entry.claimedAt || entry.unlocked)
+      .map((entry) => ({
+        type: 'reward',
+        typeLabel: 'Reward',
+        status: entry.claimed ? 'claimed' : 'ready',
+        statusLabel: entry.claimed ? 'Claimed' : 'Ready',
+        key: entry.key,
+        name: entry.name,
+        rarity: entry.rarity,
+        whenValue: entry.claimedAt ? new Date(entry.claimedAt).getTime() : 0,
+        whenLabel: entry.claimedAt ? formatRelativeTime(entry.claimedAt) : 'Ready now',
+        meta: entry.claimed ? 'Reward moved into your inventory.' : entry.requirement || 'Reward track requirement met.',
+      }));
+
+    return [...titleItems, ...achievementItems, ...rewardItems]
+      .sort((left, right) => Number(right.whenValue || 0) - Number(left.whenValue || 0))
+      .slice(0, 16);
+  }, [profile.progression?.achievements, profile.progression?.titles, profile.rewardTrack]);
+
+  const handleEquipTitle = async (key) => {
+    setEquippingKey(key || 'clear');
     try {
       const response = await fetch(buildApiUrl('/api/profile-title'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
-          action: nextTitleKey ? 'equip' : 'clear',
-          titleKey: nextTitleKey || undefined,
-        }),
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ action: key ? 'equip' : 'clear', titleKey: key || undefined }),
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to update title.');
+      const payload = await response.json();
+      if (response.ok && payload?.user) {
+        replaceUser?.(payload.user);
+        refreshPresence?.();
       }
-      if (payload?.user) {
-        const nextUser = nextTitleKey
-          ? payload.user
-          : {
-              ...payload.user,
-              user_metadata: {
-                ...(payload.user?.user_metadata || {}),
-                svarog_equipped_title: null,
-              },
-            };
-        replaceUser?.(nextUser);
-      }
-      refreshPresence?.();
-    } catch (error) {
-      setTitleActionError(error?.message || 'Failed to update title.');
-    } finally {
-      setEquippingTitleKey('');
-    }
-  };
-
-  const handleClaimReward = async (rewardKey) => {
-    const normalizedKey = String(rewardKey || '').trim();
-    if (!normalizedKey) return;
-    setClaimingRewardKey(normalizedKey);
-    setRewardActionError('');
-    try {
-      const response = await fetch(buildApiUrl('/api/profile-rewards'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ rewardKey: normalizedKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to claim reward.');
-      }
-      refreshStats?.();
-    } catch (error) {
-      setRewardActionError(error?.message || 'Failed to claim reward.');
-    } finally {
-      setClaimingRewardKey('');
-    }
+    } finally { setEquippingKey(''); }
   };
 
   const submitMarketplaceAction = async (body) => {
     const response = await fetch(buildApiUrl('/api/profile-marketplace'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(body),
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Marketplace action failed.');
-    }
-    if (payload?.user) {
+    const payload = await response.json();
+    if (response.ok && payload?.user) {
       replaceUser?.(payload.user);
-    }
-    await Promise.allSettled([
-      refreshMarketplace?.(),
-      refreshStats?.(),
-      refreshPresence?.(),
-    ]);
-    return payload;
-  };
-
-  const handlePurchaseMarketItem = async (itemKey) => {
-    const normalizedKey = String(itemKey || '').trim();
-    if (!normalizedKey) return;
-    setMarketActionKey(`purchase:${normalizedKey}`);
-    setMarketActionError('');
-    try {
-      await submitMarketplaceAction({
-        action: 'purchase',
-        itemKey: normalizedKey,
-      });
-    } catch (error) {
-      setMarketActionError(error?.message || 'Failed to purchase item.');
-    } finally {
-      setMarketActionKey('');
+      await Promise.allSettled([refreshMarketplace?.(), refreshStats?.(), refreshPresence?.()]);
     }
   };
 
-  const handleEquipMarketItem = async (item) => {
-    if (!item?.key || !item?.slot || item.type === 'title') return;
-    setMarketActionKey(`equip:${item.key}`);
-    setMarketActionError('');
+  const handleClaimReward = async (key) => {
+    setClaimingKey(key);
     try {
-      await submitMarketplaceAction({
-        action: 'equip',
-        itemKey: item.key,
-        slot: item.slot,
+      const response = await fetch(buildApiUrl('/api/profile-rewards'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ rewardKey: key }),
       });
-    } catch (error) {
-      setMarketActionError(error?.message || 'Failed to equip item.');
-    } finally {
-      setMarketActionKey('');
-    }
+      if (response.ok) refreshStats?.();
+    } finally { setClaimingKey(''); }
   };
 
-  const handleClearMarketSlot = async (slot) => {
-    const normalizedSlot = String(slot || '').trim();
-    if (!normalizedSlot) return;
-    setMarketActionKey(`clear:${normalizedSlot}`);
-    setMarketActionError('');
-    try {
-      await submitMarketplaceAction({
-        action: 'clear',
-        slot: normalizedSlot,
-      });
-    } catch (error) {
-      setMarketActionError(error?.message || 'Failed to clear slot.');
-    } finally {
-      setMarketActionKey('');
-    }
-  };
+  const tabs = [
+    { id: 'dossier', label: 'Overview', icon: BookOpen },
+    { id: 'combat', label: 'Matches', icon: Target },
+    { id: 'arsenal', label: 'Loadout', icon: Shield },
+    { id: 'milestones', label: 'Progress', icon: Award },
+    { id: 'recent', label: 'Recent', icon: History },
+  ];
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
-          <section className="rounded-xl border p-5 sm:p-6" style={panelStyle()}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border" style={{ ...subtlePanelStyle(), ...getAvatarFrameStyle(equippedFrameItem?.key) }}>
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-lg font-semibold">{initial}</span>
-                  )}
-                </div>
-                <div>
-                  <UserIdentityBlock
-                    name={displayName}
-                    title={equippedTitle?.name || ''}
-                    rarity={equippedTitle?.rarity || 'common'}
-                    badge={equippedBadgeItem?.name || ''}
-                    badgeRarity={equippedBadgeItem?.rarity || 'common'}
-                    nameplate={equippedNameplateItem?.name || ''}
-                    nameplateRarity={equippedNameplateItem?.rarity || 'common'}
-                    nameClassName="text-2xl font-semibold sm:text-3xl"
-                    titleClassName="mt-1 text-[12px]"
-                  />
-                  <div className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-                    {seasonLabel} PvP season
-                    {profile?.leaderboardRank ? ` • Rank #${profile.leaderboardRank}` : ' • Unranked'}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <RankTierBadge tier={rankTier} />
-                    <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium" style={subtlePanelStyle()}>
-                      Site online: {siteOnlineCount}
-                    </span>
-                    <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium" style={subtlePanelStyle()}>
-                      Members online: {onlineMembers.length}
-                    </span>
-                  </div>
-                </div>
-              </div>
+    <div className="min-h-screen relative bg-transparent px-4 py-8 sm:px-8 lg:px-12">
+      {/* Ambience particles */}
+      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden">
+        <div className="absolute top-[10%] -left-20 h-[500px] w-[500px] rounded-full bg-[var(--theme-accent-soft)] blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[20%] -right-20 h-[500px] w-[500px] rounded-full bg-blue-500/20 blur-[120px]" />
+      </div>
 
+      <div className="mx-auto max-w-7xl relative z-10">
+        <IdentityHero 
+          user={user} 
+          displayName={displayName} 
+          credentials={equippedItems} 
+          stats={statsOverview} 
+          avatarUrl={avatarUrl} 
+          initials={initials}
+          rankTier={profile.rankTier}
+        />
+
+        <div className="flex flex-col gap-10">
+          {/* Tactical Tab Nav */}
+          <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-white/[0.03] border border-white/5 mx-auto">
+            {tabs.map(tab => (
               <button
-                type="button"
-                onClick={() => {
-                  refreshPresence?.();
-                  refreshStats?.();
-                  refreshChallenge?.();
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
-                style={subtlePanelStyle()}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ${activeTab === tab.id ? 'bg-[var(--theme-accent)] text-white shadow-[0_0_20px_rgba(0,0,0,0.3)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
               >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
+                <tab.icon className={`h-4 w-4 ${activeTab === tab.id ? 'text-white' : 'text-slate-700'}`} />
+                <span className="font-['Orbitron'] text-[11px] font-black uppercase tracking-[0.16em]">{tab.label}</span>
               </button>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatTile
-                label="Competitive record"
-                value={`${profile?.competitive?.wins || 0}-${profile?.competitive?.losses || 0}-${profile?.competitive?.draws || 0}`}
-                hint={`${profile?.competitive?.matches || 0} matches • ${profile?.competitive?.winRate || 0}% win rate`}
-                accent
-              />
-              <StatTile
-                label="Season points"
-                value={profile?.competitive?.seasonPoints || 0}
-                hint={rankTier?.name || seasonData?.season?.pointsRule || '3 for a win, 1 for a draw'}
-              />
-              <StatTile
-                label="Bot room record"
-                value={`${profile?.practice?.wins || 0}-${profile?.practice?.losses || 0}-${profile?.practice?.draws || 0}`}
-                hint={`${profile?.practice?.matches || 0} bot rooms`}
-              />
-              <StatTile
-                label="Best score"
-                value={profile?.competitive?.bestScore || profile?.all?.bestScore || 0}
-                hint={`Average ${profile?.competitive?.averageScore || profile?.all?.averageScore || 0}`}
-              />
-            </div>
-
-            {statsError ? (
-              <div className="mt-4 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                {statsError}
-              </div>
-            ) : null}
-          </section>
-
-          <SectionCard
-            title="Season track"
-            description="Live rank tier plus claimable seasonal rewards."
-            icon={Sparkles}
-          >
-            <div className="space-y-3">
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium">Current tier</div>
-                    <div className="mt-2"><RankTierBadge tier={rankTier} /></div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Leaderboard</div>
-                    <div className="mt-1 text-sm font-semibold">{profile?.leaderboardRank ? `#${profile.leaderboardRank}` : 'Unranked'}</div>
-                  </div>
-                </div>
-              </div>
-
-              {rewardActionError ? (
-                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                  {rewardActionError}
-                </div>
-              ) : null}
-
-              {rewardTrack.length > 0 ? rewardTrack.map((item) => (
-                <RewardTrackRow
-                  key={item.key}
-                  item={item}
-                  claiming={claimingRewardKey === item.key}
-                  onClaim={handleClaimReward}
-                />
-              )) : (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  Reward rules will appear once this account has season activity.
-                </div>
-              )}
-
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Claimed inventory</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {claimedRewards.length === 0 ? (
-                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No claimed season rewards yet.</span>
-                  ) : claimedRewards.map((item) => (
-                    <span
-                      key={`claimed-${item.key}`}
-                      className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold"
-                      style={getTitleBadgeStyle(item.rarity || 'common')}
-                    >
-                      {item.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </section>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <SectionCard
-            title="Market"
-            description="Wallet, owned cosmetics, and market-only titles. Purchased titles unlock in the Titles section."
-            icon={Store}
-          >
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatTile
-                  label="Tokens"
-                  value={formatTokenCount(walletBalance)}
-                  hint={testingGrant > 0 ? `Test grant active: ${formatTokenCount(testingGrant)}` : 'Earn more through season rewards later'}
-                  accent
-                />
-                <StatTile
-                  label="Owned items"
-                  value={ownedMarketItems.length}
-                  hint={`${marketTitleItems.filter((entry) => entry.owned).length} titles, ${ownedCosmeticItems.length} cosmetics`}
-                />
-                <StatTile
-                  label="Equipped cosmetics"
-                  value={[equippedBadgeItem, equippedNameplateItem, equippedFrameItem].filter(Boolean).length}
-                  hint="Frame, badge, nameplate"
-                />
-              </div>
-
-              {marketActionError ? (
-                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                  {marketActionError}
-                </div>
-              ) : null}
-
-              {marketplaceError ? (
-                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                  {marketplaceError}
-                </div>
-              ) : null}
-
-              <div className="grid gap-3 lg:grid-cols-3">
-                <EquippedCosmeticRow
-                  label="Frame"
-                  item={equippedFrameItem}
-                  clearing={marketActionKey === 'clear:frame'}
-                  locked={marketBusy}
-                  onClear={() => handleClearMarketSlot('frame')}
-                />
-                <EquippedCosmeticRow
-                  label="Badge"
-                  item={equippedBadgeItem}
-                  clearing={marketActionKey === 'clear:badge'}
-                  locked={marketBusy}
-                  onClear={() => handleClearMarketSlot('badge')}
-                />
-                <EquippedCosmeticRow
-                  label="Nameplate"
-                  item={equippedNameplateItem}
-                  clearing={marketActionKey === 'clear:nameplate'}
-                  locked={marketBusy}
-                  onClear={() => handleClearMarketSlot('nameplate')}
-                />
-              </div>
-
-              {marketplaceLoading && marketplaceCatalog.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  Loading market inventory...
-                </div>
-              ) : null}
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                {marketplaceCatalog.map((item) => {
-                  const equippedKey = item.slot === 'frame'
-                    ? equippedFrameItem?.key
-                    : item.slot === 'badge'
-                      ? equippedBadgeItem?.key
-                      : item.slot === 'nameplate'
-                        ? equippedNameplateItem?.key
-                        : '';
-                  return (
-                    <MarketplaceItemCard
-                      key={item.key}
-                      item={item}
-                      actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
-                      locked={marketBusy}
-                      onPurchase={handlePurchaseMarketItem}
-                      onEquip={handleEquipMarketItem}
-                      equippedKey={equippedKey}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Owned loadout"
-            description="What this account already owns from the market and seasonal track."
-            icon={Wallet}
-          >
-            <div className="space-y-4">
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Market titles</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {marketTitleItems.filter((entry) => entry.owned).length === 0 ? (
-                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No market titles owned yet.</span>
-                  ) : marketTitleItems.filter((entry) => entry.owned).map((item) => (
-                    <div key={`owned-title-${item.key}`} className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={getTitleBadgeStyle(item.rarity || 'common')}>
-                      <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-[11px]" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Cosmetic inventory</div>
-                <div className="mt-3 space-y-2">
-                  {ownedCosmeticItems.length === 0 ? (
-                    <div className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No cosmetic items owned yet.</div>
-                  ) : ownedCosmeticItems.map((item) => (
-                    <div key={`owned-cosmetic-${item.key}`} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={subtlePanelStyle()}>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">{item.name}</div>
-                        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{item.type}</div>
-                      </div>
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getCosmeticAccentStyle(item.rarity)}>
-                        {item.rarity}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Season rewards claimed</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {claimedRewards.length === 0 ? (
-                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No claimed rewards yet.</span>
-                  ) : claimedRewards.map((item) => (
-                    <span key={`inventory-${item.key}`} className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={getTitleBadgeStyle(item.rarity || 'common')}>
-                      {item.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="grid gap-6">
-          <SectionCard
-            title="Recent PvP results"
-            description="Finished human-vs-human rooms for this season. These are the ones that count toward standings."
-            icon={Target}
-          >
-            {statsLoading && recentMatches.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                Loading season results...
-              </div>
-            ) : (
-              <MatchList
-                matches={recentMatches}
-                seasonLabel={seasonLabel}
-                badgeText="Competitive"
-                emptyText="No finished PvP rooms recorded for this account in {seasonLabel}."
-              />
-            )}
-          </SectionCard>
-        </div>
-
-        <div className="grid gap-6">
-          <SectionCard
-            title="Bot rooms"
-            description="Compact bot-season readout. Finished bot rooms roll into profile without needing a long room log."
-            icon={Target}
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <StatTile label="Bot rooms" value={profile?.practice?.matches || 0} hint={`${profile?.practice?.wins || 0} wins`} accent />
-              <StatTile label="Bot win rate" value={`${profile?.practice?.winRate || 0}%`} hint={`Best ${profile?.practice?.bestScore || 0}`} />
-              <StatTile label="Average score" value={profile?.practice?.averageScore || 0} hint={`Helpful hits ${profile?.practice?.averageHelpfulHits || 0}`} />
-            </div>
-
-            {Number(seasonData?.summary?.archivedBotRooms || 0) > 0 ? (
-              <div className="mb-4 rounded-lg border px-4 py-3 text-sm" style={subtlePanelStyle()}>
-                {seasonData.summary.archivedBotRooms} bot rooms already moved out of the live room table for this season.
-              </div>
-            ) : null}
-
-            <div className="space-y-4">
-              {botSessionTables.map((botTable) => (
-                <BotSessionTable
-                  key={botTable.botName}
-                  botName={botTable.botName}
-                  summary={botTable.summary}
-                  matches={botTable.matches}
-                />
-              ))}
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <SectionCard
-            title="Challenge ladder"
-            description="Handcrafted solver contracts cleared this season. Generated practice contracts are tracked separately."
-            icon={Sparkles}
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-4">
-              <StatTile label="Solved" value={solvedChallengeCount} hint={`${totalChallengeContracts} total`} accent />
-              <StatTile label="Unsolved" value={unsolvedChallengeCount} hint="Handcrafted contracts left" />
-              <StatTile label="Best challenge score" value={challengeData?.summary?.bestScore || 0} hint={`Fastest ${challengeData?.summary?.fastestClearSeconds ?? '--'}s`} />
-              <StatTile label="Generated clears" value={challengeData?.summary?.generatedClears || 0} hint="Practice-only clears" />
-            </div>
-
-            {challengeError ? (
-              <div className="mb-4 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                {challengeError}
-              </div>
-            ) : null}
-
-            {challengeLoading && challengeDisplayRows.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                Loading challenge results...
-              </div>
-            ) : (
-              <ChallengeLadderTable rows={challengeDisplayRows} />
-            )}
-          </SectionCard>
-
-          <SectionCard
-            title="Titles"
-            description="Persistent season titles. Equip one and it follows your name across the site."
-            icon={BadgeCheck}
-          >
-            <div className="space-y-3">
-              {titleActionError ? (
-                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>
-                  {titleActionError}
-                </div>
-              ) : null}
-
-              {!inventoryReady ? (
-                <div className="rounded-lg border px-4 py-3 text-sm" style={subtlePanelStyle()}>
-                  Progression inventory is still syncing. If this is the first run, apply `docs/supabase-user-progression.sql` and refresh once.
-                </div>
-              ) : null}
-
-              {titleCatalog.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  No titles unlocked yet. The first ones come from leaderboard placement, 5 competitive wins, and a 90+ duel score.
-                </div>
-              ) : null}
-
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="text-sm font-medium">Unlocked</div>
-                  {unlockedTitles.length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                      No unlocked titles yet.
-                    </div>
-                  ) : unlockedTitles.map((title) => (
-                    <div key={title.key} className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg border" style={subtlePanelStyle({ color: 'var(--theme-accent)' })}>
-                          <Trophy className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <AnimatedTitleText title={title.name} rarity={title.rarity} className="text-sm font-medium" />
-                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getTitleBadgeStyle(title.rarity)}>
-                              {title.rarity}
-                            </span>
-                            {equippedTitleKey === title.key ? (
-                              <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getTitleBadgeStyle(title.rarity)}>
-                                Equipped
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{title.requirement}</div>
-                          <div className="mt-2 text-[11px]" style={{ color: 'var(--theme-text-soft)' }}>
-                            {title.unlockedAt ? `Unlocked ${formatRelativeTime(title.unlockedAt)}` : 'Unlocked this season'}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={equippingTitleKey !== '' || equippedTitleKey === title.key}
-                          onClick={() => handleEquipTitle(title.key)}
-                          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                          style={equippedTitleKey === title.key ? getTitleBadgeStyle(title.rarity) : subtlePanelStyle()}
-                        >
-                          {equippedTitleKey === title.key ? 'Equipped' : equippingTitleKey === title.key ? 'Equipping...' : 'Equip'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="text-sm font-medium">Locked</div>
-                  {lockedTitles.length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-6 text-sm" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                      Full title catalog complete for this account.
-                    </div>
-                  ) : lockedTitles.map((title) => (
-                    <div key={title.key} className="rounded-lg border px-4 py-4" style={subtlePanelStyle({ opacity: 0.88 })}>
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg border" style={subtlePanelStyle()}>
-                          <Trophy className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <AnimatedTitleText title={title.name} rarity={title.rarity} className="text-sm font-medium" />
-                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getTitleBadgeStyle(title.rarity)}>
-                              {title.rarity}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{title.requirement}</div>
-                        </div>
-                        <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={{ color: 'var(--theme-text-muted)', borderColor: 'var(--theme-border-soft)' }}>
-                          Locked
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {equippedTitleKey ? (
-                <div className="flex items-center justify-between rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-                  <div>
-                    <div className="text-sm font-medium">Current equipped title</div>
-                    <AnimatedTitleText title={equippedTitle?.name || ''} rarity={equippedTitle?.rarity || 'common'} className="mt-1 text-xs" />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={equippingTitleKey !== ''}
-                    onClick={() => handleEquipTitle('')}
-                    className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                    style={subtlePanelStyle()}
-                  >
-                    {equippingTitleKey === 'clear' ? 'Clearing...' : 'Clear'}
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Streaks</div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span style={{ color: 'var(--theme-text-muted)' }}>Competitive win streak</span>
-                  <span className="font-semibold">{profile?.currentWinStreak || 0}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span style={{ color: 'var(--theme-text-muted)' }}>Best season streak</span>
-                  <span className="font-semibold">{profile?.bestWinStreak || 0}</span>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Achievements"
-            description="Persistent unlocks for ranked rooms, bot practice, and handcrafted solver clears."
-            icon={Target}
-          > 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <div>
-                <div className="mb-3 text-sm font-medium">Unlocked</div>
-                {unlockedAchievements.length === 0 ? (
-                  <div className="rounded-lg border border-dashed px-4 py-6 text-sm" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                    No achievements unlocked yet.
-                  </div>
-                ) : (
-                  <AchievementList items={unlockedAchievements} />
-                )}
-              </div>
-              <div>
-                <div className="mb-3 text-sm font-medium">In progress</div>
-                {lockedAchievements.length === 0 ? (
-                  <div className="rounded-lg border border-dashed px-4 py-6 text-sm" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                    Everything in the current achievement set is unlocked.
-                  </div>
-                ) : (
-                  <AchievementList items={lockedAchievements} />
-                )}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Member presence"
-            description="Authenticated members only. Site online includes anonymous sessions too."
-            icon={Users}
-            action={(
-              <button
-                type="button"
-                onClick={() => refreshPresence?.()}
-                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
-                style={subtlePanelStyle()}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
-            )}
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <StatTile label="Members online" value={onlineMembers.length} hint={`${memberDirectory.length} tracked`} accent />
-              <StatTile label="Site online" value={siteOnlineCount} hint="Anonymous + authenticated" />
-              <StatTile label="Season rooms" value={seasonData?.summary?.competitiveRooms || 0} hint="Competitive only" />
-            </div>
-
-            <div className="space-y-3">
-              {memberDirectory.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  No member presence data yet.
-                </div>
-              ) : null}
-
-              {memberDirectory.slice(0, 10).map((member) => (
-                <div key={member.userId} className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-                  <div className="min-w-0 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border" style={{ ...subtlePanelStyle(), ...getAvatarFrameStyle(member.frameKey) }}>
-                      {member.avatarUrl ? (
-                        <img src={member.avatarUrl} alt={member.displayName} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-semibold">{getInitials(member.displayName)}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <UserIdentityBlock
-                            name={member.displayName}
-                            title={member.titleLabel || ''}
-                            rarity={member.titleRarity || 'common'}
-                            badge={member.badgeLabel || ''}
-                            badgeRarity={member.badgeRarity || 'common'}
-                            nameplate={member.nameplateLabel || ''}
-                            nameplateRarity={member.nameplateRarity || 'common'}
-                            nameClassName="truncate text-sm font-medium"
-                            titleClassName="mt-0.5 text-[10px]"
-                          />
-                        </div>
-                        {member.role === 'admin' ? (
-                          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={{ borderColor: 'rgba(245, 158, 11, 0.28)', background: 'rgba(245, 158, 11, 0.10)', color: '#fcd34d' }}>
-                            Admin
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                        {member.status === 'online'
-                          ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
-                          : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
-                      </div>
-                    </div>
-                  </div>
-                  <span
-                    className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-medium capitalize"
-                    style={member.status === 'online'
-                      ? { background: 'rgba(16, 185, 129, 0.12)', color: '#6ee7b7', borderColor: 'rgba(16, 185, 129, 0.28)' }
-                      : { background: 'transparent', color: 'var(--theme-text-muted)', borderColor: 'var(--theme-border-soft)' }}
-                  >
-                    {member.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        </div>
-
-        <footer className="rounded-xl border px-5 py-4 text-sm" style={subtlePanelStyle()}>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="h-4 w-4" style={{ color: 'var(--theme-accent)' }} />
-              <span style={{ color: 'var(--theme-text-muted)' }}>
-                Season stats, bot summaries, challenge ladders, titles, and achievements now sync into the live progression inventory.
-              </span>
-            </div>
-            <span style={{ color: 'var(--theme-text-soft)' }}>
-              {sessionTheme} theme • {seasonData?.summary?.competitiveRooms || 0} competitive rooms tracked
-            </span>
+            ))}
+            <div className="h-6 w-[1px] bg-white/10 mx-2" />
+            <button 
+              onClick={() => { refreshStats?.(); refreshChallenge?.(); refreshPresence?.(); }}
+              className="px-4 py-3 text-slate-500 hover:text-white transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
           </div>
-        </footer>
+
+          <main className="min-h-[600px]">
+            {activeTab === 'dossier' && <DossierView stats={statsOverview} profile={profile} presence={presenceStats} />}
+            {activeTab === 'combat' && <CombatLogView recentMatches={profile.competitiveMatches} practiceMatches={profile.practiceMatches} botTables={botTables} />}
+            {activeTab === 'arsenal' && (
+              <ArsenalView 
+                unlockedTitles={titleCatalog.filter(t => t.unlocked)}
+                lockedTitles={titleCatalog.filter(t => !t.unlocked)}
+                credentials={equippedItems}
+                activeTitleKey={equippedTitleKey}
+                onEquipTitle={handleEquipTitle}
+                clearTitle={() => handleEquipTitle('')}
+                walletBalance={walletBalance}
+                clearSlot={(slot) => submitMarketplaceAction({ action: 'clear', slot })}
+              />
+            )}
+            {activeTab === 'milestones' && (
+              <MilestonesView 
+                achievements={profile.progression?.achievements || []} 
+                challenges={challengeRows.filter(r => !r.generated)}
+                seasonRewards={profile.rewardTrack || []}
+                onClaimReward={handleClaimReward}
+                claimingKey={claimingKey}
+              />
+            )}
+            {activeTab === 'recent' && <RecentUnlocksView items={recentUnlocks} />}
+          </main>
+        </div>
       </div>
     </div>
   );
 }
-
-

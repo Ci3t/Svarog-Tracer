@@ -6,6 +6,7 @@ import {
   setCorsHeaders,
   supabaseAdminRequest,
 } from '../zone/shared.js';
+import { getSeasonStatsSnapshot } from '../pvp/stats.js';
 
 const env = globalThis.process?.env || {};
 const CHALLENGE_RESULTS_TABLE = env.SUPABASE_CHALLENGE_RESULTS_TABLE || 'challenge_results';
@@ -108,6 +109,51 @@ function summarizeRows(rows) {
   return summary;
 }
 
+function buildProgressionDelta(previousProgression, nextProgression) {
+  const previousLevel = previousProgression?.levelProgress || {};
+  const nextLevel = nextProgression?.levelProgress || {};
+
+  const previouslyUnlockedRewards = new Set(
+    (Array.isArray(previousProgression?.rewards) ? previousProgression.rewards : [])
+      .filter((entry) => entry?.unlocked)
+      .map((entry) => String(entry?.key || '').trim())
+      .filter(Boolean),
+  );
+
+  const newlyUnlockedRewards = (Array.isArray(nextProgression?.rewards) ? nextProgression.rewards : [])
+    .filter((entry) => entry?.unlocked && !previouslyUnlockedRewards.has(String(entry?.key || '').trim()))
+    .map((entry) => ({
+      key: entry.key,
+      name: entry.name,
+      rarity: entry.rarity,
+      rewardType: entry.rewardType,
+      grantTokens: normalizeNumber(entry.grantTokens, 0),
+    }));
+
+  return {
+    xpGained: Math.max(0, normalizeNumber(nextLevel.totalXp, 0) - normalizeNumber(previousLevel.totalXp, 0)),
+    levelBefore: normalizeNumber(previousLevel.level, 1),
+    levelAfter: normalizeNumber(nextLevel.level, 1),
+    totalXp: normalizeNumber(nextLevel.totalXp, 0),
+    currentLevelXp: normalizeNumber(nextLevel.currentLevelXp, 0),
+    nextLevelXp: normalizeNumber(nextLevel.nextLevelXp, 0),
+    xpToNextLevel: normalizeNumber(nextLevel.xpToNextLevel, 0),
+    progressPercent: normalizeNumber(nextLevel.progressPercent, 0),
+    leveledUp: normalizeNumber(nextLevel.level, 1) > normalizeNumber(previousLevel.level, 1),
+    unlockedRewards: newlyUnlockedRewards,
+    nextReward: nextProgression?.nextReward
+      ? {
+        key: nextProgression.nextReward.key,
+        name: nextProgression.nextReward.name,
+        rarity: nextProgression.nextReward.rarity,
+        rewardType: nextProgression.nextReward.rewardType,
+        targetLevel: normalizeNumber(nextProgression.nextReward.targetLevel, 1),
+        xpRemaining: normalizeNumber(nextProgression.nextReward.xpRemaining, 0),
+      }
+      : null,
+  };
+}
+
 async function createChallengeResult(user, body) {
   const season = resolveSeasonWindow();
   const contractId = normalizeText(body?.contractId, '', 120);
@@ -179,8 +225,24 @@ export async function handler(req, res) {
           ? JSON.parse(req.body || '{}')
           : {};
 
+      const previousSnapshot = await getSeasonStatsSnapshot({
+        viewer: user,
+        limit: 12,
+      }).catch(() => null);
       const result = await createChallengeResult(user, body);
-      return res.status(200).json({ success: true, result });
+      const nextSnapshot = await getSeasonStatsSnapshot({
+        viewer: user,
+        limit: 12,
+      }).catch(() => null);
+
+      return res.status(200).json({
+        success: true,
+        result,
+        progressionDelta: buildProgressionDelta(
+          previousSnapshot?.profile?.progression,
+          nextSnapshot?.profile?.progression,
+        ),
+      });
     }
 
     if (req.method === 'GET') {

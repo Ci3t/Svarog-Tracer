@@ -463,6 +463,8 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const [answers, setAnswers] = useState({});
   const [sessionTab, setSessionTab] = useState('current');
   const [claraSpeaking, setClaraSpeaking] = useState(false);
+  const [progressionSummary, setProgressionSummary] = useState(null);
+  const [progressionSyncing, setProgressionSyncing] = useState(false);
   const drillSessionKeyRef = React.useRef(`drills-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const loggedDrillSessionRef = React.useRef('');
 
@@ -525,6 +527,8 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const handleRestart = () => {
     drillSessionKeyRef.current = `drills-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     loggedDrillSessionRef.current = '';
+    setProgressionSummary(null);
+    setProgressionSyncing(false);
     setCurrentIndex(0);
     setSelectedAnswer('');
     setRevealed(false);
@@ -538,6 +542,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     const sessionKey = drillSessionKeyRef.current;
     if (!sessionKey || loggedDrillSessionRef.current === sessionKey) return;
     loggedDrillSessionRef.current = sessionKey;
+    setProgressionSyncing(true);
 
     fetch(buildApiUrl('/api/practice-results'), {
       method: 'POST',
@@ -558,7 +563,19 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
           drill_count: drills.length,
         },
       }),
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json().catch(() => null);
+      })
+      .then((payload) => {
+        if (!payload?.success || payload?.duplicate || !payload?.progressionDelta) return;
+        setProgressionSummary(payload.progressionDelta);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setProgressionSyncing(false);
+      });
   }, [answers, drills.length, getAuthHeader, isComplete, score, user?.id]);
 
   return (
@@ -636,6 +653,55 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
               You've successfully analyzed the core patterns. The simulator logic is now unlocked. Time to step into the real challenges.
             </p>
 
+            <div className="mt-8 w-full max-w-3xl rounded-2xl border border-white/10 bg-black/35 p-5 text-left shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
+                    Season Progress
+                  </div>
+                  <div className="mt-2 text-2xl font-black text-white">
+                    {progressionSummary ? `+${progressionSummary.xpGained || 0} XP` : (progressionSyncing ? 'Syncing...' : 'No XP logged')}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-right">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Season level</div>
+                  <div className="mt-1 text-lg font-black text-white">
+                    {progressionSummary ? `Lv ${progressionSummary.levelAfter || 1}` : '--'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  <span>Current level XP</span>
+                  <span>
+                    {progressionSummary
+                      ? `${progressionSummary.currentLevelXp || 0}/${progressionSummary.nextLevelXp || 0}`
+                      : (progressionSyncing ? 'Waiting...' : '--/--')}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full border border-white/10 bg-white/[0.05]">
+                  <div
+                    className="h-full bg-emerald-400 transition-all duration-700 ease-out"
+                    style={{ width: `${progressionSummary ? Math.max(0, Math.min(100, progressionSummary.progressPercent || 0)) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Reward status</div>
+                <div className="mt-2 text-sm font-semibold text-white">
+                  {progressionSummary
+                    ? Array.isArray(progressionSummary.unlockedRewards) && progressionSummary.unlockedRewards.length > 0
+                      ? `${progressionSummary.unlockedRewards[0].name} unlocked`
+                      : progressionSummary.nextReward
+                        ? `${progressionSummary.nextReward.xpRemaining} XP left to ${progressionSummary.nextReward.name}`
+                        : 'No pending reward from this clear'
+                    : (progressionSyncing ? 'Checking reward unlocks...' : 'No progression update available')}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <button
                 type="button"
@@ -655,15 +721,33 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             {/* HUD / ARENA HEADER */}
             <div className="flex items-end justify-between px-2 pt-2">
                {/* Player / HP Bar equivalent */}
-               <div className="flex flex-col flex-1 max-w-[200px]">
+               <div className="flex flex-col flex-1 max-w-[240px]">
                   <div className="flex justify-between items-end mb-1">
                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Player</span>
-                     <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-500/80">Lvl {score}</span>
+                     <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-500/80">
+                       {progressionSummary ? `Lv ${progressionSummary.levelAfter || 1}` : `Score ${score}`}
+                     </span>
                   </div>
                   <div className="h-2 w-full bg-black/60 border border-emerald-500/20 rounded-full overflow-hidden shadow-inner">
-                     <div className="h-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)] transition-all duration-700 ease-out" style={{ width: `${(score / drills.length) * 100}%` }} />
+                     <div
+                       className="h-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)] transition-all duration-700 ease-out"
+                       style={{ width: `${progressionSummary ? Math.max(0, Math.min(100, progressionSummary.progressPercent || 0)) : (score / drills.length) * 100}%` }}
+                     />
                   </div>
-                  <span className="text-[8px] uppercase font-black tracking-[0.15em] mt-1.5 text-slate-500">Exp {score}/{drills.length} Score</span>
+                  <span className="text-[8px] uppercase font-black tracking-[0.15em] mt-1.5 text-slate-500">
+                    {progressionSummary
+                      ? `${progressionSummary.currentLevelXp || 0}/${progressionSummary.nextLevelXp || 0} season xp`
+                      : `Score ${score}/${drills.length}`}
+                  </span>
+                  {progressionSummary ? (
+                    <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-cyan-300">
+                      {Array.isArray(progressionSummary.unlockedRewards) && progressionSummary.unlockedRewards.length > 0
+                        ? `${progressionSummary.unlockedRewards[0].name} unlocked`
+                        : progressionSummary.nextReward
+                          ? `${progressionSummary.nextReward.xpRemaining} xp to ${progressionSummary.nextReward.name}`
+                          : `+${progressionSummary.xpGained || 0} xp logged`}
+                    </span>
+                  ) : null}
                </div>
                
                {/* Opponent / Encounter Info */}

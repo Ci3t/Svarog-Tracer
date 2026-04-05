@@ -5,6 +5,7 @@ import {
   setCorsHeaders,
   supabaseAdminRequest,
 } from './_services/zone/shared.js';
+import { getSeasonStatsSnapshot } from './_services/pvp/stats.js';
 
 const env = globalThis.process?.env || {};
 const PRACTICE_RESULTS_TABLE = env.SUPABASE_PRACTICE_RESULTS_TABLE || 'practice_results';
@@ -29,6 +30,56 @@ function readBody(req) {
     }
   }
   return {};
+}
+
+function normalizeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function buildProgressionDelta(previousProgression, nextProgression) {
+  const previousLevel = previousProgression?.levelProgress || {};
+  const nextLevel = nextProgression?.levelProgress || {};
+
+  const previouslyUnlockedRewards = new Set(
+    (Array.isArray(previousProgression?.rewards) ? previousProgression.rewards : [])
+      .filter((entry) => entry?.unlocked)
+      .map((entry) => String(entry?.key || '').trim())
+      .filter(Boolean),
+  );
+
+  const newlyUnlockedRewards = (Array.isArray(nextProgression?.rewards) ? nextProgression.rewards : [])
+    .filter((entry) => entry?.unlocked && !previouslyUnlockedRewards.has(String(entry?.key || '').trim()))
+    .map((entry) => ({
+      key: entry.key,
+      name: entry.name,
+      rarity: entry.rarity,
+      rewardType: entry.rewardType,
+      grantTokens: normalizeNumber(entry.grantTokens, 0),
+    }));
+
+  return {
+    xpGained: Math.max(0, normalizeNumber(nextLevel.totalXp, 0) - normalizeNumber(previousLevel.totalXp, 0)),
+    levelBefore: normalizeNumber(previousLevel.level, 1),
+    levelAfter: normalizeNumber(nextLevel.level, 1),
+    totalXp: normalizeNumber(nextLevel.totalXp, 0),
+    currentLevelXp: normalizeNumber(nextLevel.currentLevelXp, 0),
+    nextLevelXp: normalizeNumber(nextLevel.nextLevelXp, 0),
+    xpToNextLevel: normalizeNumber(nextLevel.xpToNextLevel, 0),
+    progressPercent: normalizeNumber(nextLevel.progressPercent, 0),
+    leveledUp: normalizeNumber(nextLevel.level, 1) > normalizeNumber(previousLevel.level, 1),
+    unlockedRewards: newlyUnlockedRewards,
+    nextReward: nextProgression?.nextReward
+      ? {
+        key: nextProgression.nextReward.key,
+        name: nextProgression.nextReward.name,
+        rarity: nextProgression.nextReward.rarity,
+        rewardType: nextProgression.nextReward.rewardType,
+        targetLevel: normalizeNumber(nextProgression.nextReward.targetLevel, 1),
+        xpRemaining: normalizeNumber(nextProgression.nextReward.xpRemaining, 0),
+      }
+      : null,
+  };
 }
 
 export default async function handler(req, res) {
@@ -65,12 +116,28 @@ export default async function handler(req, res) {
     };
 
     try {
+      const previousSnapshot = await getSeasonStatsSnapshot({
+        viewer: user,
+        limit: 12,
+      }).catch(() => null);
       const inserted = await supabaseAdminRequest(PRACTICE_RESULTS_TABLE, {
         method: 'POST',
         body: payload,
       });
       const row = Array.isArray(inserted) ? inserted[0] || null : inserted || null;
-      return res.status(200).json({ success: true, row, duplicate: false });
+      const nextSnapshot = await getSeasonStatsSnapshot({
+        viewer: user,
+        limit: 12,
+      }).catch(() => null);
+      return res.status(200).json({
+        success: true,
+        row,
+        duplicate: false,
+        progressionDelta: buildProgressionDelta(
+          previousSnapshot?.profile?.progression,
+          nextSnapshot?.profile?.progression,
+        ),
+      });
     } catch (error) {
       if (isUniqueViolationError(error)) {
         return res.status(200).json({ success: true, duplicate: true });

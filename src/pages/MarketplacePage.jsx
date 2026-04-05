@@ -113,10 +113,10 @@ const TacticalHeader = ({ tokens, displayName, themeAccent }) => (
         <div className="absolute -inset-1 rounded-full border border-[var(--theme-accent-soft)] animate-ping opacity-20" />
       </div>
       <div>
-        <h1 className="font-['Orbitron'] text-2xl font-black uppercase tracking-[0.25em] text-white">Market Matrix</h1>
+        <h1 className="font-['Orbitron'] text-2xl font-black uppercase tracking-[0.25em] text-white">Marketplace</h1>
         <div className="mt-1 flex items-center gap-3 text-[10px] uppercase tracking-widest text-slate-400">
-          <span className="flex items-center gap-1.5"><Monitor className="h-3 w-3" /> System: Stable</span>
-          <span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" /> Sync: 98%</span>
+          <span className="flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Cosmetic Shop</span>
+          <span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" /> Live Preview</span>
         </div>
       </div>
     </div>
@@ -142,7 +142,7 @@ const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, 
   return (
     <div className="sticky top-10 flex flex-col gap-6 rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur-2xl shadow-2xl">
       <div className="flex items-center gap-2 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em] text-[var(--theme-accent)]">
-        <Target className="h-3.5 w-3.5" /> Identity Terminal
+        <Target className="h-3.5 w-3.5" /> Preview
       </div>
 
       <div className="relative group">
@@ -179,7 +179,7 @@ const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, 
             <div className="mt-8 grid grid-cols-2 gap-2 w-full">
               <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-center">
                 <div className="text-[8px] uppercase tracking-widest text-slate-500">Status</div>
-                <div className="mt-1 text-[10px] font-bold text-emerald-400 uppercase">Synchronized</div>
+                <div className="mt-1 text-[10px] font-bold text-emerald-400 uppercase">Equipped</div>
               </div>
               <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-center">
                 <div className="text-[8px] uppercase tracking-widest text-slate-500">Tier</div>
@@ -191,7 +191,7 @@ const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, 
       </div>
 
       <div className="mt-auto pt-6 border-t border-white/5">
-        <div className="text-[9px] uppercase tracking-[0.2em] text-slate-600 mb-4">Current Configuration</div>
+        <div className="text-[9px] uppercase tracking-[0.2em] text-slate-600 mb-4">Current Loadout</div>
         <div className="space-y-3">
           {['frame', 'badge', 'banner'].map(slot => {
             const item = preview[slot] || credentials[slot];
@@ -261,8 +261,14 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
           
           <div className="flex items-start justify-between mb-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{RARITY_LABELS[item.rarity]}</span>
-            <div className="flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-white/5 opacity-50">
-              <Layers className="h-3 w-3" />
+            <div className={`rounded-md border px-2 py-1 text-[8px] font-bold uppercase tracking-widest ${
+              isEquipped
+                ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
+                : isOwned
+                  ? 'border-white/10 bg-white/[0.04] text-slate-200'
+                  : 'border-white/10 bg-white/5 text-slate-500'
+            }`}>
+              {isEquipped ? 'Equipped' : isOwned ? 'Owned' : 'Market'}
             </div>
           </div>
 
@@ -404,6 +410,14 @@ export default function MarketplacePage() {
   const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
   const catalog = useMemo(() => Array.isArray(marketplaceData?.catalog) ? marketplaceData.catalog : [], [marketplaceData?.catalog]);
   const shopItems = useMemo(() => catalog.filter(it => it.availableInShop !== false), [catalog]);
+  const readyRewardsCount = useMemo(
+    () => (seasonData?.profile?.rewardTrack || []).filter((entry) => entry.unlocked && !entry.claimed).length,
+    [seasonData?.profile?.rewardTrack]
+  );
+  const ownedCount = useMemo(
+    () => catalog.filter((entry) => entry.owned).length,
+    [catalog]
+  );
   
   const filteredItems = useMemo(() => {
     if (activeCategory === 'all') return shopItems;
@@ -460,11 +474,11 @@ export default function MarketplacePage() {
   };
 
   const categories = [
-    { id: 'all', label: 'Full Matrix', icon: Store },
+    { id: 'all', label: 'All Items', icon: Store },
     { id: 'frame', label: 'Frames', icon: Shield },
     { id: 'badge', label: 'Badges', icon: BadgeCheck },
     { id: 'nameplate', label: 'Banners', icon: Layers },
-    { id: 'title', label: 'Elite Titles', icon: Trophy },
+    { id: 'title', label: 'Titles', icon: Trophy },
   ];
 
   return (
@@ -482,7 +496,7 @@ export default function MarketplacePage() {
           {/* NAVIGATION SIDEBAR */}
           <aside className="space-y-4">
             <div className="flex items-center gap-2 mb-4 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              <History className="h-3.5 w-3.5" /> Protocols
+              <History className="h-3.5 w-3.5" /> Categories
             </div>
             <nav className="flex flex-col gap-2">
               {categories.map(cat => {
@@ -505,18 +519,33 @@ export default function MarketplacePage() {
             </nav>
 
             <div className="mt-10 rounded-2xl border border-white/5 bg-white/[0.02] p-6 space-y-4">
-              <div className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest text-slate-600">Operator Tools</div>
+              <div className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest text-slate-600">Quick Actions</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3">
+                  <div className="text-[8px] uppercase tracking-widest text-slate-600">Owned</div>
+                  <div className="mt-1 font-['Orbitron'] text-lg font-bold text-white">{ownedCount}</div>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3">
+                  <div className="text-[8px] uppercase tracking-widest text-slate-600">Ready</div>
+                  <div className="mt-1 font-['Orbitron'] text-lg font-bold text-emerald-300">{readyRewardsCount}</div>
+                </div>
+              </div>
+              {readyRewardsCount > 0 ? (
+                <div className="rounded-xl border border-emerald-400/15 bg-emerald-500/[0.05] px-3 py-3 text-[10px] leading-relaxed text-emerald-100/90">
+                  You have {readyRewardsCount} reward {readyRewardsCount === 1 ? 'item' : 'items'} ready to claim from your profile progress tab.
+                </div>
+              ) : null}
               <button 
                 onClick={() => { refreshMarketplace(); refreshStats(); }}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/5 transition-colors"
               >
-                <RefreshCw className="h-3.5 w-3.5" /> Re-Scan Network
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
               </button>
               <button 
                 onClick={() => navigate('/profile')}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
               >
-                Return to HQ
+                Back to Profile
               </button>
             </div>
           </aside>
@@ -532,7 +561,7 @@ export default function MarketplacePage() {
             {marketplaceLoading ? (
               <div className="flex flex-col items-center justify-center h-[600px] text-slate-600 uppercase tracking-[0.3em] font-black text-xs">
                 <div className="mb-4 h-12 w-12 rounded-full border-2 border-slate-800 border-t-[var(--theme-accent)] animate-spin" />
-                Scanning Matrix...
+                Loading Marketplace...
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -553,7 +582,7 @@ export default function MarketplacePage() {
             
             {filteredItems.length === 0 && !marketplaceLoading && (
               <div className="flex flex-col items-center justify-center h-[400px] text-slate-600 font-['Orbitron'] text-[10px] uppercase tracking-widest">
-                No items detected in this sector.
+                No items in this category.
               </div>
             ) }
           </main>
@@ -572,10 +601,10 @@ export default function MarketplacePage() {
             <div className="mt-8 rounded-2xl border border-orange-500/10 bg-orange-500/[0.02] p-5">
               <div className="flex items-center gap-2 text-orange-400/80 mb-2">
                 <Gift className="h-4 w-4" />
-                <span className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest">Rewards Matrix</span>
+                <span className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest">Reward Reminder</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed uppercase tracking-wider">
-                Claim seasonal rewards in the Rewards section to fund your Matrix wallet.
+                Claim season rewards in profile to add more tokens here.
               </p>
               <button 
                 onClick={() => navigate('/caverns')}

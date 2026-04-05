@@ -1,41 +1,43 @@
-import React, { useMemo, useState } from 'react';
-import { RefreshCw, Swords, Bot, ScrollText, Trophy } from 'lucide-react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { 
+  RefreshCw, 
+  Swords, 
+  Bot, 
+  ScrollText, 
+  Trophy, 
+  Target, 
+  Monitor, 
+  Cpu, 
+  Waves, 
+  Zap, 
+  Triangle, 
+  ShieldAlert, 
+  Layers,
+  ArrowUpRight,
+  TrendingUp,
+  History,
+  Activity,
+  Award,
+  Gamepad2,
+  Users
+} from 'lucide-react';
+import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
 import { useChallengeLeaderboard } from '../hooks/useChallengeLeaderboard';
 
-function panelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-1)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
-  };
-}
-
-function subtlePanelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-2)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
-  };
-}
-
+/* HELPER: Formatting */
 function formatRelativeTime(value) {
   if (!value) return 'Not yet';
   const date = new Date(value);
   const diffMs = Date.now() - date.getTime();
-  if (Number.isNaN(diffMs)) return 'Not yet';
-
   const minutes = Math.floor(diffMs / 60000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
+  return days < 7 ? `${days}d ago` : date.toLocaleDateString();
 }
 
 function formatClearTime(value) {
@@ -46,311 +48,307 @@ function formatClearTime(value) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-function SectionCard({ title, description, icon: Icon, children, action }) {
-  return (
-    <section className="rounded-xl border p-5 sm:p-6" style={panelStyle()}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border" style={subtlePanelStyle({ color: 'var(--theme-accent)' })}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold">{title}</h2>
-            {description ? (
-              <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-                {description}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        {action}
-      </div>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
+/* -------------------------------------------------------------------------- */
+/*                               CORE UI MODULES                              */
+/* -------------------------------------------------------------------------- */
 
-function StatTile({ label, value, hint, accent = false }) {
+const RankingPodium = ({ top3, metricKey, metricLabel, title }) => {
+  const podiumRef = useRef(null);
+
+  useEffect(() => {
+    if (!podiumRef.current) return;
+    gsap.from(podiumRef.current.children, {
+      opacity: 0,
+      y: 40,
+      scale: 0.9,
+      duration: 1,
+      stagger: 0.15,
+      ease: "elastic.out(1, 0.8)",
+    });
+  }, [top3]);
+
+  if (!top3 || top3.length === 0) return null;
+
+  // Rearranges Top 3 for visual hierarchy [Rank 2, Rank 1, Rank 3]
+  const ordered = [top3[1] || null, top3[0] || null, top3[2] || null].filter(Boolean);
+
+  const getRankAura = (rank) => {
+    if (rank === 1) return { border: 'rgba(234, 179, 8, 0.4)', shadow: 'rgba(234, 179, 8, 0.2)', text: '#facc15' }; // Gold
+    if (rank === 2) return { border: 'rgba(203, 213, 225, 0.3)', shadow: 'rgba(203, 213, 225, 0.15)', text: '#e2e8f0' }; // Silver
+    if (rank === 3) return { border: 'rgba(120, 113, 108, 0.3)', shadow: 'rgba(120, 113, 108, 0.15)', text: '#d6d3d1' }; // Bronze
+    return { border: 'rgba(255, 255, 255, 0.1)', shadow: 'transparent', text: '#94a3b8' };
+  };
+
   return (
-    <div className="rounded-lg border p-4" style={subtlePanelStyle()}>
-      <div className="text-xs font-medium" style={{ color: 'var(--theme-text-muted)' }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold" style={accent ? { color: 'var(--theme-accent)' } : undefined}>{value}</div>
-      {hint ? <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-soft)' }}>{hint}</div> : null}
+    <div ref={podiumRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
+      {ordered.map((player, idx) => {
+        const aura = getRankAura(player.rank);
+        const isMain = player.rank === 1;
+        return (
+          <div 
+            key={player.userId}
+            className={`relative group rounded-3xl border bg-black/60 p-8 backdrop-blur-2xl transition-all duration-500 overflow-hidden ${isMain ? 'md:order-2 md:-translate-y-4' : idx === 0 ? 'md:order-1' : 'md:order-3'}`}
+            style={{ borderColor: aura.border, boxShadow: `0 0 30px ${aura.shadow}` }}
+          >
+            {/* Rank Visual */}
+            <div className="absolute top-4 right-6 font-['Orbitron'] text-4xl font-black italic opacity-20 select-none group-hover:opacity-40 transition-opacity" style={{ color: aura.text }}>
+              #{player.rank}
+            </div>
+
+            {/* Glowing Accent */}
+            <div className="absolute -top-10 -left-10 h-32 w-32 blur-[60px] opacity-40 pointer-events-none group-hover:opacity-60 transition-opacity" style={{ backgroundColor: aura.text }} />
+
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <div className="mb-6 h-20 w-20 rounded-full border-2 bg-slate-900 border-white/10 flex items-center justify-center font-['Orbitron'] text-xl font-bold text-white shadow-xl">
+                {player.displayName.charAt(0).toUpperCase()}
+              </div>
+              <h3 className="text-lg font-black uppercase tracking-[0.15em] text-white italic truncate max-w-full">{player.displayName}</h3>
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{player.rank === 1 ? 'Season Leader' : `Top ${player.rank}`}</div>
+
+              <div className="mt-8 flex flex-col gap-1 w-full p-4 rounded-xl border border-white/5 bg-white/[0.03]">
+                <div className="text-[9px] uppercase tracking-widest text-slate-500">{metricLabel}</div>
+                <div className="font-['Orbitron'] text-2xl font-black" style={{ color: aura.text }}>{Number(player[metricKey] || 0).toLocaleString()}</div>
+              </div>
+              <div className="mt-4 text-[9px] uppercase tracking-[0.3em] text-slate-600 font-black">Verified Season Data</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
-}
+};
 
-function TabButton({ active, onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition-colors"
-      style={active
-        ? { borderColor: 'var(--theme-border-strong)', background: 'var(--theme-accent-soft)', color: 'var(--theme-text-primary)' }
-        : subtlePanelStyle({ color: 'var(--theme-text-muted)' })}
-    >
-      {children}
-    </button>
-  );
-}
+const TacticalTicker = ({ text }) => (
+  <div className="fixed bottom-0 left-0 right-0 z-50 h-8 flex items-center bg-black/80 backdrop-blur-md border-t border-white/5 overflow-hidden group">
+    <div className="absolute left-0 top-0 bottom-0 px-4 bg-[var(--theme-accent)] flex items-center gap-2 z-10">
+      <Activity className="h-3.5 w-3.5 text-white animate-pulse" />
+      <span className="font-['Orbitron'] text-[10px] font-black text-white uppercase tracking-widest">Live Ladder Feed</span>
+    </div>
+    <div className="flex whitespace-nowrap px-4 animate-marquee group-hover:pause">
+      {[...Array(5)].map((_, i) => (
+        <span key={i} className="mx-8 font-mono text-[10px] uppercase text-slate-400 tracking-wider">
+          {text} • STATUS: LIVE • TOTAL LOGS: {Math.floor(Math.random() * 10000)} • TRACKER: SVAROG
+        </span>
+      ))}
+    </div>
+    <style>{`
+      @keyframes marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .animate-marquee {
+        animation: marquee 40s linear infinite;
+        display: inline-flex;
+      }
+      .group:hover .animate-marquee {
+        animation-play-state: paused;
+      }
+    `}</style>
+  </div>
+);
 
-function TableShell({ children, emptyText, hasRows }) {
-  if (!hasRows) {
+const HUDTable = ({ rows, viewerUserId, metricKey, metricLabel, emptyText, type }) => {
+  const tableRef = useRef(null);
+
+  useEffect(() => {
+    if (!tableRef.current) return;
+    gsap.from(tableRef.current.querySelectorAll('tr[data-rank-row]'), {
+      opacity: 0,
+      x: -20,
+      duration: 1,
+      stagger: 0.05,
+      ease: "power2.out",
+    });
+  }, [rows]);
+
+  if (!rows || rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-        {emptyText}
+      <div className="py-20 text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-700 bg-black/20 rounded-2xl border border-white/5">
+        No leaderboard data yet.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border" style={subtlePanelStyle()}>
-      <div className="overflow-x-auto">{children}</div>
+    <div className="overflow-x-auto rounded-3xl border border-white/5 bg-black/40 backdrop-blur-xl">
+      <table className="w-full text-left border-separate border-spacing-y-2 p-4" ref={tableRef}>
+        <thead>
+          <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-6">
+            <th className="pb-4 pl-6">Rank</th>
+            <th className="pb-4">Operator</th>
+            <th className="pb-4">{type === 'challenge' ? 'Solved' : 'Record'}</th>
+            <th className="pb-4 text-center">{metricLabel}</th>
+            <th className="pb-4 text-center">Efficiency</th>
+            <th className="pb-4 pr-6 text-right">Last Sync</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const isViewer = String(row.userId) === String(viewerUserId || '');
+            const score = type === 'challenge' ? row.solvedCount : row[metricKey];
+            const meta = type === 'challenge' ? `Avg Score ${row.averageScore}` : `${row.wins}-${row.losses}-${row.draws}`;
+
+            return (
+              <tr 
+                key={`${row.userId}-${row.rank}`}
+                data-rank-row="true"
+                className={`group transition-all duration-300 ${isViewer ? 'bg-[var(--theme-accent-soft)]/20 border-white/20' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'}`}
+              >
+                <td className="py-5 pl-6 rounded-l-2xl border-y border-l border-inherit">
+                  <div className="flex items-center gap-3">
+                    <span className={`font-['Orbitron'] text-xs font-black ${row.rank <= 3 ? 'text-white' : 'text-slate-500 group-hover:text-white'}`}>#{row.rank}</span>
+                    {isViewer && <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />}
+                  </div>
+                </td>
+                <td className="py-5 border-y border-inherit">
+                  <div className="font-['Orbitron'] text-[11px] font-black uppercase tracking-widest text-white">{row.displayName}</div>
+                  {isViewer && <div className="text-[8px] font-bold text-[var(--theme-accent)] uppercase tracking-tighter mt-0.5">You</div>}
+                </td>
+                <td className="py-5 border-y border-inherit text-[10px] font-bold text-slate-400 italic">{meta || 'No data'}</td>
+                <td className="py-5 border-y border-inherit text-center">
+                  <span className={`font-['Orbitron'] text-sm font-black ${isViewer ? 'text-[var(--theme-accent)]' : 'text-white'}`}>{Number(score || 0).toLocaleString()}</span>
+                </td>
+                <td className="py-5 border-y border-inherit text-center">
+                  <div className="text-[10px] font-bold text-slate-300">{type === 'challenge' ? (row.grade || 'C-') : `${row.winRate}% WR`}</div>
+                </td>
+                <td className="py-5 pr-6 rounded-r-2xl border-y border-r border-inherit text-right text-[10px] font-mono text-slate-600 tracking-tighter">
+                  {formatRelativeTime(row.lastPlayedAt || row.createdAt)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
-}
+};
 
-function CompetitiveTable({ rows, viewerUserId, metricLabel, metricKey }) {
-  return (
-    <TableShell hasRows={rows.length > 0} emptyText="No ranked rooms finished this season yet.">
-      <table className="min-w-full text-left text-sm">
-        <thead style={{ color: 'var(--theme-text-muted)' }}>
-          <tr className="border-b" style={{ borderColor: 'var(--theme-border-soft)' }}>
-            <th className="px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Player</th>
-            <th className="px-4 py-3 font-medium">Record</th>
-            <th className="px-4 py-3 font-medium">{metricLabel}</th>
-            <th className="px-4 py-3 font-medium">Best</th>
-            <th className="px-4 py-3 font-medium">Last played</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const isViewer = String(row.userId) === String(viewerUserId || '');
-            return (
-              <tr key={`${metricKey}-${row.rank}-${row.userId}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--theme-border-soft)', background: isViewer ? 'var(--theme-accent-soft)' : 'transparent' }}>
-                <td className="px-4 py-3 font-semibold">#{row.rank}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{row.displayName}</div>
-                  <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{row.winRate}% win rate</div>
-                </td>
-                <td className="px-4 py-3">{row.wins}-{row.losses}-{row.draws}</td>
-                <td className="px-4 py-3 font-semibold">{row[metricKey] ?? 0}</td>
-                <td className="px-4 py-3">{row.bestScore}</td>
-                <td className="px-4 py-3">{formatRelativeTime(row.lastPlayedAt)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </TableShell>
-  );
-}
-
-function ChallengePlayersTable({ rows, viewerUserId }) {
-  return (
-    <TableShell hasRows={rows.length > 0} emptyText="No handcrafted challenge clears tracked this season yet.">
-      <table className="min-w-full text-left text-sm">
-        <thead style={{ color: 'var(--theme-text-muted)' }}>
-          <tr className="border-b" style={{ borderColor: 'var(--theme-border-soft)' }}>
-            <th className="px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Player</th>
-            <th className="px-4 py-3 font-medium">Solved</th>
-            <th className="px-4 py-3 font-medium">Avg score</th>
-            <th className="px-4 py-3 font-medium">Best</th>
-            <th className="px-4 py-3 font-medium">Fastest</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const isViewer = String(row.userId) === String(viewerUserId || '');
-            return (
-              <tr key={`challenge-${row.rank}-${row.userId}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--theme-border-soft)', background: isViewer ? 'var(--theme-accent-soft)' : 'transparent' }}>
-                <td className="px-4 py-3 font-semibold">#{row.rank}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{row.displayName}</div>
-                  <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{formatRelativeTime(row.lastPlayedAt)}</div>
-                </td>
-                <td className="px-4 py-3 font-semibold">{row.solvedCount}</td>
-                <td className="px-4 py-3">{row.averageScore}</td>
-                <td className="px-4 py-3">{row.bestScore}</td>
-                <td className="px-4 py-3">{formatClearTime(row.fastestClearSeconds)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </TableShell>
-  );
-}
-
-function ContractBestsTable({ rows, viewerUserId }) {
-  return (
-    <TableShell hasRows={rows.length > 0} emptyText="No best contract clears available yet.">
-      <table className="min-w-full text-left text-sm">
-        <thead style={{ color: 'var(--theme-text-muted)' }}>
-          <tr className="border-b" style={{ borderColor: 'var(--theme-border-soft)' }}>
-            <th className="px-4 py-3 font-medium">Level</th>
-            <th className="px-4 py-3 font-medium">Winner</th>
-            <th className="px-4 py-3 font-medium">Score</th>
-            <th className="px-4 py-3 font-medium">Grade</th>
-            <th className="px-4 py-3 font-medium">Time</th>
-            <th className="px-4 py-3 font-medium">Updated</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const isViewer = String(row.userId) === String(viewerUserId || '');
-            return (
-              <tr key={`contract-${row.contractId}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--theme-border-soft)', background: isViewer ? 'var(--theme-accent-soft)' : 'transparent' }}>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{row.contractTitle}</div>
-                  <div className="mt-1 text-xs capitalize" style={{ color: 'var(--theme-text-muted)' }}>{row.difficulty}</div>
-                </td>
-                <td className="px-4 py-3">{row.displayName}</td>
-                <td className="px-4 py-3 font-semibold">{row.score}</td>
-                <td className="px-4 py-3">{row.grade}</td>
-                <td className="px-4 py-3">{formatClearTime(row.clearTimeSeconds)}</td>
-                <td className="px-4 py-3">{formatRelativeTime(row.createdAt)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </TableShell>
-  );
-}
+/* -------------------------------------------------------------------------- */
+/*                               MAIN PAGE                                     */
+/* -------------------------------------------------------------------------- */
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('competitive');
   const { data: seasonData, loading: seasonLoading, error: seasonError, refresh: refreshSeason } = usePvpSeasonStats();
-  const { data: challengeData, loading: challengeLoading, error: challengeError, refresh: refreshChallenge } = useChallengeLeaderboard(20);
+  const { data: challengeData, loading: challengeLoading, error: challengeError, refresh: refreshChallenge } = useChallengeLeaderboard(50);
 
   const season = seasonData?.season || challengeData?.season || null;
   const summary = seasonData?.summary || {};
   const challengeSummary = challengeData?.summary || {};
+  
   const competitiveRows = useMemo(() => Array.isArray(seasonData?.leaderboard) ? seasonData.leaderboard : [], [seasonData?.leaderboard]);
-  const practiceRows = useMemo(() => Array.isArray(seasonData?.practiceLeaderboard) ? seasonData.practiceLeaderboard : [], [seasonData?.practiceLeaderboard]);
+  const botRows = useMemo(() => Array.isArray(seasonData?.practiceLeaderboard) ? seasonData.practiceLeaderboard : [], [seasonData?.practiceLeaderboard]);
   const challengeRows = useMemo(() => Array.isArray(challengeData?.leaderboard) ? challengeData.leaderboard : [], [challengeData?.leaderboard]);
-  const contractRows = useMemo(() => Array.isArray(challengeData?.contracts) ? challengeData.contracts : [], [challengeData?.contracts]);
   const loading = seasonLoading || challengeLoading;
-  const error = seasonError || challengeError;
 
-  const statTiles = useMemo(() => {
-    if (activeTab === 'competitive') {
-      return [
-        { label: 'Tracked ranked players', value: summary.trackedPlayers || 0, hint: `${summary.competitiveRooms || 0} ranked rooms` },
-        { label: 'Finished rooms', value: summary.finishedRooms || 0, hint: `${summary.practiceRooms || 0} bot rooms archived/live` },
-        { label: 'Season label', value: season?.label || '--', hint: season?.pointsRule || 'Season scoring active' },
-      ];
-    }
-    if (activeTab === 'practice') {
-      return [
-        { label: 'Bot players', value: practiceRows.length, hint: `${summary.practiceRooms || 0} bot rooms` },
-        { label: 'Archived bot rooms', value: summary.archivedBotRooms || 0, hint: 'Moved out of live room storage' },
-        { label: 'Tracked players', value: summary.trackedPlayers || 0, hint: season?.label || 'Current season' },
-      ];
-    }
-    return [
-      { label: 'Challenge players', value: challengeSummary.trackedPlayers || 0, hint: `${challengeSummary.handcraftedClears || 0} handcrafted clears` },
-      { label: 'Tracked levels', value: challengeSummary.trackedContracts || 0, hint: `${challengeSummary.generatedClears || 0} generated clears excluded` },
-      { label: 'Season label', value: season?.label || '--', hint: 'Best clear per contract drives the ladder' },
-    ];
-  }, [activeTab, challengeSummary.generatedClears, challengeSummary.handcraftedClears, challengeSummary.trackedContracts, challengeSummary.trackedPlayers, practiceRows.length, season?.label, season?.pointsRule, summary.archivedBotRooms, summary.competitiveRooms, summary.finishedRooms, summary.practiceRooms, summary.trackedPlayers]);
+  const currentConfig = useMemo(() => {
+    if (activeTab === 'competitive') return { rows: competitiveRows, metricLabel: 'Points', metricKey: 'seasonPoints', type: 'pvp' };
+    if (activeTab === 'practice') return { rows: botRows, metricLabel: 'Wins', metricKey: 'wins', type: 'bot' };
+    return { rows: challengeRows, metricLabel: 'Solved', metricKey: 'solvedCount', type: 'challenge' };
+  }, [activeTab, competitiveRows, botRows, challengeRows]);
 
   const handleRefresh = async () => {
     await Promise.allSettled([refreshSeason?.(), refreshChallenge?.()]);
   };
 
+  const categories = [
+    { id: 'competitive', label: 'Ranked PvP', icon: Swords },
+    { id: 'practice', label: 'Bot Rooms', icon: Bot },
+    { id: 'challenge', label: 'Solver Ladder', icon: ScrollText },
+  ];
+
+  const tickerText = useMemo(() => {
+    const topPlayer = currentConfig.rows[0]?.displayName || '---';
+    return `CURRENT LEADER: ${topPlayer} • SEASON: ${season?.label || 'UNKNOWN'} • SOURCE: LIVE`;
+  }, [currentConfig.rows, season]);
+
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="rounded-xl border px-5 py-6 sm:px-6" style={panelStyle()}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="text-sm font-medium" style={{ color: 'var(--theme-text-muted)' }}>Season tracking</div>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Leaderboards</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: 'var(--theme-text-muted)' }}>
-              Ranked PvP, bot practice, and handcrafted challenge clears in one place. This page is the public season read, separate from your profile inventory.
+    <div className="min-h-screen relative bg-transparent px-4 py-8 sm:px-8 lg:px-12 pb-20">
+      {/* Ambience particles */}
+      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden">
+        <div className="absolute top-[10%] -left-20 h-[500px] w-[500px] rounded-full bg-[var(--theme-accent-soft)] blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[20%] -right-20 h-[500px] w-[500px] rounded-full bg-slate-500/20 blur-[120px]" />
+      </div>
+
+      <div className="mx-auto max-w-7xl relative z-10">
+        {/* Header Block */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-16">
+          <div className="relative">
+            <div className="absolute -left-6 top-0 bottom-0 w-1 bg-[var(--theme-accent)]" />
+            <div className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-2">Season Overview</div>
+            <h1 className="font-['Orbitron'] text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic">
+              Seas<span className="text-[var(--theme-accent)]">on</span> Ladder
+            </h1>
+            <p className="mt-4 max-w-2xl text-[11px] font-medium leading-relaxed text-slate-400 uppercase tracking-wider">
+              Ranked PvP, bot rooms, and challenge clears in one place. This page tracks the current season outside the profile page.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-            style={subtlePanelStyle()}
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="px-4 py-2 rounded-xl bg-white/[0.03] border border-white/5">
+              <div className="text-[8px] uppercase tracking-widest text-slate-500">Tracked Players</div>
+              <div className="mt-1 font-['Orbitron'] text-lg font-black text-white">{summary.trackedPlayers || challengeSummary.trackedPlayers || 0}</div>
+            </div>
+            <button 
+              onClick={handleRefresh}
+              disabled={loading}
+              className="h-12 w-12 flex items-center justify-center rounded-xl bg-white/[0.03] border border-white/5 text-slate-400 hover:text-white transition-all disabled:opacity-30"
+            >
+              <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin text-[var(--theme-accent)]' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <TabButton active={activeTab === 'competitive'} onClick={() => setActiveTab('competitive')}>
-            <span className="inline-flex items-center gap-2"><Swords className="h-4 w-4" /> Competitive</span>
-          </TabButton>
-          <TabButton active={activeTab === 'practice'} onClick={() => setActiveTab('practice')}>
-            <span className="inline-flex items-center gap-2"><Bot className="h-4 w-4" /> Bot Practice</span>
-          </TabButton>
-          <TabButton active={activeTab === 'challenge'} onClick={() => setActiveTab('challenge')}>
-            <span className="inline-flex items-center gap-2"><ScrollText className="h-4 w-4" /> Challenges</span>
-          </TabButton>
+        {/* Tactical Tab Selection */}
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-16 p-2 rounded-[2rem] bg-black/40 border border-white/5 backdrop-blur-xl max-w-fit mx-auto lg:mx-0">
+          {categories.map(cat => {
+            const active = activeTab === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveTab(cat.id)}
+                className={`flex items-center gap-4 px-8 py-4 rounded-[1.5rem] transition-all duration-500 ${active ? 'bg-[var(--theme-accent)] text-white shadow-[0_0_25px_var(--theme-accent-soft)]' : 'text-slate-500 hover:text-white hover:bg-white/[0.05]'}`}
+              >
+                <cat.icon className={`h-4 w-4 ${active ? 'text-white' : 'text-slate-700'}`} />
+                <span className="font-['Orbitron'] text-[11px] font-black uppercase tracking-[0.2em]">{cat.label}</span>
+              </button>
+            );
+          })}
         </div>
-      </section>
 
-      {error ? (
-        <div className="rounded-xl border px-4 py-3 text-sm" style={{ ...panelStyle(), borderColor: 'rgba(239, 68, 68, 0.35)', color: '#fca5a5' }}>
-          {error}
-        </div>
-      ) : null}
+        {/* Podium View */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-96 text-slate-600 uppercase tracking-[0.4em] font-black text-xs">
+            <div className="mb-6 h-12 w-12 rounded-full border-2 border-slate-800 border-t-[var(--theme-accent)] animate-spin" />
+            Loading Leaderboards...
+          </div>
+        ) : (
+          <>
+            <RankingPodium 
+              top3={currentConfig.rows.slice(0, 3)} 
+              metricKey={currentConfig.metricKey} 
+              metricLabel={currentConfig.metricLabel} 
+              title={activeTab.toUpperCase()}
+            />
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {statTiles.map((tile) => (
-          <StatTile key={tile.label} label={tile.label} value={tile.value} hint={tile.hint} accent={tile.label === 'Season label'} />
-        ))}
-      </section>
+            <div className="flex items-center gap-4 mb-6">
+              <TrendingUp className="h-4 w-4 text-[var(--theme-accent)]" />
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Full Standings</span>
+            </div>
 
-      {activeTab === 'competitive' ? (
-        <SectionCard
-          title="Competitive ladder"
-          description="Human-vs-human rooms only. Season points break ties before score and volume."
-          icon={Trophy}
-        >
-          <CompetitiveTable rows={competitiveRows} viewerUserId={user?.id} metricLabel="Points" metricKey="seasonPoints" />
-        </SectionCard>
-      ) : null}
+            <HUDTable 
+              rows={currentConfig.rows.slice(3)}
+              viewerUserId={user?.id}
+              metricKey={currentConfig.metricKey}
+              metricLabel={currentConfig.metricLabel}
+              type={currentConfig.type}
+            />
+          </>
+        )}
+      </div>
 
-      {activeTab === 'practice' ? (
-        <SectionCard
-          title="Bot practice ladder"
-          description="Clara Bot and Svarog Bot rooms only. Sorted by wins, then win rate, then average score."
-          icon={Bot}
-        >
-          <CompetitiveTable rows={practiceRows} viewerUserId={user?.id} metricLabel="Wins" metricKey="wins" />
-        </SectionCard>
-      ) : null}
-
-      {activeTab === 'challenge' ? (
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <SectionCard
-            title="Challenge player ladder"
-            description="Best handcrafted clear per level for each player. Generated practice clears do not affect rank."
-            icon={ScrollText}
-          >
-            <ChallengePlayersTable rows={challengeRows} viewerUserId={user?.id} />
-          </SectionCard>
-
-          <SectionCard
-            title="Best level clears"
-            description="Current season best holder for each handcrafted challenge level."
-            icon={Trophy}
-          >
-            <ContractBestsTable rows={contractRows} viewerUserId={user?.id} />
-          </SectionCard>
-        </div>
-      ) : null}
+      <TacticalTicker text={tickerText} />
     </div>
   );
 }

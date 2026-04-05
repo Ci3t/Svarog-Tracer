@@ -28,6 +28,7 @@ import { decodeLongString, translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
 import { useAuth } from '../hooks/useAuth';
 import { buildApiUrl } from '../utils/apiBase';
+import ProgressionSummaryToast from '../components/ProgressionSummaryToast';
 import {
   advancePatternProfile,
   createPatternProfile,
@@ -633,6 +634,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [claraTipIndex, setClaraTipIndex] = useState(0);
   const [claraSpeaking, setClaraSpeaking] = useState(false);
+  const [progressionSummary, setProgressionSummary] = useState(null);
   const lastRollIndexRef = useRef(0);
   const patternLabSessionKeyRef = useRef(`patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const loggedPatternLabSessionRef = useRef('');
@@ -717,7 +719,17 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           next_observed_roll: nextObservedRoll || '',
         },
       }),
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json().catch(() => null);
+      })
+      .then((payload) => {
+        if (!payload?.success || payload?.duplicate || !payload?.progressionDelta) return;
+        if (reason === 'pagehide') return;
+        setProgressionSummary(payload.progressionDelta);
+      })
+      .catch(() => {});
   }, [
     familyId,
     getAuthHeader,
@@ -735,6 +747,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     submitPatternLabSession('reset');
     patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     loggedPatternLabSessionRef.current = '';
+    setProgressionSummary(null);
     setMood(nextMood);
     setFamilyId(nextFamilyId);
     setCurrentLine(4);
@@ -748,6 +761,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     submitPatternLabSession('load-sequence');
     patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     loggedPatternLabSessionRef.current = '';
+    setProgressionSummary(null);
     setSourceMode(mode);
     setSourceSequence(nextSequence);
     setSourceCursor(0);
@@ -1465,6 +1479,12 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           </div>
         </div>
       </div>
+      <ProgressionSummaryToast
+        summary={progressionSummary}
+        title="Pattern Lab logged"
+        subtitle={importedFileName ? importedFileName : `${mood} analysis`}
+        onClose={() => setProgressionSummary(null)}
+      />
     </div>
   );
 }

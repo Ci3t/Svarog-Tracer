@@ -7,6 +7,7 @@ import {
   RANK_TIER_DEFINITIONS,
   REWARD_DEFINITIONS,
   TITLE_DEFINITIONS,
+  getTotalXpRequiredForLevel,
   resolveRankTier,
 } from '../../../src/utils/progressionCatalog.js';
 
@@ -210,6 +211,7 @@ function summarizePracticeRows(rows) {
       if (String(row?.source_mode || '').trim().toLowerCase() === 'import') {
         summary.patternLabImports += 1;
       }
+      continue;
     }
   }
 
@@ -238,6 +240,144 @@ function resolveProgressMetrics({ profile, challengeSummary, practiceSummary }) 
     drillsPerfectClears: normalizeNumber(practiceSummary?.drillsPerfectClears, 0),
     patternLabAnalyses: normalizeNumber(practiceSummary?.patternLabAnalyses, 0),
     patternLabImports: normalizeNumber(practiceSummary?.patternLabImports, 0),
+  };
+}
+
+const XP_WEIGHTS = {
+  competitiveMatch: 120,
+  competitiveWinBonus: 80,
+  seasonPoint: 12,
+  bestStreakPoint: 10,
+  botRoom: 45,
+  botWinBonus: 18,
+  handcraftedChallenge: 90,
+  generatedChallenge: 24,
+  freeTrainingSession: 16,
+  freeTrainingMaxed: 34,
+  drillsClear: 55,
+  drillsPerfect: 35,
+  patternLabAnalysis: 20,
+  patternLabImport: 12,
+};
+
+function getXpRequiredForLevel(level) {
+  const safeLevel = Math.max(1, normalizeNumber(level, 1));
+  return 180 + ((safeLevel - 1) * 70);
+}
+
+function buildLevelProgress(metrics) {
+  const xpSources = [
+    {
+      key: 'competitive_matches',
+      label: 'Ranked PvP rooms',
+      amount: normalizeNumber(metrics?.competitiveMatches, 0),
+      xp: normalizeNumber(metrics?.competitiveMatches, 0) * XP_WEIGHTS.competitiveMatch,
+    },
+    {
+      key: 'competitive_wins',
+      label: 'Ranked PvP wins',
+      amount: normalizeNumber(metrics?.competitiveWins, 0),
+      xp: normalizeNumber(metrics?.competitiveWins, 0) * XP_WEIGHTS.competitiveWinBonus,
+    },
+    {
+      key: 'season_points',
+      label: 'Season points',
+      amount: normalizeNumber(metrics?.seasonPoints, 0),
+      xp: normalizeNumber(metrics?.seasonPoints, 0) * XP_WEIGHTS.seasonPoint,
+    },
+    {
+      key: 'best_streak',
+      label: 'Best win streak',
+      amount: normalizeNumber(metrics?.bestWinStreak, 0),
+      xp: normalizeNumber(metrics?.bestWinStreak, 0) * XP_WEIGHTS.bestStreakPoint,
+    },
+    {
+      key: 'bot_rooms',
+      label: 'Bot rooms',
+      amount: normalizeNumber(metrics?.claraMatches, 0) + normalizeNumber(metrics?.svarogMatches, 0),
+      xp: (normalizeNumber(metrics?.claraMatches, 0) + normalizeNumber(metrics?.svarogMatches, 0)) * XP_WEIGHTS.botRoom,
+    },
+    {
+      key: 'bot_wins',
+      label: 'Bot wins',
+      amount: normalizeNumber(metrics?.practiceWins, 0),
+      xp: normalizeNumber(metrics?.practiceWins, 0) * XP_WEIGHTS.botWinBonus,
+    },
+    {
+      key: 'handcrafted_challenges',
+      label: 'Handcrafted challenge clears',
+      amount: normalizeNumber(metrics?.solvedChallengeCount, 0),
+      xp: normalizeNumber(metrics?.solvedChallengeCount, 0) * XP_WEIGHTS.handcraftedChallenge,
+    },
+    {
+      key: 'generated_challenges',
+      label: 'Generated challenge clears',
+      amount: normalizeNumber(metrics?.generatedClears, 0),
+      xp: normalizeNumber(metrics?.generatedClears, 0) * XP_WEIGHTS.generatedChallenge,
+    },
+    {
+      key: 'free_training_sessions',
+      label: 'Free training sessions',
+      amount: normalizeNumber(metrics?.freeTrainingSessions, 0),
+      xp: normalizeNumber(metrics?.freeTrainingSessions, 0) * XP_WEIGHTS.freeTrainingSession,
+    },
+    {
+      key: 'free_training_maxed',
+      label: 'Maxed free training relics',
+      amount: normalizeNumber(metrics?.freeTrainingMaxed, 0),
+      xp: normalizeNumber(metrics?.freeTrainingMaxed, 0) * XP_WEIGHTS.freeTrainingMaxed,
+    },
+    {
+      key: 'drills_clears',
+      label: 'Drills clears',
+      amount: normalizeNumber(metrics?.drillsClears, 0),
+      xp: normalizeNumber(metrics?.drillsClears, 0) * XP_WEIGHTS.drillsClear,
+    },
+    {
+      key: 'drills_perfect',
+      label: 'Perfect drills',
+      amount: normalizeNumber(metrics?.drillsPerfectClears, 0),
+      xp: normalizeNumber(metrics?.drillsPerfectClears, 0) * XP_WEIGHTS.drillsPerfect,
+    },
+    {
+      key: 'pattern_lab',
+      label: 'Pattern Lab analyses',
+      amount: normalizeNumber(metrics?.patternLabAnalyses, 0),
+      xp: normalizeNumber(metrics?.patternLabAnalyses, 0) * XP_WEIGHTS.patternLabAnalysis,
+    },
+    {
+      key: 'pattern_lab_imports',
+      label: 'Pattern Lab imports',
+      amount: normalizeNumber(metrics?.patternLabImports, 0),
+      xp: normalizeNumber(metrics?.patternLabImports, 0) * XP_WEIGHTS.patternLabImport,
+    },
+  ].filter((entry) => entry.amount > 0 && entry.xp > 0);
+
+  const totalXp = xpSources.reduce((sum, entry) => sum + normalizeNumber(entry.xp, 0), 0);
+  let level = 1;
+  let xpSpent = 0;
+  let currentRequirement = getXpRequiredForLevel(level);
+
+  while (totalXp >= xpSpent + currentRequirement) {
+    xpSpent += currentRequirement;
+    level += 1;
+    currentRequirement = getXpRequiredForLevel(level);
+  }
+
+  const xpIntoLevel = Math.max(0, totalXp - xpSpent);
+  const xpToNextLevel = Math.max(0, currentRequirement - xpIntoLevel);
+  const progressPercent = currentRequirement > 0
+    ? Math.max(0, Math.min(100, Math.round((xpIntoLevel / currentRequirement) * 1000) / 10))
+    : 0;
+
+  return {
+    level,
+    totalXp,
+    currentLevelXp: xpIntoLevel,
+    nextLevelXp: currentRequirement,
+    xpToNextLevel,
+    progressPercent,
+    sources: xpSources.sort((left, right) => normalizeNumber(right.xp, 0) - normalizeNumber(left.xp, 0)),
   };
 }
 
@@ -287,6 +427,90 @@ function rankTierReached(currentTier, targetTierKey) {
   const targetTier = RANK_TIER_DEFINITIONS.find((entry) => entry.key === String(targetTierKey || '').trim());
   if (!targetTier) return false;
   return currentPoints >= normalizeNumber(targetTier.minPoints, 0);
+}
+
+function isRewardUnlocked(definition, {
+  profile,
+  challengeSummary,
+  practiceSummary,
+  leaderboardRank,
+  rankTier,
+  levelProgress,
+}) {
+  if (definition.unlockType === 'competitiveWins') {
+    return normalizeNumber(profile?.competitive?.wins, 0) >= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'freeTrainingSessions') {
+    return normalizeNumber(practiceSummary?.freeTrainingSessions, 0) >= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'drillsClears') {
+    return normalizeNumber(practiceSummary?.drillsClears, 0) >= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'patternLabAnalyses') {
+    return normalizeNumber(practiceSummary?.patternLabAnalyses, 0) >= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'solvedChallengeCount') {
+    return normalizeNumber(challengeSummary?.solvedChallengeCount, 0) >= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'leaderboardTop') {
+    return leaderboardRank > 0 && leaderboardRank <= normalizeNumber(definition.unlockValue, 0);
+  }
+  if (definition.unlockType === 'rankTier') {
+    return rankTierReached(rankTier, definition.unlockValue);
+  }
+  if (definition.unlockType === 'level') {
+    return normalizeNumber(levelProgress?.level, 1) >= normalizeNumber(definition.unlockValue, 1);
+  }
+  return false;
+}
+
+function buildRewardState({
+  profile,
+  challengeSummary,
+  practiceSummary,
+  leaderboardRank,
+  rankTier,
+  levelProgress,
+  rewardRows,
+}) {
+  return REWARD_DEFINITIONS.map((definition) => {
+    const rewardRow = Array.isArray(rewardRows)
+      ? rewardRows.find((row) => String(row?.key || '').trim() === definition.key)
+      : null;
+    return {
+      ...definition,
+      unlocked: isRewardUnlocked(definition, {
+        profile,
+        challengeSummary,
+        practiceSummary,
+        leaderboardRank,
+        rankTier,
+        levelProgress,
+      }),
+      claimed: Boolean(rewardRow),
+      claimedAt: rewardRow?.claimed_at || null,
+      sourceSeason: rewardRow?.source_season || null,
+    };
+  });
+}
+
+function buildNextRewardState(rewards, levelProgress) {
+  const nextLevelReward = (Array.isArray(rewards) ? rewards : [])
+    .filter((entry) => entry.unlockType === 'level' && !entry.unlocked)
+    .sort((left, right) => normalizeNumber(left?.unlockValue, 0) - normalizeNumber(right?.unlockValue, 0))[0];
+
+  if (!nextLevelReward) return null;
+
+  const requiredTotalXp = getTotalXpRequiredForLevel(normalizeNumber(nextLevelReward.unlockValue, 1));
+  const currentTotalXp = normalizeNumber(levelProgress?.totalXp, 0);
+  const xpRemaining = Math.max(0, requiredTotalXp - currentTotalXp);
+
+  return {
+    ...nextLevelReward,
+    targetLevel: normalizeNumber(nextLevelReward.unlockValue, 1),
+    requiredTotalXp,
+    xpRemaining,
+  };
 }
 
 async function fetchUnlockRows(table, userId) {
@@ -476,6 +700,7 @@ export async function syncProfileProgression({ userId, profile, leaderboardRank,
   const practiceRows = await fetchPracticeRows(userId, season);
   const practiceSummary = summarizePracticeRows(practiceRows);
   const metrics = resolveProgressMetrics({ profile, challengeSummary, practiceSummary });
+  const levelProgress = buildLevelProgress(metrics);
   const rankTier = resolveRankTier(normalizeNumber(profile?.competitive?.seasonPoints, 0));
   const titleState = buildTitleState({ profile, leaderboardRank, challengeSummary, practiceSummary });
   const achievementState = buildAchievementState(metrics);
@@ -508,34 +733,16 @@ export async function syncProfileProgression({ userId, profile, leaderboardRank,
 
   const rewardRows = await fetchRewardRows(userId);
   const rewardInventoryReady = rewardRows !== null;
-  const rewardState = REWARD_DEFINITIONS.map((definition) => {
-    let unlocked = false;
-    if (definition.unlockType === 'competitiveWins') {
-      unlocked = normalizeNumber(profile?.competitive?.wins, 0) >= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'freeTrainingSessions') {
-      unlocked = normalizeNumber(practiceSummary?.freeTrainingSessions, 0) >= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'drillsClears') {
-      unlocked = normalizeNumber(practiceSummary?.drillsClears, 0) >= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'patternLabAnalyses') {
-      unlocked = normalizeNumber(practiceSummary?.patternLabAnalyses, 0) >= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'solvedChallengeCount') {
-      unlocked = challengeSummary.solvedChallengeCount >= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'leaderboardTop') {
-      unlocked = leaderboardRank > 0 && leaderboardRank <= normalizeNumber(definition.unlockValue, 0);
-    } else if (definition.unlockType === 'rankTier') {
-      unlocked = rankTierReached(rankTier, definition.unlockValue);
-    }
-    const rewardRow = Array.isArray(rewardRows)
-      ? rewardRows.find((row) => String(row?.key || '').trim() === definition.key)
-      : null;
-    return {
-      ...definition,
-      unlocked,
-      claimed: Boolean(rewardRow),
-      claimedAt: rewardRow?.claimed_at || null,
-      sourceSeason: rewardRow?.source_season || null,
-    };
+  const rewardState = buildRewardState({
+    profile,
+    challengeSummary,
+    practiceSummary,
+    leaderboardRank,
+    rankTier,
+    levelProgress,
+    rewardRows,
   });
+  const nextReward = buildNextRewardState(rewardState, levelProgress);
 
   return {
     inventoryReady: Boolean(syncedTitles.inventoryReady && syncedAchievements.inventoryReady && rewardInventoryReady),
@@ -543,6 +750,8 @@ export async function syncProfileProgression({ userId, profile, leaderboardRank,
     titles: syncedTitles.rows,
     achievements: syncedAchievements.rows,
     rewards: rewardState,
+    nextReward,
+    levelProgress,
     challengeSummary: {
       solvedChallengeCount: challengeSummary.solvedChallengeCount,
       generatedClears: challengeSummary.generatedClears,
@@ -601,8 +810,26 @@ export async function claimProfileReward({ userId, rewardKey, profile, leaderboa
 
   const claimedRow = Array.isArray(claimed) ? claimed[0] || null : null;
 
-  if (definition.rewardType === 'frame' || definition.rewardType === 'badge' || definition.rewardType === 'nameplate') {
+  if (
+    definition.rewardType === 'frame'
+    || definition.rewardType === 'badge'
+    || definition.rewardType === 'nameplate'
+    || definition.rewardType === 'title'
+  ) {
     await insertOwnedMarketItem(userId, normalizedKey);
+  }
+
+  if (definition.rewardType === 'title' && definition.titleKey) {
+    await insertUnlockRows(USER_TITLES_TABLE, [{
+      user_id: userId,
+      key: definition.titleKey,
+      source_season: season.label,
+      source_snapshot: {
+        source: 'reward',
+        reward_key: definition.key,
+        title_key: definition.titleKey,
+      },
+    }]);
   }
 
   if (normalizeNumber(definition.grantTokens, 0) > 0) {
