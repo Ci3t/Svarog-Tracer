@@ -39,6 +39,8 @@ import {
   resolveEquippedTitleKeyFromMetadata,
 } from '../utils/titleCatalog';
 
+import { LOADOUT_PRESETS } from '../components/cosmetics/PremiumAssets';
+
 /* HELPER: Resolve Discord and Profile Names */
 function resolveAuthDisplayName(user) {
   if (!user || typeof user !== 'object') return '';
@@ -93,7 +95,7 @@ const LORE_BITS = {
   title: [
     "Bestowed upon those who breach the data-veil.",
     "A harmonic resonance from distant star-systems.",
-    "Coded into the very fabric of the matrix.",
+    "Coded into the down-level physics of the matrix.",
     "Elevated identity for top-tier observers."
   ]
 };
@@ -139,51 +141,81 @@ const TacticalHeader = ({ tokens, displayName, themeAccent }) => (
 
 const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, initials }) => {
   const { title, badge, banner, frame } = preview;
+  
+  const resolvePreset = (item) => {
+    if (!item?.key) return LOADOUT_PRESETS['quantum-neon'];
+    const presetKey = item.key.replace('-banner', '').replace('-frame', '').replace('-badge', '').replace('-title', '');
+    return LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
+  };
+
+  const FramePreset = frame ? resolvePreset(frame) : resolvePreset({key: 'quantum-neon'});
+  const BannerPreset = banner ? resolvePreset(banner) : resolvePreset({key: 'quantum-neon'});
+  const BadgePreset = badge ? resolvePreset(badge) : resolvePreset({key: 'quantum-neon'});
+
+  const isMixed = (FramePreset.title !== BannerPreset.title) || (BannerPreset.title !== BadgePreset.title);
+  const dominantColor = BannerPreset.color;
+
   return (
     <div className="sticky top-10 flex flex-col gap-6 rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur-2xl shadow-2xl">
-      <div className="flex items-center gap-2 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em] text-[var(--theme-accent)]">
+      <div className="flex items-center gap-2 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em]" style={{color: dominantColor}}>
         <Target className="h-3.5 w-3.5" /> Preview
       </div>
 
       <div className="relative group">
-        {/* Holographic Backdrop */}
-        <div className="absolute inset-0 bg-[var(--theme-accent-soft)]/5 opacity-50 blur-3xl pointer-events-none group-hover:opacity-100 transition-opacity" />
+        <div className="absolute inset-0 opacity-50 blur-3xl pointer-events-none transition-opacity group-hover:opacity-100" style={{ backgroundColor: `${dominantColor}15` }} />
         
-        <div className="relative rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-inner">
-          <div className="flex flex-col items-center text-center">
-            {/* Avatar with Frame */}
-            <div 
-              className="relative mb-6 h-28 w-28 rounded-full border-2 flex items-center justify-center overflow-hidden bg-slate-900 transition-all duration-500"
-              style={{ ...getAvatarFrameStyle(frame?.key), borderColor: frame ? 'transparent' : 'rgba(255,255,255,0.1)' }}
-            >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-['Orbitron'] text-2xl font-black">{initials}</span>
-              )}
+        <div className="relative rounded-3xl border border-white/10 bg-[#0a050f] p-6 shadow-[inset_0_20px_40px_rgba(0,0,0,0.8)] overflow-hidden">
+          
+          <div className="flex flex-col items-center text-center relative z-10 w-full group">
+            
+            {/* AVATAR + FRAME ASSEMBLY */}
+            <div className="relative mb-10 h-28 w-28 flex items-center justify-center">
+              <div className="absolute inset-[-24px] pointer-events-none z-10">
+                <FramePreset.frame />
+              </div>
+              <div className="h-24 w-24 rounded-full overflow-hidden border border-white/10 relative z-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover rounded-full" />
+                ) : (
+                  <div className="h-full w-full bg-slate-900 flex items-center justify-center font-['Orbitron'] text-2xl font-black">{initials}</div>
+                )}
+              </div>
             </div>
 
-            {/* Identity Block */}
-            <UserIdentityBlock
-              name={displayName}
-              title={title?.name || credentials.title?.name || ''}
-              rarity={title?.rarity || credentials.title?.rarity || 'common'}
-              badge={badge?.name || credentials.badge?.name || ''}
-              badgeRarity={badge?.rarity || credentials.badge?.rarity || 'common'}
-              nameplate={banner?.name || credentials.banner?.name || ''}
-              nameplateRarity={banner?.rarity || credentials.banner?.rarity || 'common'}
-              nameClassName="text-xl font-black uppercase tracking-[0.1em] text-white"
-              titleClassName="mt-2 text-[11px]"
-            />
-
-            <div className="mt-8 grid grid-cols-2 gap-2 w-full">
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-center">
-                <div className="text-[8px] uppercase tracking-widest text-slate-500">Status</div>
-                <div className="mt-1 text-[10px] font-bold text-emerald-400 uppercase">Equipped</div>
+            {/* NAMEPLATE / BANNER ASSEMBLY */}
+            <div className="relative w-[110%] h-[60px] mb-6 shadow-xl">
+              <BannerPreset.banner />
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
+                 <span className="font-['Orbitron'] text-sm font-black uppercase tracking-wider text-white drop-shadow-[0_0_10px_rgba(0,0,0,1)]">
+                   {displayName}
+                 </span>
+                 {title && (
+                   <div className="mt-1 scale-[0.85] origin-top">
+                     <AnimatedTitleText 
+                       title={title.name} 
+                       rarity={title.rarity} 
+                       className="font-black uppercase tracking-widest drop-shadow-[0_0_5px_rgba(0,0,0,1)]" 
+                     />
+                   </div>
+                 )}
               </div>
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2 text-center">
-                <div className="text-[8px] uppercase tracking-widest text-slate-500">Tier</div>
-                <div className="mt-1 text-[10px] font-bold text-white uppercase">{credentials.title?.rarity || 'TR-1'}</div>
+            </div>
+
+            {/* BADGE ASSEMBLY */}
+            <div className="relative h-20 w-20 mb-2">
+               <BadgePreset.badge />
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-2 w-full">
+              <div className="rounded-lg border border-white/5 bg-black/40 backdrop-blur-md p-2 text-center">
+                <div className="text-[8px] uppercase tracking-widest text-slate-500">Status</div>
+                <div className="mt-1 text-[10px] font-bold text-emerald-400 mr-2 uppercase drop-shadow-[0_0_5px_currentColor]">Equipped</div>
+              </div>
+              <div className="rounded-lg border border-white/5 bg-black/40 backdrop-blur-md p-2 text-center">
+                <div className="text-[8px] uppercase tracking-widest text-slate-500">Theme</div>
+                <div style={{color: isMixed ? '#cbd5e1' : dominantColor}} className="mt-1 text-[10px] font-bold uppercase drop-shadow-[0_0_5px_currentColor]">
+                  {isMixed ? 'Custom Mix' : BannerPreset.title}
+                </div>
               </div>
             </div>
           </div>
@@ -196,9 +228,9 @@ const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, 
           {['frame', 'badge', 'banner'].map(slot => {
             const item = preview[slot] || credentials[slot];
             return (
-              <div key={slot} className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 uppercase tracking-wider">{slot}</span>
-                <span className="font-medium text-slate-300">{item?.name || 'Standard v1'}</span>
+              <div key={slot} className="flex items-center justify-between text-[11px] p-2 rounded-lg border border-white/5 bg-black/30">
+                <span className="text-slate-500 uppercase tracking-widest text-[9px]">{slot}</span>
+                <span className="font-bold text-slate-300 uppercase truncate max-w-[150px]">{item?.name || 'Standard'}</span>
               </div>
             );
           })}
@@ -216,7 +248,10 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
   
   const isTitle = item.type === 'title';
   const isOwned = Boolean(item.owned);
-  const isEquipped = !isTitle && String(equippedKey || '') === String(item.key || '');
+  const isEquipped = String(equippedKey || '').trim() === String(item.key || '').trim();
+
+  const presetKey = item.key.replace('-banner', '').replace('-frame', '').replace('-badge', '').replace('-title', '');
+  const Preset = LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
 
   // GSAP 3D Flip Logic
   useEffect(() => {
@@ -245,7 +280,7 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
 
   return (
     <div 
-      className="relative h-[240px] w-full [perspective:1000px] group"
+      className="relative h-[320px] w-full [perspective:1000px] group cursor-pointer"
       onMouseEnter={() => onPreview?.(item)}
       onFocus={() => onPreview?.(item)}
       data-market-item="true"
@@ -255,33 +290,47 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
         className="relative h-full w-full transition-all duration-600 [transform-style:preserve-3d]"
       >
         {/* FRONT SIDE */}
-        <div className="absolute inset-0 h-full w-full [backface-visibility:hidden] rounded-2xl border border-white/10 bg-black/40 p-5 backdrop-blur-md overflow-hidden flex flex-col">
-          {/* Rarity Energy Glow */}
-          <div className="absolute -top-10 -right-10 h-32 w-32 blur-[60px] opacity-20 pointer-events-none" style={{ backgroundColor: accent.color }} />
+        <div className="absolute inset-0 h-full w-full [backface-visibility:hidden] rounded-2xl border border-white/10 bg-[#120a17] p-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col transition-all group-hover:border-white/30 group-hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
+          <div className="absolute -top-10 -right-10 h-32 w-32 blur-[60px] opacity-30 pointer-events-none" style={{ backgroundColor: Preset.color }} />
           
-          <div className="flex items-start justify-between mb-2">
+          {/* LOADOUT OPTION LABEL HEADER */}
+          <div className="flex items-center justify-between mb-4 relative z-10 w-full mb-auto pb-4 border-b border-white/5">
+             <div className="font-['Orbitron'] text-[10px] font-black uppercase text-white/50 tracking-[0.2em]">ITEM PREVIEW</div>
+             <div className="text-[10px] font-bold uppercase" style={{ color: Preset.color }}>{Preset.title}</div>
+          </div>
+
+          <div className="flex-1 w-full flex items-center justify-center relative my-4">
+             {/* THE ACTUAL PREMIUM ASSET */}
+             {item.slot === 'nameplate' && (
+                <div className="w-full h-[70px] pointer-events-none shadow-[0_10px_30px_rgba(0,0,0,0.8)] relative z-10">
+                   <Preset.banner />
+                </div>
+             )}
+
+             {item.slot === 'badge' && (
+                <div className="h-[100px] w-[86px] pointer-events-none relative z-10">
+                   <Preset.badge />
+                </div>
+             )}
+
+             {item.slot === 'frame' && (
+                <div className="h-[90px] w-[90px] pointer-events-none relative z-10 flex items-center justify-center relative">
+                   <div className="absolute inset-[-20px] z-10"><Preset.frame /></div>
+                   <div className="h-[75px] w-[75px] rounded-full bg-slate-800" />
+                </div>
+             )}
+          </div>
+
+          <div className="flex items-end justify-between mb-2 relative z-10 w-full border-t border-white/5 pt-3">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{RARITY_LABELS[item.rarity]}</span>
             <div className={`rounded-md border px-2 py-1 text-[8px] font-bold uppercase tracking-widest ${
-              isEquipped
-                ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
-                : isOwned
-                  ? 'border-white/10 bg-white/[0.04] text-slate-200'
-                  : 'border-white/10 bg-white/5 text-slate-500'
+              isEquipped ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : isOwned ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-white/10 bg-white/5 text-slate-500'
             }`}>
               {isEquipped ? 'Equipped' : isOwned ? 'Owned' : 'Market'}
             </div>
           </div>
 
-          <div className="mt-1">
-            {isTitle ? (
-              <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-sm font-black uppercase tracking-wider" />
-            ) : (
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">{item.name}</h3>
-            )}
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-400 line-clamp-2">{item.description}</p>
-          </div>
-
-          <div className="mt-auto pt-4 border-t border-white/5 flex flex-col gap-4">
+          <div className="mt-auto pt-4 border-t border-white/5 flex flex-col gap-4 relative z-10">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-[9px] uppercase tracking-widest text-slate-600">Cost</span>
@@ -290,7 +339,7 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
               <button 
                 type="button"
                 onClick={() => setIsFlipped(true)}
-                className="flex items-center gap-1.5 py-1 px-2 rounded-md border border-white/5 bg-white/5 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1.5 py-1 px-2 rounded-md border border-white/5 bg-black/40 backdrop-blur-md text-[9px] font-bold uppercase tracking-widest text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-[0_0_10px_rgba(0,0,0,0.5)]"
               >
                 <Info className="h-3 w-3" /> Lore
               </button>
@@ -298,13 +347,13 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
 
             <button
               type="button"
-              disabled={actionBusy || locked || (isOwned && isTitle) || isEquipped}
+              disabled={actionBusy || locked || isEquipped}
               onClick={handleAction}
-              className="w-full py-2.5 rounded-lg border font-['Orbitron'] text-[10px] font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 disabled:cursor-not-allowed group/btn overflow-hidden relative"
-              style={!isOwned || (!isTitle && !isEquipped) ? { borderColor: accent.borderColor, color: accent.color, backgroundColor: `${accent.color}10` } : { borderColor: 'rgba(255,255,255,0.1)', color: '#64748b' }}
+              className="w-full py-2.5 rounded-lg border font-['Orbitron'] text-[10px] font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 disabled:cursor-not-allowed group/btn overflow-hidden relative shadow-[0_5px_15px_rgba(0,0,0,0.4)] backdrop-blur-md"
+              style={!isOwned || (!isTitle && !isEquipped) ? { borderColor: accent.borderColor, color: accent.color, backgroundColor: `${accent.color}20` } : { borderColor: 'rgba(255,255,255,0.1)', color: '#64748b', backgroundColor: 'rgba(0,0,0,0.5)' }}
             >
               <div className="absolute inset-0 bg-white/10 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700" />
-              {actionBusy ? 'Processing...' : isEquipped ? 'Active' : isOwned ? 'Equip' : 'Authorize Buy'}
+              <span className="relative z-10 drop-shadow-[0_0_5px_currentColor]">{actionBusy ? 'Processing...' : isEquipped ? 'Active' : isOwned ? 'Equip' : 'Authorize Buy'}</span>
             </button>
           </div>
         </div>
@@ -369,7 +418,7 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
 export default function MarketplacePage() {
   const navigate = useNavigate();
   const { user, replaceUser, getAuthHeader } = useAuth();
-  const { data: marketplaceData, loading: marketplaceLoading, error: marketplaceError, refresh: refreshMarketplace } = useProfileMarketplace();
+  const { data: marketplaceData, loading: marketplaceLoading, error: marketplaceError, refresh: refreshMarketplace, refreshSilent: refreshMarketplaceSilent } = useProfileMarketplace();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
   
   const [activeCategory, setActiveCategory] = useState('all');
@@ -379,8 +428,11 @@ export default function MarketplacePage() {
 
   // GSAP: Initial Module Entrance
   useEffect(() => {
+    const targets = document.querySelectorAll("[data-market-item]");
+    if (targets.length === 0) return;
+
     const ctx = gsap.context(() => {
-      gsap.from("[data-market-item]", {
+      gsap.from(targets, {
         opacity: 0,
         y: 30,
         rotateX: -15,
@@ -433,8 +485,10 @@ export default function MarketplacePage() {
   };
 
   const syncAfterAction = async (payload) => {
+    // Optimistically update user state without triggering a full re-mount
     if (payload?.user) replaceUser?.(payload.user);
-    await Promise.allSettled([refreshMarketplace?.(), refreshStats?.()]);
+    // Use silent refresh so the page does NOT reset/flash on buy or equip
+    await Promise.allSettled([refreshMarketplaceSilent?.(), refreshStats?.()]);
   };
 
   const submitMarketplaceAction = async (body) => {
@@ -453,7 +507,11 @@ export default function MarketplacePage() {
     setMarketActionKey(`purchase:${itemKey}`);
     setMarketActionError('');
     try {
-      await submitMarketplaceAction({ action: 'purchase', itemKey });
+      const payload = await submitMarketplaceAction({ action: 'purchase', itemKey });
+      // Show success toast inline without page navigation
+      if (payload) {
+        setMarketActionError('');
+      }
     } catch (error) {
       setMarketActionError(error.message);
     } finally {
@@ -571,7 +629,7 @@ export default function MarketplacePage() {
                     item={item}
                     actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
                     locked={marketActionKey !== ''}
-                    equippedKey={credentials[item.slot]?.key}
+                    equippedKey={item.slot === 'title' || item.type === 'title' ? equippedTitleKey : credentials[item.slot]?.key}
                     onPurchase={handlePurchase}
                     onEquip={handleEquip}
                     onPreview={(it) => setPreviewItemKey(it?.key || '')}

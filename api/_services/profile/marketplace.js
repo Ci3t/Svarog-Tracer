@@ -193,6 +193,7 @@ function resolveSlotKey(slot) {
   if (normalized === 'badge') return 'svarog_equipped_badge';
   if (normalized === 'nameplate') return 'svarog_equipped_nameplate';
   if (normalized === 'frame') return 'svarog_equipped_frame';
+  if (normalized === 'title') return 'svarog_equipped_title';
   throw new HttpError(400, 'Invalid equip slot.');
 }
 
@@ -215,6 +216,8 @@ export async function getMarketplaceSnapshot(user) {
     ownedItems: Array.isArray(ownedItems) ? ownedItems : [],
     catalog,
     equipped: cosmetics,
+    // All title keys this user has unlocked (both marketplace-purchased and progression-earned)
+    unlockedTitleKeys: Array.from(unlockedTitleKeys),
   };
 }
 
@@ -232,8 +235,9 @@ export async function purchaseMarketplaceItem(user, itemKey) {
   const unlockedTitleKeys = await fetchUnlockedTitleKeys(user.id);
   const claimedRewardKeys = await fetchClaimedRewardKeys(user.id);
 
+  // For titles, check the user_titles table (covers both progression-earned and marketplace-purchased)
   const alreadyOwned = item.type === 'title'
-    ? unlockedTitleKeys.has(String(item.titleKey || '').trim())
+    ? unlockedTitleKeys.has(String(item.key || '').trim())
     : ownedItems.some((entry) => String(entry?.key || '').trim() === item.key) || claimedRewardKeys.has(item.key);
   if (alreadyOwned) {
     throw new HttpError(409, 'Item already owned.');
@@ -247,9 +251,10 @@ export async function purchaseMarketplaceItem(user, itemKey) {
   await patchWallet(user.id, balance - normalizeNumber(item.cost, 0));
   await recordOwnedMarketItem(user.id, item.key);
 
-  if (item.type === 'title' && item.titleKey) {
+  // Always write to user_titles table for title purchases so hasUnlockedTitle works
+  if (item.type === 'title') {
     try {
-      await unlockPurchasedTitle(user.id, item.titleKey);
+      await unlockPurchasedTitle(user.id, item.key);
     } catch {
       // If title row already exists due to race or manual seed, treat purchase as successful.
     }
@@ -275,9 +280,6 @@ export async function updateMarketplaceEquip(user, { action, itemKey, slot }) {
     const item = getMarketplaceItem(itemKey);
     if (!item) {
       throw new HttpError(404, 'Marketplace item not found.');
-    }
-    if (item.slot === 'title') {
-      throw new HttpError(400, 'Use title equip for titles.');
     }
 
     const snapshot = await getMarketplaceSnapshot(user);
