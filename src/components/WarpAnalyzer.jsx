@@ -929,6 +929,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                      </div>
                   )}
 
+
                    {/* AI Warp Analysis Card */}
                    {data && activeAnalysis?.peaks && (
                        <AIWarpAnalysisCard 
