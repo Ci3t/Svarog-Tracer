@@ -92,6 +92,9 @@ export default function ProgressionSummaryToast({
             {subtitle ? <div className="mt-1 text-sm font-semibold tracking-tight text-white">{subtitle}</div> : null}
             <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-slate-400">
               <span>+{summary.xpGained || 0} XP</span>
+              {summary.tokensGained > 0 && (
+                <span className="text-amber-400">+{summary.tokensGained} tokens</span>
+              )}
               <span>Lv {summary.levelAfter || 1}</span>
               {summary.leveledUp ? <span className="text-emerald-300">Level up</span> : null}
             </div>

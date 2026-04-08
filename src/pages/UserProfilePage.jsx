@@ -585,7 +585,15 @@ export default function UserProfilePage() {
   const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
   
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const equippedCosmetics = useMemo(() => resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
+  const equippedCosmetics = useMemo(() => {
+    const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
+    const fromApi = marketplaceData?.equipped && typeof marketplaceData.equipped === 'object' ? marketplaceData.equipped : {};
+    return {
+      badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
+      nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
+      frameKey: fromApi.frameKey || fromMeta.frameKey || '',
+    };
+  }, [user?.user_metadata, marketplaceData?.equipped]);
 
   const credentials = useMemo(() => ({
     title: getTitleDefinition(equippedTitleKey),
@@ -662,10 +670,10 @@ export default function UserProfilePage() {
   const handleEquipTitle = async (key) => {
     setEquippingKey(`equip-title:${key}`);
     try {
-      const response = await fetch(buildApiUrl('/api/profile-marketplace'), {
+      const response = await fetch(buildApiUrl('/api/profile'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ action: 'equip', itemKey: key, slot: 'title' }),
+        body: JSON.stringify({ action: 'equip', titleKey: key }),
       });
       const payload = await response.json().catch(() => ({}));
       if (response.ok) {
@@ -683,7 +691,7 @@ export default function UserProfilePage() {
   const handleEquipCosmetic = async (item) => {
     setEquippingKey(`equip:${item.key}`);
     try {
-      const response = await fetch(buildApiUrl('/api/profile-marketplace'), {
+      const response = await fetch(buildApiUrl('/api/profile'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ action: 'equip', itemKey: item.key, slot: item.slot }),

@@ -134,6 +134,7 @@ function createPlayerState(name = '', options = {}) {
     relicSummary: '',
     debugLog: [],
     displayName: String(name || ''),
+    displayAvatarUrl: String(options?.avatarUrl || '').slice(0, 512),
     displayTitleKey: String(options?.titleKey || '').slice(0, 80),
     displayTitle: String(options?.titleLabel || '').slice(0, 120),
     displayTitleRarity: String(options?.titleRarity || '').slice(0, 24),
@@ -157,8 +158,14 @@ function resolveUserIdentity(user) {
   const equippedBadge = getMarketplaceItem(cosmetics.badgeKey);
   const equippedNameplate = getMarketplaceItem(cosmetics.nameplateKey);
   const equippedFrame = getMarketplaceItem(cosmetics.frameKey);
+  const metadata = user?.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user?.identities) ? user.identities : [];
+  const discordIdentity = identities.find((i) => String(i?.provider || '').toLowerCase() === 'discord');
+  const identityData = discordIdentity?.identity_data && typeof discordIdentity.identity_data === 'object' ? discordIdentity.identity_data : {};
+  const avatarUrl = [metadata.avatar_url, identityData.avatar_url, metadata.avatar, metadata.picture].find((v) => v && typeof v === 'string') || '';
   return {
     displayName,
+    avatarUrl,
     titleKey: equippedTitle?.key || '',
     titleLabel: equippedTitle?.name || '',
     titleRarity: equippedTitle?.rarity || '',
@@ -177,6 +184,7 @@ function resolveUserIdentity(user) {
 function extractStateIdentity(state = {}, fallbackName = '') {
   return {
     displayName: String(state?.displayName || fallbackName || '').trim(),
+    avatarUrl: String(state?.displayAvatarUrl || '').trim(),
     titleKey: String(state?.displayTitleKey || '').trim(),
     titleLabel: String(state?.displayTitle || '').trim(),
     titleRarity: String(state?.displayTitleRarity || '').trim(),
@@ -2556,6 +2564,7 @@ function normalizePlayerState(input, currentState = {}) {
     ? input.debugLog.map((entry) => String(entry).slice(0, 500)).slice(-120)
     : (Array.isArray(next.debugLog) ? next.debugLog.slice(-120) : []);
   next.displayName = String(input?.displayName || next.displayName || '').slice(0, 80);
+  next.displayAvatarUrl = String(input?.displayAvatarUrl || next.displayAvatarUrl || '').slice(0, 512);
   next.displayTitleKey = String(input?.displayTitleKey || next.displayTitleKey || '').slice(0, 80);
   next.displayTitle = String(input?.displayTitle || next.displayTitle || '').slice(0, 120);
   next.displayTitleRarity = String(input?.displayTitleRarity || next.displayTitleRarity || '').slice(0, 24);

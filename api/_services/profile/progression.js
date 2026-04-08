@@ -603,7 +603,7 @@ async function insertOwnedMarketItem(userId, key) {
   }
 }
 
-async function applyTokenGrant(userId, amount) {
+export async function applyTokenGrant(userId, amount) {
   const grant = normalizeNumber(amount, 0);
   if (grant <= 0) return null;
 
@@ -842,4 +842,58 @@ export async function claimProfileReward({ userId, rewardKey, profile, leaderboa
     claimedAt: claimedRow?.claimed_at || new Date().toISOString(),
     sourceSeason: claimedRow?.source_season || season.label,
   };
+}
+
+/**
+ * Automatically claims newly unlocked progression rewards for a user.
+ * Safe to call after inserting any result that may trigger a level-up.
+ * Deduplicates using the USER_REWARDS_TABLE unique constraint — tokens and
+ * cosmetics are only granted once per reward key per user.
+ *
+ * @param {{ userId: string, rewardKeys: string[], seasonLabel: string }} opts
+ * @returns {Promise<string[]>} Keys that were newly claimed in this call.
+ */
+export async function autoClaimProgressionRewards({ userId, rewardKeys, seasonLabel }) {
+  const keys = Array.isArray(rewardKeys)
+    ? rewardKeys.map((k) => String(k || '').trim()).filter(Boolean)
+    : [];
+  if (!userId || keys.length === 0) return [];
+
+  const claimed = [];
+  for (const key of keys) {
+    const definition = REWARD_DEFINITIONS.find((entry) => entry.key === key);
+    if (!definition) continue;
+
+    // Insert claim row — silently handles duplicate (already claimed).
+    const claimRows = await insertUnlockRows(USER_REWARDS_TABLE, [{
+      user_id: userId,
+      key,
+      source_season: seasonLabel || '',
+      source_snapshot: { source: 'auto_claim', reward_name: definition.name },
+    }]);
+
+    // Only grant rewards when the claim row was genuinely new.
+    if (!Array.isArray(claimRows) || claimRows.length === 0) continue;
+
+    if (normalizeNumber(definition.grantTokens, 0) > 0) {
+      await applyTokenGrant(userId, definition.grantTokens).catch(() => null);
+    }
+
+    if (['frame', 'badge', 'nameplate', 'title'].includes(definition.rewardType)) {
+      await insertOwnedMarketItem(userId, key).catch(() => null);
+    }
+
+    if (definition.rewardType === 'title' && definition.titleKey) {
+      await insertUnlockRows(USER_TITLES_TABLE, [{
+        user_id: userId,
+        key: definition.titleKey,
+        source_season: seasonLabel || '',
+        source_snapshot: { source: 'auto_claim', reward_key: key, title_key: definition.titleKey },
+      }]).catch(() => null);
+    }
+
+    claimed.push(key);
+  }
+
+  return claimed;
 }

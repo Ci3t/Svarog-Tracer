@@ -695,7 +695,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     if (!sessionKey || loggedPatternLabSessionRef.current === sessionKey) return;
     loggedPatternLabSessionRef.current = sessionKey;
 
-    fetch(buildApiUrl('/api/practice-results'), {
+    fetch(buildApiUrl('/api/playground'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

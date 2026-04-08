@@ -19,6 +19,10 @@ import {
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { useAuth } from '../hooks/useAuth';
 import { withBaseUrl } from '../utils/assetPaths';
+import { CompanionProvider, useCompanion, COMPANION_TYPES } from '../companions/CompanionProvider';
+import CompanionWidget from '../companions/CompanionWidget';
+import CompanionSelector from '../companions/CompanionSelector';
+import '../companions/companion.css';
 
 const CLARA_TIPS = [
   'Free Mode is the cleanest place to test line routes without pressure.',
@@ -227,7 +231,7 @@ function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
   );
 }
 
-export default function PlaygroundPage({ sessionTheme = 'modern' }) {
+export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const { isAuthenticated, roleMode } = useAuth();
@@ -476,6 +480,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
           </div>
 
           <div className="gsap-clara-in flex items-center gap-4">
+             {/* CompanionSelector disabled */}
              <div className="theme-subpanel rounded-2xl border border-white/8 p-4 lg:px-6">
                 <div className="flex items-center gap-3">
                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -577,7 +582,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                           </div>
                           <div className="flex items-center justify-between">
                              <span className="text-xs text-slate-400">Hub Reputation</span>
-                             <span className="text-xs font-mono text-amber-400 italic">Elite Researcher</span>
+                             <span className="text-xs font-mono text-amber-400 italic">Elite Manipulator</span>
                           </div>
                        </div>
                     </div>
@@ -603,11 +608,11 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
                  {[
-                   { id: 'free', gridClass: 'md:col-span-8 md:row-span-2', summary: 'The ultimate sandbox for manual manipulation, setup line rehearsals, and pure board logic.', detail: 'MANUAL REELS · LOOP STUDY' },
-                   { id: 'pvp', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Test your reads under room-based pressure with shared contracts and shared board learning.', detail: 'ACTIVE ROOMS · VERSUS' },
-                   { id: 'challenge', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Climb the proficiency ladder with structured contracts and hard win-gates.', detail: 'CONTRACTS · PROFICIENCY' },
-                   { id: 'drills', gridClass: 'md:col-span-6 md:row-span-1', summary: 'High-speed reps for board vocabulary, noise reads, and common recognition.', detail: 'SPEED · VOCABULARY' },
-                   { id: 'patterns', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Import real session logs to step through board history and inspect Svarog eyes.', detail: 'RESEARCH · HISTORICAL DATA' },
+                    { id: 'free', gridClass: 'md:col-span-8 md:row-span-2', summary: 'A sandbox to practice your moves and test line routes without any pressure.', detail: 'MANUAL REELS · LOOP STUDY' },
+                    { id: 'pvp', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Race against other manipulators in real-time. Speed and accuracy win!', detail: 'ACTIVE ROOMS · VERSUS' },
+                    { id: 'challenge', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Complete structured contracts to prove your skills and climb the rankings.', detail: 'CONTRACTS · PROFICIENCY' },
+                    { id: 'drills', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Quick practice to learn board language and spot noise easily.', detail: 'SPEED · VOCABULARY' },
+                    { id: 'patterns', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Look at old session logs to understand how Svarog predicts the future.', detail: 'RESEARCH · HISTORICAL DATA' },
                  ].map((mode) => (
                    <TrainingCard 
                       key={mode.id} 
@@ -659,8 +664,17 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                  </div>
               </div>
            </div>
-        </footer>
+         </footer>
       </div>
+      {/* Companion Widget disabled */}
     </div>
+  );
+}
+
+export default function PlaygroundPage(props) {
+  return (
+    <CompanionProvider>
+      <PlaygroundPageInner {...props} />
+    </CompanionProvider>
   );
 }

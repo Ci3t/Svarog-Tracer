@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../utils/apiBase';
 import { useAuth } from './useAuth';
 
-const CHALLENGE_RESULTS_API = buildApiUrl('/api/challenge-results');
+const CHALLENGE_RESULTS_API = buildApiUrl('/api/playground?view=challenge-results');
 
 export function useChallengeResults() {
   const { getAuthHeader, isAuthenticated } = useAuth();

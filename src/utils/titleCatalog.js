@@ -1,15 +1,23 @@
 import {
   TITLE_DEFINITIONS,
   TITLE_DEFINITION_MAP,
-  getTitleDefinition,
+  getTitleDefinition as getProgressionTitleDefinition,
 } from './progressionCatalog.js';
 import { MARKETPLACE_ITEM_MAP } from './marketplaceCatalog.js';
 
 export {
   TITLE_DEFINITIONS,
   TITLE_DEFINITION_MAP,
-  getTitleDefinition,
 };
+
+/**
+ * Resolves a title definition by key, checking both the progression catalog
+ * and the marketplace catalog (for purchased marketplace titles).
+ */
+export function getTitleDefinition(key) {
+  const normalized = String(key || '').trim();
+  return getProgressionTitleDefinition(normalized) || MARKETPLACE_ITEM_MAP.get(normalized) || null;
+}
 
 export function resolveEquippedTitleKeyFromMetadata(metadata) {
   if (!metadata || typeof metadata !== 'object') return '';

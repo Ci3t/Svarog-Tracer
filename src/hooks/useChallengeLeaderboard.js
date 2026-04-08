@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../utils/apiBase';
 
-const CHALLENGE_LEADERBOARD_API = buildApiUrl('/api/challenge-leaderboard');
+const CHALLENGE_LEADERBOARD_API = buildApiUrl('/api/playground?view=challenge-leaderboard');
 
 export function useChallengeLeaderboard(limit = 20) {
   const [data, setData] = useState(null);
@@ -13,7 +13,7 @@ export function useChallengeLeaderboard(limit = 20) {
     setError('');
 
     try {
-      const response = await fetch(`${CHALLENGE_LEADERBOARD_API}?limit=${encodeURIComponent(limit)}`, {
+      const response = await fetch(`${CHALLENGE_LEADERBOARD_API}&limit=${encodeURIComponent(limit)}`, {
         method: 'GET',
         signal,
       });

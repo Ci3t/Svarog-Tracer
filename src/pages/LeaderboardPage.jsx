@@ -202,6 +202,26 @@ const HUDTable = ({ rows, viewerUserId, metricKey, metricLabel, emptyText, type 
                 </td>
                 <td className="py-5 border-y border-inherit">
                   <div className="font-['Orbitron'] text-[11px] font-black uppercase tracking-widest text-white">{row.displayName}</div>
+                  {(row.displayTitle || row.displayBadge) && (
+                    <div className="mt-0.5 flex items-center gap-2">
+                      {row.displayBadge && (
+                        <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                          row.displayBadgeRarity === 'mythic' ? 'border-purple-400/40 bg-purple-500/10 text-purple-300' :
+                          row.displayBadgeRarity === 'legendary' ? 'border-amber-400/40 bg-amber-500/10 text-amber-300' :
+                          row.displayBadgeRarity === 'epic' ? 'border-violet-400/40 bg-violet-500/10 text-violet-300' :
+                          'border-white/10 bg-white/5 text-slate-400'
+                        }`}>{row.displayBadge}</span>
+                      )}
+                      {row.displayTitle && (
+                        <span className={`text-[9px] font-semibold italic ${
+                          row.displayTitleRarity === 'mythic' ? 'text-purple-300' :
+                          row.displayTitleRarity === 'legendary' ? 'text-amber-300' :
+                          row.displayTitleRarity === 'epic' ? 'text-violet-300' :
+                          'text-slate-500'
+                        }`}>{row.displayTitle}</span>
+                      )}
+                    </div>
+                  )}
                   {isViewer && <div className="text-[8px] font-bold text-[var(--theme-accent)] uppercase tracking-tighter mt-0.5">You</div>}
                 </td>
                 <td className="py-5 border-y border-inherit text-[10px] font-bold text-slate-400 italic">{meta || 'No data'}</td>

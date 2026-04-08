@@ -574,6 +574,8 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const [timerRunning, setTimerRunning] = useState(false);
   const [testRelicLoopMode, setTestRelicLoopMode] = useState(true);
   const [progressionSummary, setProgressionSummary] = useState(null);
+  // Track session-level relic completions (level 15 = solved); every 5 triggers a milestone submit.
+  const sessionSolvedCountRef = useRef(0);
 
   const containerRef = useRef(null);
   const freeSessionKeyRef = useRef(`free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -608,7 +610,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     const bestScore = Math.max(Number(freeTrainingScore?.score || 0), Number(freeBuilderScore?.score || 0));
     const success = relic.level >= 15 || testRelic.level >= 15;
 
-    fetch(buildApiUrl('/api/practice-results'), {
+    fetch(buildApiUrl('/api/playground'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -768,6 +770,7 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
     submitFreeTrainingSession('reset');
     freeSessionKeyRef.current = `free-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     lastLoggedFreeSessionRef.current = '';
+    sessionSolvedCountRef.current = 0;
     setProgressionSummary(null);
     const nextBucketKey = getFiveMinuteBucketKey();
     setBucketKey(nextBucketKey);
@@ -909,6 +912,39 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
   const handlePracticeRelicAction = () => {
     const nextRelic = handleBaseUpgrade(relic, patternProfile, forceRelic.isPrimed && relic.hasFourthLine ? forceRelic.forcedLine : null);
     setRelic(nextRelic);
+
+    // Count and submit milestone when the target relic is maxed (level 15).
+    if (nextRelic.level >= 15 && relic.level < 15 && user?.id) {
+      sessionSolvedCountRef.current += 1;
+      if (sessionSolvedCountRef.current % 5 === 0) {
+        // Fire a milestone practice-results submission for every 5 solved relics.
+        const milestoneKey = `free-milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const bestScore = Math.max(Number(freeTrainingScore?.score || 0), Number(freeBuilderScore?.score || 0));
+        fetch(buildApiUrl('/api/playground'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+          body: JSON.stringify({
+            mode: 'free_training',
+            sessionKey: milestoneKey,
+            score: bestScore,
+            success: true,
+            sourceMode: seedMood,
+            rowsCount: sessionRolls.length,
+            detail: {
+              reason: 'milestone',
+              milestone: sessionSolvedCountRef.current,
+              seed_mood: seedMood,
+            },
+          }),
+        })
+          .then(async (r) => (r.ok ? r.json().catch(() => null) : null))
+          .then((payload) => {
+            if (!payload?.success || payload?.duplicate || !payload?.progressionDelta) return;
+            setProgressionSummary(payload.progressionDelta);
+          })
+          .catch(() => {});
+      }
+    }
 
     if (nextRelic.level > relic.level && nextRelic.lastVisibleRoll) {
       setPatternProfile((current) => advancePatternProfile(current, nextRelic.lastVisibleRoll));

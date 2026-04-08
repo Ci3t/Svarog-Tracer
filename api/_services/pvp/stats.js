@@ -366,6 +366,10 @@ function createAggregate(userId, displayName) {
     practiceMatches: [],
     competitiveTimeline: [],
     lastPlayedAt: null,
+    displayTitle: '',
+    displayTitleRarity: '',
+    displayBadge: '',
+    displayBadgeRarity: '',
   };
 }
 
@@ -571,6 +575,10 @@ function finalizeAggregate(aggregate) {
     userId: aggregate.userId,
     displayName: aggregate.displayName,
     lastPlayedAt: aggregate.lastPlayedAt,
+    displayTitle: aggregate.displayTitle || '',
+    displayTitleRarity: aggregate.displayTitleRarity || '',
+    displayBadge: aggregate.displayBadge || '',
+    displayBadgeRarity: aggregate.displayBadgeRarity || '',
     all: allSummary,
     competitive: competitiveSummary,
     practice: practiceSummary,
@@ -674,6 +682,11 @@ function aggregateRooms(rows) {
       aggregate.recentMatches.push(matchEntry);
       if (!aggregate.lastPlayedAt || new Date(finishedAt) > new Date(aggregate.lastPlayedAt)) {
         aggregate.lastPlayedAt = finishedAt;
+        const rawState = participant.userId === hostUserId ? (row?.host_state || {}) : (row?.guest_state || {});
+        aggregate.displayTitle = String(rawState?.displayTitle || '').trim();
+        aggregate.displayTitleRarity = String(rawState?.displayTitleRarity || '').trim();
+        aggregate.displayBadge = String(rawState?.displayBadge || '').trim();
+        aggregate.displayBadgeRarity = String(rawState?.displayBadgeRarity || '').trim();
       }
 
       players.set(participant.userId, aggregate);
@@ -708,6 +721,10 @@ function buildLeaderboard(finalizedPlayers, limit) {
       rank: index + 1,
       userId: entry.userId,
       displayName: entry.displayName,
+      displayTitle: entry.displayTitle || '',
+      displayTitleRarity: entry.displayTitleRarity || '',
+      displayBadge: entry.displayBadge || '',
+      displayBadgeRarity: entry.displayBadgeRarity || '',
       seasonPoints: entry.competitive.seasonPoints,
       matches: entry.competitive.matches,
       wins: entry.competitive.wins,

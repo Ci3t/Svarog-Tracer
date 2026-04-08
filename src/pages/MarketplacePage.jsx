@@ -451,13 +451,21 @@ export default function MarketplacePage() {
   
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedTitle = useMemo(() => getTitleDefinition(equippedTitleKey), [equippedTitleKey]);
-  const equippedCosmetics = useMemo(() => resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const credentials = {
+  const equippedCosmetics = useMemo(() => {
+    const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
+    const fromApi = marketplaceData?.equipped && typeof marketplaceData.equipped === 'object' ? marketplaceData.equipped : {};
+    return {
+      badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
+      nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
+      frameKey: fromApi.frameKey || fromMeta.frameKey || '',
+    };
+  }, [user?.user_metadata, marketplaceData?.equipped]);
+  const credentials = useMemo(() => ({
     badge: getMarketplaceItem(equippedCosmetics.badgeKey),
     banner: getMarketplaceItem(equippedCosmetics.nameplateKey),
     frame: getMarketplaceItem(equippedCosmetics.frameKey),
-    title: equippedTitle
-  };
+    title: equippedTitle,
+  }), [equippedCosmetics, equippedTitle]);
 
   const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
   const catalog = useMemo(() => Array.isArray(marketplaceData?.catalog) ? marketplaceData.catalog : [], [marketplaceData?.catalog]);
@@ -492,7 +500,7 @@ export default function MarketplacePage() {
   };
 
   const submitMarketplaceAction = async (body) => {
-    const response = await fetch(buildApiUrl('/api/profile-marketplace'), {
+    const response = await fetch(buildApiUrl('/api/profile'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(body),
@@ -629,7 +637,7 @@ export default function MarketplacePage() {
                     item={item}
                     actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
                     locked={marketActionKey !== ''}
-                    equippedKey={item.slot === 'title' || item.type === 'title' ? equippedTitleKey : credentials[item.slot]?.key}
+                    equippedKey={item.slot === 'title' || item.type === 'title' ? equippedTitleKey : (item.slot === 'nameplate' ? credentials.banner?.key : credentials[item.slot]?.key)}
                     onPurchase={handlePurchase}
                     onEquip={handleEquip}
                     onPreview={(it) => setPreviewItemKey(it?.key || '')}

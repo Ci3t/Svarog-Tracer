@@ -7,6 +7,7 @@ import {
   supabaseAdminRequest,
 } from '../zone/shared.js';
 import { getSeasonStatsSnapshot } from '../pvp/stats.js';
+import { autoClaimProgressionRewards, applyTokenGrant } from '../profile/progression.js';
 
 const env = globalThis.process?.env || {};
 const CHALLENGE_RESULTS_TABLE = env.SUPABASE_CHALLENGE_RESULTS_TABLE || 'challenge_results';
@@ -235,13 +236,36 @@ export async function handler(req, res) {
         limit: 12,
       }).catch(() => null);
 
+      const delta = buildProgressionDelta(
+        previousSnapshot?.profile?.progression,
+        nextSnapshot?.profile?.progression,
+      );
+
+      // Auto-claim newly unlocked rewards (grants tokens + cosmetics without
+      // requiring a separate manual claim action from the user).
+      if (Array.isArray(delta.unlockedRewards) && delta.unlockedRewards.length > 0) {
+        await autoClaimProgressionRewards({
+          userId: user.id,
+          rewardKeys: delta.unlockedRewards.map((r) => r.key),
+          seasonLabel: nextSnapshot?.season?.label || previousSnapshot?.season?.label || '',
+        }).catch(() => null);
+      }
+
+      // Replay bonus: when re-solving an already-cleared challenge (xpGained = 0)
+      // give a small flat currency reward so repeated play still feels rewarding.
+      const submittedScore = normalizeNumber(body?.score, 0);
+      const REPLAY_TOKEN_BONUS = 5;
+      let tokensGained = 0;
+      if (delta.xpGained === 0 && submittedScore > 0) {
+        await applyTokenGrant(user.id, REPLAY_TOKEN_BONUS).catch(() => null);
+        tokensGained = REPLAY_TOKEN_BONUS;
+      }
+
       return res.status(200).json({
         success: true,
         result,
-        progressionDelta: buildProgressionDelta(
-          previousSnapshot?.profile?.progression,
-          nextSnapshot?.profile?.progression,
-        ),
+        tokensGained,
+        progressionDelta: delta,
       });
     }
 

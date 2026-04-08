@@ -808,10 +808,10 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
-	              <div className="theme-subpanel rounded-lg px-4 py-3">
-	                <div className="text-xs text-slate-500">Seed</div>
-	                <div className="mt-1 font-medium text-white">Shared</div>
-	              </div>
+              <div className="theme-subpanel rounded-lg px-4 py-3">
+                <div className="text-xs text-slate-500">Seed</div>
+                <div className="mt-1 font-medium text-white capitalize">{selectedSeedMode === 'shared' ? 'Shared' : 'Random'}</div>
+              </div>
 	              <div className="theme-subpanel rounded-lg px-4 py-3">
 	                <div className="text-xs text-slate-500">Attempts</div>
 	                <div className="mt-1 font-medium text-white">3 per side</div>
@@ -976,10 +976,10 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                         key={mode}
                         type="button"
                         onClick={() => setSelectedSeedMode(mode)}
-                        className={`theme-subpanel flex min-w-[220px] flex-col items-start rounded-lg border px-4 py-3 text-left transition-colors ${
+                        className={`flex min-w-[220px] flex-col items-start rounded-lg border px-4 py-3 text-left transition-all ${
                           active
-                            ? 'border-white/20 text-white'
-                            : 'border-white/8 text-slate-400 hover:border-white/14 hover:text-white'
+                            ? 'border-[var(--theme-accent)] bg-[var(--theme-accent-soft)]/15 text-white shadow-[0_0_12px_var(--theme-accent-soft)]'
+                            : 'theme-subpanel border-white/8 text-slate-400 hover:border-white/20 hover:text-white'
                         }`}
                       >
                         <span className="text-sm font-semibold">{label}</span>

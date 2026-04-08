@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
 import './index.css';
+import './styles/cosmetics.css';
 import App from './App.jsx';
 import { PresenceProvider } from './contexts/PresenceContext';
 import { AuthProvider } from './contexts/AuthContext';

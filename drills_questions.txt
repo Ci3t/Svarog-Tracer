@@ -1,0 +1,131 @@
+# Drills Questions
+
+## Predictor Basics
+
+1. **What does “trend share 40%” mean in the predictor?**
+   - A. The predictor is 40% sure the value is correct.
+   - B. That value owned 40% of the latest trend window. *(Correct)*
+   - C. The value will repeat 40% of the rest of the session.
+   - D. The predictor is 40% confident in the session outcome.
+
+2. **What does freshness measure in the predictor?**
+   - A. How recently that same arrow changed or stayed alive. *(Correct)*
+   - B. How many total times the value appeared this session.
+   - C. How much junk the relic currently has.
+   - D. How often the predictor updates its data.
+
+3. **If an arrow has repeated for multiple windows without changing, what should the predictor call it?**
+   - A. Fresh.
+   - B. Held.
+   - C. Stale. *(Correct)*
+   - D. Active.
+
+4. **What does “trust 100%” mean in the predictor?**
+   - A. The predictor strongly believes the arrow direction itself. *(Correct)*
+   - B. That value appeared in 100% of the recent rolls.
+   - C. The board is safe and cannot break.
+   - D. The predictor is 100% sure of the trend share.
+
+## Session Reading
+
+5. **What is the outcome of a session snapshot with a dominant roll?**
+   - A. It identifies the value doing most of the work, even if breaks appear. *(Correct)*
+   - B. It shows the value with the highest trend share.
+   - C. It highlights the most recent value in the session.
+   - D. It predicts the next value based on the dominant roll.
+
+6. **How do you count the lane streak in a session?**
+   - A. By reading how long a streak ran before a break occurred. *(Correct)*
+   - B. By counting the total number of rolls in the session.
+   - C. By identifying the value with the highest trust.
+   - D. By checking the freshness of the last roll.
+
+7. **What makes a session chaotic?**
+   - A. All values are active, and the lane keeps changing frequently. *(Correct)*
+   - B. One value appears three times in a row.
+   - C. The session has no dominant roll.
+   - D. The predictor shows low trust values.
+
+8. **What defines a sequence session?**
+   - A. A session with a readable alternating rhythm. *(Correct)*
+   - B. A session dominated by a single value.
+   - C. A session with no clear pattern.
+   - D. A session where the predictor shows high freshness.
+
+## Trends
+
+9. **What does trend share indicate?**
+   - A. It shows the percentage of the latest trend window owned by a value. *(Correct)*
+   - B. It reflects the predictor's confidence in the trend.
+   - C. It predicts the next value in the session.
+   - D. It measures the freshness of the trend.
+
+10. **What does freshness tell you about a trend?**
+    - A. It indicates how new or old the arrow signal is. *(Correct)*
+    - B. It shows the percentage of the trend window owned by a value.
+    - C. It predicts the next value in the session.
+    - D. It measures the trust level of the trend.
+
+11. **How do you interpret share vs trust?**
+    - A. Use both numbers together; freshness helps distinguish new pushes from lingering signals. *(Correct)*
+    - B. Trust is more important than share in all cases.
+    - C. Share indicates the next value, while trust shows the current value.
+    - D. Freshness is irrelevant when interpreting share and trust.
+
+## Manipulation
+
+12. **What does “manip” refer to in the app?**
+    - A. Manual intervention or adjustments in the prediction model. *(Correct)*
+    - B. The process of forcing a line in the session.
+    - C. The predictor's automatic adjustments to the trend.
+    - D. The act of translating raw pairs into visible rolls.
+
+13. **How can you influence the predictor manually?**
+    - A. By adjusting weights or providing additional context. *(Correct)*
+    - B. By forcing a line in the session.
+    - C. By increasing the freshness of the trend.
+    - D. By resetting the predictor to its default state.
+
+14. **What is the purpose of forcing a line?**
+    - A. To set up the next hit by sitting on the desired line before the roll. *(Correct)*
+    - B. To increase the trust level of the predictor.
+    - C. To adjust the trend share in the session.
+    - D. To translate raw pairs into visible rolls.
+
+15. **How do you use raw pair translation?**
+    - A. To convert hidden raw pairs into visible roll language. *(Correct)*
+    - B. To predict the next value in the session.
+    - C. To adjust the freshness of the trend.
+    - D. To increase the trust level of the predictor.
+
+16. **What does Caesar shift help you do?**
+    - A. It translates hidden pair logic into visible roll language. *(Correct)*
+    - B. It forces the board into line 4 automatically.
+    - C. It ranks relics by score tier.
+    - D. It predicts the next value in the session.
+
+## New Questions Based on Playground Drills
+
+17. **What is the correct pair to treat as the commons lane?**
+    - A. 41 / 42 *(Correct)*
+    - B. 42 / 43
+    - C. 43 / 44
+    - D. 41 / 44
+
+18. **Which values are acting like the noise side here?**
+    - A. 43 / 44 *(Correct)*
+    - B. 41 / 42
+    - C. 42 / 43
+    - D. 41 / 44
+
+19. **What makes this session snapshot chaotic instead of clean?**
+    - A. All four values are active, and the lane keeps changing. *(Correct)*
+    - B. One value appears three times.
+    - C. Chaos means the same value repeats.
+    - D. The predictor shows low trust values.
+
+20. **What makes this feel like a sequence session?**
+    - A. The board is repeating a readable alternating rhythm. *(Correct)*
+    - B. One outsider appeared once.
+    - C. The board has no pattern at all.
+    - D. The predictor shows high freshness.
