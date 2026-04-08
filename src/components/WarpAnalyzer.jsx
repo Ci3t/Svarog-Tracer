@@ -928,7 +928,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                      </div>
                   )}
 
-                  {/* Config Modal */}
+                   {/* Config Modal */}
                   {showInputModal && (
                       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowInputModal(false)}>
                           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full shadow-2xl" onClick={e => e.stopPropagation()}>
