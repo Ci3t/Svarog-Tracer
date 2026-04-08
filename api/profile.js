@@ -4,15 +4,15 @@ import {
   requireAuthenticatedUser,
   setCorsHeaders,
   supabaseAuthAdminRequest,
-} from './_services/zone/shared.js';
-import { handler as seasonStatsHandler } from './_services/pvp/stats.js';
+} from '../server/_services/zone/shared.js';
+import { handler as seasonStatsHandler } from '../server/_services/pvp/stats.js';
 import {
   getMarketplaceSnapshot,
   purchaseMarketplaceItem,
   updateMarketplaceEquip,
-} from './_services/profile/marketplace.js';
-import { claimProfileReward, hasUnlockedTitle } from './_services/profile/progression.js';
-import { getSeasonStatsSnapshot } from './_services/pvp/stats.js';
+} from '../server/_services/profile/marketplace.js';
+import { claimProfileReward, hasUnlockedTitle } from '../server/_services/profile/progression.js';
+import { getSeasonStatsSnapshot } from '../server/_services/pvp/stats.js';
 import { TITLE_DEFINITION_MAP } from '../src/utils/titleCatalog.js';
 import { MARKETPLACE_ITEM_MAP } from '../src/utils/marketplaceCatalog.js';
 

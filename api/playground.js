@@ -1,14 +1,14 @@
-import { handler as challengeResultsHandler } from './_services/challenge/results.js';
-import { handler as challengeLeaderboardHandler } from './_services/challenge/leaderboard.js';
+import { handler as challengeResultsHandler } from '../server/_services/challenge/results.js';
+import { handler as challengeLeaderboardHandler } from '../server/_services/challenge/leaderboard.js';
 import {
   handleApiError,
   HttpError,
   requireAuthenticatedUser,
   setCorsHeaders,
   supabaseAdminRequest,
-} from './_services/zone/shared.js';
-import { getSeasonStatsSnapshot } from './_services/pvp/stats.js';
-import { autoClaimProgressionRewards } from './_services/profile/progression.js';
+} from '../server/_services/zone/shared.js';
+import { getSeasonStatsSnapshot } from '../server/_services/pvp/stats.js';
+import { autoClaimProgressionRewards } from '../server/_services/profile/progression.js';
 
 const env = globalThis.process?.env || {};
 const PRACTICE_RESULTS_TABLE = env.SUPABASE_PRACTICE_RESULTS_TABLE || 'practice_results';

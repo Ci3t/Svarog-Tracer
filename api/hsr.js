@@ -1,7 +1,7 @@
-import { handler as bannersHandler } from './_services/hsr/banners.js';
-import { handler as statsHandler } from './_services/hsr/stats.js';
-import { handler as cavernHandler } from './_services/hsr/cavern-clears.js';
-import { handler as cronHandler } from './_services/hsr/cron-wipe.js';
+import { handler as bannersHandler } from '../server/_services/hsr/banners.js';
+import { handler as statsHandler } from '../server/_services/hsr/stats.js';
+import { handler as cavernHandler } from '../server/_services/hsr/cavern-clears.js';
+import { handler as cronHandler } from '../server/_services/hsr/cron-wipe.js';
 
 export default async function handler(req, res) {
   // Hardcoded CORS - Universal Wildcard (Brute Force)

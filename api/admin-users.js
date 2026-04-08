@@ -6,7 +6,7 @@ import {
   setCorsHeaders,
   supabaseAuthAdminRequest,
   handleApiError,
-} from './_services/zone/shared.js';
+} from '../server/_services/zone/shared.js';
 
 function normalizeUserId(value) {
   const normalized = String(value || '').trim();

@@ -9,7 +9,7 @@ import {
   isZoneAdminUser,
   parseBearerToken,
   requireAuthenticatedUser,
-} from './_services/zone/shared.js';
+} from '../server/_services/zone/shared.js';
 import { resolveEquippedTitleFromUser } from '../src/utils/titleCatalog.js';
 import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../src/utils/marketplaceCatalog.js';
 

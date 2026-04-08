@@ -1,5 +1,5 @@
-import { handler as bannersHandler } from './_services/wuwa/banners.js';
-import { handler as statsHandler } from './_services/wuwa/stats.js';
+import { handler as bannersHandler } from '../server/_services/wuwa/banners.js';
+import { handler as statsHandler } from '../server/_services/wuwa/stats.js';
 
 export default async function handler(req, res) {
   // Hardcoded CORS - Universal Wildcard (Brute Force)

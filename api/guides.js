@@ -6,7 +6,7 @@ import {
   isZoneAdminUser,
   requireAuthenticatedUser,
   supabaseAdminRequest,
-} from './_services/zone/shared.js';
+} from '../server/_services/zone/shared.js';
 
 const GUIDES_TABLE = process.env.SUPABASE_GUIDES_TABLE || 'guides_library';
 const GUIDES_DOC_ID = process.env.SUPABASE_GUIDES_DOC_ID || 'main';

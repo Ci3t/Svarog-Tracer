@@ -1,14 +1,14 @@
-import { handler as submitHandler } from './_services/zone/submit.js';
-import { handler as mapHandler } from './_services/zone/map.js';
-import { handler as flagEpochHandler } from './_services/zone/flag-epoch.js';
-import { handler as variantsHandler } from './_services/zone/variants.js';
-import { handler as nearbyHandler } from './_services/zone/nearby.js';
-import { handler as ownedHandler } from './_services/zone/owned.js';
-import { handler as exportHandler } from './_services/zone/export.js';
-import { handler as logRunsHandler } from './_services/zone/log-runs.js';
-import { handler as adminRunsHandler } from './_services/zone/admin-runs.js';
-import { handler as likesHandler } from './_services/zone/likes.js';
-import { setCorsHeaders } from './_services/zone/shared.js';
+import { handler as submitHandler } from '../server/_services/zone/submit.js';
+import { handler as mapHandler } from '../server/_services/zone/map.js';
+import { handler as flagEpochHandler } from '../server/_services/zone/flag-epoch.js';
+import { handler as variantsHandler } from '../server/_services/zone/variants.js';
+import { handler as nearbyHandler } from '../server/_services/zone/nearby.js';
+import { handler as ownedHandler } from '../server/_services/zone/owned.js';
+import { handler as exportHandler } from '../server/_services/zone/export.js';
+import { handler as logRunsHandler } from '../server/_services/zone/log-runs.js';
+import { handler as adminRunsHandler } from '../server/_services/zone/admin-runs.js';
+import { handler as likesHandler } from '../server/_services/zone/likes.js';
+import { setCorsHeaders } from '../server/_services/zone/shared.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);

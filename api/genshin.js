@@ -1,5 +1,5 @@
-import { handler as bannersHandler } from './_services/genshin/banners.js';
-import { handler as statsHandler } from './_services/genshin/stats.js';
+import { handler as bannersHandler } from '../server/_services/genshin/banners.js';
+import { handler as statsHandler } from '../server/_services/genshin/stats.js';
 
 export default async function handler(req, res) {
   // Hardcoded CORS - Universal Wildcard (Brute Force)
