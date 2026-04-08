@@ -30,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import { withBaseUrl } from '../utils/assetPaths';
 import { buildApiUrl } from '../utils/apiBase';
-import UserIdentityBlock from './UserIdentityBlock';
+import { UserIdentityCard } from './UserIdentityBlock';
 import { getAvatarFrameStyle, resolveEquippedCosmeticsFromMetadata } from '../utils/marketplaceCatalog';
 
 const PATCH_PRESETS = ["4.0", "4.1", "4.2", "4.3", "4.4", "custom"];
@@ -791,41 +791,30 @@ export default function Layout({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex items-start gap-3">
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/30" style={getAvatarFrameStyle(member.frameKey)}>
-                            {member.avatarUrl ? (
-                              <img src={member.avatarUrl} alt={member.displayName} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-sm font-black text-white">
-                                {String(member.displayName || '?').charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="min-w-0 flex-1">
-                                <UserIdentityBlock
-                                  name={member.displayName}
-                                  title={member.titleLabel || ''}
-                                  rarity={member.titleRarity || 'common'}
-                                  badge={member.badgeLabel || ''}
-                                  badgeRarity={member.badgeRarity || 'common'}
-                                  nameplate={member.nameplateLabel || ''}
-                                  nameplateRarity={member.nameplateRarity || 'common'}
-                                  nameClassName="truncate text-sm font-bold text-white"
-                                  titleClassName="mt-0.5 text-[10px]"
-                                />
-                              </div>
-                              {member.role === 'admin' ? (
+                          <div className="min-w-0 flex-1">
+                            <UserIdentityCard
+                              name={member.displayName}
+                              title={member.titleLabel || ''}
+                              rarity={member.titleRarity || 'common'}
+                              badge={member.badgeLabel || ''}
+                              badgeRarity={member.badgeRarity || 'common'}
+                              nameplate={member.nameplateLabel || ''}
+                              nameplateRarity={member.nameplateRarity || 'common'}
+                              nameplateKey={member.nameplateKey || ''}
+                              avatarUrl={member.avatarUrl || ''}
+                              frameKey={member.frameKey || ''}
+                              subtitle={member.status === 'online'
+                                ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
+                                : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
+                              className="border-white/10 bg-black/25"
+                              nameClassName="truncate text-sm font-bold text-white"
+                              titleClassName="mt-0.5 text-[10px]"
+                              rightSlot={member.role === 'admin' ? (
                                 <span className="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em]" style={themedPresenceBadgeStyle}>
                                   Admin
                                 </span>
                               ) : null}
-                            </div>
-                            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: 'var(--theme-text-muted)' }}>
-                              {member.status === 'online'
-                                ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
-                                : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
-                            </div>
+                            />
                           </div>
                         </div>
                         <span

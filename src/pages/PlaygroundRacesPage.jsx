@@ -20,7 +20,7 @@ import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 import PvpVsMark from '../components/modern/PvpVsMark';
 import { withBaseUrl } from '../utils/assetPaths';
-import UserIdentityBlock from '../components/UserIdentityBlock';
+import { UserIdentityCard } from '../components/UserIdentityBlock';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
 const TARGET_SUB_OPTIONS = [
@@ -1113,26 +1113,23 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                 <div>
                   <div className="px-5 py-6">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
-                          {getRosterMark(room.host?.name, 'H')}
-                        </div>
-                        <div>
-                          <div className="mb-1 inline-flex rounded-sm border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
-                            Host
-                          </div>
-                          <UserIdentityBlock
-                            name={room.host?.name || 'Host'}
-                            title={room.host?.state?.displayTitle || ''}
-                            rarity={room.host?.state?.displayTitleRarity || 'common'}
-                            badge={room.host?.state?.displayBadge || ''}
-                            badgeRarity={room.host?.state?.displayBadgeRarity || 'common'}
-                            nameplate={room.host?.state?.displayNameplate || ''}
-                            nameplateRarity={room.host?.state?.displayNameplateRarity || 'common'}
-                            nameClassName="text-lg font-semibold text-white"
-                            titleClassName="mt-1 text-[11px]"
-                          />
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <UserIdentityCard
+                          name={room.host?.name || 'Host'}
+                          title={room.host?.state?.displayTitle || ''}
+                          rarity={room.host?.state?.displayTitleRarity || 'common'}
+                          badge={room.host?.state?.displayBadge || ''}
+                          badgeRarity={room.host?.state?.displayBadgeRarity || 'common'}
+                          nameplate={room.host?.state?.displayNameplate || ''}
+                          nameplateRarity={room.host?.state?.displayNameplateRarity || 'common'}
+                          nameplateKey={room.host?.state?.displayNameplateKey || ''}
+                          avatarUrl={room.host?.state?.displayAvatarUrl || ''}
+                          frameKey={room.host?.state?.displayFrameKey || ''}
+                          sideLabel="Host"
+                          className="border-white/10 bg-black/25"
+                          nameClassName="text-lg font-semibold text-white"
+                          titleClassName="mt-1 text-[11px]"
+                        />
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
@@ -1146,26 +1143,23 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                       <PvpVsMark theme={sessionTheme} size="sm" />
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
-                          {getRosterMark(room.guest?.name, 'G')}
-                        </div>
-                        <div>
-                          <div className="mb-1 inline-flex rounded-sm border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                            Guest
-                          </div>
-                          <UserIdentityBlock
-                            name={room.guest?.name || 'Waiting for opponent'}
-                            title={room.guest?.state?.displayTitle || ''}
-                            rarity={room.guest?.state?.displayTitleRarity || 'common'}
-                            badge={room.guest?.state?.displayBadge || ''}
-                            badgeRarity={room.guest?.state?.displayBadgeRarity || 'common'}
-                            nameplate={room.guest?.state?.displayNameplate || ''}
-                            nameplateRarity={room.guest?.state?.displayNameplateRarity || 'common'}
-                            nameClassName="text-lg font-semibold text-white"
-                            titleClassName="mt-1 text-[11px]"
-                          />
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <UserIdentityCard
+                          name={room.guest?.name || 'Waiting for opponent'}
+                          title={room.guest?.state?.displayTitle || ''}
+                          rarity={room.guest?.state?.displayTitleRarity || 'common'}
+                          badge={room.guest?.state?.displayBadge || ''}
+                          badgeRarity={room.guest?.state?.displayBadgeRarity || 'common'}
+                          nameplate={room.guest?.state?.displayNameplate || ''}
+                          nameplateRarity={room.guest?.state?.displayNameplateRarity || 'common'}
+                          nameplateKey={room.guest?.state?.displayNameplateKey || ''}
+                          avatarUrl={room.guest?.state?.displayAvatarUrl || ''}
+                          frameKey={room.guest?.state?.displayFrameKey || ''}
+                          sideLabel="Guest"
+                          className="border-white/10 bg-black/25"
+                          nameClassName="text-lg font-semibold text-white"
+                          titleClassName="mt-1 text-[11px]"
+                        />
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>

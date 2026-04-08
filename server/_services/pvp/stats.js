@@ -366,10 +366,17 @@ function createAggregate(userId, displayName) {
     practiceMatches: [],
     competitiveTimeline: [],
     lastPlayedAt: null,
+    displayAvatarUrl: '',
     displayTitle: '',
     displayTitleRarity: '',
     displayBadge: '',
     displayBadgeRarity: '',
+    displayNameplate: '',
+    displayNameplateKey: '',
+    displayNameplateRarity: '',
+    displayFrame: '',
+    displayFrameKey: '',
+    displayFrameRarity: '',
   };
 }
 
@@ -575,10 +582,17 @@ function finalizeAggregate(aggregate) {
     userId: aggregate.userId,
     displayName: aggregate.displayName,
     lastPlayedAt: aggregate.lastPlayedAt,
+    displayAvatarUrl: aggregate.displayAvatarUrl || '',
     displayTitle: aggregate.displayTitle || '',
     displayTitleRarity: aggregate.displayTitleRarity || '',
     displayBadge: aggregate.displayBadge || '',
     displayBadgeRarity: aggregate.displayBadgeRarity || '',
+    displayNameplate: aggregate.displayNameplate || '',
+    displayNameplateKey: aggregate.displayNameplateKey || '',
+    displayNameplateRarity: aggregate.displayNameplateRarity || '',
+    displayFrame: aggregate.displayFrame || '',
+    displayFrameKey: aggregate.displayFrameKey || '',
+    displayFrameRarity: aggregate.displayFrameRarity || '',
     all: allSummary,
     competitive: competitiveSummary,
     practice: practiceSummary,
@@ -683,10 +697,17 @@ function aggregateRooms(rows) {
       if (!aggregate.lastPlayedAt || new Date(finishedAt) > new Date(aggregate.lastPlayedAt)) {
         aggregate.lastPlayedAt = finishedAt;
         const rawState = participant.userId === hostUserId ? (row?.host_state || {}) : (row?.guest_state || {});
+        aggregate.displayAvatarUrl = String(rawState?.displayAvatarUrl || '').trim();
         aggregate.displayTitle = String(rawState?.displayTitle || '').trim();
         aggregate.displayTitleRarity = String(rawState?.displayTitleRarity || '').trim();
         aggregate.displayBadge = String(rawState?.displayBadge || '').trim();
         aggregate.displayBadgeRarity = String(rawState?.displayBadgeRarity || '').trim();
+        aggregate.displayNameplate = String(rawState?.displayNameplate || '').trim();
+        aggregate.displayNameplateKey = String(rawState?.displayNameplateKey || '').trim();
+        aggregate.displayNameplateRarity = String(rawState?.displayNameplateRarity || '').trim();
+        aggregate.displayFrame = String(rawState?.displayFrame || '').trim();
+        aggregate.displayFrameKey = String(rawState?.displayFrameKey || '').trim();
+        aggregate.displayFrameRarity = String(rawState?.displayFrameRarity || '').trim();
       }
 
       players.set(participant.userId, aggregate);
@@ -721,10 +742,17 @@ function buildLeaderboard(finalizedPlayers, limit) {
       rank: index + 1,
       userId: entry.userId,
       displayName: entry.displayName,
+      displayAvatarUrl: entry.displayAvatarUrl || '',
       displayTitle: entry.displayTitle || '',
       displayTitleRarity: entry.displayTitleRarity || '',
       displayBadge: entry.displayBadge || '',
       displayBadgeRarity: entry.displayBadgeRarity || '',
+      displayNameplate: entry.displayNameplate || '',
+      displayNameplateKey: entry.displayNameplateKey || '',
+      displayNameplateRarity: entry.displayNameplateRarity || '',
+      displayFrame: entry.displayFrame || '',
+      displayFrameKey: entry.displayFrameKey || '',
+      displayFrameRarity: entry.displayFrameRarity || '',
       seasonPoints: entry.competitive.seasonPoints,
       matches: entry.competitive.matches,
       wins: entry.competitive.wins,
@@ -762,6 +790,17 @@ function buildPracticeLeaderboard(finalizedPlayers, limit) {
       rank: index + 1,
       userId: entry.userId,
       displayName: entry.displayName,
+      displayAvatarUrl: entry.displayAvatarUrl || '',
+      displayTitle: entry.displayTitle || '',
+      displayTitleRarity: entry.displayTitleRarity || '',
+      displayBadge: entry.displayBadge || '',
+      displayBadgeRarity: entry.displayBadgeRarity || '',
+      displayNameplate: entry.displayNameplate || '',
+      displayNameplateKey: entry.displayNameplateKey || '',
+      displayNameplateRarity: entry.displayNameplateRarity || '',
+      displayFrame: entry.displayFrame || '',
+      displayFrameKey: entry.displayFrameKey || '',
+      displayFrameRarity: entry.displayFrameRarity || '',
       matches: entry.practice.matches,
       wins: entry.practice.wins,
       losses: entry.practice.losses,

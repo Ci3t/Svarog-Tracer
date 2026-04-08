@@ -7,7 +7,7 @@ import {
   supabaseAdminRequest,
 } from '../zone/shared.js';
 import { getSeasonStatsSnapshot } from '../pvp/stats.js';
-import { autoClaimProgressionRewards, applyTokenGrant } from '../profile/progression.js';
+import { applyTokenGrant, autoClaimProgressionRewards } from '../profile/progression.js';
 
 const env = globalThis.process?.env || {};
 const CHALLENGE_RESULTS_TABLE = env.SUPABASE_CHALLENGE_RESULTS_TABLE || 'challenge_results';
@@ -179,27 +179,6 @@ async function createChallengeResult(user, body) {
     generated: Boolean(body?.generated),
   };
 
-  if (!row.generated) {
-    const existingRows = await supabaseAdminRequest(buildContractLookupPath(user.id, contractId, season), {
-      method: 'GET',
-    });
-    const currentBest = Array.isArray(existingRows)
-      ? existingRows.reduce((best, entry) => (best && compareChallengeRows(best, entry) >= 0 ? best : entry), null)
-      : null;
-
-    if (currentBest?.id) {
-      const candidate = { ...row, created_at: new Date().toISOString() };
-      if (compareChallengeRows(candidate, currentBest) > 0) {
-        const updated = await supabaseAdminRequest(`${CHALLENGE_RESULTS_TABLE}?id=eq.${encodeURIComponent(currentBest.id)}`, {
-          method: 'PATCH',
-          body: row,
-        });
-        return Array.isArray(updated) ? updated[0] || { ...currentBest, ...row } : updated || { ...currentBest, ...row };
-      }
-      return currentBest;
-    }
-  }
-
   const created = await supabaseAdminRequest(CHALLENGE_RESULTS_TABLE, {
     method: 'POST',
     body: row,
@@ -230,6 +209,13 @@ export async function handler(req, res) {
         viewer: user,
         limit: 12,
       }).catch(() => null);
+      const season = resolveSeasonWindow();
+      const existingRows = body?.generated
+        ? []
+        : await supabaseAdminRequest(buildContractLookupPath(user.id, normalizeText(body?.contractId, '', 120), season), {
+          method: 'GET',
+        }).catch(() => []);
+      const repeatedHandcraftedClear = !body?.generated && Array.isArray(existingRows) && existingRows.length > 0;
       const result = await createChallengeResult(user, body);
       const nextSnapshot = await getSeasonStatsSnapshot({
         viewer: user,
@@ -251,21 +237,24 @@ export async function handler(req, res) {
         }).catch(() => null);
       }
 
-      // Replay bonus: when re-solving an already-cleared challenge (xpGained = 0)
-      // give a small flat currency reward so repeated play still feels rewarding.
-      const submittedScore = normalizeNumber(body?.score, 0);
-      const REPLAY_TOKEN_BONUS = 5;
-      let tokensGained = 0;
-      if (delta.xpGained === 0 && submittedScore > 0) {
-        await applyTokenGrant(user.id, REPLAY_TOKEN_BONUS).catch(() => null);
-        tokensGained = REPLAY_TOKEN_BONUS;
+      const tokensGained = body?.generated
+        ? 6
+        : repeatedHandcraftedClear
+          ? 5
+          : 14;
+
+      if (tokensGained > 0) {
+        await applyTokenGrant(user.id, tokensGained).catch(() => null);
       }
 
       return res.status(200).json({
         success: true,
         result,
         tokensGained,
-        progressionDelta: delta,
+        progressionDelta: {
+          ...delta,
+          tokensGained,
+        },
       });
     }
 

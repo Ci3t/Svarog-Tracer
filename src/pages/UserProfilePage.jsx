@@ -57,6 +57,7 @@ import {
 import { PRESET_LOADOUTS, getLoadoutDefinitions } from '../utils/loadoutCatalog';
 import { LOADOUT_PRESETS } from '../components/cosmetics/PremiumAssets';
 import { TITLE_DEFINITIONS } from '../utils/progressionCatalog';
+import { getSvgBannerByKey } from '../components/cosmetics/SVGBanners';
 
 /* HELPER: Resolve Discord and Profile Names */
 function resolveAuthDisplayName(user) {
@@ -115,6 +116,7 @@ const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initia
   const heroRef = useRef(null);
   const { title, badge, banner, frame } = credentials;
   const accent = getCosmeticAccentStyle(title?.rarity || 'common');
+  const bannerKey = banner?.key || '';
 
   const FramePreset = useMemo(() => {
     if (!frame?.key) return null;
@@ -143,6 +145,14 @@ const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initia
       ref={heroRef}
       className={`relative isolate z-20 mb-10 overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0b]/75 p-8 md:p-12 backdrop-blur-2xl shadow-[0_0_50px_rgba(0,0,0,0.3)] theme-${activeTheme}`}
     >
+      {bannerKey ? (
+        <>
+          <div className="absolute inset-0 z-0 opacity-95 pointer-events-none">
+            {getSvgBannerByKey(bannerKey, activeTheme)}
+          </div>
+          <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/82 via-black/58 to-black/46 pointer-events-none" />
+        </>
+      ) : null}
       {/* Atmosphere Overlays */}
       {activeTheme === 'phoenix' && <div className="atmosphere-embers" />}
       {activeTheme === 'noir' && <div className="atmosphere-fog" />}
@@ -170,14 +180,14 @@ const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initia
 
             <div className="absolute inset-[6px] z-0 rounded-full bg-black/45 overflow-hidden">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="" className="relative z-10 h-full w-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-700" />
+                <img src={avatarUrl} alt="" className="relative z-20 h-full w-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-700" />
               ) : (
-                <span className="relative z-10 font-['Orbitron'] text-4xl font-black">{initials}</span>
+                <span className="relative z-20 font-['Orbitron'] text-4xl font-black">{initials}</span>
               )}
             </div>
             
-            <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+            <div className="absolute inset-0 z-30 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 text-[10px] font-black uppercase tracking-[0.2em] text-white">
               Identity_0
             </div>
           </div>
@@ -216,7 +226,7 @@ const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initia
 
             <div className="mt-5 w-full max-w-xl">
               <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                <span>Season XP</span>
+                <span>Level XP</span>
                 <span>{stats.currentLevelXp || 0} / {stats.nextLevelXp || 0}</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/5">

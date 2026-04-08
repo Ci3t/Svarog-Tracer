@@ -6,10 +6,12 @@ import {
   ArrowUpRight,
   BrainCircuit,
   Dice5,
+  Play,
   Radar,
   ShieldCheck,
   Swords,
   Target,
+  Volume2,
   Wrench,
   Zap,
   Sparkles,
@@ -32,43 +34,32 @@ const CLARA_TIPS = [
   'Relic Races is where the same contract becomes a real duel.',
 ];
 
-const CLARA_IDLE_LINES = {
-  en: [
-    {
-      audio: withBaseUrl('VO_Archive_Clara_2_EN_KeepUpthework.ogg'),
-      text: "Let's keep up the good work today!",
-    },
-    {
-      audio: withBaseUrl('VO_Archive_Clara_EN_Database.ogg'),
-      text: "Mr. Svarog has everything in his database.",
-    },
-    {
-      audio: withBaseUrl('VO_Clara_EN_Safehere.ogg'),
-      text: "Don't worry, Mr. Svarog. We'll be safe here.",
-    },
-    {
-      audio: withBaseUrl('VO_Clara_IHOPE DIDOKAY.ogg'),
-      text: 'I hope I did okay...',
-    },
-  ],
-  jp: [
-    {
-      audio: withBaseUrl('VO_JP_Archive_Clara_2_Keepupthework.ogg'),
-      text: "I'll try my best today too.",
-    },
-    {
-      audio: withBaseUrl('VO_JP_Archive_Clara_Database.ogg'),
-      text: "Wow! Svarog's database has everything!",
-    },
-    {
-      audio: withBaseUrl('VO_JP_Clara_helpful.ogg'),
-      text: 'I hope I was helpful to everyone',
-    },
-    {
-      audio: withBaseUrl('VO_JP_Clara_Successful_ right.ogg'),
-      text: 'Did Clara... do it right?',
-    },
-  ],
+const CLARA_HI_LINE = {
+  audio: withBaseUrl('companions/Clara/playground/Clara-hi.mp3'),
+  text: "Hi. I'm ready. Pick a mode and I'll explain what it is for.",
+};
+
+const CLARA_MODE_LINES = {
+  free: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-free-exp.mp3'),
+    text: 'Free Mode is the sandbox. Use it to test routes, builder steps, and manual ideas without pressure.',
+  },
+  pvp: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-relic-races.mp3'),
+    text: 'Relic Races is the versus room. Two players read separate boards and race to solve faster.',
+  },
+  challenge: {
+    audio: withBaseUrl('companions/Clara/playground/Calra-challenge-mode.mp3'),
+    text: 'Challenge Mode is the contract ladder. It checks whether your reads stay accurate under fixed goals.',
+  },
+  drills: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-drills.mp3'),
+    text: 'Drills teach the language first. They help you read commons, noise, trust, and force logic quickly.',
+  },
+  patterns: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-pattern-lab.mp3'),
+    text: 'Pattern Lab is for replay and analysis. Use it to understand why a session moved the way it did.',
+  },
 };
 
 const CLARA_MAD_LINES = {
@@ -179,7 +170,7 @@ const MODE_THEMES = {
   },
 };
 
-function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
+function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = false, className = '' }) {
   const theme = MODE_THEMES[modeId] || MODE_THEMES.free;
   const { summary, detail } = modeData;
   const Icon = theme.icon;
@@ -224,7 +215,20 @@ function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
              <Search className="h-3 w-3" />
              {detail}
           </div>
-          <div className="h-1.5 w-1.5 rounded-full bg-white/10 group-hover:bg-white/40" />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreview?.();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition-colors hover:border-white/20 hover:text-white"
+            >
+              {isPreviewPlaying ? <Volume2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              {isPreviewPlaying ? 'Clara on' : 'Clara'}
+            </button>
+            <div className="h-1.5 w-1.5 rounded-full bg-white/10 group-hover:bg-white/40" />
+          </div>
         </div>
       </div>
     </button>
@@ -252,6 +256,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const [claraTipIndex, setClaraTipIndex] = useState(0);
   const [claraLanguage, setClaraLanguage] = useState(() => resolveClaraLanguage());
   const [claraInteractionLocked, setClaraInteractionLocked] = useState(false);
+  const [activeModePreview, setActiveModePreview] = useState('');
 
   const scheduleClaraReset = () => {
     if (claraResetTimeoutRef.current) {
@@ -262,6 +267,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
       setClaraBubble('');
       setClaraState('idle');
       setClaraInteractionLocked(false);
+      setActiveModePreview('');
       if (claraModelRef.current) {
         gsap.set(claraModelRef.current, { x: 0, rotate: 0 });
       }
@@ -335,23 +341,10 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   };
 
   const handleClaraSingleClick = () => {
-    const linePool = CLARA_IDLE_LINES[claraLanguage] || CLARA_IDLE_LINES.en;
-    const usedForLanguage = claraIdleHistoryRef.current[claraLanguage] || [];
-    let availableIndexes = linePool
-      .map((_, index) => index)
-      .filter((index) => !usedForLanguage.includes(index));
-
-    if (availableIndexes.length === 0) {
-      claraIdleHistoryRef.current[claraLanguage] = [];
-      availableIndexes = linePool.map((_, index) => index);
-    }
-
-    const pickedIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-    claraIdleHistoryRef.current[claraLanguage] = [...(claraIdleHistoryRef.current[claraLanguage] || []), pickedIndex];
-    const selected = linePool[pickedIndex];
+    setActiveModePreview('');
     playClaraLine(
-      selected.audio,
-      selected.text,
+      CLARA_HI_LINE.audio,
+      CLARA_HI_LINE.text,
       'normal',
     );
   };
@@ -372,6 +365,13 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
     claraMadHistoryRef.current[claraLanguage] = [...(claraMadHistoryRef.current[claraLanguage] || []), pickedIndex];
     const selected = linePool[pickedIndex];
     playClaraLine(selected.audio, selected.text, 'mad');
+  };
+
+  const handleModePreview = (modeId) => {
+    const line = CLARA_MODE_LINES[modeId];
+    if (!line || claraInteractionLocked) return;
+    setActiveModePreview(modeId);
+    playClaraLine(line.audio, line.text, 'normal');
   };
 
   const handleClaraClick = () => {
@@ -619,6 +619,8 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
                       modeId={mode.id} 
                       modeData={mode} 
                       className={`gsap-grid-in ${mode.gridClass}`}
+                      onPreview={() => handleModePreview(mode.id)}
+                      isPreviewPlaying={activeModePreview === mode.id && claraSpeaking && claraState !== 'mad'}
                       onOpen={() => navigate(MODE_THEMES[mode.id]?.route || '/playground')}
                    />
                  ))}

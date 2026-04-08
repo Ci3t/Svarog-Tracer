@@ -25,6 +25,7 @@ import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
 import { useChallengeLeaderboard } from '../hooks/useChallengeLeaderboard';
+import { UserIdentityCard } from '../components/UserIdentityBlock';
 
 /* HELPER: Formatting */
 function formatRelativeTime(value) {
@@ -98,14 +99,25 @@ const RankingPodium = ({ top3, metricKey, metricLabel, title }) => {
             {/* Glowing Accent */}
             <div className="absolute -top-10 -left-10 h-32 w-32 blur-[60px] opacity-40 pointer-events-none group-hover:opacity-60 transition-opacity" style={{ backgroundColor: aura.text }} />
 
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="mb-6 h-20 w-20 rounded-full border-2 bg-slate-900 border-white/10 flex items-center justify-center font-['Orbitron'] text-xl font-bold text-white shadow-xl">
-                {player.displayName.charAt(0).toUpperCase()}
-              </div>
-              <h3 className="text-lg font-black uppercase tracking-[0.15em] text-white italic truncate max-w-full">{player.displayName}</h3>
-              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{player.rank === 1 ? 'Season Leader' : `Top ${player.rank}`}</div>
+            <div className="relative z-10">
+              <UserIdentityCard
+                name={player.displayName}
+                title={player.displayTitle || ''}
+                rarity={player.displayTitleRarity || 'common'}
+                badge={player.displayBadge || ''}
+                badgeRarity={player.displayBadgeRarity || 'common'}
+                nameplate={player.displayNameplate || ''}
+                nameplateRarity={player.displayNameplateRarity || 'common'}
+                nameplateKey={player.displayNameplateKey || ''}
+                avatarUrl={player.displayAvatarUrl || ''}
+                frameKey={player.displayFrameKey || ''}
+                subtitle={player.rank === 1 ? 'Season leader' : `Top ${player.rank}`}
+                className="border-white/10 bg-black/35"
+                nameClassName="text-xl font-black uppercase tracking-[0.12em] text-white italic"
+                titleClassName="mt-1 text-[11px]"
+              />
 
-              <div className="mt-8 flex flex-col gap-1 w-full p-4 rounded-xl border border-white/5 bg-white/[0.03]">
+              <div className="mt-5 flex flex-col gap-1 w-full p-4 rounded-xl border border-white/5 bg-white/[0.03]">
                 <div className="text-[9px] uppercase tracking-widest text-slate-500">{metricLabel}</div>
                 <div className="font-['Orbitron'] text-2xl font-black" style={{ color: aura.text }}>{Number(player[metricKey] || 0).toLocaleString()}</div>
               </div>
@@ -200,29 +212,23 @@ const HUDTable = ({ rows, viewerUserId, metricKey, metricLabel, emptyText, type 
                     {isViewer && <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />}
                   </div>
                 </td>
-                <td className="py-5 border-y border-inherit">
-                  <div className="font-['Orbitron'] text-[11px] font-black uppercase tracking-widest text-white">{row.displayName}</div>
-                  {(row.displayTitle || row.displayBadge) && (
-                    <div className="mt-0.5 flex items-center gap-2">
-                      {row.displayBadge && (
-                        <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
-                          row.displayBadgeRarity === 'mythic' ? 'border-purple-400/40 bg-purple-500/10 text-purple-300' :
-                          row.displayBadgeRarity === 'legendary' ? 'border-amber-400/40 bg-amber-500/10 text-amber-300' :
-                          row.displayBadgeRarity === 'epic' ? 'border-violet-400/40 bg-violet-500/10 text-violet-300' :
-                          'border-white/10 bg-white/5 text-slate-400'
-                        }`}>{row.displayBadge}</span>
-                      )}
-                      {row.displayTitle && (
-                        <span className={`text-[9px] font-semibold italic ${
-                          row.displayTitleRarity === 'mythic' ? 'text-purple-300' :
-                          row.displayTitleRarity === 'legendary' ? 'text-amber-300' :
-                          row.displayTitleRarity === 'epic' ? 'text-violet-300' :
-                          'text-slate-500'
-                        }`}>{row.displayTitle}</span>
-                      )}
-                    </div>
-                  )}
-                  {isViewer && <div className="text-[8px] font-bold text-[var(--theme-accent)] uppercase tracking-tighter mt-0.5">You</div>}
+                <td className="py-3 border-y border-inherit">
+                  <UserIdentityCard
+                    name={row.displayName}
+                    title={row.displayTitle || ''}
+                    rarity={row.displayTitleRarity || 'common'}
+                    badge={row.displayBadge || ''}
+                    badgeRarity={row.displayBadgeRarity || 'common'}
+                    nameplate={row.displayNameplate || ''}
+                    nameplateRarity={row.displayNameplateRarity || 'common'}
+                    nameplateKey={row.displayNameplateKey || ''}
+                    avatarUrl={row.displayAvatarUrl || ''}
+                    frameKey={row.displayFrameKey || ''}
+                    subtitle={isViewer ? 'You' : ''}
+                    className={`${isViewer ? 'border-white/20' : 'border-white/10'} bg-black/30`}
+                    nameClassName="text-sm font-black uppercase tracking-[0.1em] text-white"
+                    titleClassName="mt-0.5 text-[10px]"
+                  />
                 </td>
                 <td className="py-5 border-y border-inherit text-[10px] font-bold text-slate-400 italic">{meta || 'No data'}</td>
                 <td className="py-5 border-y border-inherit text-center">

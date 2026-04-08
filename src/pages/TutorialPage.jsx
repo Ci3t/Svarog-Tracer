@@ -638,6 +638,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const [activeChapter, setActiveChapter] = useState(CHAPTERS[0].id);
 
   const containerRef = useRef(null);
+  const completionAudioRef = useRef(null);
 
 
   const [targetRelic, setTargetRelic] = useState(() => ({
@@ -886,6 +887,31 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
     const timer = setTimeout(() => navigate('/tutorial/level-3'), 1200);
     return () => clearTimeout(timer);
   }, [hasLevelTwoClear, navigate]);
+
+  useEffect(() => {
+    if (!hasLevelThreeClear) return undefined;
+
+    if (completionAudioRef.current) {
+      completionAudioRef.current.pause();
+      completionAudioRef.current.currentTime = 0;
+      completionAudioRef.current = null;
+    }
+
+    const timer = window.setTimeout(() => {
+      const audio = new Audio(withBaseUrl('companions/Clara/drills-sound/Clara-Ready-outer.mp3'));
+      completionAudioRef.current = audio;
+      audio.play().catch(() => {});
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (completionAudioRef.current) {
+        completionAudioRef.current.pause();
+        completionAudioRef.current.currentTime = 0;
+        completionAudioRef.current = null;
+      }
+    };
+  }, [hasLevelThreeClear]);
 
   useEffect(() => {
     if (level !== 1) return;

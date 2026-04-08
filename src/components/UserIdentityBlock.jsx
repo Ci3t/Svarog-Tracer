@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { gsap } from 'gsap';
 import { getTitleTextStyle } from '../utils/titleCatalog';
-import { getCosmeticAccentStyle } from '../utils/marketplaceCatalog';
+import { getAvatarFrameStyle, getCosmeticAccentStyle } from '../utils/marketplaceCatalog';
 
 function useAnimatedTitleEffect(title, rarity) {
   const titleStyle = useMemo(() => getTitleTextStyle(rarity), [rarity]);
@@ -196,6 +196,83 @@ export default function UserIdentityBlock({
 
         {/* Mythic/Legendary Shimmer Overlay */}
         {(isMythic || isLegendary) && <div className="rarity-shimmer-overlay z-20 pointer-events-none" />}
+      </div>
+    </div>
+  );
+}
+
+export function UserIdentityCard({
+  name,
+  title,
+  rarity = 'common',
+  badge = '',
+  badgeRarity = 'common',
+  nameplate = '',
+  nameplateRarity = 'common',
+  nameplateKey = '',
+  avatarUrl = '',
+  frameKey = '',
+  subtitle = '',
+  sideLabel = '',
+  rightSlot = null,
+  className = '',
+  nameClassName = 'text-base font-bold text-white',
+  titleClassName = 'mt-1 text-[11px]',
+}) {
+  const avatarStyle = useMemo(() => getAvatarFrameStyle(frameKey), [frameKey]);
+  const avatarFallback = String(name || '?').trim().charAt(0).toUpperCase() || '?';
+  const hasIdentityDecor = Boolean(nameplate || title || badge);
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black/35 ${className}`}>
+      {hasIdentityDecor ? (
+        <>
+          <div className="absolute inset-0 opacity-90 pointer-events-none">
+            {getSvgBannerByKey(nameplateKey || 'default', 'default')}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/35 pointer-events-none" />
+        </>
+      ) : null}
+      <div className="relative z-10 flex items-start justify-between gap-4 px-4 py-4">
+        <div className="min-w-0 flex items-start gap-3">
+          <div
+            className="h-12 w-12 shrink-0 overflow-hidden rounded-full border bg-black/40"
+            style={avatarStyle}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm font-black text-white">
+                {avatarFallback}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            {sideLabel ? (
+              <div className="mb-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                {sideLabel}
+              </div>
+            ) : null}
+            <UserIdentityBlock
+              name={name}
+              title={title}
+              rarity={rarity}
+              badge={badge}
+              badgeRarity={badgeRarity}
+              nameplate={nameplate}
+              nameplateRarity={nameplateRarity}
+              nameplateKey={nameplateKey}
+              nameClassName={nameClassName}
+              titleClassName={titleClassName}
+            />
+            {subtitle ? (
+              <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                {subtitle}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {rightSlot ? <div className="shrink-0">{rightSlot}</div> : null}
       </div>
     </div>
   );

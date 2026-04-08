@@ -231,6 +231,9 @@ function resolveProgressMetrics({ profile, challengeSummary, practiceSummary }) 
     practiceWins: normalizeNumber(profile?.practice?.wins, 0),
     claraMatches: normalizeNumber(claraSummary?.matches, 0),
     svarogMatches: normalizeNumber(svarogSummary?.matches, 0),
+    handcraftedChallengeClears: Array.isArray(challengeSummary?.rows)
+      ? challengeSummary.rows.filter((row) => !row?.generated).length
+      : 0,
     solvedChallengeCount: normalizeNumber(challengeSummary?.solvedChallengeCount, 0),
     generatedClears: normalizeNumber(challengeSummary?.generatedClears, 0),
     bestChallengeScore: normalizeNumber(challengeSummary?.bestChallengeScore, 0),
@@ -306,8 +309,8 @@ function buildLevelProgress(metrics) {
     {
       key: 'handcrafted_challenges',
       label: 'Handcrafted challenge clears',
-      amount: normalizeNumber(metrics?.solvedChallengeCount, 0),
-      xp: normalizeNumber(metrics?.solvedChallengeCount, 0) * XP_WEIGHTS.handcraftedChallenge,
+      amount: normalizeNumber(metrics?.handcraftedChallengeClears, 0),
+      xp: normalizeNumber(metrics?.handcraftedChallengeClears, 0) * XP_WEIGHTS.handcraftedChallenge,
     },
     {
       key: 'generated_challenges',
@@ -742,14 +745,40 @@ export async function syncProfileProgression({ userId, profile, leaderboardRank,
     levelProgress,
     rewardRows,
   });
-  const nextReward = buildNextRewardState(rewardState, levelProgress);
+  const newlyUnlockedRewardKeys = rewardState
+    .filter((entry) => entry?.unlocked && !entry?.claimed)
+    .map((entry) => String(entry?.key || '').trim())
+    .filter(Boolean);
+  let finalizedRewardState = rewardState;
+  if (newlyUnlockedRewardKeys.length > 0) {
+    const autoClaimedKeys = await autoClaimProgressionRewards({
+      userId,
+      rewardKeys: newlyUnlockedRewardKeys,
+      seasonLabel: season.label,
+    }).catch(() => []);
+
+    if (Array.isArray(autoClaimedKeys) && autoClaimedKeys.length > 0) {
+      const claimedKeySet = new Set(autoClaimedKeys);
+      finalizedRewardState = rewardState.map((entry) => (
+        claimedKeySet.has(String(entry?.key || '').trim())
+          ? {
+            ...entry,
+            claimed: true,
+            claimedAt: entry?.claimedAt || new Date().toISOString(),
+            sourceSeason: entry?.sourceSeason || season.label,
+          }
+          : entry
+      ));
+    }
+  }
+  const nextReward = buildNextRewardState(finalizedRewardState, levelProgress);
 
   return {
     inventoryReady: Boolean(syncedTitles.inventoryReady && syncedAchievements.inventoryReady && rewardInventoryReady),
     rankTier,
     titles: syncedTitles.rows,
     achievements: syncedAchievements.rows,
-    rewards: rewardState,
+    rewards: finalizedRewardState,
     nextReward,
     levelProgress,
     challengeSummary: {

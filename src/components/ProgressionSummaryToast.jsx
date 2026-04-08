@@ -133,10 +133,10 @@ export default function ProgressionSummaryToast({
                   {summary.unlockedRewards.map((reward) => {
                     const tone = getProgressionTone(reward.rarity);
                     return (
-                      <div key={reward.key} className={`rounded-lg border px-3 py-3 ${tone.border} ${tone.background}`}>
+                        <div key={reward.key} className={`rounded-lg border px-3 py-3 ${tone.border} ${tone.background}`}>
                         <div className={`text-[13px] font-semibold ${tone.text}`}>{reward.name}</div>
                         <div className={`mt-1 text-[11px] ${tone.meta}`}>
-                          {reward.grantTokens > 0 ? `${reward.grantTokens} tokens ready to claim` : `${reward.rewardType} unlocked`}
+                          {reward.grantTokens > 0 ? `${reward.grantTokens} tokens added to your wallet` : `${reward.rewardType} added to your account`}
                         </div>
                       </div>
                     );

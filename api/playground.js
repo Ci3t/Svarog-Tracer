@@ -8,7 +8,7 @@ import {
   supabaseAdminRequest,
 } from '../server/_services/zone/shared.js';
 import { getSeasonStatsSnapshot } from '../server/_services/pvp/stats.js';
-import { autoClaimProgressionRewards } from '../server/_services/profile/progression.js';
+import { applyTokenGrant, autoClaimProgressionRewards } from '../server/_services/profile/progression.js';
 
 const env = globalThis.process?.env || {};
 const PRACTICE_RESULTS_TABLE = env.SUPABASE_PRACTICE_RESULTS_TABLE || 'practice_results';
@@ -38,6 +38,28 @@ function isUniqueViolationError(error) {
 function normalizeNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function resolveSeasonWindow() {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  return {
+    startAt: new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)).toISOString(),
+    endAt: new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0)).toISOString(),
+  };
+}
+
+function buildPracticeHistoryPath(userId, mode, season) {
+  const params = [
+    ['select', 'id,mode,created_at'],
+    ['user_id', `eq.${userId}`],
+    ['mode', `eq.${mode}`],
+    ['created_at', `gte.${season.startAt}`],
+    ['created_at', `lt.${season.endAt}`],
+    ['limit', '200'],
+  ];
+  return `${PRACTICE_RESULTS_TABLE}?${params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`;
 }
 
 function buildProgressionDelta(previousProgression, nextProgression) {
@@ -108,6 +130,11 @@ async function handlePracticeResult(req, res) {
   };
 
   try {
+    const season = resolveSeasonWindow();
+    const previousModeRows = await supabaseAdminRequest(buildPracticeHistoryPath(user.id, payload.mode, season), {
+      method: 'GET',
+    }).catch(() => []);
+    const repeatModeRun = Array.isArray(previousModeRows) && previousModeRows.length > 0;
     const previousSnapshot = await getSeasonStatsSnapshot({
       viewer: user,
       limit: 12,
@@ -135,11 +162,34 @@ async function handlePracticeResult(req, res) {
       }).catch(() => null);
     }
 
+    const tokensGained = (() => {
+      if (mode === 'drills') {
+        if (repeatModeRun) return payload.detail?.perfect ? 4 : 2;
+        if (payload.detail?.perfect) return 8;
+        return payload.success ? 5 : 2;
+      }
+      if (mode === 'free_training') {
+        return payload.success ? 6 : 3;
+      }
+      if (mode === 'pattern_lab') {
+        return Math.max(2, Math.min(6, Math.floor(normalizeNumber(payload.rows_count, 0) / 5) || 2));
+      }
+      return 0;
+    })();
+
+    if (tokensGained > 0) {
+      await applyTokenGrant(user.id, tokensGained).catch(() => null);
+    }
+
     return res.status(200).json({
       success: true,
       row,
       duplicate: false,
-      progressionDelta: delta,
+      tokensGained,
+      progressionDelta: {
+        ...delta,
+        tokensGained,
+      },
     });
   } catch (error) {
     if (isUniqueViolationError(error)) {

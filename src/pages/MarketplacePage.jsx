@@ -598,7 +598,7 @@ export default function MarketplacePage() {
               </div>
               {readyRewardsCount > 0 ? (
                 <div className="rounded-xl border border-emerald-400/15 bg-emerald-500/[0.05] px-3 py-3 text-[10px] leading-relaxed text-emerald-100/90">
-                  You have {readyRewardsCount} reward {readyRewardsCount === 1 ? 'item' : 'items'} ready to claim from your profile progress tab.
+                  You have {readyRewardsCount} progression reward {readyRewardsCount === 1 ? 'item' : 'items'} still waiting to sync into your inventory.
                 </div>
               ) : null}
               <button 
@@ -670,7 +670,7 @@ export default function MarketplacePage() {
                 <span className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest">Reward Reminder</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed uppercase tracking-wider">
-                Claim season rewards in profile to add more tokens here.
+                Progress rewards and unlocks land here once they are synced.
               </p>
               <button 
                 onClick={() => navigate('/caverns')}
