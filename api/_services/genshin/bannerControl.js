@@ -1,7 +1,7 @@
 export const GENSHIN_BANNER_CONTROL = Object.freeze({
   // Update these two IDs on patch day.
-  characterBannerId: '300097',
-  weaponBannerId: '400095',
+  characterBannerId: '300098',
+  weaponBannerId: '400097',
 
   // Optional emergency overrides (normally keep null).
   overrideCharacterName: null,
