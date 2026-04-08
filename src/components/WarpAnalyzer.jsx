@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
-import AIWarpAnalysisCard from "./AIWarpAnalysisCard";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -928,25 +927,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
                          </div>
                      </div>
                   )}
-
-
-                   {/* AI Warp Analysis Card */}
-                   {data && activeAnalysis?.peaks && (
-                       <AIWarpAnalysisCard 
-                           bannerId={selectedBannerId}
-                           bannerName={banners.find(b => b.id === selectedBannerId)?.name}
-                           bannerType={bannerType}
-                           luckyPeaks={activeAnalysis.peaks.slice(0, 8).map(p => p.roll)}
-                           shortcutString={shortcutString.string}
-                           winLossData={{
-                               wins: data.stats?.count_win_5 || 0,
-                               losses: data.stats?.count_lose_5 || 0
-                           }}
-                           distribution={data.stats?.by_rollnum_pulls_5 || {}}
-                           winChances={data.stats?.by_rollnum_chance_5 || {}}
-                       />
-                   )}
-
 
                   {/* Config Modal */}
                   {showInputModal && (

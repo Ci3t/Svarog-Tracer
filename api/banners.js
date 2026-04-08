@@ -1,5 +1,4 @@
 import { GENSHIN_BANNER_CONTROL } from '../server/_services/genshin/bannerControl.js';
-import analyzeWarpHandler from '../server/_services/ai/analyze-warp.js';
 // Patch-day banner IDs live in server/_services/genshin/bannerControl.js
 
 // =========================================================================
@@ -661,19 +660,13 @@ async function fetchWuWaLiveBanners() {
 // MAIN HANDLER
 // =========================================================================
 export default async function handler(req, res) {
-  const action = String(req.query?.action || '').trim().toLowerCase();
-
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
-  }
-
-  if (action === 'ai-analyze-warp') {
-    return analyzeWarpHandler(req, res);
   }
 
   // Only allow GET requests

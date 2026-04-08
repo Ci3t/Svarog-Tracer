@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web": "vite --port 5173",
+    "dev:api": "vercel dev --listen 3000",
     "build": "vite build",
     "build:prod": "node scripts/bump-cache-version.js && npm run build",
     "build:beta": "cross-env VITE_BASE_PATH=/Svarog-Tracer-Beta/ vite build",
