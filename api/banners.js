@@ -13,7 +13,7 @@ const GENSHIN_CONFIG = {
     'kokomi', 'lyney', 'mavuika', 'mualani', 'nahida', 'navia', 'neuvillette',
     'nilou', 'raiden_shogun', 'shenhe', 'sigewinne', 'tartaglia', 'traveler',
     'venti', 'wanderer', 'wriothesley', 'xiao', 'xianyun', 'yae_miko', 'yelan',
-    'yoimiya', 'zhongli', 'zibai', 'skirk', 'escoffier'
+    'yoimiya', 'zhongli', 'zibai', 'skirk', 'escoffier', 'linnea'
   ],
 
   // 3. Weapon Whitelist (Add new 5-star weapons here - LOWERCASE ONLY)
@@ -29,7 +29,8 @@ const GENSHIN_CONFIG = {
     'splendor_of_tranquil_waters', 'staff_of_homa', 'thundering_pulse',
     'tome_of_the_eternal_flow', 'tulaytullahs_remembrance', 'uraku_misugiri',
     'vortex_vanquisher', 'wolfs_gravestone', 'lightbearing_moonshard',
-    'gest_of_the_mighty_wolf', 'bloodsoaked_ruins', 'azurelight', 'symphonist_of_scents'
+    'gest_of_the_mighty_wolf', 'bloodsoaked_ruins', 'azurelight', 'symphonist_of_scents', 'golden_frostbound_oath', 'astral_vultures_crimson_plumage'
+
   ],
 
   // Standard characters that should NEVER be the banner name
@@ -486,13 +487,13 @@ function extractWuWaImageFromHtml(html) {
   for (const pattern of patterns) {
     const match = html.match(pattern);
     if (!match?.[0]) continue;
-    
+
     // Fix malformed URLs (e.g. &amp; instead of &) and escape sequences
     const raw = match[0]
       .replace(/\\u0026/g, '&')
       .replace(/&amp;/g, '&')
       .replace(/\\/g, '');
-      
+
     if (raw.startsWith('/_next/image')) {
       return raw.startsWith('http') ? raw : `https://wuwatracker.com${raw}`;
     }
@@ -601,7 +602,7 @@ async function fetchWuWaLiveBanners() {
 
       const type = isCharacter ? 'character' : 'weapon';
       const resolvedName = WUWA_KNOWN_BANNERS[id]?.name || name;
-      
+
       // OPTIMIZATION: Use slug-based images instead of fetching sub-pages during discovery
       const firstName = resolvedName.split('&')[0].trim();
       const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
