@@ -72,6 +72,7 @@ import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
 import "./styles/astral-theme.css"; // ðŸŒŒ NEW Astral Theme
 import "./styles/neon-protocol.css"; // 👾 NEW Neon Protocol
 import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Effect
+import ClaraChat from "./components/ClaraChat";
 
 
 
@@ -1277,6 +1278,7 @@ export default function App() {
             </Routes>
           </div>
         </div>
+        <ClaraChat />
       </div>
     </Suspense>
   );

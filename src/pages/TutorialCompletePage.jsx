@@ -105,18 +105,13 @@ export default function TutorialCompletePage({ sessionTheme = 'modern' }) {
   };
 
   return (
-    <div className={`min-h-screen bg-[#06090f] flex items-center justify-center p-4 md:p-8 ${sessionTheme ? '' : ''}`}>
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-cyan-500/10 blur-[150px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-emerald-500/10 blur-[150px]" />
-      </div>
-
+    <div className={`min-h-screen flex items-center justify-center p-4 md:p-8 ${sessionTheme ? '' : ''}`}>
       <div className="relative w-full max-w-6xl">
-        <div className="rounded-[3rem] border border-white/10 bg-[#0a0f18]/90 p-8 shadow-[0_60px_150px_rgba(0,0,0,0.8)] backdrop-blur-3xl md:p-12">
+        <div className="theme-glass-card rounded-[3rem] border border-white/10 p-8 shadow-[0_60px_150px_rgba(0,0,0,0.55)] md:p-12">
           <div className="grid gap-10 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-center">
             <div className="relative">
-              <div className="absolute inset-0 rounded-[2rem] bg-cyan-500/10 blur-[60px]" />
-              <div className="relative rounded-[2.5rem] border border-white/10 bg-black/30 p-6">
+              <div className="absolute inset-0 rounded-[2rem] opacity-40 blur-[60px]" style={{ background: 'color-mix(in srgb, var(--theme-accent) 14%, transparent)' }} />
+              <div className="theme-subpanel relative rounded-[2.5rem] border border-white/10 p-6">
                 <img
                   src={claraImage}
                   alt="Clara"
@@ -135,7 +130,7 @@ export default function TutorialCompletePage({ sessionTheme = 'modern' }) {
                 <button
                   type="button"
                   onClick={replayClara}
-                  className="inline-flex items-center gap-3 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-500/20"
+                  className="theme-action-secondary inline-flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-black transition"
                 >
                   <Volume2 className="h-4 w-4" />
                   Hear Clara
@@ -143,13 +138,16 @@ export default function TutorialCompletePage({ sessionTheme = 'modern' }) {
                 <span className="text-sm text-slate-400">{claraSpeaking ? 'Clara is speaking...' : 'Replay Clara voice'}</span>
               </div>
 
-              <div className="relative rounded-[2rem] border-[3px] border-neutral-900 bg-white px-6 py-5 text-lg leading-8 text-black shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
-                <div className="absolute -left-2 top-8 h-4 w-4 rotate-45 border-l-[3px] border-b-[3px] border-neutral-900 bg-white" />
+              <div className="theme-glass-card relative rounded-[2rem] border border-white/10 px-6 py-5 text-lg leading-8 text-white shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <div
+                  className="absolute -left-2 top-8 h-4 w-4 rotate-45 border-l border-b border-white/10"
+                  style={{ background: 'color-mix(in srgb, var(--theme-surface-2) 95%, transparent)' }}
+                />
                 Oh! You did it! You understand the board and the trend panels so well now. Now, let&apos;s head over to the Drills to solidify your knowledge and turn it into muscle memory! I&apos;m so proud of you... let&apos;s go do our best!
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-slate-300">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">Tutorial rewards</div>
+              <div className="theme-subpanel rounded-2xl border border-white/10 px-5 py-4 text-sm text-slate-300">
+                <div className="theme-text-accent text-[11px] font-black uppercase tracking-[0.22em]">Tutorial rewards</div>
                 <div className="mt-3 leading-7">
                   {completionReward ? (
                     resolvedGuideCompleted
@@ -163,9 +161,9 @@ export default function TutorialCompletePage({ sessionTheme = 'modern' }) {
                 <button
                   type="button"
                   onClick={() => navigate('/playground/drills')}
-                  className="rounded-[2rem] border border-white/10 bg-black/20 p-6 text-left transition hover:border-cyan-400/40 hover:bg-black/30"
+                  className="theme-subpanel rounded-[2rem] border border-white/10 p-6 text-left transition hover:border-cyan-400/40"
                 >
-                  <div className="flex items-center gap-2 text-cyan-300">
+                  <div className="flex items-center gap-2 theme-text-accent">
                     <Sparkles className="h-4 w-4" />
                     <span className="text-[11px] font-black uppercase tracking-[0.28em]">Next move</span>
                   </div>
@@ -182,7 +180,7 @@ export default function TutorialCompletePage({ sessionTheme = 'modern' }) {
                 <button
                   type="button"
                   onClick={() => navigate('/playground/challenge')}
-                  className="rounded-[2rem] border border-white/10 bg-black/20 p-6 text-left transition hover:border-amber-400/40 hover:bg-black/30"
+                  className="theme-subpanel rounded-[2rem] border border-white/10 p-6 text-left transition hover:border-amber-400/40"
                 >
                   <div className="flex items-center gap-2 text-amber-300">
                     <Target className="h-4 w-4" />

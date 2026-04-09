@@ -1372,31 +1372,33 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
                 </div>
 
                 <div className="relative group/box">
-                  <div className="absolute -inset-0.5 rounded-[2rem] opacity-0 transition-opacity blur group-hover/box:opacity-100" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--theme-accent) 22%, transparent), transparent)' }} />
-                  <div className="relative overflow-hidden rounded-[2rem] border-[3px] border-neutral-900 bg-white p-8 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
-                    <div className="absolute top-0 left-0 w-2 h-full bg-black/90" />
-                    <p className="text-xl md:text-2xl font-bold leading-relaxed tracking-tight text-black">
+                  <div className="theme-glass-card relative overflow-hidden rounded-[2rem] border border-white/10 p-8 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
+                    <div
+                      className="absolute left-0 top-0 h-full w-1.5"
+                      style={{ background: 'var(--theme-accent)' }}
+                    />
+                    <p className="pr-2 text-xl md:text-2xl font-bold leading-relaxed tracking-tight text-white">
                       "Welcome to the training module! I'll be your guide. Mr. Svarog and I will help you! Ready for some practice? Let's master these seeds together!"
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
-                  <div className="group/card rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.05] hover:border-white/10">
+                  <div className="theme-subpanel rounded-2xl border border-white/8 p-6 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--theme-accent)' }} />
                       <div className="text-[11px] font-black uppercase tracking-widest text-white">What you will learn</div>
                     </div>
-                    <p className="text-sm leading-relaxed text-slate-400 font-medium">
+                    <p className="text-sm leading-relaxed text-slate-300 font-medium">
                       We start with relic lines and control points, then move into commons, noise, pair safety, Svarog Eye, and trends.
                     </p>
                   </div>
-                  <div className="group/card rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.05] hover:border-white/10">
+                  <div className="theme-subpanel rounded-2xl border border-white/8 p-6 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                       <div className="text-[11px] font-black uppercase tracking-widest text-white">How it works</div>
                     </div>
-                    <p className="text-sm leading-relaxed text-slate-400 font-medium">
+                    <p className="text-sm leading-relaxed text-slate-300 font-medium">
                       Clara will guide each step, and you will click through semi-guided examples before moving into drills.
                     </p>
                   </div>
