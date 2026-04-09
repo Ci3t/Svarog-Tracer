@@ -781,7 +781,7 @@ export default function Layout({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4 tactical-scrollbar">
                 <div className="space-y-3">
                   {filteredMembers.map((member) => (
                     <div

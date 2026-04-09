@@ -1,5 +1,5 @@
 // src/components/ClaraChat.jsx
-// Floating Clara chat assistant widget. Overhauled with Tailwind CSS and GSAP for premium tactical experience.
+// Floating Clara chat assistant widget.
 // Props:
 //   claraImageUrl  – optional URL for Clara's avatar (circle). Shows "C" fallback if absent.
 
@@ -112,7 +112,7 @@ export default function ClaraChat({ claraImageUrl }) {
   const [messages, setMessages] = useState([
     {
       role: "clara",
-      text: "Neural Link stable. I am ready to process your queries regarding the Svarog tactical predictors. How may I assist your optimization today?",
+      text: "I can help with the tutorial, drills, predictor basics, trends, and route control. Ask me something simple and I’ll explain it clearly.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -185,7 +185,7 @@ export default function ClaraChat({ claraImageUrl }) {
         if (!res.ok) throw new Error("Request failed");
         const data = await res.json();
         if (!data.success) throw new Error(data.error?.message || "Request failed");
-        const answer = data.answer || "Transmission error. Re-syncing...";
+        const answer = data.answer || "I couldn't answer that cleanly. Try asking it in a simpler way.";
 
         if (data.source === "gemini") {
           geminiHistoryRef.current = [
@@ -201,7 +201,7 @@ export default function ClaraChat({ claraImageUrl }) {
           ...prev,
           {
             role: "clara",
-            text: "Link destabilized. Please check your tactical connection or consult the tutorial manual.",
+            text: "I couldn't answer that right now. Try asking it in a simpler way, or check the tutorial and drills.",
           },
         ]);
       } finally {
@@ -251,11 +251,11 @@ export default function ClaraChat({ claraImageUrl }) {
             <ClaraTacticalAvatar imageUrl={activeAvatarUrl} size={48} active={loading} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-sm font-black tracking-widest text-white uppercase">Clara_V2.0</span>
-                <span className="text-[9px] font-black bg-cyan-400/15 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-400/30">SECURE_LINK</span>
+                <span className="text-sm font-black tracking-widest text-white uppercase">Clara</span>
+                <span className="text-[9px] font-black bg-cyan-400/15 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-400/30">FAQ GUIDE</span>
               </div>
               <span className="text-[11px] text-slate-500 font-semibold truncate block">
-                {loading ? 'ANALYZING_TRANSMISSION...' : 'Svarog assistant'}
+                {loading ? 'Thinking through it...' : 'Svarog guide'}
               </span>
             </div>
             <div className="flex gap-2">
@@ -281,7 +281,7 @@ export default function ClaraChat({ claraImageUrl }) {
           </div>
 
           {/* Messages Flow */}
-          <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-6 scrollbar-hide">
+          <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-6 tactical-scrollbar">
             <div className="flex flex-col gap-6">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex max-w-[90%] ${msg.role === 'user' ? 'self-end justify-end' : 'self-start items-start'}`}>
@@ -386,11 +386,7 @@ export default function ClaraChat({ claraImageUrl }) {
           </div>
         </div>
       )}
-
-      {/* Scrollbar CSS */}
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.2); border-radius: 20px; }

@@ -98,7 +98,30 @@ select:disabled {
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;
-  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tactical HUD Scrollbar */
+.tactical-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.tactical-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tactical-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.15);
+  border-radius: 20px;
+  border: 1px solid rgba(34, 211, 238, 0.05);
+}
+.tactical-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.35);
+}
+.tactical-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 211, 238, 0.2) transparent;
 }
 
 @keyframes progress-scan {
