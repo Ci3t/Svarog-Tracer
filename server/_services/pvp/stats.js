@@ -6,6 +6,7 @@ import {
   supabaseAdminRequest,
 } from '../zone/shared.js';
 import { syncProfileProgression } from '../profile/progression.js';
+import { fetchUserIdentityMap } from '../profile/account.js';
 
 const env = globalThis.process?.env || {};
 
@@ -812,6 +813,26 @@ function buildPracticeLeaderboard(finalizedPlayers, limit) {
     }));
 }
 
+function mergeIdentityFallback(row, identityMap) {
+  const identity = identityMap.get(String(row?.userId || '').trim());
+  if (!identity) return row;
+  return {
+    ...row,
+    displayName: row.displayName || identity.displayName || row.displayName,
+    displayAvatarUrl: row.displayAvatarUrl || identity.displayAvatarUrl || '',
+    displayTitle: row.displayTitle || identity.displayTitle || '',
+    displayTitleRarity: row.displayTitleRarity || identity.displayTitleRarity || '',
+    displayBadge: row.displayBadge || identity.displayBadge || '',
+    displayBadgeRarity: row.displayBadgeRarity || identity.displayBadgeRarity || '',
+    displayNameplate: row.displayNameplate || identity.displayNameplate || '',
+    displayNameplateKey: row.displayNameplateKey || identity.displayNameplateKey || '',
+    displayNameplateRarity: row.displayNameplateRarity || identity.displayNameplateRarity || '',
+    displayFrame: row.displayFrame || identity.displayFrame || '',
+    displayFrameKey: row.displayFrameKey || identity.displayFrameKey || '',
+    displayFrameRarity: row.displayFrameRarity || identity.displayFrameRarity || '',
+  };
+}
+
 async function tryResolveViewer(req) {
   try {
     const auth = await requireAuthenticatedUser(req);
@@ -892,8 +913,15 @@ export async function getSeasonStatsSnapshot({ viewer = null, limit = DEFAULT_LE
   const aggregated = aggregateRooms(mergedRows);
   const finalizedPlayers = Array.from(aggregated.players.values()).map(finalizeAggregate);
   const safeLimit = Math.max(1, Math.min(MAX_LEADERBOARD_LIMIT, Number(limit) || DEFAULT_LEADERBOARD_LIMIT));
-  const leaderboard = buildLeaderboard(finalizedPlayers, safeLimit);
-  const practiceLeaderboard = buildPracticeLeaderboard(finalizedPlayers, safeLimit);
+  const identityIds = new Set();
+  const rawLeaderboard = buildLeaderboard(finalizedPlayers, safeLimit);
+  const rawPracticeLeaderboard = buildPracticeLeaderboard(finalizedPlayers, safeLimit);
+  rawLeaderboard.forEach((entry) => identityIds.add(String(entry.userId || '').trim()));
+  rawPracticeLeaderboard.forEach((entry) => identityIds.add(String(entry.userId || '').trim()));
+  if (viewer?.id) identityIds.add(String(viewer.id).trim());
+  const identityMap = await fetchUserIdentityMap(Array.from(identityIds)).catch(() => new Map());
+  const leaderboard = rawLeaderboard.map((entry) => mergeIdentityFallback(entry, identityMap));
+  const practiceLeaderboard = rawPracticeLeaderboard.map((entry) => mergeIdentityFallback(entry, identityMap));
   const profile = await buildProfilePayload(viewer, finalizedPlayers, leaderboard, season);
 
   return {

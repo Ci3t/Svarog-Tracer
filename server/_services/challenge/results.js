@@ -8,6 +8,7 @@ import {
 } from '../zone/shared.js';
 import { getSeasonStatsSnapshot } from '../pvp/stats.js';
 import { applyTokenGrant, autoClaimProgressionRewards } from '../profile/progression.js';
+import { grantFirstModeCompletionBonus } from '../profile/account.js';
 
 const env = globalThis.process?.env || {};
 const CHALLENGE_RESULTS_TABLE = env.SUPABASE_CHALLENGE_RESULTS_TABLE || 'challenge_results';
@@ -242,18 +243,24 @@ export async function handler(req, res) {
         : repeatedHandcraftedClear
           ? 5
           : 14;
+      let bonusTokensGained = 0;
 
       if (tokensGained > 0) {
         await applyTokenGrant(user.id, tokensGained).catch(() => null);
+      }
+      if (!body?.generated) {
+        const firstModeBonus = await grantFirstModeCompletionBonus(user, 'challenge').catch(() => ({ granted: false, tokensGained: 0 }));
+        bonusTokensGained = normalizeNumber(firstModeBonus?.tokensGained, 0);
       }
 
       return res.status(200).json({
         success: true,
         result,
-        tokensGained,
+        tokensGained: tokensGained + bonusTokensGained,
         progressionDelta: {
           ...delta,
-          tokensGained,
+          tokensGained: tokensGained + bonusTokensGained,
+          firstModeBonus: bonusTokensGained,
         },
       });
     }

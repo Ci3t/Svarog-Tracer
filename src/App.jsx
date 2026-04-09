@@ -43,6 +43,7 @@ import TutorialLevelTwelvePage from "./pages/TutorialLevelTwelvePage";
 import TutorialLevelThirteenPage from "./pages/TutorialLevelThirteenPage";
 import TutorialLevelFourteenPage from "./pages/TutorialLevelFourteenPage";
 import TutorialLevelFifteenPage from "./pages/TutorialLevelFifteenPage";
+import TutorialLevelSixteenPage from "./pages/TutorialLevelSixteenPage";
 import TutorialCompletePage from "./pages/TutorialCompletePage";
 import PlaygroundPage from "./pages/PlaygroundPage";
 import PlaygroundFreePage from "./pages/PlaygroundFreePage";
@@ -1223,6 +1224,7 @@ export default function App() {
             <Route path="/tutorial/level-13" element={<TutorialLevelThirteenPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/level-14" element={<TutorialLevelFourteenPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/level-15" element={<TutorialLevelFifteenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-16" element={<TutorialLevelSixteenPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/complete" element={<TutorialCompletePage sessionTheme={sessionTheme} />} />
             <Route path="/playground" element={<PlaygroundPage sessionTheme={sessionTheme} />} />
             <Route path="/playground/free" element={<PlaygroundFreePage sessionTheme={sessionTheme} />} />

@@ -21,6 +21,7 @@ import {
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { useAuth } from '../hooks/useAuth';
 import { withBaseUrl } from '../utils/assetPaths';
+import { canUsePlaygroundClaraMad, resolvePlaygroundClaraAsset } from '../utils/claraCosmetics';
 import { CompanionProvider, useCompanion, COMPANION_TYPES } from '../companions/CompanionProvider';
 import CompanionWidget from '../companions/CompanionWidget';
 import CompanionSelector from '../companions/CompanionSelector';
@@ -245,7 +246,7 @@ function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = 
 export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
-  const { isAuthenticated, roleMode } = useAuth();
+  const { user, isAuthenticated, roleMode } = useAuth();
   const containerRef = useRef(null);
   const claraRef = useRef(null);
   const claraShellRef = useRef(null);
@@ -427,6 +428,10 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
     }
 
     if (isRapidClick) {
+      if (!canUsePlaygroundClaraMad(user?.user_metadata || {})) {
+        handleClaraSingleClick();
+        return;
+      }
       handleClaraAngryClick();
       return;
     }
@@ -546,15 +551,10 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
                     >
                       <img
                         ref={claraRef}
-                        src={
-                          claraSpeaking
-                            ? claraState === 'mad'
-                              ? withBaseUrl('clara-mad-playground-gif.gif')
-                              : withBaseUrl('clara-playground-gif.gif')
-                            : claraState === 'mad'
-                              ? withBaseUrl('clara-playground-mad.png')
-                              : withBaseUrl('clara-playground.png')
-                        }
+                        src={resolvePlaygroundClaraAsset(user?.user_metadata || {}, {
+                          speaking: claraSpeaking,
+                          mad: claraState === 'mad',
+                        })}
                         alt="Clara Assistant"
                         className="relative z-10 mx-auto h-[450px] w-auto cursor-pointer object-contain transition-transform duration-700 hover:scale-[1.03]"
                         style={{
@@ -565,11 +565,29 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
                     </div>
                     {claraSpeaking && claraBubble ? (
                       <div className="absolute right-[-20px] top-[-10px] z-20 max-w-[280px] transition-transform group-hover:translate-x-2 lg:right-[-36px] lg:top-[-18px]">
-                        <div className="relative rounded-[28px] border-[3px] border-sky-400 bg-white px-5 py-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.28)]">
-                          <div className="text-[15px] font-black uppercase leading-tight tracking-tight text-slate-900">
+                        <div
+                          className="relative rounded-[28px] border-[3px] px-5 py-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.28)]"
+                          style={{
+                            backgroundColor: '#ffffff',
+                            borderColor: '#1a1a1a',
+                            opacity: 1,
+                            filter: 'none',
+                            mixBlendMode: 'normal',
+                          }}
+                        >
+                          <div
+                            className="text-[15px] font-black uppercase leading-tight tracking-tight"
+                            style={{
+                              color: '#111111',
+                              opacity: 1,
+                              textShadow: 'none',
+                              filter: 'none',
+                              mixBlendMode: 'normal',
+                            }}
+                          >
                             {claraBubble}
                           </div>
-                          <div className="absolute -bottom-5 left-12 h-0 w-0 border-l-[18px] border-r-[8px] border-t-[26px] border-l-transparent border-r-transparent border-t-sky-400">
+                          <div className="absolute -bottom-5 left-12 h-0 w-0 border-l-[18px] border-r-[8px] border-t-[26px] border-l-transparent border-r-transparent" style={{ borderTopColor: '#1a1a1a' }}>
                             <div className="absolute left-[-15px] top-[-28px] h-0 w-0 border-l-[15px] border-r-[7px] border-t-[22px] border-l-transparent border-r-transparent border-t-white" />
                           </div>
                         </div>

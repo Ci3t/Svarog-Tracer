@@ -9,6 +9,7 @@ import {
 } from '../server/_services/zone/shared.js';
 import { getSeasonStatsSnapshot } from '../server/_services/pvp/stats.js';
 import { applyTokenGrant, autoClaimProgressionRewards } from '../server/_services/profile/progression.js';
+import { grantFirstModeCompletionBonus, grantMarketplaceItemOnce } from '../server/_services/profile/account.js';
 
 const env = globalThis.process?.env || {};
 const PRACTICE_RESULTS_TABLE = env.SUPABASE_PRACTICE_RESULTS_TABLE || 'practice_results';
@@ -177,18 +178,40 @@ async function handlePracticeResult(req, res) {
       return 0;
     })();
 
+    let bonusTokensGained = 0;
     if (tokensGained > 0) {
       await applyTokenGrant(user.id, tokensGained).catch(() => null);
+    }
+    if (payload.success) {
+      const firstModeBonus = await grantFirstModeCompletionBonus(user, mode).catch(() => ({ granted: false, tokensGained: 0 }));
+      bonusTokensGained = normalizeNumber(firstModeBonus?.tokensGained, 0);
+    }
+
+    if (mode === 'drills' && payload.detail?.perfect) {
+      const scienceGrant = await grantMarketplaceItemOnce(user.id, 'clara-science-playground').catch(() => ({ granted: false }));
+      if (scienceGrant?.granted) {
+        delta.unlockedRewards = [
+          ...(Array.isArray(delta.unlockedRewards) ? delta.unlockedRewards : []),
+          {
+            key: 'clara-science-playground',
+            name: 'Clara Science',
+            rarity: 'epic',
+            rewardType: 'companion',
+            grantTokens: 0,
+          },
+        ];
+      }
     }
 
     return res.status(200).json({
       success: true,
       row,
       duplicate: false,
-      tokensGained,
+      tokensGained: tokensGained + bonusTokensGained,
       progressionDelta: {
         ...delta,
-        tokensGained,
+        tokensGained: tokensGained + bonusTokensGained,
+        firstModeBonus: bonusTokensGained,
       },
     });
   } catch (error) {

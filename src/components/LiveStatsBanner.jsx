@@ -101,47 +101,35 @@ export default function LiveStatsBanner({ sessionTheme = 'modern' }) {
         overflow: 'hidden',
         position: 'relative',
         zIndex: 999,
-        height: '40px',
+        minHeight: '40px',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
         backdropFilter: 'blur(8px)',
       }}
     >
-      <div className="live-stats-track">
-        {[0, 1].map((copyIndex) => (
-          <div key={copyIndex} className="live-stats-run">
-            {statItems.map((item) => (
-              <div key={`${copyIndex}-${item.key}`} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.22em', color: palette.labelColor, opacity: 0.7 }}>
-                  {item.icon}
-                </span>
-                <span className="stat-number" style={item.valueStyle}>{item.value}</span>
-                <span style={item.labelStyle}>{item.label}</span>
-              </div>
-            ))}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '2.25rem',
+          width: '100%',
+          padding: '0.45rem 1rem',
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {statItems.map((item) => (
+          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: '0 0 auto' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.22em', color: palette.labelColor, opacity: 0.7 }}>
+              {item.icon}
+            </span>
+            <span className="stat-number" style={item.valueStyle}>{item.value}</span>
+            <span style={item.labelStyle}>{item.label}</span>
           </div>
         ))}
       </div>
-      <style>{`
-        .live-stats-track {
-          display: flex;
-          align-items: center;
-          min-width: max-content;
-          white-space: nowrap;
-          animation: live-stats-marquee 28s linear infinite;
-          will-change: transform;
-        }
-        .live-stats-run {
-          display: flex;
-          align-items: center;
-          gap: 4rem;
-          padding-right: 4rem;
-        }
-        @keyframes live-stats-marquee {
-          from { transform: translate3d(0, 0, 0); }
-          to { transform: translate3d(-50%, 0, 0); }
-        }
-      `}</style>
     </div>
   );
 }

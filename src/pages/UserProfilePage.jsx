@@ -48,6 +48,7 @@ import {
   resolveEquippedCosmeticsFromMetadata,
   MARKETPLACE_ITEMS
 } from '../utils/marketplaceCatalog';
+import { getClaraCompanionPreview, getClaraCompanionSlotLabel } from '../utils/claraCosmetics';
 import {
   getTitleBadgeStyle,
   getTitleDefinition,
@@ -443,8 +444,8 @@ const LoadoutView = ({ allTitles, credentials, onEquipTitle, activeTitleKey, unl
 
 const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey }) => {
   const [filter, setFilter] = useState('all');
-  const SLOT_LABELS = { frame: '🔲 Frames', badge: '🏅 Badges', nameplate: '🎖️ Banners', title: '🏆 Titles' };
-  const slots = ['all', 'frame', 'badge', 'nameplate', 'title'];
+  const SLOT_LABELS = { frame: 'Frames', badge: 'Badges', nameplate: 'Banners', title: 'Titles', companion: 'Clara Skins' };
+  const slots = ['all', 'frame', 'badge', 'nameplate', 'title', 'companion'];
 
   const filtered = filter === 'all' ? ownedItems : ownedItems.filter(it => it.slot === filter || it.type === filter);
 
@@ -460,7 +461,7 @@ const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey
               filter === s ? 'bg-[var(--theme-accent)] text-white shadow-[0_0_10px_var(--theme-accent-soft)]' : 'text-slate-500 hover:text-white'
             }`}
           >
-            {s === 'all' ? '✦ All Items' : SLOT_LABELS[s] || s}
+            {s === 'all' ? 'All Items' : SLOT_LABELS[s] || s}
           </button>
         ))}
       </div>
@@ -480,6 +481,8 @@ const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey
             const slotEquippedKey = equippedKeys?.[item.slot] || equippedKeys?.[item.type] || '';
             const isEquipped = String(slotEquippedKey).trim() === String(item.key).trim();
             const isBusy = actionKey === `equip:${item.key}`;
+            const isCompanion = item.type === 'companion';
+            const companionPreview = isCompanion ? getClaraCompanionPreview(item.key) : '';
 
             return (
               <div
@@ -491,7 +494,7 @@ const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey
                 }`}
               >
                 {/* Color glow */}
-                <div className="absolute -top-6 -right-6 h-16 w-16 blur-2xl opacity-30 pointer-events-none" style={{ backgroundColor: Preset.color }} />
+                <div className="absolute -top-6 -right-6 h-16 w-16 blur-2xl opacity-30 pointer-events-none" style={{ backgroundColor: isCompanion ? accent.color : Preset.color }} />
 
                 {/* Item Preview */}
                 <div className="flex items-center justify-center h-20 relative">
@@ -506,14 +509,17 @@ const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey
                   {(item.type === 'title' || item.slot === 'title') && (
                     <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-sm font-black uppercase" />
                   )}
+                  {isCompanion && companionPreview && (
+                    <img src={companionPreview} alt={item.name} className="max-h-20 w-auto object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
+                  )}
                 </div>
 
                 {/* Item Info */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: Preset.color }}>{item.rarity}</div>
+                    <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: isCompanion ? accent.color : Preset.color }}>{item.rarity}</div>
                     <div className="text-xs font-black text-white uppercase tracking-wide">{item.name}</div>
-                    <div className="text-[8px] text-slate-600 uppercase tracking-widest mt-0.5">{item.slot}</div>
+                    <div className="text-[8px] text-slate-600 uppercase tracking-widest mt-0.5">{isCompanion ? getClaraCompanionSlotLabel(item.slot) : item.slot}</div>
                   </div>
                   {isEquipped && <BadgeCheck className="h-5 w-5 flex-shrink-0" style={{ color: accent.color }} />}
                 </div>
@@ -602,6 +608,8 @@ export default function UserProfilePage() {
       badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
       nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
       frameKey: fromApi.frameKey || fromMeta.frameKey || '',
+      claraPlaygroundKey: fromApi.claraPlaygroundKey || fromMeta.claraPlaygroundKey || '',
+      claraGuideKey: fromApi.claraGuideKey || fromMeta.claraGuideKey || '',
     };
   }, [user?.user_metadata, marketplaceData?.equipped]);
 
@@ -610,6 +618,8 @@ export default function UserProfilePage() {
     badge: getMarketplaceItem(equippedCosmetics.badgeKey),
     banner: getMarketplaceItem(equippedCosmetics.nameplateKey),
     frame: getMarketplaceItem(equippedCosmetics.frameKey),
+    claraPlayground: getMarketplaceItem(equippedCosmetics.claraPlaygroundKey),
+    claraGuide: getMarketplaceItem(equippedCosmetics.claraGuideKey),
   }), [equippedTitleKey, equippedCosmetics]);
 
   const ownedItems = useMemo(
@@ -621,6 +631,9 @@ export default function UserProfilePage() {
     badge: equippedCosmetics.badgeKey,
     nameplate: equippedCosmetics.nameplateKey,
     frame: equippedCosmetics.frameKey,
+    clara_playground: equippedCosmetics.claraPlaygroundKey,
+    clara_guide: equippedCosmetics.claraGuideKey,
+    companion: equippedCosmetics.claraPlaygroundKey || equippedCosmetics.claraGuideKey,
     title: equippedTitleKey,
   }), [equippedCosmetics, equippedTitleKey]);
 
@@ -767,3 +780,4 @@ export default function UserProfilePage() {
     </div>
   );
 }
+

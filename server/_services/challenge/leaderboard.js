@@ -3,6 +3,7 @@ import {
   setCorsHeaders,
   supabaseAdminRequest,
 } from '../zone/shared.js';
+import { fetchUserIdentityMap } from '../profile/account.js';
 
 const env = globalThis.process?.env || {};
 const CHALLENGE_RESULTS_TABLE = env.SUPABASE_CHALLENGE_RESULTS_TABLE || 'challenge_results';
@@ -274,6 +275,28 @@ export async function getChallengeLeaderboardSnapshot({ limit = DEFAULT_LIMIT } 
   const handcraftedRows = rows.filter((row) => !row?.generated);
   const generatedRows = rows.filter((row) => row?.generated);
 
+  const rawLeaderboard = buildPlayerLeaderboard(handcraftedRows, safeLimit);
+  const identityMap = await fetchUserIdentityMap(rawLeaderboard.map((entry) => entry.userId)).catch(() => new Map());
+  const leaderboard = rawLeaderboard.map((entry) => {
+    const identity = identityMap.get(String(entry.userId || '').trim());
+    if (!identity) return entry;
+    return {
+      ...entry,
+      displayName: entry.displayName || identity.displayName || entry.displayName,
+      displayAvatarUrl: identity.displayAvatarUrl || '',
+      displayTitle: identity.displayTitle || '',
+      displayTitleRarity: identity.displayTitleRarity || '',
+      displayBadge: identity.displayBadge || '',
+      displayBadgeRarity: identity.displayBadgeRarity || '',
+      displayNameplate: identity.displayNameplate || '',
+      displayNameplateKey: identity.displayNameplateKey || '',
+      displayNameplateRarity: identity.displayNameplateRarity || '',
+      displayFrame: identity.displayFrame || '',
+      displayFrameKey: identity.displayFrameKey || '',
+      displayFrameRarity: identity.displayFrameRarity || '',
+    };
+  });
+
   return {
     season,
     summary: {
@@ -282,7 +305,7 @@ export async function getChallengeLeaderboardSnapshot({ limit = DEFAULT_LIMIT } 
       trackedPlayers: new Set(handcraftedRows.map((row) => String(row?.user_id || '').trim()).filter(Boolean)).size,
       trackedContracts: new Set(handcraftedRows.map((row) => String(row?.contract_id || '').trim()).filter(Boolean)).size,
     },
-    leaderboard: buildPlayerLeaderboard(handcraftedRows, safeLimit),
+    leaderboard,
     contracts: buildContractLeaderboard(handcraftedRows, safeLimit),
   };
 }

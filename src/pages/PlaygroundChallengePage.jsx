@@ -41,6 +41,7 @@ import { UserIdentityCard } from '../components/UserIdentityBlock';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
+import { resolveGuideClaraAsset } from '../utils/claraCosmetics';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import relicSets from '../data/relics.json';
 import { CHALLENGE_CONTRACT_ORDER, getChallengeContract, getNextChallengeContractId } from '../data/challengeContracts';
@@ -623,6 +624,7 @@ function ChallengeTourOverlay({
   onNext,
   onBack,
   onClose,
+  user,
   canAdvance = true,
   isWaiting = false,
 }) {
@@ -735,7 +737,7 @@ function ChallengeTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
+              src={resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -3670,6 +3672,7 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
           onNext={handleNextTourStep}
           onBack={handleBackTourStep}
           onClose={handleCloseTour}
+          user={user}
         />
       ) : null}
 

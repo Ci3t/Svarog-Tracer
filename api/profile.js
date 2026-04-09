@@ -12,6 +12,7 @@ import {
   updateMarketplaceEquip,
 } from '../server/_services/profile/marketplace.js';
 import { claimProfileReward, hasUnlockedTitle } from '../server/_services/profile/progression.js';
+import { completeTutorial, grantLiveModeMilestone } from '../server/_services/profile/account.js';
 import { getSeasonStatsSnapshot } from '../server/_services/pvp/stats.js';
 import { TITLE_DEFINITION_MAP } from '../src/utils/titleCatalog.js';
 import { MARKETPLACE_ITEM_MAP } from '../src/utils/marketplaceCatalog.js';
@@ -145,6 +146,38 @@ async function handleRewardAction(user, body, res) {
   });
 }
 
+async function handleTutorialCompleteAction(user, body, res) {
+  const guideCompleted = Boolean(body?.guideCompleted);
+  const completedGuideStages = Math.max(0, Number(body?.completedGuideStages || 0) || 0);
+  const result = await completeTutorial(user, {
+    guideCompleted,
+    completedGuideStages,
+  });
+
+  return res.status(200).json({
+    success: true,
+    ...result,
+  });
+}
+
+async function handleLiveModeRewardAction(user, body, res) {
+  const sessionKey = String(body?.sessionKey || '').trim();
+  const milestone = Math.max(0, Number(body?.milestone || 0) || 0);
+  if (!sessionKey || milestone <= 0) {
+    throw new HttpError(400, 'Live mode session key and milestone are required.');
+  }
+
+  const result = await grantLiveModeMilestone(user, {
+    sessionKey,
+    milestone,
+  });
+
+  return res.status(200).json({
+    success: true,
+    ...result,
+  });
+}
+
 export default async function handler(req, res) {
   setCorsHeaders(res);
 
@@ -177,6 +210,14 @@ export default async function handler(req, res) {
 
     if (body?.rewardKey) {
       return handleRewardAction(user, body, res);
+    }
+
+    if (String(body?.action || '').trim().toLowerCase() === 'complete_tutorial') {
+      return handleTutorialCompleteAction(user, body, res);
+    }
+
+    if (String(body?.action || '').trim().toLowerCase() === 'grant_live_mode_currency') {
+      return handleLiveModeRewardAction(user, body, res);
     }
 
     if (body?.titleKey || (body?.action === 'clear' && !body?.itemKey && !body?.slot)) {

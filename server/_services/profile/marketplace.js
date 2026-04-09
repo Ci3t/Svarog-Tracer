@@ -180,7 +180,7 @@ function buildCatalogState({ ownedItems, unlockedTitleKeys, claimedRewardKeys })
   return MARKETPLACE_ITEMS.map((item) => {
     const owned = item.type === 'title'
       ? unlockedTitleKeys.has(String(item.titleKey || item.key || '').trim())
-      : ownedItemKeys.has(item.key) || claimedRewardKeys.has(item.key);
+      : Boolean(item.defaultOwned) || ownedItemKeys.has(item.key) || claimedRewardKeys.has(item.key);
     return {
       ...item,
       owned,
@@ -194,6 +194,8 @@ function resolveSlotKey(slot) {
   if (normalized === 'nameplate') return 'svarog_equipped_nameplate';
   if (normalized === 'frame') return 'svarog_equipped_frame';
   if (normalized === 'title') return 'svarog_equipped_title';
+  if (normalized === 'clara_playground') return 'svarog_equipped_clara_playground';
+  if (normalized === 'clara_guide') return 'svarog_equipped_clara_guide';
   throw new HttpError(400, 'Invalid equip slot.');
 }
 

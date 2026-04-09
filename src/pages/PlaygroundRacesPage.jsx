@@ -20,6 +20,7 @@ import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 import PvpVsMark from '../components/modern/PvpVsMark';
 import { withBaseUrl } from '../utils/assetPaths';
+import { resolveGuideClaraAsset } from '../utils/claraCosmetics';
 import { UserIdentityCard } from '../components/UserIdentityBlock';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
@@ -253,6 +254,7 @@ function LobbyTourOverlay({
   onNext,
   onBack,
   onClose,
+  user,
   canAdvance = true,
   isWaiting = false,
 }) {
@@ -384,7 +386,7 @@ function LobbyTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-rose-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
+              src={resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -434,7 +436,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const location = useLocation();
-  const { getAuthHeader, roleMode } = useAuth();
+  const { user, getAuthHeader, roleMode } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
   const [selectedSeedMode, setSelectedSeedMode] = useState('shared');
   const [selectedSetName, setSelectedSetName] = useState('');
@@ -1254,6 +1256,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           onNext={handleNextTour}
           onBack={handleBackTour}
           onClose={handleCloseTour}
+          user={user}
           canAdvance={canAdvanceTour}
           isWaiting={Boolean(currentTourStep?.waitFor) && !canAdvanceTour}
         />

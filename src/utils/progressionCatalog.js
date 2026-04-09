@@ -233,7 +233,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'competitiveWins',
     unlockValue: 7,
     rewardType: 'currency',
-    grantTokens: 900,
+    grantTokens: 320,
   },
   {
     key: 'solver-sigil',
@@ -261,7 +261,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'leaderboardTop',
     unlockValue: 3,
     rewardType: 'seasonal',
-    grantTokens: 2400,
+    grantTokens: 900,
   },
   {
     key: 'training-chip-cache',
@@ -271,7 +271,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'freeTrainingSessions',
     unlockValue: 3,
     rewardType: 'currency',
-    grantTokens: 600,
+    grantTokens: 240,
   },
   {
     key: 'drill-frame',
@@ -299,7 +299,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'level',
     unlockValue: 2,
     rewardType: 'currency',
-    grantTokens: 240,
+    grantTokens: 120,
   },
   {
     key: 'relay-badge',
@@ -346,7 +346,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'level',
     unlockValue: 12,
     rewardType: 'currency',
-    grantTokens: 1200,
+    grantTokens: 420,
   },
   {
     key: 'trace-architect',

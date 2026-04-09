@@ -33,6 +33,7 @@ import {
   getMarketplaceItem,
   resolveEquippedCosmeticsFromMetadata,
 } from '../utils/marketplaceCatalog';
+import { getClaraCompanionPreview, getClaraCompanionSlotLabel } from '../utils/claraCosmetics';
 import {
   getTitleBadgeStyle,
   getTitleDefinition,
@@ -97,6 +98,12 @@ const LORE_BITS = {
     "A harmonic resonance from distant star-systems.",
     "Coded into the down-level physics of the matrix.",
     "Elevated identity for top-tier observers."
+  ],
+  companion: [
+    "A Clara model swap for the spaces where she teaches and guides.",
+    "Lets your hub or guide Clara match the style you want to keep around.",
+    "Cosmetic only. Voice lines stay the same unless the original angry model is active.",
+    "A collector option for players who want Clara to feel more personal."
   ]
 };
 
@@ -234,6 +241,18 @@ const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, 
               </div>
             );
           })}
+          {[
+            { key: 'claraPlayground', label: 'Hub Clara' },
+            { key: 'claraGuide', label: 'Guide Clara' },
+          ].map(({ key, label }) => {
+            const item = credentials[key];
+            return (
+              <div key={key} className="flex items-center justify-between text-[11px] p-2 rounded-lg border border-white/5 bg-black/30">
+                <span className="text-slate-500 uppercase tracking-widest text-[9px]">{label}</span>
+                <span className="font-bold text-slate-300 uppercase truncate max-w-[150px]">{item?.name || 'Standard'}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -247,8 +266,31 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
   const accent = getCosmeticAccentStyle(item.rarity || 'common');
   
   const isTitle = item.type === 'title';
+  const isCompanion = item.type === 'companion';
   const isOwned = Boolean(item.owned);
   const isEquipped = String(equippedKey || '').trim() === String(item.key || '').trim();
+  const companionPreview = isCompanion ? getClaraCompanionPreview(item.key) : '';
+  const actionStyle = (() => {
+    if (isEquipped) {
+      return {
+        borderColor: 'rgba(16,185,129,0.35)',
+        color: '#d1fae5',
+        backgroundColor: 'rgba(6, 78, 59, 0.8)',
+      };
+    }
+    if (isOwned) {
+      return {
+        borderColor: 'rgba(255,255,255,0.14)',
+        color: '#f8fafc',
+        backgroundColor: isCompanion ? 'rgba(15, 23, 42, 0.92)' : 'rgba(17, 24, 39, 0.88)',
+      };
+    }
+    return {
+      borderColor: accent.borderColor,
+      color: isCompanion ? '#fff7ed' : accent.color,
+      backgroundColor: isCompanion ? 'rgba(120, 53, 15, 0.88)' : `${accent.color}20`,
+    };
+  })();
 
   const presetKey = item.key.replace('-banner', '').replace('-frame', '').replace('-badge', '').replace('-title', '');
   const Preset = LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
@@ -274,13 +316,13 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
   };
 
   const getLore = () => {
-    const list = LORE_BITS[item.slot || 'title'] || LORE_BITS.title;
+    const list = LORE_BITS[item.slot] || LORE_BITS[item.type] || LORE_BITS.title;
     return list[item.key.length % list.length];
   };
 
   return (
     <div 
-      className="relative h-[320px] w-full [perspective:1000px] group cursor-pointer"
+      className="relative h-[332px] w-full [perspective:1000px] group cursor-pointer"
       onMouseEnter={() => onPreview?.(item)}
       onFocus={() => onPreview?.(item)}
       data-market-item="true"
@@ -291,15 +333,17 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
       >
         {/* FRONT SIDE */}
         <div className="absolute inset-0 h-full w-full [backface-visibility:hidden] rounded-2xl border border-white/10 bg-[#120a17] p-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col transition-all group-hover:border-white/30 group-hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
-          <div className="absolute -top-10 -right-10 h-32 w-32 blur-[60px] opacity-30 pointer-events-none" style={{ backgroundColor: Preset.color }} />
+        <div className="absolute -top-10 -right-10 h-32 w-32 blur-[60px] opacity-30 pointer-events-none" style={{ backgroundColor: isCompanion ? accent.color : Preset.color }} />
           
           {/* LOADOUT OPTION LABEL HEADER */}
-          <div className="flex items-center justify-between mb-4 relative z-10 w-full mb-auto pb-4 border-b border-white/5">
+          <div className="relative z-10 mb-3 flex w-full items-center justify-between border-b border-white/5 pb-3">
              <div className="font-['Orbitron'] text-[10px] font-black uppercase text-white/50 tracking-[0.2em]">ITEM PREVIEW</div>
-             <div className="text-[10px] font-bold uppercase" style={{ color: Preset.color }}>{Preset.title}</div>
+             <div className="text-[10px] font-bold uppercase" style={{ color: isCompanion ? accent.color : Preset.color }}>
+               {isCompanion ? getClaraCompanionSlotLabel(item.slot) : Preset.title}
+             </div>
           </div>
 
-          <div className="flex-1 w-full flex items-center justify-center relative my-4">
+          <div className="relative my-3 flex flex-1 w-full items-center justify-center">
              {/* THE ACTUAL PREMIUM ASSET */}
              {item.slot === 'nameplate' && (
                 <div className="w-full h-[70px] pointer-events-none shadow-[0_10px_30px_rgba(0,0,0,0.8)] relative z-10">
@@ -319,6 +363,12 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
                    <div className="h-[75px] w-[75px] rounded-full bg-slate-800" />
                 </div>
              )}
+
+             {isCompanion && companionPreview && (
+                <div className="relative z-10 flex h-[100px] w-full items-center justify-center overflow-hidden">
+                  <img src={companionPreview} alt={item.name} className="max-h-[96px] w-auto object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]" />
+                </div>
+             )}
           </div>
 
           <div className="flex items-end justify-between mb-2 relative z-10 w-full border-t border-white/5 pt-3">
@@ -330,7 +380,7 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
             </div>
           </div>
 
-          <div className="mt-auto pt-4 border-t border-white/5 flex flex-col gap-4 relative z-10">
+          <div className="relative z-10 mt-auto flex flex-col gap-3 border-t border-white/5 pt-3">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-[9px] uppercase tracking-widest text-slate-600">Cost</span>
@@ -339,7 +389,7 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
               <button 
                 type="button"
                 onClick={() => setIsFlipped(true)}
-                className="flex items-center gap-1.5 py-1 px-2 rounded-md border border-white/5 bg-black/40 backdrop-blur-md text-[9px] font-bold uppercase tracking-widest text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-[0_0_10px_rgba(0,0,0,0.5)]"
+                className="flex items-center gap-1.5 rounded-md border border-white/5 bg-black/40 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-300 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white shadow-[0_0_10px_rgba(0,0,0,0.5)]"
               >
                 <Info className="h-3 w-3" /> Lore
               </button>
@@ -349,11 +399,11 @@ const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, o
               type="button"
               disabled={actionBusy || locked || isEquipped}
               onClick={handleAction}
-              className="w-full py-2.5 rounded-lg border font-['Orbitron'] text-[10px] font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 disabled:cursor-not-allowed group/btn overflow-hidden relative shadow-[0_5px_15px_rgba(0,0,0,0.4)] backdrop-blur-md"
-              style={!isOwned || (!isTitle && !isEquipped) ? { borderColor: accent.borderColor, color: accent.color, backgroundColor: `${accent.color}20` } : { borderColor: 'rgba(255,255,255,0.1)', color: '#64748b', backgroundColor: 'rgba(0,0,0,0.5)' }}
+              className="relative w-full overflow-hidden rounded-lg border py-2.5 font-['Orbitron'] text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-[0_5px_15px_rgba(0,0,0,0.4)] backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-30 group/btn"
+              style={actionStyle}
             >
               <div className="absolute inset-0 bg-white/10 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700" />
-              <span className="relative z-10 drop-shadow-[0_0_5px_currentColor]">{actionBusy ? 'Processing...' : isEquipped ? 'Active' : isOwned ? 'Equip' : 'Authorize Buy'}</span>
+              <span className="relative z-10 drop-shadow-[0_0_5px_currentColor]">{actionBusy ? 'Processing...' : isEquipped ? 'Active' : isOwned ? 'Equip' : 'Buy'}</span>
             </button>
           </div>
         </div>
@@ -458,6 +508,8 @@ export default function MarketplacePage() {
       badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
       nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
       frameKey: fromApi.frameKey || fromMeta.frameKey || '',
+      claraPlaygroundKey: fromApi.claraPlaygroundKey || fromMeta.claraPlaygroundKey || '',
+      claraGuideKey: fromApi.claraGuideKey || fromMeta.claraGuideKey || '',
     };
   }, [user?.user_metadata, marketplaceData?.equipped]);
   const credentials = useMemo(() => ({
@@ -465,6 +517,8 @@ export default function MarketplacePage() {
     banner: getMarketplaceItem(equippedCosmetics.nameplateKey),
     frame: getMarketplaceItem(equippedCosmetics.frameKey),
     title: equippedTitle,
+    claraPlayground: getMarketplaceItem(equippedCosmetics.claraPlaygroundKey),
+    claraGuide: getMarketplaceItem(equippedCosmetics.claraGuideKey),
   }), [equippedCosmetics, equippedTitle]);
 
   const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
@@ -545,6 +599,7 @@ export default function MarketplacePage() {
     { id: 'badge', label: 'Badges', icon: BadgeCheck },
     { id: 'nameplate', label: 'Banners', icon: Layers },
     { id: 'title', label: 'Titles', icon: Trophy },
+    { id: 'companion', label: 'Clara Skins', icon: Gamepad2 },
   ];
 
   return (
@@ -637,7 +692,17 @@ export default function MarketplacePage() {
                     item={item}
                     actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
                     locked={marketActionKey !== ''}
-                    equippedKey={item.slot === 'title' || item.type === 'title' ? equippedTitleKey : (item.slot === 'nameplate' ? credentials.banner?.key : credentials[item.slot]?.key)}
+                    equippedKey={
+                      item.slot === 'title' || item.type === 'title'
+                        ? equippedTitleKey
+                        : item.slot === 'nameplate'
+                          ? credentials.banner?.key
+                          : item.slot === 'clara_playground'
+                            ? credentials.claraPlayground?.key
+                            : item.slot === 'clara_guide'
+                              ? credentials.claraGuide?.key
+                              : credentials[item.slot]?.key
+                    }
                     onPurchase={handlePurchase}
                     onEquip={handleEquip}
                     onPreview={(it) => setPreviewItemKey(it?.key || '')}

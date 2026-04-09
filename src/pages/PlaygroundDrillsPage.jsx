@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BrainCircuit, ChevronRight, Play, RefreshCw, ShieldCheck, Volume2 } from 'lucide-react';
+import { ArrowLeft, BrainCircuit, ChevronRight, Play, RefreshCw, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernSessionTable from '../components/modern/ModernSessionTable';
@@ -10,8 +10,11 @@ import { useAuth } from '../hooks/useAuth';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
 import { buildApiUrl } from '../utils/apiBase';
 import { DRILLS_QUESTION_BANK } from '../data/drillsQuestionBank';
+import { resolveGuideClaraAsset } from '../utils/claraCosmetics';
 
 const DRILLS_TOUR_STORAGE_KEY = 'svarog-drills-tour-v1';
+const DRILLS_CLARA_VOLUME_KEY = 'svarog-drills-clara-volume-v1';
+const DRILLS_CLARA_MUTED_KEY = 'svarog-drills-clara-muted-v1';
 const DRILLS_TOUR_STEPS = [
   {
     target: '#drills-mission-strip',
@@ -178,6 +181,15 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const [claraSpeaking, setClaraSpeaking] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [activeVoicePath, setActiveVoicePath] = useState('');
+  const [claraVolume, setClaraVolume] = useState(() => {
+    if (typeof window === 'undefined') return 0.6;
+    const stored = Number(window.localStorage.getItem(DRILLS_CLARA_VOLUME_KEY));
+    return Number.isFinite(stored) ? Math.max(0, Math.min(1, stored)) : 0.6;
+  });
+  const [claraMuted, setClaraMuted] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(DRILLS_CLARA_MUTED_KEY) === '1';
+  });
   const [progressionSummary, setProgressionSummary] = useState(null);
   const [progressionSyncing, setProgressionSyncing] = useState(false);
   const [tourRunning, setTourRunning] = useState(false);
@@ -197,10 +209,11 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   const hasPredictorContext = currentEntries.length >= 6;
   
   const claraImageSrc = claraSpeaking
-    ? withBaseUrl('clara-prof-OandMouth.gif')
-    : (revealed && selectedAnswer !== currentDrill?.correctAnswer
-      ? withBaseUrl('clara-prof-assistant-sadface.png')
-      : withBaseUrl('clara-prof-assistant.png'));
+    ? resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: true })
+    : resolveGuideClaraAsset(user?.user_metadata || {}, {
+      speaking: false,
+      sad: revealed && selectedAnswer !== currentDrill?.correctAnswer,
+    });
 
   const stopClaraAudio = () => {
     if (!claraAudioRef.current) return;
@@ -212,11 +225,27 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     setActiveVoicePath('');
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DRILLS_CLARA_VOLUME_KEY, String(claraVolume));
+  }, [claraVolume]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DRILLS_CLARA_MUTED_KEY, claraMuted ? '1' : '0');
+  }, [claraMuted]);
+
+  useEffect(() => {
+    if (!claraAudioRef.current) return;
+    claraAudioRef.current.volume = claraMuted ? 0 : claraVolume;
+  }, [claraMuted, claraVolume]);
+
   const playClaraAudio = (audioPath) => {
     if (!audioPath) return;
     stopClaraAudio();
 
     const audio = new Audio(encodeURI(withBaseUrl(audioPath)));
+    audio.volume = claraMuted ? 0 : claraVolume;
     claraAudioRef.current = audio;
     setActiveVoicePath(audioPath);
     setVoiceLoading(true);
@@ -298,6 +327,10 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
       return;
     }
     playClaraAudio(currentDrill?.voicePath);
+  };
+
+  const toggleClaraMute = () => {
+    setClaraMuted((current) => !current);
   };
 
   const closeTour = () => {
@@ -552,12 +585,19 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                 <div className="mt-2 text-sm font-semibold text-white">
                   {progressionSummary
                     ? Array.isArray(progressionSummary.unlockedRewards) && progressionSummary.unlockedRewards.length > 0
-                      ? `${progressionSummary.unlockedRewards[0].name} unlocked`
+                      ? progressionSummary.unlockedRewards.map((reward) => reward.name).join(' • ')
                       : progressionSummary.nextReward
                         ? `${progressionSummary.nextReward.xpRemaining} XP left to ${progressionSummary.nextReward.name}`
                         : 'No pending reward from this clear'
                     : (progressionSyncing ? 'Checking reward unlocks...' : 'No progression update available')}
                 </div>
+                {progressionSummary && Array.isArray(progressionSummary.unlockedRewards) && progressionSummary.unlockedRewards.length > 0 ? (
+                  <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200/90">
+                    {progressionSummary.unlockedRewards
+                      .map((reward) => reward.rewardType === 'companion' ? `${reward.name} added to arsenal` : `${reward.name} unlocked`)
+                      .join(' · ')}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -710,15 +750,48 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                       </div>
                     </div>
                     
-                    <button type="button" onClick={handlePlayClaraVoice} className="mt-6 w-full group/voice relative overflow-hidden rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3.5 transition-all hover:bg-cyan-500/10 hover:border-cyan-400/40">
-                      <div className="flex items-center justify-center gap-3">
-                        {voiceLoading || claraSpeaking ? <Volume2 className="h-4 w-4 text-cyan-400 animate-pulse" /> : <Play className="h-4 w-4 text-slate-400 group-hover/voice:text-cyan-400 font-black" />}
-                        <div className="flex flex-col items-start leading-none font-black text-white uppercase tracking-[0.1em]">
-                          <span className="text-[10px] tracking-widest">Audio Sync</span>
-                          <span className="mt-1 text-[7px] opacity-40">{claraSpeaking ? 'Transmitting' : 'Play Brief'}</span>
+                    <div className="mt-6 space-y-3">
+                      <button type="button" onClick={handlePlayClaraVoice} className="w-full group/voice relative overflow-hidden rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3.5 transition-all hover:bg-cyan-500/10 hover:border-cyan-400/40">
+                        <div className="flex items-center justify-center gap-3">
+                          {voiceLoading || claraSpeaking ? <Volume2 className="h-4 w-4 text-cyan-400 animate-pulse" /> : <Play className="h-4 w-4 text-slate-400 group-hover/voice:text-cyan-400 font-black" />}
+                          <div className="flex flex-col items-start leading-none font-black text-white uppercase tracking-[0.1em]">
+                            <span className="text-[10px] tracking-widest">Audio Sync</span>
+                            <span className="mt-1 text-[7px] opacity-40">{claraSpeaking ? 'Transmitting' : 'Play Brief'}</span>
+                          </div>
+                        </div>
+                      </button>
+                      <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={toggleClaraMute}
+                            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                              claraMuted
+                                ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+                                : 'border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20 hover:text-white'
+                            }`}
+                            aria-label={claraMuted ? 'Unmute Clara' : 'Mute Clara'}
+                          >
+                            {claraMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                              <span>Clara volume</span>
+                              <span>{Math.round(claraVolume * 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="5"
+                              value={Math.round(claraVolume * 100)}
+                              onChange={(event) => setClaraVolume(Math.max(0, Math.min(1, Number(event.target.value) / 100)))}
+                              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   </div>
 
                   <div className="flex-1 flex flex-col justify-between">
