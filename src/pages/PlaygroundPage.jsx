@@ -183,9 +183,16 @@ function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = 
   }[theme.color] || 'bg-white/40';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen?.();
+        }
+      }}
       className={`group theme-glass-card relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/8 p-6 text-left transition-all duration-300 hover:border-white/16 hover:bg-white/[0.04] cursor-pointer ${className}`}
     >
       <div className={`absolute left-0 top-0 h-full w-1 ${accentRailClass} opacity-80`} />
@@ -231,7 +238,7 @@ function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = 
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -257,6 +264,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const [claraLanguage, setClaraLanguage] = useState(() => resolveClaraLanguage());
   const [claraInteractionLocked, setClaraInteractionLocked] = useState(false);
   const [activeModePreview, setActiveModePreview] = useState('');
+  const [activeAudioSrc, setActiveAudioSrc] = useState('');
 
   const scheduleClaraReset = () => {
     if (claraResetTimeoutRef.current) {
@@ -268,6 +276,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
       setClaraState('idle');
       setClaraInteractionLocked(false);
       setActiveModePreview('');
+      setActiveAudioSrc('');
       if (claraModelRef.current) {
         gsap.set(claraModelRef.current, { x: 0, rotate: 0 });
       }
@@ -281,7 +290,33 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
     }
   };
 
-  const playClaraLine = (audioSrc, text, nextState = 'normal') => {
+  const stopClaraLine = () => {
+    if (singleClickTimeoutRef.current) {
+      window.clearTimeout(singleClickTimeoutRef.current);
+      singleClickTimeoutRef.current = null;
+    }
+    if (claraResetTimeoutRef.current) {
+      window.clearTimeout(claraResetTimeoutRef.current);
+      claraResetTimeoutRef.current = null;
+    }
+    if (claraAudioRef.current) {
+      claraAudioRef.current.pause();
+      claraAudioRef.current.currentTime = 0;
+      claraAudioRef.current = null;
+    }
+    setClaraSpeaking(false);
+    setClaraBubble('');
+    setClaraState('idle');
+    setClaraInteractionLocked(false);
+    setActiveModePreview('');
+    setActiveAudioSrc('');
+    if (claraModelRef.current) {
+      gsap.set(claraModelRef.current, { x: 0, rotate: 0 });
+    }
+  };
+
+  const playClaraLine = (audioSrc, text, nextState = 'normal', options = {}) => {
+    const { lockInteraction = true, modePreviewId = '' } = options;
     if (claraResetTimeoutRef.current) {
       window.clearTimeout(claraResetTimeoutRef.current);
     }
@@ -292,11 +327,13 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
 
     const audio = new Audio(audioSrc);
     claraAudioRef.current = audio;
+    setActiveAudioSrc(audioSrc);
     audio.volume = 0.75;
     setClaraState(nextState === 'mad' ? 'mad' : 'normal');
     setClaraBubble(text);
     setClaraSpeaking(true);
-    setClaraInteractionLocked(true);
+    setClaraInteractionLocked(lockInteraction);
+    setActiveModePreview(modePreviewId || '');
 
     if (nextState === 'mad' && claraModelRef.current) {
       gsap.killTweensOf(claraModelRef.current);
@@ -330,6 +367,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
       setClaraSpeaking(false);
       setClaraState(nextState === 'mad' ? 'mad' : 'idle');
       claraAudioRef.current = null;
+      setActiveAudioSrc('');
       scheduleClaraReset();
     };
 
@@ -341,11 +379,11 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   };
 
   const handleClaraSingleClick = () => {
-    setActiveModePreview('');
     playClaraLine(
       CLARA_HI_LINE.audio,
       CLARA_HI_LINE.text,
       'normal',
+      { lockInteraction: true, modePreviewId: '' }
     );
   };
 
@@ -364,14 +402,17 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
     const pickedIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
     claraMadHistoryRef.current[claraLanguage] = [...(claraMadHistoryRef.current[claraLanguage] || []), pickedIndex];
     const selected = linePool[pickedIndex];
-    playClaraLine(selected.audio, selected.text, 'mad');
+    playClaraLine(selected.audio, selected.text, 'mad', { lockInteraction: true, modePreviewId: '' });
   };
 
   const handleModePreview = (modeId) => {
     const line = CLARA_MODE_LINES[modeId];
-    if (!line || claraInteractionLocked) return;
-    setActiveModePreview(modeId);
-    playClaraLine(line.audio, line.text, 'normal');
+    if (!line) return;
+    if (claraSpeaking && activeAudioSrc === line.audio) {
+      stopClaraLine();
+      return;
+    }
+    playClaraLine(line.audio, line.text, 'normal', { lockInteraction: false, modePreviewId: modeId });
   };
 
   const handleClaraClick = () => {

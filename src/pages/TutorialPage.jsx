@@ -1,228 +1,424 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import gsap from 'gsap';
-import {
-  BookOpen,
-  ChevronRight,
-  Clock3,
-  History,
-  Lightbulb,
-  Map,
-  RotateCcw,
-  Target,
-  Wand2,
-  X,
-  Trophy,
-  Activity,
-  Gamepad2,
-  Sparkles,
-  ArrowRight,
-} from 'lucide-react';
+import { ArrowLeft, ChevronRight, Info, Radar, RefreshCw, Sparkles, Target } from 'lucide-react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
-import ModernStatsPanel from '../components/modern/ModernStatsPanel';
-import { predictWithPairs } from '../utils/pairTransitionPredictor';
-import { translateTo4 } from '../utils/stringHelpers';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
+import relicSets from '../data/relics.json';
+import { getTutorialLevelConfig, TUTORIAL_LEVELS } from '../data/tutorialLevelConfigs';
+import { activateRelicLine, createRelicLine, formatStatValue, getMainStatDisplay } from '../utils/relicScoring';
+import { translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
-import tutorialStageOneScript from '../guides/tutorialStageOneScript';
 
-const CHAPTERS = [
-  {
-    id: 'read-live',
-    label: 'Chapter 1',
-    title: 'Read the Live State',
-    summary:
-      'Read the pair, noise risk, Svarog exact lean, history, and the line helper the same way you would during a real manip window.',
-    coach:
-      'Start here: the active pair is 42 / 43. That is the lane the live page says is safest. The question is whether that lane is good for the relic you actually care about.',
-  },
-  {
-    id: 'bad-upgrade',
-    label: 'Chapter 2',
-    title: 'Why Direct Upgrade Is Wrong',
-    summary:
-      'The target relic is real, but the pair is bad for it right now. If you upgrade directly, one of the commons still lands on junk.',
-    coach:
-      'Look at the target relic with the helper below it. Directly taking 42 / 43 now means one crit line and one junk line. That is not the manip we want.',
-  },
-  {
-    id: 'force-line',
-    label: 'Chapter 3',
-    title: 'Force The Line',
-    summary:
-      'Use the setup relic to force line 3 first. That changes how the commons pair behaves when you return to the target relic.',
-    coach:
-      'This is the real trick: use the 2-line setup relic to force line 3, then go back to the target relic so the commons pair can land on the crit side instead.',
-  },
-];
+const LINE_STYLE = {
+  1: { chip: 'border-amber-400/30 bg-amber-500/10 text-amber-100', ring: 'ring-amber-400/35' },
+  2: { chip: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-100', ring: 'ring-cyan-400/35' },
+  3: { chip: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100', ring: 'ring-emerald-400/35' },
+  4: { chip: 'border-violet-400/30 bg-violet-500/10 text-violet-100', ring: 'ring-violet-400/35' },
+};
 
-const INITIAL_SCRIPTED_ROLLS = ['43', '43', '41', '41', '42', '43', '42'];
+const STAGE_SEQUENCES = {
+  5: [
+    { slot: 1, raw: '41', translated: '41', note: 'Raw 41 landed on line 1 and paid out CRIT RATE.' },
+    { slot: 3, raw: '13', translated: '42', note: 'Raw 13 landed on line 3. In the 4x view that becomes 42, so CRIT DMG still belongs to the calm commons lane.' },
+    { slot: 3, raw: '13', translated: '42', note: 'Another raw 13 translated into visible 42 and returned to CRIT DMG.' },
+    { slot: 3, raw: '13', translated: '42', note: 'The calm route kept returning to the same translated 42 side, so the relic stayed safe.' },
+  ],
+  6: [
+    { slot: 1, raw: '41', translated: '41', note: 'The clean start still opens on raw 41 into CRIT RATE.' },
+    { slot: 3, raw: '13', translated: '42', note: 'Raw 13 follows and translates into visible 42 on CRIT DMG.' },
+    { slot: 2, raw: '32', translated: '43', note: 'Then raw 32 appears. That translates into visible 43 and breaks the route into FLAT HP.' },
+    { slot: 3, raw: '13', translated: '42', note: 'The calm lane can return after the break, but the board was not safe the whole time.' },
+  ],
+  8: [
+    { slot: 1, raw: '41', translated: '41', note: 'The calm board opens on raw 41 and lands cleanly on CRIT RATE.' },
+    { slot: 2, raw: '13', translated: '42', note: 'Then raw 13 translates into visible 42 and lands on SPD. Same calm lane, no outsider pressure.' },
+  ],
+  9: [
+    { slot: 4, raw: '44', translated: '44', note: 'Svarog Eye and Main Predictor both agree on the fresh 44 push here.' },
+    { slot: 1, raw: '41', translated: '41', note: 'The follow-up stays readable because both tools were already pointing the same way.' },
+  ],
+  10: [
+    { slot: 4, raw: '44', translated: '44', note: 'Svarog Eye leans into the fresh 44 pressure first.' },
+    { slot: 3, raw: '43', translated: '43', note: 'The next hit follows 43, not the older 42 lane. This is what the split read was warning about.' },
+  ],
+  11: [
+    { slot: 2, raw: '13', translated: '42', note: 'The board still looked usable at first because the commons lane was returning cleanly.' },
+    { slot: 4, raw: '44', translated: '44', note: 'Then break danger becomes real: the outsider 44 is strong enough to matter before the hit lands.' },
+  ],
+  12: [
+    { slot: 2, raw: '24', translated: '42', note: 'The older lane still has visible share, so the board does not look broken yet.' },
+    { slot: 3, raw: '43', translated: '43', note: 'A fresh 43 push appears. Trends are what tell you this is a new move, not just noise.' },
+    { slot: 4, raw: '44', translated: '44', note: 'Then 44 strengthens. Share, trust, and freshness together tell the real story of the shift.' },
+  ],
+  13: [
+    { slot: 1, raw: '41', translated: '41', note: 'The guided solve opens on raw 41 and lands cleanly on CRIT RATE.' },
+    { slot: 3, raw: '13', translated: '42', note: 'Raw 13 translates into visible 42 and lands on CRIT DMG.' },
+    { slot: 1, raw: '41', translated: '41', note: 'The pair returns to 41 cleanly, with no drift into noise.' },
+    { slot: 3, raw: '13', translated: '42', note: 'Then 42 returns again through raw 13. This is the stable loop you want to recognize.' },
+    { slot: 3, raw: '13', translated: '42', note: 'The guided solve finishes on the same safe lane. No outsider ever stole the route.' },
+  ],
+  14: [
+    { slot: 2, raw: '24', translated: '42', note: 'Now the warning side turns into visible 42. This is the hit Clara wants you to notice before moving on: the route is no longer calm, and the board was warning you first.' },
+  ],
+};
 
-const INITIAL_HISTORY_ROWS = [
-  { time: '02:18:11', roll: '42', note: 'common starts' },
-  { time: '02:18:19', roll: '43', note: 'other common' },
-  { time: '02:18:24', roll: '42', note: 'pair repeats' },
-  { time: '02:18:31', roll: '44', note: 'noise insert' },
-  { time: '02:18:39', roll: '42', note: 'back to lane' },
-  { time: '02:18:46', roll: '43', note: 'commons confirmed' },
-  { time: '02:18:53', roll: '42', note: 'current read' },
-];
+const TUTORIAL_PREDICTOR_IDS = {
+  warningStripId: 'tutorial-predictor-warning',
+  statusMessageId: 'tutorial-predictor-status',
+  noiseRiskId: 'tutorial-predictor-noise-risk',
+  breakPressureId: 'tutorial-predictor-break-pressure',
+  mainPredictorId: 'tutorial-predictor-main',
+  svarogEyeId: 'tutorial-predictor-eye',
+  watchMessageId: 'tutorial-predictor-watch',
+  commonsNoiseId: 'tutorial-predictor-commons-noise',
+  advancedMethodId: 'tutorial-predictor-advanced-method',
+  advancedTrendsId: 'tutorial-predictor-advanced-trends',
+  advancedSequenceId: 'tutorial-predictor-advanced-sequence',
+};
 
-const TARGET_BASE_LINES = [
-  { slot: 1, stat: 'CRIT RATE', tone: 'good', hits: 0 },
-  { slot: 2, stat: 'CRIT DMG', tone: 'good', hits: 0 },
-  { slot: 3, stat: 'EFF RES', tone: 'bad', hits: 0 },
-];
+function buildPredictorEntries(rolls = []) {
+  return rolls.map((roll, index) => ({
+    id: `tutorial-roll-${index}`,
+    raw: roll,
+    translated: translateTo4(roll) || roll,
+    s2: roll,
+    time: `2026-04-09T12:${String(10 + index).padStart(2, '0')}:00`,
+  }));
+}
 
-const TARGET_FOURTH_LINE = { slot: 4, stat: 'BREAK EFFECT', tone: 'bad', hits: 0 };
-const LEVEL_TWO_TARGET_BASE_LINES = [
-  { slot: 1, stat: 'FLAT HP', tone: 'bad', hits: 0 },
-  { slot: 2, stat: 'CRIT RATE', tone: 'good', hits: 0 },
-  { slot: 3, stat: 'CRIT DMG', tone: 'good', hits: 0 },
-];
-const LEVEL_THREE_TARGET_BASE_LINES = [
-  { slot: 1, stat: 'FLAT ATK', tone: 'bad', hits: 0 },
-  { slot: 2, stat: 'FLAT HP', tone: 'bad', hits: 0 },
-  { slot: 3, stat: 'SPD', tone: 'good', hits: 0 },
-];
+function findRelicSet(setId) {
+  return relicSets.find((entry) => entry.id === setId) || relicSets[0];
+}
 
-const SETUP_BASE_LINES = [
-  { slot: 1, stat: 'HP%', state: 'locked' },
-  { slot: 2, stat: 'SPD', state: 'locked' },
-  { slot: 3, stat: 'OPEN LINE', state: 'open' },
-];
-const ONE_LINE_SETUP_BASE_LINES = [
-  { slot: 1, stat: 'HP%', state: 'locked' },
-  { slot: 2, stat: 'OPEN LINE', state: 'open' },
-];
+function buildTargetRelic(levelConfig) {
+  const setMeta = findRelicSet(levelConfig.relicSetId);
+  const rawLines = levelConfig.relic?.lines || [];
+  const baseLines = rawLines.slice(0, 3).map((line) => ({ ...createRelicLine(line.slot, line.stat, { active: true }), tone: line.tone || 'neutral' }));
+  const fourthSource = rawLines[3];
+  const fourthLine = fourthSource
+    ? { ...createRelicLine(fourthSource.slot, fourthSource.stat, { active: !fourthSource.locked }), tone: fourthSource.tone || 'neutral', locked: Boolean(fourthSource.locked) }
+    : null;
 
-const LEVEL_SEQUENCE = [3, 6, 9, 12, 15];
-const DIRECT_LINE_SEQUENCE = [2, 3, 2, 3];
-const SHIFTED_LINE_SEQUENCE = [1, 2, 1, 2];
-const LEVEL_TWO_DIRECT_LINE_SEQUENCE = [2, 1, 4, 1];
-const LEVEL_TWO_SHIFTED_LINE_SEQUENCE = [2, 3, 2, 3];
-const LEVEL_TWO_VISIBLE_ROLLS = ['42', '44', '41', '44'];
-const LEVEL_THREE_FOURTH_LINE = { slot: 4, stat: 'EFFECT HIT RATE', tone: 'bad', hits: 0 };
-const TUTORIAL_TOUR_KEY = 'svarog-tutorial-tour-v1';
-const TUTORIAL_STAGE_TWO_TOUR_KEY = 'svarog-tutorial-tour-v2';
-const TOUR_STEPS = tutorialStageOneScript;
-const STAGE_TWO_INTRO_STEPS = [
-  {
-    target: '#tutorial-stage-goal',
-    title: 'Stage 2 Goal',
-    body: 'This stage is a challenge. Your goal is to land dual crit by choosing the correct detour before you return to the target relic.',
-    action: 'next',
-    placement: 'right',
-  },
-  {
-    target: '#tutorial-advanced-toggle',
-    title: 'Start With Advanced Mode',
-    body: 'Before you solve Stage 2, open Advanced Mode on the predictor. Do not forget what you learned in Stage 1: read the board first, then decide whether the direct path is bad.',
-    action: 'click',
-    prompt: 'Click Show details to open Advanced Mode.',
-    waitFor: {
-      type: 'selector',
-      value: '#tutorial-advanced-panel',
-    },
-    placement: 'right',
-  },
-  {
-    target: '#tutorial-target-relic',
-    title: 'Read The Target First',
-    body: 'Start by checking whether the current pair actually helps this relic. One side still drifts into the wrong line if you upgrade directly.',
-    action: 'next',
-    placement: 'left',
-  },
-  {
-    target: '#tutorial-setup-relic',
-    title: 'New Tool: Line 2 Detour',
-    body: 'Stage 2 teaches a different reset path. One detour changes the practical mapping so the pair comes back on the crit side.',
-    action: 'next',
-    placement: 'left',
-  },
-  {
-    target: '#tutorial-stage-hints',
-    title: 'Hints, Not Handholding',
-    body: 'There is no full guide here. Use the lamp if you get stuck, and if you make a couple of bad moves the page will nudge you toward a hint.',
-    action: 'next',
-    placement: 'left',
-  },
-];
-const TUTORIAL_STAGE_THREE_TOUR_KEY = 'svarog-tutorial-tour-v3';
-const STAGE_THREE_INTRO_STEPS = [
-  {
-    target: '#tutorial-stage-goal',
-    title: 'Stage 3 Goal',
-    body: 'This stage is about mono-lining SPD. You are not trying to split value across good stats anymore. You want the whole path to stay on SPD.',
-    action: 'next',
-    placement: 'right',
-  },
-  {
-    target: '#tutorial-target-relic',
-    title: 'Mono This Relic',
-    body: 'Look at the target relic first. SPD is the line you care about. If the path drifts, the run is no longer a true mono hit.',
-    action: 'next',
-    placement: 'left',
-  },
-  {
-    target: '#tutorial-setup-relic',
-    title: 'Reinforce The Line',
-    body: 'This reset relic is the tool for Stage 3. Re-use it to reinforce line 2 before the next upgrade so the practical hit keeps coming back to SPD.',
-    action: 'next',
-    placement: 'left',
-  },
-  {
-    target: '#tutorial-stage-hints',
-    title: 'Do It Alone',
-    body: 'That is all the briefing you get here. Use the board, use the detour, and solve the mono path yourself. If you get stuck, the lamp can still help.',
-    action: 'next',
-    placement: 'left',
-  },
-];
-const LEVEL_TWO_HINTS = [
-  {
-    title: 'Read The Relic First',
-    body: 'Check whether the direct path really helps this relic. If one side of the pair lands on junk, you probably need a detour first.',
-  },
-  {
-    title: 'Use The Right Detour',
-    body: 'One reset relic here changes the practical line mapping. Try forcing line 2 before returning to the target relic.',
-  },
-  {
-    title: 'Trust The Better Mapping',
-    body: 'If the detour is active, the same visible rolls land on the crit side instead of Flat HP / junk. That is the path you want to keep.',
-  },
-];
-const LEVEL_THREE_HINTS = [
-  {
-    title: 'First Hit Is Not Enough',
-    body: 'The first SPD hit looks good, but the line will drift if you do not re-prime the setup before the next upgrade.',
-  },
-  {
-    title: 'Repeat The Detour',
-    body: 'Use the 1-line relic again before the next hit. Re-forcing line 2 is what keeps the visible 41 landing back on SPD.',
-  },
-  {
-    title: 'Goal = Mono SPD',
-    body: 'If you stop re-forcing, the path leaks into bad lines. Keep priming the setup relic before the next upgrade if you want all hits on SPD.',
-  },
-];
+  return {
+    setName: setMeta.name,
+    setImage: setMeta.image,
+    pieceLabel: levelConfig.relic?.piece || 'Relic',
+    mainStat: levelConfig.relic?.mainStat || 'HP%',
+    level: fourthLine?.locked ? 0 : 3,
+    lines: baseLines,
+    fourthLine,
+    hasFourthLine: Boolean(fourthLine && !fourthLine.locked),
+  };
+}
 
-function TutorialTourOverlay({
-  steps,
-  currentStep,
-  onNext,
-  onBack,
-  onClose,
-  canAdvance = true,
-  isWaiting = false,
-}) {
+function buildForceRelic(levelConfig) {
+  if (!levelConfig.setupRelic) return null;
+  const setMeta = findRelicSet('messenger-traversing-hackerspace');
+  return {
+    setName: setMeta.name,
+    setImage: setMeta.image,
+    pieceLabel: levelConfig.setupRelic.piece || 'Force Relic',
+    forcedLine: 3,
+    isPrimed: false,
+    lines: (levelConfig.setupRelic.lines || []).map((line) => ({ ...createRelicLine(line.slot, line.stat, { active: true }), tone: line.tone || 'neutral' })),
+  };
+}
+
+function createStageState(levelConfig) {
+  const baseRelic = buildTargetRelic(levelConfig);
+  return {
+    targetRelic: baseRelic,
+    forceRelic: buildForceRelic(levelConfig),
+    currentLine: baseRelic.hasFourthLine ? 4 : 3,
+    currentString: '--',
+    currentRawRoll: '--',
+    currentTranslatedRoll: '--',
+    eventLog: ['Clara is keeping this stage focused on one idea at a time.'],
+    recentHits: [],
+    sequenceIndex: 0,
+    stageComplete: false,
+    sessionRolls: [...(levelConfig.sampleRolls || [])],
+  };
+}
+
+function appendHit(relic, slot, nextLevel) {
+  const applyToLine = (line) => {
+    if (!line) return line;
+    if (line.slot !== slot) return { ...line, justHit: false };
+    const activated = activateRelicLine(line);
+    return { ...activated, hits: Number(line.hits || 0) + 1, justHit: true };
+  };
+
+  return {
+    ...relic,
+    level: nextLevel,
+    lines: relic.lines.map(applyToLine),
+    fourthLine: relic.fourthLine ? applyToLine(relic.fourthLine) : relic.fourthLine,
+  };
+}
+
+function applyProgressionStep(current, step) {
+  const nextLevel = Math.min(current.targetRelic.level + 3, 15);
+  const rawRoll = step.raw || step.roll || '--';
+  const translatedRoll = step.translated || translateTo4(rawRoll) || step.roll || rawRoll;
+  const preparedRelic = current.targetRelic.hasFourthLine
+    ? current.targetRelic
+    : {
+      ...current.targetRelic,
+      hasFourthLine: true,
+      fourthLine: current.targetRelic.fourthLine ? { ...activateRelicLine(current.targetRelic.fourthLine), locked: false } : null,
+    };
+  const visibleLines = preparedRelic.lines.concat(preparedRelic.fourthLine ? [preparedRelic.fourthLine] : []);
+  const hitLine = visibleLines.find((line) => line?.slot === step.slot);
+
+  return {
+    ...current,
+    currentLine: step.slot,
+    currentRawRoll: rawRoll,
+    currentTranslatedRoll: translatedRoll,
+    currentString: translatedRoll,
+    targetRelic: appendHit(preparedRelic, step.slot, nextLevel),
+    recentHits: [...current.recentHits, { raw: rawRoll, translated: translatedRoll, result: hitLine?.stat || `Line ${step.slot}` }],
+    eventLog: [...current.eventLog, step.note],
+    sequenceIndex: current.sequenceIndex + 1,
+    sessionRolls: [...current.sessionRolls, rawRoll],
+  };
+}
+function TutorialRelicCard({ relic, currentLine, currentString, currentRawRoll, currentTranslatedRoll, showRawRead, title, actionLabel, onAction, onReset, disabled }) {
+  const visibleLines = relic.hasFourthLine && relic.fourthLine ? [...relic.lines, relic.fourthLine] : relic.lines;
+  const mainStatDisplay = getMainStatDisplay(relic.mainStat, relic.level);
+
+  return (
+    <article data-tutorial="target" className="group relative mt-16 rounded-[1.5rem] border border-white/5 bg-slate-900/40 p-1 shadow-2xl">
+      <div className="absolute -top-16 left-1/2 z-20 h-32 w-32 -translate-x-1/2 transform">
+        <div className="absolute inset-0 bg-cyan-500/10 blur-3xl opacity-70" />
+        {relic.setImage ? <img src={relic.setImage} alt={relic.setName} className="relative z-10 h-full w-full object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.8)]" /> : null}
+      </div>
+
+      <div className="rounded-[1.4rem] border border-white/5 bg-slate-950/75 p-4 pt-12 backdrop-blur-3xl">
+        <div className="mb-4 flex items-center justify-between px-1">
+          <div>
+            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-400/60">{title}</div>
+            <h2 className="text-sm font-black uppercase tracking-tight text-white/90">{relic.pieceLabel}</h2>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-black/40 px-2.5 py-1 text-[9px] font-black text-white/70">+{relic.level}</div>
+        </div>
+
+        <div className="mb-4 text-center text-[7px] font-black uppercase tracking-[0.4em] text-slate-600">{relic.setName}</div>
+
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-white/5 bg-black/40 px-4 py-2">
+          <div>
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Main stat</div>
+            <div className="text-[11px] font-black uppercase tracking-wide text-white">{mainStatDisplay.label}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] font-black text-white/90">{mainStatDisplay.display}</div>
+          </div>
+        </div>
+
+        <div className="mb-4 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2">
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Current line</div>
+            <div className="mt-1 text-sm font-black text-white">{currentLine}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2">
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">{showRawRead ? 'Raw roll' : 'Visible roll'}</div>
+            <div className="mt-1 text-sm font-black text-white">{showRawRead ? currentRawRoll : currentTranslatedRoll}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2">
+            <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">{showRawRead ? '4x read' : 'String read'}</div>
+            <div className="mt-1 text-sm font-black text-white">{showRawRead ? currentTranslatedRoll : currentString}</div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          {visibleLines.map((line) => {
+            const style = LINE_STYLE[line.slot];
+            const isActive = currentLine === line.slot;
+            return (
+              <div key={`${title}-${line.slot}`} className={`relative overflow-hidden rounded-xl border transition-all duration-300 ${isActive ? `border-white/12 bg-black/40 ring-1 ${style.ring}` : 'border-white/5 bg-black/30'}`}>
+                <div className="relative z-10 flex h-10 items-center justify-between px-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-lg border text-[8px] font-black ${style.chip}`}>{line.slot}</div>
+                    <div className="flex flex-col">
+                      <span className={`text-[10px] font-black uppercase tracking-tight ${line.locked ? 'text-slate-600' : 'text-white'}`}>{line.stat}</span>
+                      <span className="text-[9px] font-mono text-slate-500">{line.locked ? 'Locked until +3' : formatStatValue(line.stat, line.value)}</span>
+                    </div>
+                  </div>
+                  <div className={`flex min-w-[32px] items-center justify-center rounded-lg px-1.5 text-xs font-black ${line.locked ? 'bg-white/5 text-slate-700' : 'bg-white/5 text-white/80'}`}>x{line.hits || 0}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2">
+          {actionLabel ? (
+            <button type="button" onClick={onAction} onFocus={(event) => event.currentTarget.blur()} disabled={disabled} className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition hover:bg-cyan-500/18 disabled:cursor-not-allowed disabled:opacity-50">
+              {actionLabel}
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          ) : null}
+          <button type="button" onClick={onReset} onFocus={(event) => event.currentTarget.blur()} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-500 transition-all hover:bg-rose-500/10 hover:text-rose-300">
+            <RefreshCw className="h-3 w-3" />
+            Reset
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TutorialForceRelicCard({ relic, actionLabel, onAction, onReset, disabled }) {
+  if (!relic) return null;
+
+  return (
+    <article data-tutorial="force" className="group relative mt-16 rounded-[1.5rem] border border-white/5 bg-slate-900/40 p-1 shadow-2xl">
+      <div className="absolute -top-16 left-1/2 z-20 h-32 w-32 -translate-x-1/2 transform">
+        <div className="absolute inset-0 bg-amber-500/10 blur-3xl opacity-70" />
+        {relic.setImage ? <img src={relic.setImage} alt={relic.setName} className="relative z-10 h-full w-full object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.8)]" /> : null}
+      </div>
+
+      <div className="rounded-[1.4rem] border border-white/5 bg-slate-950/75 p-4 pt-12 backdrop-blur-3xl">
+        <div className="mb-4 flex items-center justify-between px-1">
+          <div>
+            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-amber-400/60">Force relic</div>
+            <h2 className="text-sm font-black uppercase tracking-tight text-white/90">{relic.pieceLabel}</h2>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-black/40 px-2.5 py-1 text-[9px] font-black text-amber-200">{relic.isPrimed ? `Line ${relic.forcedLine}` : `Force ${relic.forcedLine}`}</div>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-white/5 bg-black/40 px-4 py-2">
+          <div className="text-[7px] font-black uppercase tracking-widest text-slate-600">Status</div>
+          <div className="mt-1 text-[11px] font-black uppercase tracking-wide text-white">{relic.isPrimed ? `Sitting on line ${relic.forcedLine}` : `Need to add line ${relic.forcedLine}`}</div>
+        </div>
+
+        <div className="space-y-1.5">
+          {relic.lines.map((line) => {
+            const style = LINE_STYLE[line.slot];
+            const active = relic.forcedLine === line.slot;
+            return (
+              <div key={`force-${line.slot}`} className={`rounded-xl border px-3 py-3 ${active ? `border-white/12 bg-black/40 ring-1 ${style.ring}` : 'border-white/5 bg-black/30'}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-6 w-6 items-center justify-center rounded-lg border text-[8px] font-black ${style.chip}`}>{line.slot}</div>
+                  <span className="text-[10px] font-black uppercase tracking-tight text-white">{line.stat}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2">
+          {actionLabel ? (
+            <button type="button" onClick={onAction} onFocus={(event) => event.currentTarget.blur()} disabled={disabled} className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 transition hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-50">
+              {actionLabel}
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          ) : null}
+          <button type="button" onClick={onReset} onFocus={(event) => event.currentTarget.blur()} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/5 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-500 transition-all hover:bg-rose-500/10 hover:text-rose-300">
+            <RefreshCw className="h-3 w-3" />
+            Reset
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+function ClaraCard({ round, roundIndex, roundCount }) {
+  return (
+    <section data-tutorial="clara" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">Clara explains</div>
+      <h3 className="mt-2 text-lg font-semibold text-white">{round.title}</h3>
+      <p className="mt-3 text-sm leading-7 text-slate-300">{round.body}</p>
+      <div className="mt-4 rounded-lg border border-white/8 bg-black/20 px-4 py-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Keep in mind</div>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{round.hint}</p>
+      </div>
+      <div className="mt-4 text-xs text-slate-500">Step {roundIndex + 1} of {roundCount}</div>
+    </section>
+  );
+}
+
+function EventLogCard({ recentHits, eventLog }) {
+  return (
+    <section data-tutorial="log" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+      <div className="flex items-center gap-2">
+        <Radar className="h-4 w-4 text-cyan-200" />
+        <h3 className="text-base font-semibold text-white">What just happened</h3>
+      </div>
+      {recentHits.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {recentHits.slice(-4).map((hit, index) => (
+            <div key={`${hit.raw || hit.roll}-${hit.translated || ''}-${hit.result}-${index}`} className="rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-sm text-slate-200">
+              <span className="font-semibold text-white">{hit.raw || hit.roll}</span>
+              {hit.translated && hit.translated !== (hit.raw || hit.roll) ? (
+                <>
+                  <span className="mx-2 text-slate-500">-&gt;</span>
+                  <span className="font-semibold text-cyan-200">{hit.translated}</span>
+                </>
+              ) : null}
+              <span className="mx-2 text-slate-500">-&gt;</span>
+              <span>{hit.result}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-4 space-y-3">
+        {eventLog.slice(-4).map((entry, index) => (
+          <div key={`${entry}-${index}`} className="rounded-lg border border-white/8 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-300">{entry}</div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NavigationCard({ levelConfig, round, stageComplete, onContinue }) {
+  const actionText = round?.actionLabel
+    ? `Do this now: ${round.actionLabel}.`
+    : stageComplete
+      ? 'This step is done. Move to the next lesson when you are ready.'
+      : 'Read the board and Clara guide first, then continue.';
+
+  return (
+    <section data-tutorial="nav" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+      <div className="flex items-center gap-2">
+        <Target className="h-4 w-4 text-amber-200" />
+        <h3 className="text-base font-semibold text-white">Current goal</h3>
+      </div>
+      <p className="mt-3 text-sm leading-7 text-slate-300">{actionText}</p>
+      <div className="mt-4 rounded-lg border border-white/8 bg-black/20 px-4 py-3 text-sm text-slate-300">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Stage summary</div>
+        <p className="mt-2 leading-6">{levelConfig.subtitle}</p>
+      </div>
+      <button type="button" onClick={onContinue} disabled={!stageComplete && Boolean(round.actionKey)} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50">
+        {stageComplete ? (levelConfig.nextRoute === '/playground' ? 'Finish tutorial' : 'Next stage') : 'Continue lesson'}
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </section>
+  );
+}
+
+function getDefaultTourTarget(levelConfig, round, roundPosition, roundCount) {
+  if (roundPosition === roundCount - 1) return '[data-tutorial="nav"]';
+  if (round.actionKey === 'stage4-force-line') return '[data-tutorial="force"]';
+  if (levelConfig.id >= 5) {
+    if (round.actionKey) return '[data-tutorial="workspace"]';
+    if (levelConfig.id === 7) return '[data-tutorial="board"]';
+    if (levelConfig.id === 11 || levelConfig.id === 12) return '[data-tutorial="board"]';
+    if (roundPosition === 0) return '[data-tutorial="board"]';
+    return '[data-tutorial="board"]';
+  }
+  if (round.actionKey) return '[data-tutorial="target"]';
+  return '[data-tutorial="overview"]';
+}
+
+function TutorialTourOverlay({ steps, currentStep, stageReady, onBack, onNext, onClose }) {
   const [rect, setRect] = useState(null);
-  const [claraSpeaking, setClaraSpeaking] = useState(true);
+  const step = steps[currentStep];
 
   useEffect(() => {
-    const step = steps[currentStep];
-    if (!step) return undefined;
+    if (!step?.target) return undefined;
 
     const update = () => {
       const element = document.querySelector(step.target);
@@ -232,7 +428,6 @@ function TutorialTourOverlay({
       }
       const nextRect = element.getBoundingClientRect();
       setRect(nextRect);
-      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     };
 
     update();
@@ -242,147 +437,141 @@ function TutorialTourOverlay({
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [steps, currentStep]);
+  }, [step]);
 
-  useEffect(() => {
-    setClaraSpeaking(true);
-    const timer = window.setTimeout(() => setClaraSpeaking(false), 1800);
-    return () => window.clearTimeout(timer);
-  }, [currentStep]);
-
-  const step = steps[currentStep];
   if (!step || !rect) return null;
 
-  const cardWidth = 404;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const placement = step.placement || 'auto';
-  const canPlaceRight = rect.right + 24 + cardWidth < viewportWidth;
-  const canPlaceLeft = rect.left - cardWidth - 24 > 24;
-  const canPlaceBelow = rect.bottom + 240 < viewportHeight;
-  const canPlaceAbove = rect.top - 220 > 24;
+  const cardWidth = 420;
+  const cardHeight = 280;
+  const gap = 20;
+  const spotlightPadding = 10;
 
-  let top;
-  let left;
+  const spotlightTop = Math.max(rect.top - spotlightPadding, 0);
+  const spotlightLeft = Math.max(rect.left - spotlightPadding, 0);
+  const spotlightWidth = Math.min(rect.width + spotlightPadding * 2, viewportWidth - spotlightLeft);
+  const spotlightHeight = Math.min(rect.height + spotlightPadding * 2, viewportHeight - spotlightTop);
 
-  if (placement === 'right' && canPlaceRight) {
-    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
-    left = rect.right + 24;
-  } else if (placement === 'left' && canPlaceLeft) {
-    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
-    left = rect.left - cardWidth - 24;
-  } else if (placement === 'bottom' && canPlaceBelow) {
-    top = rect.bottom + 16;
-    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
-  } else if (placement === 'top' && canPlaceAbove) {
-    top = rect.top - 200;
-    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
-  } else if (canPlaceRight) {
-    top = Math.min(Math.max(24, rect.top), viewportHeight - 260);
-    left = rect.right + 24;
-  } else if (canPlaceBelow) {
-    top = rect.bottom + 16;
-    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
-  } else {
-    top = Math.max(24, rect.top - 200);
-    left = Math.min(Math.max(24, rect.left), viewportWidth - cardWidth - 24);
+  let top = rect.top;
+  let left = rect.right + gap;
+
+  if (step.placement === 'left') {
+    left = rect.left - cardWidth - gap;
+  } else if (step.placement === 'bottom') {
+    left = rect.left + (rect.width / 2) - (cardWidth / 2);
+    top = rect.bottom + gap;
+  } else if (step.placement === 'top') {
+    left = rect.left + (rect.width / 2) - (cardWidth / 2);
+    top = rect.top - cardHeight - gap;
   }
 
+  left = Math.min(Math.max(left, 20), viewportWidth - cardWidth - 20);
+  top = Math.min(Math.max(top, 20), viewportHeight - cardHeight - 20);
+
+  const requiresAction = Boolean(step.requiresActionType);
+  const nextDisabled = requiresAction && !stageReady;
+  const claraImage = withBaseUrl('clara-prof-assistant.png');
+
   return (
-    <div className="pointer-events-none fixed inset-0 z-[120]">
+    <div className="fixed inset-0 z-[300] pointer-events-none">
       <div
-        className="pointer-events-auto absolute left-0 right-0 top-0 bg-black/45 backdrop-blur-[2px]"
-        style={{ height: Math.max(0, rect.top - 8) }}
+        className="absolute left-0 top-0 bg-black/68"
+        style={{ width: '100%', height: spotlightTop }}
       />
       <div
-        className="pointer-events-auto absolute left-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        className="absolute left-0 bg-black/68"
+        style={{ top: spotlightTop, width: spotlightLeft, height: spotlightHeight }}
+      />
+      <div
+        className="absolute right-0 bg-black/68"
         style={{
-          top: Math.max(0, rect.top - 8),
-          width: Math.max(0, rect.left - 8),
-          height: rect.height + 16,
+          top: spotlightTop,
+          left: spotlightLeft + spotlightWidth,
+          width: Math.max(viewportWidth - (spotlightLeft + spotlightWidth), 0),
+          height: spotlightHeight,
         }}
       />
       <div
-        className="pointer-events-auto absolute right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
+        className="absolute left-0 bg-black/68"
+        style={{ top: spotlightTop + spotlightHeight, width: '100%', height: Math.max(viewportHeight - (spotlightTop + spotlightHeight), 0) }}
+      />
+      <div
+        className="absolute rounded-[2rem] border border-cyan-400/35 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
         style={{
-          top: Math.max(0, rect.top - 8),
-          left: rect.left + rect.width + 8,
-          height: rect.height + 16,
+          top: spotlightTop,
+          left: spotlightLeft,
+          width: spotlightWidth,
+          height: spotlightHeight,
         }}
       />
       <div
-        className="pointer-events-auto absolute left-0 right-0 bottom-0 bg-black/45 backdrop-blur-[2px]"
-        style={{ top: rect.top + rect.height + 8 }}
-      />
-      <div
-        className="absolute rounded-[1.75rem] border border-pink-400/55 shadow-[0_0_22px_rgba(244,114,182,0.18)] transition-all duration-300"
-        style={{
-          top: rect.top - 8,
-          left: rect.left - 8,
-          width: rect.width + 16,
-          height: rect.height + 16,
-        }}
-      />
-      <div
-        className="pointer-events-auto absolute rounded-[1.5rem] border border-cyan-400/30 bg-slate-950/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur-xl"
-        style={{ top, left, width: cardWidth }}
+        className="absolute w-[420px] rounded-[1.75rem] border border-white/10 bg-[#0d121c]/96 p-6 shadow-[0_30px_90px_rgba(0,0,0,0.55)] pointer-events-auto"
+        style={{ top, left }}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
-            <Map className="h-3.5 w-3.5" />
-            Clara Guide
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+              Clara guide
+            </div>
+            <h3 className="mt-3 text-xl font-black tracking-tight text-white">
+              {step.title}
+            </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-400 transition-colors hover:text-white"
+            className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300 transition-colors hover:text-white"
           >
-            <X className="h-4 w-4" />
+            Hide
           </button>
         </div>
-        <div className="mb-4 grid grid-cols-[88px_minmax(0,1fr)] items-end gap-4">
-          <div className="relative flex h-[110px] items-end justify-center overflow-hidden">
-            <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
-            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
-            <img
-              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
-              alt="Clara guide"
-              className="relative z-[1] max-h-[108px] w-auto object-contain"
-            />
-          </div>
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Clara says</div>
-            <div className="mt-2 rounded-[18px] border border-cyan-400/30 bg-white px-4 py-3 text-[13px] font-semibold leading-5 text-slate-950 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-              {step.title}
-            </div>
+
+        <div className="mt-5 flex items-end gap-4">
+          <img
+            src={claraImage}
+            alt="Clara guide"
+            className="h-28 w-24 object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.35)]"
+          />
+          <div className="relative flex-1 rounded-[1.25rem] border border-cyan-400/20 bg-cyan-500/8 px-4 py-3 text-sm leading-7 text-slate-200">
+            <div className="absolute -left-2 bottom-5 h-4 w-4 rotate-45 border-l border-b border-cyan-400/20 bg-[#122031]" />
+            {step.body}
           </div>
         </div>
-        <p className="text-sm leading-relaxed text-slate-300">{step.body}</p>
-        {step.prompt && (
-          <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-semibold text-cyan-100">
-            {step.prompt}
+
+        <div className="mt-4 rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+            Keep in mind
           </div>
-        )}
-        <div className="mt-5 flex items-center justify-between">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-            {isWaiting ? 'Waiting For Action' : `${currentStep + 1} / ${steps.length}`}
+          <p className="mt-2 text-sm leading-6 text-slate-300">{step.hint}</p>
+        </div>
+
+        {requiresAction && !stageReady ? (
+          <div className="mt-4 rounded-xl border border-cyan-400/15 bg-cyan-500/8 px-4 py-3 text-xs leading-6 text-cyan-100">
+            Use the highlighted control first. Clara will advance once that step is complete.
           </div>
-          <div className="flex items-center gap-2">
+        ) : null}
+
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+            {currentStep + 1}/{steps.length}
+          </div>
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onBack}
               disabled={currentStep === 0}
-              className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-xl border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Back
             </button>
             <button
               type="button"
               onClick={onNext}
-              disabled={!canAdvance}
-              className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={nextDisabled}
+              className="rounded-xl border border-cyan-400/30 bg-cyan-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100 transition-colors hover:border-cyan-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {currentStep === steps.length - 1 ? 'Finish' : (isWaiting ? 'Waiting' : 'Next')}
+              {currentStep === steps.length - 1 ? 'Finish guide' : 'Next'}
             </button>
           </div>
         </div>
@@ -391,1477 +580,422 @@ function TutorialTourOverlay({
   );
 }
 
-function TargetRelicCard({ relic, title, mainStat, targetRead, onTargetAction, onReset, successBanner = null, compact = true }) {
-  const actionLabel = !relic.hasFourthLine
-    ? 'Add 4th'
-    : relic.level >= 15
-      ? 'Maxed'
-      : `+${relic.nextLevel}`;
-
-  return (
-    <article className={`relative overflow-hidden ${compact ? 'rounded-[1.5rem] p-0.5' : 'rounded-[2.5rem] p-1'} border border-slate-700/60 bg-slate-900/60 shadow-[0_8px_32px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-all duration-500 hover:border-slate-500/60 hover:shadow-[0_16px_48px_rgba(0,0,0,0.8)] h-full`}>
-      <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/10 blur-[80px]" />
-      
-      <div className={`relative h-full ${compact ? 'rounded-[1.3rem] p-4' : 'rounded-[2.3rem] p-6 md:p-8'} border border-white/5 bg-slate-950/40`}>
-        <div className={`${compact ? 'mb-4' : 'mb-8'} flex items-start justify-between`}>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-              <div className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">Target</div>
-            </div>
-            <h2 className={`${compact ? 'text-lg' : 'text-2xl'} font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400`}>{title}</h2>
-          </div>
-          <div className={`${compact ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-2xl'} flex items-center justify-center border border-emerald-500/30 bg-emerald-500/10 shadow-[inset_0_0_20px_rgba(16,185,129,0.1)]`}>
-            <Target className={`${compact ? 'h-5 w-5' : 'h-6 w-6'} text-emerald-400`} />
-          </div>
-        </div>
-
-        <div className={`relative ${compact ? 'rounded-[1.2rem] p-4' : 'rounded-[2rem] p-6'} border border-slate-700/50 bg-black/40 shadow-inner`}>
-          <div className={`flex items-center justify-between gap-3 ${compact ? 'rounded-xl px-4 py-3' : 'rounded-2xl px-5 py-4'} border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent shadow-[0_4px_20px_rgba(0,0,0,0.2)]`}>
-            <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.25em] text-emerald-400 opacity-80">5-star Protocol</div>
-              <div className={`${compact ? 'text-xs' : 'text-lg'} mt-1 font-black uppercase text-white drop-shadow-md`}><span className="text-slate-400">Main:</span> <span className="text-emerald-300 ml-1">{mainStat}</span></div>
-            </div>
-            <div className={`${compact ? 'h-8 px-2 text-[10px]' : 'h-10 px-4 text-sm'} flex items-center justify-center rounded-lg border border-white/10 bg-slate-800/80 font-black uppercase tracking-[0.2em] text-slate-200 shadow-sm backdrop-blur-md`}>
-              +{relic.level}
-            </div>
-          </div>
-
-          <div className={`${compact ? 'mt-4 gap-2' : 'mt-6 gap-3.5'} grid`}>
-            {relic.lines.map((line) => {
-              const isHit = relic.lastHit === line.slot;
-              const isGood = line.tone === 'good';
-
-              return (
-                <div
-                  key={line.slot}
-                  className={`group relative overflow-hidden ${compact ? 'rounded-xl px-3 py-2' : 'rounded-2xl px-5 py-4'} border transition-all duration-300 ${isHit
-                    ? 'border-cyan-400/50 bg-cyan-500/10 shadow-[0_0_30px_rgba(6,182,212,0.15)] ring-1 ring-cyan-400/50'
-                    : 'border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/60'
-                    }`}
-                >
-                  <div className="relative z-10 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`${compact ? 'h-7 w-7 text-[9px]' : 'h-10 w-10 text-[11px]'} flex items-center justify-center rounded-lg bg-black/40 font-black tracking-widest text-slate-500 border border-white/5`}>
-                        {line.slot}
-                      </div>
-                      <div>
-                        <div className={`${compact ? 'text-[11px]' : 'text-base'} font-black uppercase tracking-wide ${isGood ? 'text-emerald-300' : 'text-amber-300'}`}>
-                          {line.stat}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`flex ${compact ? 'h-6 w-6 text-sm' : 'h-8 w-8 text-lg'} items-center justify-center rounded-lg font-black ${isHit ? 'bg-cyan-500/20 text-cyan-200' : 'bg-white/5 text-slate-400'}`}>
-                        {line.hits}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={`${compact ? 'mt-6 gap-2' : 'mt-8 gap-4'} grid grid-cols-2`}>
-            <button
-              type="button"
-              onClick={onTargetAction}
-              disabled={relic.level >= 15}
-              className={`group relative overflow-hidden rounded-xl border ${compact ? 'px-4 py-2.5 text-[10px]' : 'px-6 py-4 text-sm'} font-black uppercase tracking-[0.2em] transition-all duration-300 ${relic.level >= 15
-                ? 'cursor-not-allowed border-slate-700/50 bg-slate-800/30 text-slate-500'
-                : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:-translate-y-0.5'
-                }`}
-            >
-              <div className="relative z-10 flex items-center justify-center gap-2">
-                {actionLabel}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className={`group flex items-center justify-center gap-2 rounded-xl border border-slate-700/60 bg-slate-800/50 ${compact ? 'px-4 py-2.5 text-[10px]' : 'px-6 py-4 text-sm'} font-black uppercase tracking-[0.2em] text-slate-400 transition-all duration-300 hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-200 hover:-translate-y-0.5`}
-            >
-              <RotateCcw className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} transition-transform duration-500 group-hover:-rotate-180`} />
-              Reset
-            </button>
-          </div>
-
-          {!compact && (
-            <div className="mt-6 flex items-start gap-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-amber-900/10 p-5 shadow-sm">
-              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
-                <div className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></div>
-              </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-400">Target read</div>
-                <p className="mt-2 text-[13px] leading-relaxed text-amber-100/80">{targetRead}</p>
-              </div>
-            </div>
-          )}
-
-          {successBanner && (
-            <div className={`mt-4 flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/15 ${compact ? 'p-3' : 'p-5'} shadow-[0_0_20px_rgba(16,185,129,0.15)] animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-              </span>
-              <p className={`${compact ? 'text-[9px]' : 'text-sm'} font-black uppercase tracking-wide text-emerald-200`}>{successBanner}</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function SetupRelicCard({
-  setupRelic,
-  shiftActive,
-  onForceThirdLine,
-  title = 'Force the line before you return',
-  badgeLabel = 'Purple setup relic',
-  modeLabel = '2-line / 3-line forcing',
-  forcedLabel = 'Line 3 forced',
-  waitingLabel = 'Waiting',
-  buttonLabel = 'Add 3rd Line To Force It',
-  lessonTitle = 'Caesar shift lesson',
-  lessonText = 'This setup relic is the detour. You force line 3 here first so the commons pair can come back to the target relic on the crit side instead of drifting into junk.',
-  helperText = null,
-  compact = true,
-}) {
-  return (
-    <article className={`relative overflow-hidden ${compact ? 'rounded-[1.5rem] p-0.5' : 'rounded-[2.5rem] p-1'} border border-slate-700/60 bg-slate-900/60 shadow-[0_8px_32px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-all duration-500 hover:border-slate-500/60 h-full`}>
-      <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-violet-500/10 blur-[80px]" />
-
-      <div className={`relative h-full ${compact ? 'rounded-[1.3rem] p-4' : 'rounded-[2.3rem] p-6 md:p-8'} border border-white/5 bg-slate-950/40`}>
-        <div className={`${compact ? 'mb-4' : 'mb-8'} flex items-start justify-between`}>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`flex h-1.5 w-1.5 rounded-full ${shiftActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]'}`} />
-              <div className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">Setup</div>
-            </div>
-            <h2 className={`${compact ? 'text-lg' : 'text-2xl'} font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400`}>{title}</h2>
-          </div>
-          <div className={`${compact ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-2xl'} flex items-center justify-center border border-violet-500/30 bg-violet-500/10 shadow-[inset_0_0_20px_rgba(139,92,246,0.1)]`}>
-            <Wand2 className={`${compact ? 'h-5 w-5' : 'h-6 w-6'} text-violet-400`} />
-          </div>
-        </div>
-
-        <div className={`relative ${compact ? 'rounded-[1.2rem] p-4' : 'rounded-[2rem] p-6'} border border-slate-700/50 bg-black/40 shadow-inner`}>
-          <div className={`flex flex-col ${compact ? 'gap-2' : 'sm:flex-row sm:items-center justify-between gap-4'} rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 to-transparent ${compact ? 'px-4 py-3' : 'px-5 py-4'} shadow-sm`}>
-            <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.25em] text-violet-300 opacity-80">{badgeLabel}</div>
-              {!compact && <div className="mt-1.5 text-lg font-black uppercase text-white drop-shadow-md">{modeLabel}</div>}
-            </div>
-            <div className={`flex items-center justify-center rounded-xl ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'} text-[10px] font-black uppercase tracking-[0.2em] shadow-sm backdrop-blur-md transition-colors duration-500 ${shiftActive
-              ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-              : 'border border-white/10 bg-slate-800/80 text-slate-300'
-              }`}>
-              {shiftActive ? (
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                  </span>
-                  {forcedLabel}
-                </div>
-              ) : waitingLabel}
-            </div>
-          </div>
-
-          <div className={`${compact ? 'mt-4 gap-2' : 'mt-6 gap-3.5'} grid text-slate-300`}>
-            {setupRelic.lines.map((line) => (
-              <div
-                key={line.slot}
-                className={`group flex items-center justify-between transition-all duration-300 ${compact ? 'rounded-xl px-3 py-2' : 'rounded-2xl px-5 py-4'} border ${line.state === 'forced'
-                  ? 'border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-transparent shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]'
-                  : line.state === 'open'
-                    ? 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
-                    : 'border-slate-700/50 bg-slate-800/40'
-                  }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`flex ${compact ? 'h-6 w-6 text-[8px]' : 'h-9 w-9 text-[10px]'} items-center justify-center rounded-lg bg-black/40 font-black tracking-widest border border-white/5 ${line.state === 'forced' ? 'text-emerald-400' : 'text-slate-500'}`}>
-                    L{line.slot}
-                  </div>
-                  <div className={`${compact ? 'text-[11px]' : 'text-base'} font-black uppercase tracking-wide ${line.state === 'forced'
-                    ? 'text-emerald-300'
-                    : line.state === 'open'
-                      ? 'text-amber-300'
-                      : 'text-slate-300'
-                    }`}>
-                    {line.stat}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={onForceThirdLine}
-            disabled={shiftActive}
-            className={`group relative ${compact ? 'mt-4 px-4 py-3 text-[10px]' : 'mt-8 px-6 py-4 text-sm'} w-full overflow-hidden rounded-xl border font-black uppercase tracking-[0.2em] transition-all duration-300 ${shiftActive
-              ? 'cursor-not-allowed border-slate-700/50 bg-slate-800/30 text-slate-500'
-              : 'border-violet-500/40 bg-violet-500/10 text-violet-200 hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:-translate-y-0.5'
-              }`}
-          >
-            <div className="relative z-10 flex items-center justify-center gap-2">
-              {shiftActive ? forcedLabel : buttonLabel}
-            </div>
-            {!shiftActive && (
-              <div className="absolute inset-0 z-0 bg-gradient-to-r from-transparent via-violet-400/10 to-transparent flex translate-x-[-100%] animate-[shimmer_2s_infinite]"></div>
-            )}
-          </button>
-
-          {!compact && (
-            <div className="mt-6 flex items-start gap-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-transparent p-5 shadow-sm">
-              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500/20">
-                <div className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></div>
-              </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-300">{lessonTitle}</div>
-                <p className="mt-2 text-[13px] leading-relaxed text-cyan-100/80">{lessonText}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </article>
-  );
+function preserveScrollPosition() {
+  if (typeof window === 'undefined') return;
+  const top = window.scrollY;
+  requestAnimationFrame(() => {
+    window.scrollTo({ top, left: 0, behavior: 'auto' });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top, left: 0, behavior: 'auto' });
+    });
+  });
 }
 
 export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
   const navigate = useNavigate();
   const themeConfig = getSessionThemeConfig(sessionTheme);
-  const isLevelTwo = level === 2;
-  const isLevelThree = level === 3;
-  const [activeChapter, setActiveChapter] = useState(CHAPTERS[0].id);
-
-  const containerRef = useRef(null);
-  const completionAudioRef = useRef(null);
-
-
-  const [targetRelic, setTargetRelic] = useState(() => ({
-    level: 0,
-    nextLevel: 3,
-    hasFourthLine: false,
-    lines: isLevelThree ? LEVEL_THREE_TARGET_BASE_LINES : (isLevelTwo ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES),
-    lastHit: null,
-  }));
-  const [setupRelic, setSetupRelic] = useState(() => ({
-    forced: false,
-    lines: SETUP_BASE_LINES,
-  }));
-  const [oneLineSetupRelic, setOneLineSetupRelic] = useState(() => ({
-    forced: false,
-    lines: ONE_LINE_SETUP_BASE_LINES,
-  }));
-  const [tutorialRolls, setTutorialRolls] = useState(INITIAL_SCRIPTED_ROLLS);
-  const [historyRows, setHistoryRows] = useState(INITIAL_HISTORY_ROWS);
-  const [directStepIndex, setDirectStepIndex] = useState(0);
-  const [shiftedStepIndex, setShiftedStepIndex] = useState(0);
-  const [lastDirectLine, setLastDirectLine] = useState(4);
-  const [lastShiftedLine, setLastShiftedLine] = useState(3);
-  const [tourRunning, setTourRunning] = useState(false);
+  const levelConfig = useMemo(() => getTutorialLevelConfig(level), [level]);
+  const [roundIndex, setRoundIndex] = useState(0);
   const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [tourSelectorSatisfied, setTourSelectorSatisfied] = useState(false);
-  const [challengeMistakes, setChallengeMistakes] = useState(0);
-  const [hintIndex, setHintIndex] = useState(0);
-  const [hintOpen, setHintOpen] = useState(false);
-  const [challengeFeedback, setChallengeFeedback] = useState(null);
-  const tourSteps = useMemo(() => {
-    if (level === 1) return TOUR_STEPS;
-    if (level === 2) return STAGE_TWO_INTRO_STEPS;
-    if (level === 3) return STAGE_THREE_INTRO_STEPS;
-    return [];
-  }, [level]);
-
-  const scriptedEntries = useMemo(
-    () =>
-      tutorialRolls.map((roll, index) => ({
-        id: `tutorial-${index}`,
-        raw: roll,
-        translated: roll,
-        s2: roll,
-        time: `2026-03-29T02:18:${String(11 + index * 7).padStart(2, '0')}`,
-      })),
-    [tutorialRolls]
-  );
-
-  const scriptedPrediction = useMemo(
-    () => predictWithPairs(tutorialRolls, { region: 'America' }),
-    [tutorialRolls]
-  );
-
-  const chapter = useMemo(
-    () => CHAPTERS.find((entry) => entry.id === activeChapter) || CHAPTERS[0],
-    [activeChapter]
-  );
-
-  const shiftActive = isLevelTwo || isLevelThree ? oneLineSetupRelic.forced : setupRelic.forced;
-  const activeChallengeHints = useMemo(
-    () => (isLevelThree ? LEVEL_THREE_HINTS : isLevelTwo ? LEVEL_TWO_HINTS : []),
-    [isLevelThree, isLevelTwo]
-  );
+  const [stageState, setStageState] = useState(() => createStageState(levelConfig));
+  const [tourRunning, setTourRunning] = useState(false);
+  const [predictorAdvancedOpen, setPredictorAdvancedOpen] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.fromTo('.gsap-fade-up',
-        { y: 40, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8, stagger: 0.08, ease: "power3.out", clearProps: "all" }
-      );
-      gsap.fromTo('.gsap-scale-in',
-        { scale: 0.95, opacity: 0, y: 20 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.7, stagger: 0.1, ease: "power4.out", clearProps: "all" }
-      );
-      gsap.fromTo('.gsap-slide-right',
-        { x: -30, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.7, stagger: 0.1, ease: "power2.out", clearProps: "all" }
-      );
-    }, containerRef);
-    return () => ctx.revert();
-  }, [activeChapter, level]);
-
-  // Handle Focus Pulses
-  useEffect(() => {
-    const clearPulses = () => {
-      document.querySelectorAll('.pulse-cyan, .pulse-violet').forEach(el => {
-        el.classList.remove('pulse-cyan', 'pulse-violet');
-      });
-    };
-
-    clearPulses();
-
-    let targetId = '';
-    let pulseClass = 'pulse-cyan';
-
-    if (activeChapter === 'read-live') {
-      targetId = 'svarog-feed-focus';
-    } else if (activeChapter === 'bad-upgrade') {
-      targetId = 'target-relic-focus';
-    } else if (activeChapter === 'force-line') {
-      if (!shiftActive) {
-        targetId = 'setup-relic-focus';
-        pulseClass = 'pulse-violet';
-      } else {
-        targetId = 'target-relic-focus';
-      }
-    }
-
-    if (targetId) {
-      const el = document.getElementById(targetId);
-      if (el) el.classList.add(pulseClass);
-    }
-  }, [activeChapter, shiftActive]);
-
-  const mappingRows = useMemo(() => {
-    if (isLevelThree) {
-      return shiftActive
-        ? [{ roll: '41', line: '3', stat: 'SPD', tone: 'good' }]
-        : [
-            { roll: '43', line: '3', stat: 'SPD', tone: 'good' },
-            { roll: '44', line: '4', stat: 'EFFECT HIT RATE', tone: 'bad' },
-          ];
-    }
-
-    if (isLevelTwo && shiftActive) {
-      return [
-        { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
-        { roll: '44', line: '3', stat: 'CRIT DMG', tone: 'good' },
-        { roll: '41', line: '2', stat: 'CRIT RATE', tone: 'good' },
-      ];
-    }
-
-    if (isLevelTwo) {
-      return [
-        { roll: '42', line: '2', stat: 'CRIT RATE', tone: 'good' },
-        { roll: '44', line: '4', stat: 'BREAK EFFECT', tone: 'bad' },
-        { roll: '41', line: '1', stat: 'FLAT HP', tone: 'bad' },
-      ];
-    }
-
-    if (shiftActive) {
-      return [
-        { roll: '42', line: '1', stat: 'CRIT RATE', tone: 'good' },
-        { roll: '43', line: '2', stat: 'CRIT DMG', tone: 'good' },
-      ];
-    }
-
-    return [
-      { roll: '42', line: '2', stat: 'CRIT DMG', tone: 'good' },
-      { roll: '43', line: '3', stat: 'EFF RES', tone: 'bad' },
-    ];
-  }, [isLevelThree, isLevelTwo, shiftActive]);
-
-  const hasBeginnerClear =
-    level === 1 &&
-    shiftActive &&
-    targetRelic.level >= 15 &&
-    (targetRelic.lines.find((line) => line.slot === 1)?.hits || 0) >= 2 &&
-    (targetRelic.lines.find((line) => line.slot === 2)?.hits || 0) >= 2;
-
-  const hasLevelTwoClear =
-    isLevelTwo &&
-    targetRelic.level >= 15 &&
-    (targetRelic.lines.find((line) => line.slot === 2)?.hits || 0) >= 2 &&
-    (targetRelic.lines.find((line) => line.slot === 3)?.hits || 0) >= 2;
-
-  const hasLevelThreeClear =
-    isLevelThree &&
-    targetRelic.level >= 15 &&
-    (targetRelic.lines.find((line) => line.slot === 3)?.hits || 0) >= 4;
-
-  const tutorialHelperLine = useMemo(() => {
-    if (typeof targetRelic.lastHit === 'number' && targetRelic.lastHit >= 1 && targetRelic.lastHit <= 4) {
-      return targetRelic.lastHit;
-    }
-    if (isLevelThree) return 3;
-    if (isLevelTwo) return shiftActive ? 2 : 2;
-    return shiftActive ? 1 : 2;
-  }, [isLevelThree, isLevelTwo, shiftActive, targetRelic.lastHit]);
-
-  const tutorialTourState = useMemo(
-    () => ({
-      target_level_15: targetRelic.level >= 15,
-      scenario_reset:
-        targetRelic.level === 0 &&
-        !targetRelic.hasFourthLine &&
-        directStepIndex === 0 &&
-        shiftedStepIndex === 0,
-      fourth_line_added: targetRelic.hasFourthLine && targetRelic.level >= 3,
-      setup_line_3_forced: setupRelic.forced,
-      target_level_6: targetRelic.level >= 6,
-      target_level_9: targetRelic.level >= 9,
-      target_level_12: targetRelic.level >= 12,
-      target_level_15_final: hasBeginnerClear,
-    }),
-    [
-      directStepIndex,
-      hasBeginnerClear,
-      setupRelic.forced,
-      shiftedStepIndex,
-      targetRelic.hasFourthLine,
-      targetRelic.level,
-    ]
-  );
-
-  const currentTourStep = level === 1 ? tourSteps[tourStepIndex] : null;
-  useEffect(() => {
-    if (!tourRunning || currentTourStep?.waitFor?.type !== 'selector') {
-      setTourSelectorSatisfied(false);
-      return undefined;
-    }
-
-    const checkSelector = () => {
-      if (typeof document === 'undefined') return;
-      setTourSelectorSatisfied(Boolean(document.querySelector(currentTourStep.waitFor.value)));
-    };
-
-    checkSelector();
-    const interval = window.setInterval(checkSelector, 150);
-    return () => window.clearInterval(interval);
-  }, [currentTourStep, tourRunning]);
-
-  const currentTourStepSatisfied = useMemo(() => {
-    if (!currentTourStep?.waitFor) return true;
-    if (currentTourStep.waitFor.type === 'state') {
-      return Boolean(tutorialTourState[currentTourStep.waitFor.value]);
-    }
-    if (currentTourStep.waitFor.type === 'selector') {
-      return tourSelectorSatisfied;
-    }
-    return false;
-  }, [currentTourStep, tourSelectorSatisfied, tutorialTourState]);
-
-  const canAdvanceTour = !currentTourStep || currentTourStep.action === 'next' || currentTourStepSatisfied;
-
-  useEffect(() => {
-    if (!hasBeginnerClear) return;
-    const timer = setTimeout(() => navigate('/tutorial/level-2'), 1200);
-    return () => clearTimeout(timer);
-  }, [hasBeginnerClear, navigate]);
-
-  useEffect(() => {
-    if (!hasLevelTwoClear) return;
-    const timer = setTimeout(() => navigate('/tutorial/level-3'), 1200);
-    return () => clearTimeout(timer);
-  }, [hasLevelTwoClear, navigate]);
-
-  useEffect(() => {
-    if (!hasLevelThreeClear) return undefined;
-
-    if (completionAudioRef.current) {
-      completionAudioRef.current.pause();
-      completionAudioRef.current.currentTime = 0;
-      completionAudioRef.current = null;
-    }
-
-    const timer = window.setTimeout(() => {
-      const audio = new Audio(withBaseUrl('companions/Clara/drills-sound/Clara-Ready-outer.mp3'));
-      completionAudioRef.current = audio;
-      audio.play().catch(() => {});
-    }, 900);
-
-    return () => {
-      window.clearTimeout(timer);
-      if (completionAudioRef.current) {
-        completionAudioRef.current.pause();
-        completionAudioRef.current.currentTime = 0;
-        completionAudioRef.current = null;
-      }
-    };
-  }, [hasLevelThreeClear]);
-
-  useEffect(() => {
-    if (level !== 1) return;
-    try {
-      const seen = window.localStorage.getItem(TUTORIAL_TOUR_KEY);
-      if (!seen) {
-        const timer = setTimeout(() => setTourRunning(true), 500);
-        return () => clearTimeout(timer);
-      }
-    } catch {
-      const timer = setTimeout(() => setTourRunning(true), 500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [level]);
-
-  useEffect(() => {
-    if (level !== 2) return;
-    try {
-      const seen = window.localStorage.getItem(TUTORIAL_STAGE_TWO_TOUR_KEY);
-      if (!seen) {
-        const timer = setTimeout(() => setTourRunning(true), 500);
-        return () => clearTimeout(timer);
-      }
-    } catch {
-      const timer = setTimeout(() => setTourRunning(true), 500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [level]);
-
-  useEffect(() => {
-    if (level !== 3) return;
-    try {
-      const seen = window.localStorage.getItem(TUTORIAL_STAGE_THREE_TOUR_KEY);
-      if (!seen) {
-        const timer = setTimeout(() => setTourRunning(true), 500);
-        return () => clearTimeout(timer);
-      }
-    } catch {
-      const timer = setTimeout(() => setTourRunning(true), 500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [level]);
-
-  useEffect(() => {
-    setChallengeMistakes(0);
-    setHintIndex(0);
-    setHintOpen(false);
-    setChallengeFeedback(null);
-  }, [level]);
-
-  const closeTour = () => {
-    setTourRunning(false);
+    setRoundIndex(0);
     setTourStepIndex(0);
-    try {
-      if (level === 1) {
-        window.localStorage.setItem(TUTORIAL_TOUR_KEY, 'seen');
-      } else if (level === 2) {
-        window.localStorage.setItem(TUTORIAL_STAGE_TWO_TOUR_KEY, 'seen');
-      } else if (level === 3) {
-        window.localStorage.setItem(TUTORIAL_STAGE_THREE_TOUR_KEY, 'seen');
-      }
-    } catch {
-      // ignore
-    }
-  };
+    setStageState(createStageState(levelConfig));
+    setTourRunning(false);
+    setPredictorAdvancedOpen(false);
+  }, [levelConfig]);
 
-  const nextTourStep = () => {
-    if (tourStepIndex >= tourSteps.length - 1) {
-      closeTour();
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    try {
+      window.localStorage.removeItem('svarog-tutorial-tour-v1');
+      window.localStorage.removeItem('svarog-tutorial-tour-v3');
+    } catch {
+      // ignore storage failures
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setTourRunning(true);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [levelConfig.id]);
+
+  const rounds = levelConfig.rounds || [];
+  const tutorialTourSteps = useMemo(() => {
+    if (levelConfig.tourSteps?.length) {
+      return levelConfig.tourSteps.map((step) => ({
+        placement: 'right',
+        requiresActionType: null,
+        ...step,
+      }));
+    }
+
+    return rounds.map((round, index) => ({
+      roundIndex: index,
+      target: getDefaultTourTarget(levelConfig, round, index, rounds.length),
+      title: round.title,
+      body: round.body,
+      hint: round.hint,
+      placement: levelConfig.id >= 5 ? (round.actionKey ? 'right' : 'left') : 'right',
+      requiresActionType: round.actionKey === 'stage4-force-line' ? 'force' : round.actionKey ? 'relic' : null,
+    }));
+  }, [levelConfig, rounds]);
+  const currentTourStep = tutorialTourSteps[Math.min(tourStepIndex, Math.max(tutorialTourSteps.length - 1, 0))];
+  const activeRoundIndex = currentTourStep?.roundIndex ?? roundIndex;
+  const currentRound = rounds[Math.min(activeRoundIndex, Math.max(0, rounds.length - 1))] || rounds[0];
+  const predictorEntries = useMemo(() => buildPredictorEntries(stageState.sessionRolls), [stageState.sessionRolls]);
+  const showPredictor = levelConfig.id >= 5;
+  const currentTourStepReady = useMemo(() => {
+    const actionType = currentTourStep?.requiresActionType;
+    if (!actionType) return true;
+    if (actionType === 'advanced-open') return predictorAdvancedOpen;
+    if (actionType === 'force' || actionType === 'relic') return stageState.stageComplete;
+    return true;
+  }, [currentTourStep, predictorAdvancedOpen, stageState.stageComplete]);
+
+  const handleContinue = () => {
+    preserveScrollPosition();
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    const isLastRound = roundIndex >= rounds.length - 1;
+    if (isLastRound) {
+      navigate(levelConfig.nextRoute);
       return;
     }
-    setTourStepIndex((value) => value + 1);
+    setRoundIndex((value) => Math.min(value + 1, rounds.length - 1));
   };
 
-  const previousTourStep = () => {
-    setTourStepIndex((value) => Math.max(0, value - 1));
-  };
-
-  const revealNextHint = () => {
-    setHintOpen(true);
-    setHintIndex((value) => Math.min(value + 1, Math.max(0, activeChallengeHints.length - 1)));
+  const handleReset = () => {
+    preserveScrollPosition();
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setRoundIndex(0);
+    setStageState(createStageState(levelConfig));
+    setTourRunning(false);
+    setTimeout(() => setTourRunning(true), 120);
   };
 
   const handleTargetAction = () => {
-    setTargetRelic((current) => {
-      if (!current.hasFourthLine) {
-        return {
+    if (!currentRound?.actionKey) return;
+    preserveScrollPosition();
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    switch (currentRound.actionKey) {
+      case 'stage1-add-fourth':
+        setStageState((current) => ({
           ...current,
-          level: 3,
-          nextLevel: 6,
-          hasFourthLine: true,
-          lastHit: null,
-          lines: [...current.lines, isLevelThree ? LEVEL_THREE_FOURTH_LINE : TARGET_FOURTH_LINE],
-        };
+          currentLine: 4,
+          currentRawRoll: '--',
+          currentTranslatedRoll: '--',
+          targetRelic: {
+            ...current.targetRelic,
+            level: 3,
+            hasFourthLine: true,
+            fourthLine: current.targetRelic.fourthLine ? { ...activateRelicLine(current.targetRelic.fourthLine), locked: false } : null,
+          },
+          eventLog: [...current.eventLog, 'Added the fourth substat slot. You now sit on line 4.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage1-move-line':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 2,
+          currentRawRoll: '42',
+          currentTranslatedRoll: '42',
+          currentString: '42',
+          targetRelic: appendHit(current.targetRelic, 2, 6),
+          recentHits: [...current.recentHits, { raw: '42', translated: '42', result: 'CRIT RATE' }],
+          eventLog: [...current.eventLog, 'From line 4 you landed on line 2, so the read becomes 42.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage2-add-fourth':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 4,
+          currentRawRoll: '--',
+          currentTranslatedRoll: '--',
+          currentString: '4_',
+          targetRelic: {
+            ...current.targetRelic,
+            level: 3,
+            hasFourthLine: true,
+            fourthLine: current.targetRelic.fourthLine ? { ...activateRelicLine(current.targetRelic.fourthLine), locked: false } : null,
+          },
+          eventLog: [...current.eventLog, 'The fourth slot is open. Because you are sitting on line 4, the string starts with 4.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage2-move-line':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 2,
+          currentRawRoll: '42',
+          currentTranslatedRoll: '42',
+          currentString: '42',
+          targetRelic: appendHit(current.targetRelic, 2, 6),
+          recentHits: [...current.recentHits, { raw: '42', translated: '42', result: 'CRIT RATE' }],
+          eventLog: [...current.eventLog, '42 means start on line 4, hit line 2.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage3-add-fourth':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 4,
+          currentString: '41 / 43',
+          currentRawRoll: '--',
+          currentTranslatedRoll: '--',
+          targetRelic: {
+            ...current.targetRelic,
+            level: 3,
+            hasFourthLine: true,
+            fourthLine: current.targetRelic.fourthLine ? { ...activateRelicLine(current.targetRelic.fourthLine), locked: false } : null,
+          },
+          eventLog: [...current.eventLog, 'Added the fourth line. The commons behind the scene stay 41 and 42, but we only take the first direct hit here.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage3-direct-plus-six':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 1,
+          currentRawRoll: '41',
+          currentTranslatedRoll: '41',
+          currentString: '41 / 43',
+          targetRelic: appendHit(current.targetRelic, 1, 6),
+          recentHits: [...current.recentHits, { raw: '41', translated: '41', result: 'FLAT ATK' }],
+          eventLog: [...current.eventLog, 'Direct +6 used 41 first and landed on line 1. On this relic that means FLAT ATK, which is why the route still matters.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage4-forced-plus-six':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 2,
+          currentRawRoll: '41',
+          currentTranslatedRoll: '41',
+          currentString: '41 / 42',
+          targetRelic: appendHit(current.targetRelic, 2, 6),
+          recentHits: [...current.recentHits, { raw: '41', translated: '41', result: 'CRIT RATE' }],
+          eventLog: [...current.eventLog, 'With line 3 primed first, the same 41 now lands on line 2 and gives you CRIT RATE.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      case 'stage4-forced-plus-nine':
+        setStageState((current) => ({
+          ...current,
+          currentLine: 4,
+          currentRawRoll: '43',
+          currentTranslatedRoll: '43',
+          currentString: '41 / 42',
+          targetRelic: appendHit(current.targetRelic, 4, 9),
+          recentHits: [...current.recentHits, { raw: '43', translated: '43', result: 'CRIT DMG' }],
+          eventLog: [...current.eventLog, 'Then 43 follows and lands on line 4. This time the same pair finishes as CRIT DMG instead of trash.'],
+          stageComplete: true,
+        }));
+        setRoundIndex((value) => value + 1);
+        break;
+      default: {
+        const sequence = STAGE_SEQUENCES[levelConfig.id] || [];
+        const step = sequence[stageState.sequenceIndex];
+        if (!step) {
+          setStageState((current) => ({ ...current, stageComplete: true }));
+          setRoundIndex((value) => Math.min(value + 1, rounds.length - 1));
+          return;
+        }
+        setStageState((current) => {
+          const next = applyProgressionStep(current, step);
+          const finished = next.sequenceIndex >= sequence.length;
+          return {
+            ...next,
+            stageComplete: finished,
+            eventLog: finished ? [...next.eventLog, 'This guided sequence is complete. Review the board once more, then continue.'] : next.eventLog,
+          };
+        });
+        break;
       }
+    }
+  };
 
-      return current;
-    });
+  const handleForceAction = () => {
+    if (currentRound?.actionKey !== 'stage4-force-line') return;
+    preserveScrollPosition();
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setStageState((current) => ({
+      ...current,
+      forceRelic: current.forceRelic ? { ...current.forceRelic, isPrimed: true, forcedLine: 3 } : current.forceRelic,
+      currentLine: 3,
+      currentRawRoll: '--',
+      currentTranslatedRoll: '--',
+      currentString: '3x',
+      eventLog: [...current.eventLog, 'Force line 3 is primed. You changed the control point before the next target roll.'],
+      stageComplete: true,
+    }));
+    setRoundIndex((value) => value + 1);
+  };
 
-    if (!targetRelic.hasFourthLine) {
+  const targetActionLabel = useMemo(() => {
+    if (!currentRound?.actionKey || currentRound.actionKey === 'stage4-force-line') return null;
+    if (currentRound.actionKey === 'stage5-guided-upgrade') return stageState.sequenceIndex === 0 ? 'Start upgrading relic' : 'Upgrade relic again';
+    if (currentRound.actionKey === 'stage6-noise-demo') return stageState.sequenceIndex === 0 ? 'Start relic upgrades' : 'Upgrade relic again';
+    if (currentRound.actionKey === 'stage8-calm-hit') return 'Take a calm practice hit';
+    if (currentRound.actionKey === 'stage9-eye-practice') return stageState.sequenceIndex === 0 ? 'Practice with Svarog Eye' : 'Continue practice';
+    if (currentRound.actionKey === 'stage10-split-demo') return stageState.sequenceIndex === 0 ? 'Run split read practice' : 'Continue split read';
+    if (currentRound.actionKey === 'stage11-break-demo') return stageState.sequenceIndex === 0 ? 'Watch break danger' : 'Continue break demo';
+    if (currentRound.actionKey === 'stage12-trend-demo') return stageState.sequenceIndex === 0 ? 'Read the trend move' : 'Continue trend demo';
+    if (currentRound.actionKey === 'stage13-auto-commons') return stageState.sequenceIndex === 0 ? 'Start guided commons solve' : 'Continue guided solve';
+    if (currentRound.actionKey === 'stage14-eye-control') return stageState.sequenceIndex === 0 ? 'Start guided Eye demo' : 'Continue guided solve';
+    if (currentRound.actionKey === 'stage15-trend-advantage') return stageState.sequenceIndex === 0 ? 'Start guided trend demo' : 'Continue guided solve';
+    return currentRound.actionLabel;
+  }, [currentRound, stageState.sequenceIndex]);
+
+  const forceActionLabel = currentRound?.actionKey === 'stage4-force-line' ? 'Prime line 3' : null;
+  const closeTour = () => setTourRunning(false);
+  const nextTourStep = () => {
+    preserveScrollPosition();
+    if (!currentTourStepReady) return;
+    if (tourStepIndex >= tutorialTourSteps.length - 1) {
+      setTourRunning(false);
       return;
     }
-
-    let currentIndex = shiftActive ? shiftedStepIndex : directStepIndex;
-    let hitSlot;
-    let rawPair;
-    let recordedRoll;
-
-    if (isLevelThree) {
-      if (shiftActive) {
-        rawPair = '23';
-        hitSlot = 3;
-        recordedRoll = '41';
-      } else {
-        const levelThreeDirectPath = [
-          { rawPair: '43', hitSlot: 3, recordedRoll: '43' },
-          { rawPair: '34', hitSlot: 4, recordedRoll: '44' },
-          { rawPair: '41', hitSlot: 1, recordedRoll: '41' },
-          { rawPair: '12', hitSlot: 2, recordedRoll: '42' },
-        ];
-        const step = levelThreeDirectPath[Math.min(directStepIndex, levelThreeDirectPath.length - 1)];
-        rawPair = step.rawPair;
-        hitSlot = step.hitSlot;
-        recordedRoll = step.recordedRoll;
-      }
-    } else {
-      const activeSequence = isLevelTwo
-        ? (shiftActive ? LEVEL_TWO_SHIFTED_LINE_SEQUENCE : LEVEL_TWO_DIRECT_LINE_SEQUENCE)
-        : (shiftActive ? SHIFTED_LINE_SEQUENCE : DIRECT_LINE_SEQUENCE);
-      hitSlot = activeSequence[Math.min(currentIndex, activeSequence.length - 1)];
-      const previousLine = shiftActive ? lastShiftedLine : lastDirectLine;
-      rawPair = `${previousLine}${hitSlot}`;
-      recordedRoll = isLevelTwo && shiftActive
-        ? LEVEL_TWO_VISIBLE_ROLLS[Math.min(currentIndex, LEVEL_TWO_VISIBLE_ROLLS.length - 1)]
-        : (translateTo4(rawPair) || '42');
-    }
-    const statLabel = targetRelic.lines.find((line) => line.slot === hitSlot)?.stat || `LINE ${hitSlot}`;
-    const resultingTone = targetRelic.lines.find((line) => line.slot === hitSlot)?.tone || 'bad';
-
-    setTutorialRolls((existing) => [...existing, recordedRoll]);
-    setHistoryRows((existing) => {
-      const nextIndex = existing.length;
-      const seconds = 11 + nextIndex * 7;
-      const time = `02:${String(Math.floor(seconds / 60) + 18).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-      return [
-        ...existing,
-        {
-          time,
-          roll: recordedRoll,
-          note: `sim hit ${statLabel.toLowerCase()} (${rawPair} -> ${recordedRoll})`,
-        },
-      ];
-    });
-
-    setTargetRelic((current) => {
-      if (current.level >= 15) return current;
-
-      const nextLevel = LEVEL_SEQUENCE.find((value) => value > current.level) ?? current.level;
-      const followingLevel = LEVEL_SEQUENCE.find((value) => value > nextLevel) ?? nextLevel;
-
-      return {
-        ...current,
-        level: nextLevel,
-        nextLevel: followingLevel,
-        lastHit: hitSlot,
-        lines: current.lines.map((line) =>
-          line.slot === hitSlot ? { ...line, hits: line.hits + 1 } : line
-        ),
-      };
-    });
-
-    if (level !== 1) {
-      if (resultingTone === 'bad') {
-        setChallengeMistakes((value) => value + 1);
-        setChallengeFeedback({
-          tone: 'bad',
-          text: isLevelThree
-            ? `${statLabel} drifted in. Re-check the setup path before the next upgrade.`
-            : `${statLabel} is the bad side here. You may need the detour before returning to the target relic.`,
-        });
-      } else {
-        setChallengeFeedback({
-          tone: 'good',
-          text: isLevelThree
-            ? `${statLabel} stayed on the mono lane.`
-            : `${statLabel} is on the good side. Keep checking whether the setup is still helping.`,
-        });
-      }
-    }
-
-    if (isLevelThree && shiftActive) {
-      setOneLineSetupRelic({
-        forced: false,
-        lines: ONE_LINE_SETUP_BASE_LINES,
-      });
-      setDirectStepIndex((value) => value + 1);
-    } else if (isLevelThree) {
-      setDirectStepIndex((value) => value + 1);
-    } else if (shiftActive) {
-      setShiftedStepIndex((value) => value + 1);
-      setLastShiftedLine(hitSlot);
-    } else {
-      setDirectStepIndex((value) => value + 1);
-      setLastDirectLine(hitSlot);
+    const nextIndex = Math.min(tourStepIndex + 1, tutorialTourSteps.length - 1);
+    const nextStep = tutorialTourSteps[nextIndex];
+    setTourStepIndex(nextIndex);
+    if (typeof nextStep?.roundIndex === 'number') {
+      setRoundIndex(nextStep.roundIndex);
     }
   };
-
-  const handleForceThirdLine = () => {
-    setSetupRelic((current) => {
-      if (current.forced) return current;
-
-      return {
-        forced: true,
-        lines: current.lines.map((line) =>
-          line.slot === 3 ? { ...line, stat: 'ATK%', state: 'forced' } : line
-        ),
-      };
-    });
-
-    setActiveChapter('force-line');
-  };
-
-  const handleForceSecondLine = () => {
-    setOneLineSetupRelic((current) => {
-      if (current.forced) return current;
-      return {
-        forced: true,
-        lines: current.lines.map((line) =>
-          line.slot === 2
-            ? { ...line, stat: 'ATK%', state: 'forced' }
-            : line
-        ),
-      };
-    });
-    setActiveChapter('force-line');
-    setLastShiftedLine(2);
-    if (!isLevelThree) {
-      setShiftedStepIndex(1);
-    }
-    if (level !== 1) {
-      setChallengeFeedback({
-        tone: 'info',
-        text: isLevelThree
-          ? 'Detour primed. Now return to the target relic before the next upgrade.'
-          : 'Line 2 detour is ready. Check the target relic mapping again before you upgrade.',
-      });
+  const prevTourStep = () => {
+    preserveScrollPosition();
+    if (tourStepIndex <= 0) return;
+    const prevIndex = Math.max(tourStepIndex - 1, 0);
+    const prevStep = tutorialTourSteps[prevIndex];
+    setTourStepIndex(prevIndex);
+    if (typeof prevStep?.roundIndex === 'number') {
+      setRoundIndex(prevStep.roundIndex);
     }
   };
-
-  const handleResetScenario = () => {
-    setTargetRelic({
-      level: 0,
-      nextLevel: 3,
-      hasFourthLine: false,
-      lines: isLevelThree ? LEVEL_THREE_TARGET_BASE_LINES : (isLevelTwo ? LEVEL_TWO_TARGET_BASE_LINES : TARGET_BASE_LINES),
-      lastHit: null,
-    });
-    setSetupRelic({
-      forced: false,
-      lines: SETUP_BASE_LINES,
-    });
-    setOneLineSetupRelic({
-      forced: false,
-      lines: ONE_LINE_SETUP_BASE_LINES,
-    });
-    setTutorialRolls(INITIAL_SCRIPTED_ROLLS);
-    setHistoryRows(INITIAL_HISTORY_ROWS);
-    setDirectStepIndex(0);
-    setShiftedStepIndex(0);
-    setLastDirectLine(4);
-    setLastShiftedLine(isLevelThree ? 2 : 3);
-    setActiveChapter(CHAPTERS[0].id);
-    if (level !== 1) {
-      setChallengeFeedback({
-        tone: 'info',
-        text: 'Scenario reset. Read the board again before you commit to the next path.',
-      });
-    }
-  };
-
-  const completionRef = useRef(null);
-
-  useEffect(() => {
-    if (hasLevelThreeClear && completionRef.current) {
-      const q = gsap.utils.selector(completionRef.current);
-      
-      // Reset initial states
-      gsap.set(q('.completion-content'), { opacity: 0, scale: 0.95 });
-      gsap.set(q('.completion-visual'), { opacity: 0, x: 50 });
-      gsap.set(q('.stagger-item'), { opacity: 0, y: 20 });
-      
-      const tl = gsap.timeline({ delay: 0.2 });
-      
-      tl.to(q('.completion-content'), {
-        opacity: 1,
-        scale: 1,
-        duration: 1,
-        ease: 'power4.out',
-      })
-      .to(q('.completion-visual'), {
-        opacity: 1,
-        x: 0,
-        duration: 1.2,
-        ease: 'power3.out',
-      }, '-=0.6')
-      .to(q('.stagger-item'), {
-        opacity: 1,
-        y: 0,
-        stagger: 0.1,
-        duration: 0.8,
-        ease: 'back.out(1.7)',
-      }, '-=1');
-
-      // Floating animation for Svarog
-      gsap.to(q('.floating-svarog'), {
-        y: 15,
-        duration: 3,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut'
-      });
-    }
-  }, [hasLevelThreeClear]);
-
-  if (hasLevelThreeClear) {
-    return (
-      <div ref={completionRef} className={`min-h-screen bg-[#06080F] text-slate-200 relative overflow-hidden flex items-center justify-center p-6 ${themeConfig.rootClassName || ''}`}>
-        {/* Advanced Ambient Background */}
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-          <div className="absolute top-[-25%] left-[-15%] h-[1200px] w-[1200px] rounded-full bg-emerald-600/10 blur-[180px] mix-blend-screen opacity-60"></div>
-          <div className="absolute right-[-15%] top-[-10%] h-[1000px] w-[1000px] rounded-full bg-cyan-600/15 blur-[160px] mix-blend-screen opacity-70"></div>
-          <div className="absolute bottom-[-20%] left-[10%] h-[1100px] w-[1100px] rounded-full bg-violet-600/10 blur-[200px] mix-blend-screen opacity-50"></div>
-          
-          {/* Tactical Grid Overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black,transparent)]" />
-          
-          <div className="absolute inset-0 bg-[#06080F]/40 backdrop-brightness-[0.3]"></div>
-        </div>
-
-        <div className="relative z-10 w-full max-w-[1400px] flex flex-col lg:flex-row items-center justify-between gap-12">
-          
-          {/* LEFT: Success Message & Content */}
-          <div className="completion-content relative w-full lg:w-[55%] xl:w-[60%]">
-            <div className="relative overflow-hidden rounded-[3.5rem] border border-white/10 bg-slate-950/40 p-10 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.6)] backdrop-blur-3xl">
-              {/* Internal Glows */}
-              <div className="pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-emerald-400/10 blur-[100px]" />
-              <div className="pointer-events-none absolute -left-24 bottom-10 h-72 w-72 rounded-full bg-cyan-400/5 blur-[90px]" />
-
-              <div className="relative flex flex-col gap-10">
-                <div className="stagger-item">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="h-px w-8 bg-emerald-400/40" />
-                    <div className="text-[11px] font-black uppercase tracking-[0.4em] text-emerald-300 flex items-center gap-2">
-                       <Trophy className="h-3.5 w-3.5" />
-                       Tactical Certification Complete
-                    </div>
-                  </div>
-                  <h1 className="text-4xl font-black uppercase tracking-tight text-white md:text-6xl leading-[1.05]">
-                    Mission <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-400 to-violet-400">Accomplished</span>
-                  </h1>
-                </div>
-
-                <div className="stagger-item flex flex-wrap items-center gap-4">
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-emerald-400/20 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative rounded-full border border-emerald-400/30 bg-emerald-400/10 px-6 py-2.5 text-[12px] font-black uppercase tracking-[0.2em] text-emerald-200 backdrop-blur-sm">
-                      Stage 03 Clear
-                    </div>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-[11px] font-black uppercase tracking-[0.2em] text-slate-300">
-                    Svarog Basic Course
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 tracking-[0.1em]">
-                    <Sparkles className="h-3 w-3 text-amber-400" />
-                    SYNCCON_V4.1.2
-                  </div>
-                </div>
-
-                <div className="stagger-item space-y-6 max-w-2xl">
-                  <p className="text-lg md:text-xl font-medium leading-relaxed text-slate-300">
-                    Verification complete. You have demonstrated mastery of the <span className="text-cyan-300">Svarog Prediction Logic</span>, loop stabilization, and detour protocols.
-                  </p>
-                  <p className="text-base text-slate-400 leading-relaxed border-l-2 border-emerald-500/20 pl-6">
-                    Your tactical profile is now ready for deployment. Choose your next destination below to continue refining your relic manipulation skills.
-                  </p>
-                </div>
-
-                <div className="stagger-item grid gap-5 md:grid-cols-2 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/playground/drills')}
-                    className="group relative overflow-hidden rounded-[2rem] border border-cyan-500/30 bg-cyan-500/10 p-1 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-cyan-500/10"
-                  >
-                    <div className="relative z-10 flex flex-col items-start p-6 text-left">
-                      <div className="mb-4 rounded-xl bg-cyan-400/20 p-3 text-cyan-300 group-hover:bg-cyan-400/30 transition-colors">
-                        <BookOpen className="h-6 w-6" />
-                      </div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-300/70 mb-1">Guided Reps</div>
-                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-cyan-100 transition-colors">Beginner Drills</div>
-                      <p className="mt-3 text-sm text-slate-300 leading-relaxed"> Lock in your board vocabulary with short guided reps before moving into the wider playground. </p>
-                    </div>
-                    {/* Hover Glow */}
-                    <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-cyan-400/10 blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate('/playground')}
-                    className="group relative overflow-hidden rounded-[2rem] border border-amber-500/20 bg-slate-900/40 p-1 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:border-amber-500/40 hover:bg-amber-500/5"
-                  >
-                    <div className="relative z-10 flex flex-col items-start p-6 text-left">
-                      <div className="mb-4 rounded-xl bg-amber-500/10 p-3 text-amber-400 group-hover:bg-amber-500/20 transition-colors">
-                        <Gamepad2 className="h-6 w-6" />
-                      </div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/60 mb-1">Sandbox Reps</div>
-                      <div className="text-2xl font-black uppercase tracking-tight text-white group-hover:text-amber-100 transition-colors">Playground</div>
-                      <p className="mt-3 text-sm text-slate-400 leading-relaxed"> Earn badges, track detailed progress, and run low-risk simulation reps. </p>
-                    </div>
-                  </button>
-                </div>
-                
-                <div className="stagger-item flex items-center justify-between pt-6 border-t border-white/5">
-                   <div className="flex items-center gap-4 text-slate-500 text-[11px] font-bold uppercase tracking-widest">
-                      <span className="flex items-center gap-1.5"><div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> STATUS: CERTIFIED</span>
-                      <span className="flex items-center gap-1.5"><div className="h-1.5 w-1.5 rounded-full bg-cyan-500" /> ACCESS: GRANTED</span>
-                   </div>
-                   <button 
-                     onClick={() => navigate('/')}
-                     className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
-                   >
-                     Back to HQ <ArrowRight className="h-3.5 w-3.5" />
-                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT: Visual Asset (Svarog) */}
-          <div className="completion-visual relative hidden w-[40%] lg:flex items-center justify-center">
-            {/* Background Halo */}
-            <div className="absolute inset-0 flex items-center justify-center">
-               <div className="h-[500px] w-[500px] rounded-full bg-emerald-500/5 blur-[100px] animate-pulse" />
-               <div className="h-[400px] w-[400px] rounded-full border border-emerald-500/10 bg-transparent animate-spin-slow" style={{ animationDuration: '20s' }} />
-               <div className="absolute h-[350px] w-[350px] rounded-full border border-cyan-500/5 bg-transparent animate-spin-slow direction-reverse" style={{ animationDuration: '25s' }} />
-            </div>
-            
-            <div className="floating-svarog relative z-10 w-full max-w-[550px]">
-              <img
-                src={withBaseUrl('prof-Svarog.png')}
-                alt="Professor Svarog"
-                className="w-full h-auto object-contain drop-shadow-[0_45px_70px_rgba(0,0,0,0.65)] grayscale-[0.2] hover:grayscale-0 transition-all duration-700"
-              />
-              {/* Data Overlay Badge */}
-              <div className="absolute -right-4 top-1/4 rounded-2xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl shadow-2xl">
-                 <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 mb-1">Instructor</div>
-                 <div className="text-base font-black text-white">PROF. SVAROG</div>
-                 <div className="mt-2 h-1 w-20 bg-cyan-500/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-cyan-400 animate-[shimmer_2s_infinite]" style={{ width: '40%' }} />
-                 </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div ref={containerRef} className={`min-h-screen p-4 md:p-6 lg:p-8 bg-[#0B0F19] text-slate-200 relative overflow-x-hidden ${themeConfig.rootClassName || ''}`}>
-      {/* Dynamic Simulation Deck Environment */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute top-[-20%] left-[-10%] h-[1000px] w-[1000px] rounded-full bg-violet-600/10 blur-[150px] mix-blend-screen"></div>
-        <div className="absolute right-[-10%] top-[40%] h-[800px] w-[800px] rounded-full bg-cyan-600/15 blur-[120px] mix-blend-screen"></div>
-        <div className="absolute bottom-[-10%] left-[20%] h-[900px] w-[900px] rounded-full bg-rose-600/5 blur-[180px] mix-blend-screen"></div>
-        <div className="absolute inset-0 bg-[#0B0F19]/20 backdrop-brightness-50"></div>
-        <div
-          className="absolute inset-0 opacity-[0.02] mix-blend-overlay"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0px, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 3px)',
-          }}
-        ></div>
-      </div>
-
-      <div className="mx-auto w-full max-w-[1900px] relative z-10 flex flex-col gap-6">
-        {tourRunning && tourSteps.length > 0 && (
-          <TutorialTourOverlay
-            steps={tourSteps}
-            currentStep={tourStepIndex}
-            onNext={nextTourStep}
-            onBack={previousTourStep}
-            onClose={closeTour}
-            canAdvance={canAdvanceTour}
-            isWaiting={!canAdvanceTour}
-          />
-        )}
-        
-        {/* --- TACTICAL HEADER --- */}
-        <header className="gsap-fade-up flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-white/5 pb-6">
-          <div className="flex items-center gap-6">
-            <div className="h-14 w-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.2)] backdrop-blur-xl">
-               <span className="text-2xl font-black text-cyan-400">S</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5 mb-1.5 font-black uppercase tracking-[0.3em] text-[10px] text-violet-400">
-                <span className="flex h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]" />
-                Deck Level {level}
-              </div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-white md:text-4xl">
-                Tactical <span className="text-cyan-400">Command Center</span>
-              </h1>
-            </div>
+    <div className={`min-h-screen bg-[#0b1018] px-4 py-6 text-slate-100 [&_button]:cursor-pointer [&_[role='button']]:cursor-pointer md:px-6 lg:px-8 ${themeConfig.rootClassName || ''}`}>
+      {tourRunning && tutorialTourSteps.length > 0 ? (
+        <TutorialTourOverlay
+          steps={tutorialTourSteps}
+          currentStep={Math.min(tourStepIndex, tutorialTourSteps.length - 1)}
+          stageReady={currentTourStepReady}
+          onBack={prevTourStep}
+          onNext={nextTourStep}
+          onClose={closeTour}
+        />
+      ) : null}
+      <div className="mx-auto max-w-[1580px] space-y-6">
+        <header className="flex flex-col gap-4 border-b border-white/8 pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">{levelConfig.label}</div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">{levelConfig.title}</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">{levelConfig.subtitle}</p>
           </div>
-          
-          <div className="flex items-center gap-4">
-            {level === 1 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setTourStepIndex(0);
-                  setTourRunning(true);
-                }}
-                className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-cyan-300 transition-all hover:bg-cyan-500/10 hover:border-cyan-500/40"
-              >
-                Start Guide
-              </button>
-            )}
-            {level === 2 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setTourStepIndex(0);
-                  setTourRunning(true);
-                }}
-                className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-cyan-300 transition-all hover:bg-cyan-500/10 hover:border-cyan-500/40"
-              >
-                Stage 2 Briefing
-              </button>
-            )}
-            <div id="tutorial-level-switcher" className="rounded-2xl border border-white/5 bg-slate-950/40 p-1 flex items-center gap-1 backdrop-blur-xl shadow-inner">
-              {[1, 2, 3].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => navigate(num === 1 ? '/tutorial' : `/tutorial/level-${num}`)}
-                  className={`min-w-[44px] py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${level === num ? 'bg-cyan-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}
-                >
-                  0{num}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
             <button
-               onClick={() => navigate('/live')}
-               className="group flex items-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-rose-300 transition-all hover:bg-rose-500/10 backdrop-blur-md hover:border-rose-500/40"
+              type="button"
+              onClick={() => {
+                preserveScrollPosition();
+                setTourStepIndex(0);
+                setRoundIndex(tutorialTourSteps[0]?.roundIndex ?? 0);
+                setTourRunning(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-4 py-2.5 text-sm text-cyan-100 transition hover:bg-cyan-500/20"
             >
-              Exit Simulation <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              <Info className="h-4 w-4" />
+              Clara guide
+            </button>
+            <button type="button" onClick={() => navigate('/playground')} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-black/30">
+              <ArrowLeft className="h-4 w-4" />
+              Leave tutorial
             </button>
           </div>
         </header>
 
-        {/* --- MAIN 3-5-4 TACTICAL GRID --- */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mt-2 items-start">
-          
-          {/* COLUMN 1: Mission Logistics (col-span-3) */}
-          <aside className="flex flex-col gap-6 lg:col-span-3 lg:sticky lg:top-8">
-            {level !== 1 && (
-              <div id="tutorial-stage-goal" className="gsap-slide-right rounded-[2rem] border border-cyan-500/20 bg-cyan-500/8 p-5 shadow-2xl backdrop-blur-3xl">
-                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-cyan-300">Stage Goal</div>
-                <div className="mt-2 text-sm font-black uppercase tracking-[0.12em] text-white">
-                  {isLevelThree ? 'Keep Every Real Hit On SPD' : 'Land Dual Crit With The Correct Detour'}
-                </div>
-                <p className="mt-3 text-[12px] leading-relaxed text-slate-300">
-                  {isLevelThree
-                    ? 'The first good hit is not enough. Re-prime the right setup path so the loop stays on SPD.'
-                    : 'Read the live board, decide if the direct path is bad, then use the correct reset relic before returning to the target.'}
-                </p>
-              </div>
-            )}
+        <nav className="flex flex-wrap gap-2">
+          {TUTORIAL_LEVELS.map((entry) => (
+            <button key={entry.id} type="button" onClick={() => navigate(entry.route)} className={`rounded-lg border px-3 py-2 text-sm transition ${entry.id === levelConfig.id ? 'border-cyan-400/25 bg-cyan-500/10 text-cyan-100' : 'border-white/10 bg-black/20 text-slate-400 hover:bg-black/30 hover:text-white'}`}>
+              {entry.id}
+            </button>
+          ))}
+        </nav>
 
-            <div id="tutorial-mission-timeline" className="gsap-slide-right relative rounded-[2rem] border border-white/5 bg-slate-950/50 p-6 backdrop-blur-3xl shadow-2xl">
-              <div className="mb-8 flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-2">
-                  <div className="h-1 w-4 bg-cyan-400 rounded-full" />
-                  Mission Timeline
-                </div>
-                <div className="text-[9px] font-black text-cyan-400/60 uppercase">Live_State</div>
-              </div>
-              
-              <nav className="flex flex-col gap-3">
-                {CHAPTERS.map((entry) => (
-                  <button
-                    key={entry.id}
-                    onClick={() => setActiveChapter(entry.id)}
-                    className={`group relative overflow-hidden rounded-2xl border px-6 py-5 text-left transition-all duration-500 ${activeChapter === entry.id
-                      ? 'border-cyan-400/40 bg-cyan-400/5 ring-1 ring-cyan-400/20 shadow-[0_4px_30px_rgba(34,211,238,0.1)]'
-                      : 'border-white/5 bg-transparent hover:border-white/10 hover:bg-white/5'
-                      }`}
-                  >
-                    <div className="relative z-10">
-                      <div className={`text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 transition-colors ${activeChapter === entry.id ? 'text-cyan-400' : 'text-slate-600 group-hover:text-slate-500'}`}>{entry.label}</div>
-                      <div className={`text-sm font-black uppercase tracking-widest transition-colors ${activeChapter === entry.id ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`}>{entry.title}</div>
-                    </div>
-                    {activeChapter === entry.id && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)]"></div>
-                    )}
-                  </button>
-                ))}
-              </nav>
-
-              <div className="mt-8 pt-8 border-t border-white/5 flex flex-col gap-4">
-                <div className="flex items-center gap-3">
-                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 border border-violet-500/20 shadow-inner">
-                      <BookOpen className="h-4 w-4 text-violet-400" />
-                   </div>
-                   <div className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-300">Coach Intelligence</div>
-                </div>
-                <div className="relative rounded-[1.5rem] border border-violet-500/15 bg-violet-500/5 p-5 italic shadow-inner overflow-hidden">
-                   <div className="absolute top-[-50%] right-[-50%] h-40 w-40 rounded-full bg-violet-500/10 blur-[40px]" />
-                   <p className="relative z-10 text-[13px] leading-relaxed text-slate-300/90 font-medium">
-                      "{chapter.coach}"
-                   </p>
-                </div>
-              </div>
+        <section data-tutorial="overview" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">What we are teaching right now</div>
+              <p className="mt-2 text-sm leading-7 text-slate-300">{currentRound?.body}</p>
             </div>
-
-            <div id="tutorial-stats-helper" className="gsap-slide-right rounded-[2rem] border border-white/5 bg-slate-950/45 p-5 shadow-2xl backdrop-blur-3xl">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Stats & Line Helper</div>
-                  <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">Practical mapping read</div>
-                </div>
-                <div className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200">
-                  Live Helper
-                </div>
-              </div>
-              <ModernStatsPanel
-                entries={scriptedEntries}
-                prediction2={scriptedPrediction}
-                prediction3={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
-                prediction4={{ prediction: '-', alt: null, confidence: 0, mode: '-' }}
-                currentRegion="America"
-                currentPatch="4.1"
-                forcedLineOverride={tutorialHelperLine}
-                tutorialIds={{
-                  autoSectionId: 'tutorial-stats-auto',
-                  manualSectionId: 'tutorial-stats-manual',
-                }}
-              />
+            <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
+              <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Current focus</div>
+              <div className="mt-2 font-medium text-white">{currentRound?.title}</div>
             </div>
-          </aside>
+          </div>
+        </section>
 
-          {/* COLUMN 2: Sensor Array - Intelligence (col-span-5) */}
-          <section className="flex flex-col gap-6 lg:col-span-5">
-            
-            {/* Primary Analysis Module (Predictor) */}
-            <div id="tutorial-sensor-feed" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
-              <div className="mb-8 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                   <div className="h-10 w-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-                      <Clock3 className="h-5 w-5 text-orange-400" />
-                   </div>
-                   <div>
-                     <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white">Svarog Sensor Feed</h3>
-                     <div className="mt-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live_Prediction_Stream</div>
-                   </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+          <main data-tutorial="workspace" className="space-y-6">
+            {showPredictor ? (
+              <section data-tutorial="board" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-cyan-200" />
+                  <h2 className="text-base font-semibold text-white">Board read</h2>
                 </div>
-                <div className="flex items-center gap-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5">
-                   <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-                   <span className="text-[9px] font-black text-emerald-300 uppercase tracking-widest leading-none">Healthy Signal</span>
-                </div>
-              </div>
-              
-              <div id="svarog-feed-focus" className="transform transition-all duration-700 hover:scale-[1.01] origin-top mb-10 p-4 bg-black/20 rounded-[2rem] border border-white/5 shadow-inner">
                 <ModernPairPredictorCard
-                  entries={scriptedEntries}
+                  entries={predictorEntries}
                   region="America"
-                  advancedToggleId="tutorial-advanced-toggle"
-                  advancedPanelId="tutorial-advanced-panel"
-                  tutorialIds={{
-                    modeBadgeId: 'tutorial-mode-badge',
-                    warningStripId: 'tutorial-pair-warning',
-                    statusMessageId: 'tutorial-status-message',
-                    noiseRiskId: 'tutorial-noise-risk',
-                    breakPressureId: 'tutorial-break-pressure',
-                    mainPredictorId: 'tutorial-main-predictor',
-                    svarogEyeId: 'tutorial-svarog-eye',
-                    watchMessageId: 'tutorial-watch-message',
-                    commonsNoiseId: 'tutorial-commons-noise',
-                    advancedMethodId: 'tutorial-advanced-method',
-                    advancedTrendsId: 'tutorial-advanced-trends',
-                    advancedSequenceId: 'tutorial-advanced-sequence',
-                  }}
+                  advancedToggleId="tutorial-predictor-advanced-toggle"
+                  advancedPanelId="tutorial-predictor-advanced-panel"
+                  tutorialIds={TUTORIAL_PREDICTOR_IDS}
+                  onAdvancedToggleChange={setPredictorAdvancedOpen}
                 />
+              </section>
+            ) : null}
+
+            <div className={`grid gap-6 ${stageState.forceRelic ? 'lg:grid-cols-2' : ''}`}>
+              <TutorialRelicCard relic={stageState.targetRelic} currentLine={stageState.currentLine} currentString={stageState.currentString} currentRawRoll={stageState.currentRawRoll} currentTranslatedRoll={stageState.currentTranslatedRoll} showRawRead={levelConfig.id >= 5} title="Target relic" actionLabel={targetActionLabel} onAction={handleTargetAction} onReset={handleReset} disabled={false} />
+              {stageState.forceRelic ? <TutorialForceRelicCard relic={stageState.forceRelic} actionLabel={forceActionLabel} onAction={handleForceAction} onReset={handleReset} disabled={false} /> : null}
+            </div>
+          </main>
+
+          <aside className="space-y-6">
+            <NavigationCard levelConfig={levelConfig} round={currentRound} stageComplete={stageState.stageComplete} onContinue={handleContinue} />
+            <EventLogCard recentHits={stageState.recentHits} eventLog={stageState.eventLog} />
+            <section data-tutorial="rule" className="rounded-xl border border-white/10 bg-[#101520] p-5">
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4 text-cyan-200" />
+                <h3 className="text-base font-semibold text-white">One rule to keep</h3>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div id="tutorial-input-rolls" className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">
-                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Algorithm Status</div>
-                  <div className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                    <span className="text-cyan-400">SYNCED</span> / V4.1.2
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 shadow-inner backdrop-blur-md">
-                   <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Seed Sample</div>
-                   <div className="text-xs font-black tracking-[0.3em] text-slate-400 truncate">
-                      {tutorialRolls.join(' ')}
-                   </div>
-                </div>
-              </div>
-
-              {/* Data Flow Indicator Line pointing to Interaction Bay */}
-              <div className="hidden xl:block absolute right-[-2.5rem] top-1/2 -translate-y-1/2 w-10 h-px bg-gradient-to-r from-cyan-400/50 to-transparent z-0"></div>
-            </div>
-
-            {/* Decryption Module (Map) */}
-            <div id="tutorial-history-log" className="gsap-scale-in relative rounded-[2.5rem] border border-white/5 bg-slate-950/40 p-8 backdrop-blur-3xl shadow-2xl transition-all duration-700">
-               <div className="flex items-center gap-4 mb-8">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                     <Wand2 className="h-5 w-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white">Decryption Map</h3>
-                    <div className="mt-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Common_Pair_Translation</div>
-                  </div>
-               </div>
-
-               <div className="grid gap-3">
-                 {mappingRows.map((row) => (
-                   <div
-                     key={row.roll}
-                     className={`flex items-center justify-between rounded-2xl border px-6 py-4 transition-all duration-300 shadow-sm ${row.tone === 'good'
-                       ? 'border-emerald-500/20 bg-emerald-500/5'
-                       : 'border-amber-500/20 bg-amber-500/5'
-                       }`}
-                   >
-                     <div className="flex h-10 w-14 items-center justify-center rounded-xl bg-black/40 border border-white/10 text-[13px] font-black text-white shadow-inner">{row.roll}</div>
-                     <div className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 ml-4">IO_SYNC {row.line}</div>
-                     <div className={`text-[13px] font-black uppercase tracking-[0.1em] ${row.tone === 'good' ? 'text-emerald-300' : 'text-amber-300'}`}>
-                       {row.stat}
-                     </div>
-                   </div>
-                 ))}
-               </div>
-
-               <div className="mt-8 pt-8 border-t border-white/5 overflow-hidden">
-                  <div className="text-[9px] font-black uppercase tracking-[0.4em] text-cyan-400/60 mb-4">Command Terminal Output</div>
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-5 shadow-inner group">
-                     <p className="text-[13px] leading-relaxed text-slate-300 font-medium tracking-wide">
-                        {shiftActive
-                          ? (isLevelThree
-                            ? '> L2_OVERRIDE EQUIPPED. STABILIZING SPD_LOOP AT ROLL 41.'
-                            : '> DETOUR_PROTOCOL_ENGAGED. CAESAR_SYNC TO CRIT_LANE.')
-                          : (isLevelThree
-                            ? '> RAW_READ: 43. SYSTEM DRIFT DETECTED IN SEED-SPACE.'
-                            : '> DIRECT_PATH WARNING: L3_DRIFT INTO RESISTANCE.')}
-                     </p>
-                  </div>
-               </div>
-            </div>
-          </section>
-
-          {/* COLUMN 3: Interaction Bay - Actions (col-span-4) */}
-          <section className="flex flex-col gap-6 lg:col-span-4">
-            
-            <div className="flex items-center gap-3 mb-2 px-2">
-               <div className="h-6 w-1 bg-violet-400 rounded-full" />
-               <h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-400">Interaction Bay</h3>
-            </div>
-
-            {level !== 1 && (
-              <div id="tutorial-stage-hints" className="gsap-fade-up rounded-[2rem] border border-white/5 bg-slate-950/40 p-5 backdrop-blur-3xl shadow-2xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-300">Challenge Assist</div>
-                    <div className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-white">
-                      {isLevelThree ? 'Stage 3: Keep The Loop Stable' : 'Stage 2: Solve It Yourself'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setHintOpen((value) => !value)}
-                    className={`rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
-                      challengeMistakes >= 2
-                        ? 'border-amber-400/40 bg-amber-500/15 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.15)]'
-                        : 'border-amber-500/25 bg-amber-500/8 text-amber-200 hover:bg-amber-500/12'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Lightbulb className="h-4 w-4" />
-                      Hint
-                    </span>
-                  </button>
-                </div>
-
-                <div className="mt-4 flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.18em]">
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-400">
-                    Mistakes: {challengeMistakes}
-                  </span>
-                  {challengeMistakes >= 2 && !hintOpen && (
-                    <span className="text-amber-300">Need a hint?</span>
-                  )}
-                </div>
-
-                {challengeFeedback && (
-                  <div className={`mt-4 rounded-2xl border px-4 py-3 text-[12px] font-medium leading-relaxed ${
-                    challengeFeedback.tone === 'bad'
-                      ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
-                      : challengeFeedback.tone === 'good'
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                      : 'border-cyan-500/25 bg-cyan-500/10 text-cyan-100'
-                  }`}>
-                    {challengeFeedback.text}
-                  </div>
-                )}
-
-                {hintOpen && activeChallengeHints.length > 0 && (
-                  <div className="mt-4 rounded-[1.5rem] border border-amber-500/25 bg-amber-500/8 p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Hint {Math.min(hintIndex + 1, activeChallengeHints.length)} / {activeChallengeHints.length}</div>
-                        <div className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-white">
-                          {activeChallengeHints[Math.min(hintIndex, activeChallengeHints.length - 1)]?.title}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={revealNextHint}
-                        disabled={hintIndex >= activeChallengeHints.length - 1}
-                        className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Next Hint
-                      </button>
-                    </div>
-                    <p className="mt-3 text-[12px] leading-relaxed text-slate-200/90">
-                      {activeChallengeHints[Math.min(hintIndex, activeChallengeHints.length - 1)]?.body}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Target Relic (Compact) */}
-            <div id="tutorial-target-relic" className="gsap-scale-in transition-all duration-700">
-              <div id="target-relic-focus">
-              <TargetRelicCard
-                relic={targetRelic}
-                title={isLevelThree ? 'Mono SPD Target' : (isLevelTwo ? 'Dual Crit Target' : 'Target Item')}
-                mainStat={isLevelThree ? 'HP%' : (isLevelTwo ? 'ATK%' : 'CRIT RATE')}
-                targetRead={targetRelic.lines[targetRelic.lines.length-1]?.stat === 'EFF RES' ? 'Junk Alert: EFF RES is the drift point.' : 'Targeting Crit side.'}
-                onTargetAction={handleTargetAction}
-                onReset={handleResetScenario}
-                compact={true}
-                successBanner={
-                  hasBeginnerClear
-                    ? 'Dual Crit Clear - Level 2 Unlocked'
-                    : hasLevelTwoClear
-                      ? 'Dual Crit Clear - Level 3 Unlocked'
-                      : hasLevelThreeClear
-                        ? 'Mono SPD Complete'
-                        : null
-                }
-              />
-              </div>
-            </div>
-
-            {/* Setup Relic (Compact) */}
-            <div id="tutorial-setup-relic" className="gsap-scale-in transition-all duration-700">
-              <div id="setup-relic-focus" className="h-full flex flex-col justify-start">
-                {level === 1 && (
-                  <SetupRelicCard
-                    setupRelic={setupRelic}
-                    shiftActive={shiftActive}
-                    onForceThirdLine={handleForceThirdLine}
-                    compact={true}
-                  />
-                )}
-                {(isLevelTwo || isLevelThree) && (
-                  <SetupRelicCard
-                    compact={true}
-                    setupRelic={oneLineSetupRelic}
-                    shiftActive={oneLineSetupRelic.forced}
-                    onForceThirdLine={handleForceSecondLine}
-                    title={isLevelThree ? 'Re-force line 2' : 'Force line 2 detour'}
-                    badgeLabel="Mini reset"
-                    modeLabel="1st -> 2nd force"
-                    forcedLabel="Detour Active"
-                    buttonLabel="Engage Overdrive"
-                    lessonTitle="Detour Lesson"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Action Footer (Utility) */}
-            <div className="gsap-fade-up rounded-[2rem] border border-white/5 bg-slate-950/40 p-6 backdrop-blur-3xl shadow-2xl flex flex-col gap-4">
-               <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 mb-2">Sim Status Log</div>
-               <div className="space-y-3">
-                  {historyRows.slice(-3).map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-[11px] font-bold">
-                       <span className="text-slate-500 uppercase tracking-tighter">{row.time}</span>
-                       <span className="text-slate-300 truncate max-w-[150px]">{row.note}</span>
-                       <span className="px-2 py-0.5 rounded bg-black/40 border border-white/5 text-cyan-400">{row.roll}</span>
-                    </div>
-                  ))}
-               </div>
-            </div>
-
-          </section>
-
+              <p className="mt-3 text-sm leading-7 text-slate-300">{currentRound?.hint}</p>
+            </section>
+          </aside>
         </div>
       </div>
-      
-      {/* Global Optimization Styles */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin-slow {
-          animation: spin-slow 12s linear infinite;
-        }
-        .pulse-cyan {
-          box-shadow: 0 0 50px rgba(6, 182, 212, 0.35);
-          border-color: rgba(6, 182, 212, 0.6) !important;
-          transform: scale(1.02);
-          z-index: 50;
-        }
-        .pulse-violet {
-          box-shadow: 0 0 50px rgba(139, 92, 246, 0.35);
-          border-color: rgba(139, 92, 246, 0.6) !important;
-          transform: scale(1.02);
-          z-index: 50;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.02);
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-        }
-      `}} />
     </div>
   );
 }

@@ -26,22 +26,16 @@ const DRILLS_TOUR_STEPS = [
     placement: 'bottom',
   },
   {
-    target: '#drills-clara-panel',
-    title: 'Clara assist',
-    body: 'This is your guided lesson panel. The question is the goal, Clara is the explanation, and the replay button lets you hear the lesson again whenever you want.',
-    placement: 'right',
+    target: '#drills-mission-console',
+    title: 'Mission Console',
+    body: 'This is your guided lesson panel. The tactical briefing provides context, while the mission grid contains your possible responses.',
+    placement: 'top',
   },
   {
-    target: '#drills-answer-grid',
-    title: 'Answer grid',
-    body: 'Choose one answer, read the feedback, then continue. Correct and mistake voices only trigger after you commit to an answer.',
-    placement: 'left',
-  },
-  {
-    target: '#drills-clara-panel',
+    target: '#drills-mission-console',
     title: 'Ready outer',
     body: 'That is the full flow. Clara will now hand control back to the live drill sequence so the first lesson can begin properly.',
-    placement: 'right',
+    placement: 'top',
     playReadyVoice: true,
   },
 ];
@@ -201,11 +195,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
     [currentDrill]
   );
   const hasPredictorContext = currentEntries.length >= 6;
-  const claraBubbleText = !revealed
-    ? (currentDrill?.lesson || 'Read the pattern first.')
-    : (selectedAnswer === currentDrill?.correctAnswer
-      ? currentDrill?.successText || 'Perfect. That is the right read.'
-      : currentDrill?.mistakeText || 'Not quite. Check the clue you missed.');
+  
   const claraImageSrc = claraSpeaking
     ? withBaseUrl('clara-prof-OandMouth.gif')
     : (revealed && selectedAnswer !== currentDrill?.correctAnswer
@@ -422,7 +412,14 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
   }, [answers, drills.length, getAuthHeader, isComplete, score, user?.id]);
 
   return (
-    <div className={`playground-theme-shell min-h-screen bg-[#080b12] px-4 py-8 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
+    <div className={`playground-theme-shell min-h-screen bg-[#080b12] px-4 py-12 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes holographic-scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100%); }
+        }
+      `}} />
+
       <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col">
         {tourRunning ? (
           <DrillsTourOverlay
@@ -432,6 +429,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             onClose={closeTour}
           />
         ) : null}
+        
         {/* TOP NAV PANE */}
         <div id="drills-mission-strip" className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4 md:border-none md:pb-0">
           <div className="flex items-center gap-4">
@@ -492,7 +490,6 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                      }`}
                    >
                       <span className="relative z-10">{num}</span>
-                      {/* Tooltip */}
                       <div className="pointer-events-none absolute bottom-[calc(100%+8px)] right-0 md:left-1/2 md:-translate-x-1/2 z-50 flex flex-col items-end md:items-center opacity-0 transition-opacity group-hover:opacity-100">
                          <div className="whitespace-nowrap rounded border border-white/10 bg-slate-900/95 px-2 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-xl backdrop-blur-md">
                            {drill.title}
@@ -509,8 +506,8 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             <div className="mb-4 inline-flex items-center justify-center rounded-full bg-emerald-500/20 p-4 ring-2 ring-emerald-400/50 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
                <ShieldCheck className="h-12 w-12 text-emerald-400" />
             </div>
-            <div className="mb-2 text-[12px] font-black uppercase tracking-[0.4em] text-emerald-400 drop-shadow-md">Drill Sequence Cleared</div>
-            <h2 className="text-5xl font-black uppercase tracking-tight text-white drop-shadow-lg">Rank: Tactical Expert</h2>
+            <div className="mb-2 text-[12px] font-black uppercase tracking-[0.4em] text-emerald-400 drop-shadow-md font-black">Drill Sequence Cleared</div>
+            <h2 className="text-5xl font-black uppercase tracking-tight text-white drop-shadow-lg font-black">Rank: Tactical Expert</h2>
             <p className="mx-auto mt-6 max-w-xl text-xs leading-relaxed text-slate-400 font-semibold tracking-wider">
               You've successfully analyzed the core patterns. The simulator logic is now unlocked. Time to step into the real challenges.
             </p>
@@ -518,23 +515,23 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
             <div className="mt-8 w-full max-w-3xl rounded-2xl border border-white/10 bg-black/35 p-5 text-left shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
+                  <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 font-black">
                     Season Progress
                   </div>
-                  <div className="mt-2 text-2xl font-black text-white">
+                  <div className="mt-2 text-2xl font-black text-white font-black">
                     {progressionSummary ? `+${progressionSummary.xpGained || 0} XP${Number(progressionSummary.tokensGained || 0) > 0 ? ` · +${progressionSummary.tokensGained} tokens` : ""}` : (progressionSyncing ? 'Syncing...' : 'No XP logged')}
                   </div>
                 </div>
                 <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-right">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Season level</div>
-                  <div className="mt-1 text-lg font-black text-white">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300 font-black">Season level</div>
+                  <div className="mt-1 text-lg font-black text-white font-black">
                     {progressionSummary ? `Lv ${progressionSummary.levelAfter || 1}` : '--'}
                   </div>
                 </div>
               </div>
 
               <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 font-black">
                   <span>Level XP</span>
                   <span>
                     {progressionSummary
@@ -551,7 +548,7 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
               </div>
 
               <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Reward status</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 font-black">Reward status</div>
                 <div className="mt-2 text-sm font-semibold text-white">
                   {progressionSummary
                     ? Array.isArray(progressionSummary.unlockedRewards) && progressionSummary.unlockedRewards.length > 0
@@ -568,10 +565,10 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
               <button
                 type="button"
                 onClick={() => navigate('/playground/challenge')}
-                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-amber-400/50 bg-amber-500/20 px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-amber-100 transition-all hover:bg-amber-500/30 hover:shadow-[0_0_30px_rgba(251,191,36,0.3)]"
+                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-amber-400/50 bg-amber-500/20 px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-amber-100 transition-all hover:bg-amber-500/30 hover:shadow-[0_0_30px_rgba(251,191,36,0.3)] shadow-2xl"
               >
                 <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full" />
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center gap-2 font-black">
                    Enter Challenge Mode
                    <ChevronRight className="h-5 w-5" />
                 </span>
@@ -582,25 +579,15 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
           <div className="flex-1 flex flex-col gap-5 max-w-4xl mx-auto w-full gsap-fade-up">
             {/* HUD / ARENA HEADER */}
             <div className="flex items-end justify-between px-2 pt-2">
-               {/* Player / XP Bar */}
                {(() => {
                  const liveProgression = progressionSummary || seasonData?.profile?.progression;
                  const liveLevel = liveProgression?.levelProgress?.level ?? seasonData?.profile?.levelProgress?.level ?? 1;
-                 const liveXp = liveProgression?.levelProgress?.currentLevelXp ?? liveProgression?.currentLevelXp ?? 0;
-                 const liveNextXp = liveProgression?.levelProgress?.nextLevelXp ?? liveProgression?.nextLevelXp ?? 0;
                  const livePct = liveProgression?.levelProgress?.progressPercent ?? liveProgression?.progressPercent ?? (score / drills.length) * 100;
-                 const drillsCleared = liveProgression?.practiceSummary?.drillsClears ?? 0;
-                 const nextReward = liveProgression?.nextReward ?? progressionSummary?.nextReward ?? null;
-                 const newReward = Array.isArray(progressionSummary?.unlockedRewards) && progressionSummary.unlockedRewards.length > 0
-                   ? progressionSummary.unlockedRewards[0]
-                   : null;
-                 const xpGained = Number(progressionSummary?.xpGained || 0);
-                 const tokensGained = Number(progressionSummary?.tokensGained || 0);
                  return (
                    <div className="flex flex-col flex-1 max-w-[240px]">
                      <div className="flex justify-between items-end mb-1">
-                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Player</span>
-                       <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-500/80">
+                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 font-black">Player</span>
+                       <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-500/80 font-black">
                          Lv {progressionSummary ? (progressionSummary.levelAfter || 1) : liveLevel}
                        </span>
                      </div>
@@ -610,71 +597,40 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                          style={{ width: `${Math.max(0, Math.min(100, livePct || 0))}%` }}
                        />
                      </div>
-                     <span className="text-[8px] uppercase font-black tracking-[0.15em] mt-1.5 text-slate-500">
+                     <span className="text-[8px] uppercase font-black tracking-[0.15em] mt-1.5 text-slate-500 font-black">
                        Score {score}/{drills.length}
                      </span>
-                     {xpGained > 0 || tokensGained > 0 ? (
-                       <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-emerald-300">
-                         +{xpGained} XP this clear{tokensGained > 0 ? ` | +${tokensGained} tokens` : ""}
-                       </span>
-                     ) : liveNextXp > 0 ? (
-                       <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-slate-500">
-                         {liveXp}/{liveNextXp} level XP
-                       </span>
-                     ) : null}
-                     {newReward ? (
-                       <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-cyan-300">
-                         {newReward.name} added to your account
-                       </span>
-                     ) : nextReward ? (
-                       <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-slate-500">
-                         {nextReward.xpRemaining} XP to {nextReward.name}
-                       </span>
-                     ) : drillsCleared > 0 ? (
-                       <span className="mt-1 text-[8px] uppercase font-black tracking-[0.15em] text-slate-500">
-                         {drillsCleared} cleared this season
-                       </span>
-                     ) : null}
                    </div>
                  );
                })()}
                
-               {/* Opponent / Encounter Info */}
                <div className="flex flex-col items-end">
-                  <span className="text-[9px] font-black uppercase tracking-[0.25em] text-rose-500 border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(244,63,94,0.2)] mb-1.5">
+                  <span className="text-[9px] font-black uppercase tracking-[0.25em] text-rose-500 border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(244,63,94,0.2)] mb-1.5 font-black">
                      Rival: Drill {String(currentIndex + 1).padStart(2, '0')}
                   </span>
-                  <span className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white drop-shadow-md text-right leading-none max-w-[300px] sm:max-w-none">
+                  <span className="text-xl font-black uppercase tracking-tight text-white drop-shadow-md text-right leading-none font-black opacity-80">
                      {currentDrill.title}
                   </span>
                </div>
             </div>
 
             {/* THE BATTLEFIELD (Predictor & Session) */}
-            <div id="drills-sensor-feed" className="relative rounded-[2rem] border border-white/5 bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-5 sm:p-8 shadow-[0_30px_60px_rgba(0,0,0,0.6)] backdrop-blur-2xl ring-1 ring-white/5">
-                {/* Background Details */}
-                <div className="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
-                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] bg-cyan-500/5 blur-[100px] rounded-full" />
-                   <div className="absolute top-[-10%] right-[-5%] text-[150px] font-black italic tracking-tighter text-white/[0.02] leading-none select-none">
-                      {String(currentIndex + 1).padStart(2, '0')}
-                   </div>
-                </div>
-
+            <div id="drills-sensor-feed" className="relative rounded-[2rem] border border-white/5 bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-5 shadow-[0_30px_60px_rgba(0,0,0,0.6)] backdrop-blur-2xl ring-1 ring-white/5">
                 {hasPredictorContext ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                      <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                            <BrainCircuit className="h-4 w-4 text-cyan-400" />
-                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md">Predictor Matrix</span>
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md font-black">Predictor Matrix</span>
                         </div>
-                        <div className="rounded-[1.25rem] border border-white/10 bg-black/40 overflow-hidden shadow-inner">
+                        <div className="rounded-[1.25rem] border border-white/10 bg-black/40 overflow-hidden shadow-inner font-black">
                            <ModernPairPredictorCard entries={currentEntries} region="America" />
                         </div>
                      </div>
 
                      <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
-                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md pb-1 border-b border-cyan-400/30">Session Data</span>
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 drop-shadow-md pb-1 border-b border-cyan-400/30 font-black">Session Data</span>
                            <div className="flex bg-black/40 rounded-full border border-white/5 p-0.5">
                               {['current', 'history'].map((tab) => (
                                  <button
@@ -703,185 +659,175 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
                      </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10 py-4">
                     <div className="rounded-3xl border border-white/10 bg-black/35 p-5">
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                        Clara brief
-                      </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-200">
-                        {currentDrill.lesson}
-                      </p>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 font-black">Tactical Briefing</div>
+                      <p className="mt-3 text-sm leading-7 text-slate-200">{currentDrill.lesson}</p>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-black/35 p-5">
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                        Scenario notes
-                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 font-black">Context Tags</div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="rounded-lg border border-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">
-                          {currentDrill.chapter}
-                        </span>
-                        <span className="rounded-lg border border-cyan-400/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-                          {currentDrill.skill}
-                        </span>
-                        <span className="rounded-lg border border-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">
-                          {currentDrill.options.length} answers
-                        </span>
+                        <span className="rounded-lg border border-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300 font-black">{currentDrill.chapter}</span>
+                        <span className="rounded-lg border border-cyan-400/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 font-black">{currentDrill.skill}</span>
                       </div>
-                      <p className="mt-4 text-xs leading-6 text-slate-400">
-                        This drill is teaching system vocabulary rather than replaying a live roll snapshot. Read Clara's lesson, then answer from the prompt.
-                      </p>
                     </div>
                   </div>
                 )}
             </div>
 
-            {/* DIALOGUE & MOVES PANE */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch relative">
-               
-               {/* Dialogue Box - WITH CLARA ASSISTANT */}
-               <div id="drills-clara-panel" className="md:col-span-7 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-transparent backdrop-blur-md p-6 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-stretch gap-5 sm:gap-7 border-[3px] border-double border-cyan-400/30">
-                  <style dangerouslySetInnerHTML={{
-                    __html: `
-                    .force-overflow-visible { overflow: visible !important; }
-                  `}} />
-                  {/* CLARA AVATAR & BUBBLE CONTAINER */}
-                  <div className="relative shrink-0 w-[112px] sm:w-[140px] flex flex-col items-center justify-end z-[120]">
-                     <div className="absolute inset-x-0 bottom-6 h-32 rounded-full bg-cyan-500/12 blur-[45px] opacity-80" />
-                     <div className="relative w-full rounded-[1.5rem] border border-white/10 bg-black/25 px-3 pt-3 pb-2 backdrop-blur-md">
-                        <div className="mb-2 text-center text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                          Clara assist
+            {/* CONSOLIDATED MISSION CONSOLE */}
+            <div id="drills-mission-console" className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-[2.5rem] blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
+              
+              <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden rounded-[2.2rem] border border-white/10 bg-[#0a0f18]/90 shadow-2xl backdrop-blur-xl ring-1 ring-white/5">
+                
+                {/* LEFT: CLARA AI DECK & INTEL */}
+                <div id="drills-clara-panel" className="lg:col-span-7 p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:gap-10 border-b lg:border-b-0 lg:border-r border-white/5 font-black">
+                  <div className="relative shrink-0 flex flex-col items-center">
+                    {/* Futuristic Card Frame */}
+                    <div className="relative group/clara w-32 h-48 sm:w-44 sm:h-64 rounded-[2rem] overflow-hidden bg-gradient-to-b from-cyan-500/15 via-[#0a0f18] to-[#0a0f18] border border-cyan-400/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] transition-all duration-500 group-hover:border-cyan-400/40 font-black">
+                      {/* Scanline Effect */}
+                      <div className="absolute inset-0 pointer-events-none z-20">
+                         <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] opacity-20" />
+                         <div className="absolute inset-0 bg-cyan-400/5 animate-[holographic-scan_6s_linear_infinite]" />
+                      </div>
+                      
+                      {/* Clara Avatar (Centered) */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <img 
+                          src={claraImageSrc} 
+                          alt="Clara" 
+                          className="w-full h-full object-contain relative z-10 drop-shadow-[0_20px_40px_rgba(0,0,0,0.8)] transition-transform duration-700 group-hover/clara:scale-105" 
+                        />
+                      </div>
+                      
+                      {/* Status Indicators */}
+                      <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-1 z-20">
+                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/10">
+                          <div className={`h-1.5 w-1.5 rounded-full ${claraSpeaking ? 'bg-cyan-400' : 'bg-slate-500'} animate-pulse`} />
+                          <span className="text-[7px] font-black uppercase tracking-[0.3em] text-white/70">Neural Link: {claraSpeaking ? 'Active' : 'Standby'}</span>
                         </div>
-                     <img
-                       src={claraImageSrc}
-                       alt="Clara Assistant Icon"
-                       className="relative mx-auto w-[130%] max-w-none -ml-4 object-contain z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform duration-700 pointer-events-none"
-                       style={{
-                         maskImage: 'linear-gradient(to bottom, black 0%, black 68%, rgba(0,0,0,0.85) 78%, rgba(0,0,0,0.35) 90%, transparent 100%), linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%)',
-                         WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 68%, rgba(0,0,0,0.85) 78%, rgba(0,0,0,0.35) 90%, transparent 100%), linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%)',
-                       }}
-                     />
-                     </div>
+                      </div>
+                    </div>
+                    
+                    <button type="button" onClick={handlePlayClaraVoice} className="mt-6 w-full group/voice relative overflow-hidden rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3.5 transition-all hover:bg-cyan-500/10 hover:border-cyan-400/40">
+                      <div className="flex items-center justify-center gap-3">
+                        {voiceLoading || claraSpeaking ? <Volume2 className="h-4 w-4 text-cyan-400 animate-pulse" /> : <Play className="h-4 w-4 text-slate-400 group-hover/voice:text-cyan-400 font-black" />}
+                        <div className="flex flex-col items-start leading-none font-black text-white uppercase tracking-[0.1em]">
+                          <span className="text-[10px] tracking-widest">Audio Sync</span>
+                          <span className="mt-1 text-[7px] opacity-40">{claraSpeaking ? 'Transmitting' : 'Play Brief'}</span>
+                        </div>
+                      </div>
+                    </button>
                   </div>
 
-                  {/* TEXT AREA */}
-                  <div className="flex-1 flex flex-col justify-center relative z-20 mt-2">
-                     <div className="flex flex-wrap items-center justify-between gap-3">
-                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[8px] font-black uppercase tracking-[0.25em] text-cyan-400 border border-cyan-500/30 rounded px-1.5 py-0.5 inline-block self-start shadow-sm bg-cyan-500/10 backdrop-blur-sm">
-                           {currentDrill.chapter}
-                        </span>
-                        <span className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-300 border border-white/10 rounded px-1.5 py-0.5 inline-block">
-                           {currentDrill.skill}
-                        </span>
-                       </div>
-                       <button
-                         type="button"
-                         onClick={handlePlayClaraVoice}
-                         className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100 transition-all hover:border-cyan-300 hover:bg-cyan-500/18 hover:text-white"
-                       >
-                         {voiceLoading || claraSpeaking ? <Volume2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                         {voiceLoading ? 'Loading voice' : (claraSpeaking ? 'Playing Clara' : 'Hear Clara')}
-                       </button>
-                     </div>
-                     <h2 className="mt-4 text-xl font-black uppercase tracking-tight text-white">
-                        {currentDrill.title}
-                     </h2>
-                     <p className="mt-1 text-xs leading-6 text-slate-400">
-                        {currentDrill.subtitle}
-                     </p>
-                     {currentDrill.scenarioTags?.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {currentDrill.scenarioTags.map((tag) => (
-                            <span
-                              key={`${tag.label}-${tag.value}`}
-                              className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-amber-100"
-                            >
-                              {tag.label}: {tag.value}
-                            </span>
-                          ))}
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 mb-4">
+                        <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-slate-400 font-black">{currentDrill.chapter}</span>
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-black uppercase tracking-widest text-cyan-400 font-black">{currentDrill.skill}</span>
+                      </div>
+                      
+                      <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white leading-tight font-black opacity-80">{currentDrill.title}</h2>
+                      <p className="mt-2 text-[11px] font-medium text-slate-400 leading-relaxed italic">{currentDrill.subtitle}</p>
+
+                      <div className="mt-6 space-y-4">
+                        <div className="p-4 rounded-2xl bg-black/40 border border-white/5 shadow-inner ring-1 ring-white/5">
+                          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2 font-black">Objective</div>
+                          <p className="text-[17px] sm:text-[20px] font-black text-white leading-relaxed tracking-tight">{currentDrill.prompt}</p>
                         </div>
-                     ) : null}
-                     <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                         Question
-                       </div>
-                       <p className="mt-2 text-[16px] sm:text-[18px] leading-8 text-white font-semibold">
-                          {currentDrill.prompt}
-                       </p>
-                     </div>
-                     <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.04] p-4">
-                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                         Clara lesson
-                       </div>
-                       <p className="mt-2 text-sm leading-7 text-slate-200">
-                         {currentDrill.lesson}
-                       </p>
-                     </div>
-                     {revealed && (
-                        <div className="mt-4 border-t border-cyan-500/20 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                           <p className="text-[11px] leading-relaxed italic text-cyan-100/80">
-                              {selectedAnswer === currentDrill.correctAnswer ? currentDrill.successText : currentDrill.mistakeText}
-                           </p>
+
+                        <div className="relative p-4 rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden opacity-60">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-slate-500/20" />
+                          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1 font-black">Briefing</div>
+                          <p className="text-xs leading-6 text-slate-300 font-medium">{currentDrill.lesson}</p>
                         </div>
-                     )}
+                      </div>
+                    </div>
+
+                    {revealed && (
+                      <div className="mt-6 pt-6 border-t border-white/5 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                        <div className="flex gap-3 items-start">
+                          <div className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${selectedAnswer === currentDrill.correctAnswer ? 'bg-emerald-400' : 'bg-rose-400'} font-black`} />
+                          <p className={`text-[12px] leading-relaxed font-black italic ${selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-300' : 'text-rose-300'}`}>
+                            {selectedAnswer === currentDrill.correctAnswer ? currentDrill.successText : currentDrill.mistakeText}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-               </div>
+                </div>
 
-               {/* Action/Moves Grid */}
-               <div id="drills-answer-grid" className="md:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3 relative min-h-[150px]">
-                  {currentDrill.options.map((option, idx) => {
-                    const isChosen = selectedAnswer === option;
-                    const isCorrect = currentDrill.correctAnswer === option;
-                    const showState = revealed && (isChosen || isCorrect);
-                    
-                    let btnStyle = "border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 hover:border-white/30 hover:scale-[1.03]";
-                    
-                    if (showState && isCorrect) {
-                       btnStyle = "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-1 ring-emerald-400 scale-[1.02] z-10";
-                    } else if (isChosen && !isCorrect) {
-                       btnStyle = "border-rose-500 bg-rose-500/20 text-rose-100 shadow-[0_0_15px_rgba(244,63,94,0.2)]";
-                    } else if (revealed) {
-                       btnStyle = "border-white/5 bg-black/40 text-slate-600 opacity-50 cursor-not-allowed";
-                    }
+                {/* RIGHT: COMMANDS */}
+                <div id="drills-answer-grid" className="lg:col-span-5 bg-black/40 p-6 sm:p-8 flex flex-col relative min-h-[300px] font-black">
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 font-black">Execution Grid</div>
+                    <div className="h-px flex-1 mx-4 bg-white/5 font-black" />
+                    <div className="text-[10px] font-black tracking-widest text-white/20 font-black truncate">SVAROG-OS</div>
+                  </div>
 
-                    return (
-                      <button
-                        key={option}
-                        onClick={() => handleReveal(option)}
-                        disabled={revealed}
-                        className={`group relative rounded-xl border p-3 flex items-center justify-center text-center font-black uppercase tracking-[0.14em] text-[9.5px] transition-all duration-300 ${btnStyle}`}
-                      >
-                         {/* Optional subtle accent triangle usually seen in game menus */}
-                         <div className={`absolute top-2 left-2 w-0 h-0 border-t-4 border-r-4 border-t-current border-r-transparent opacity-20 ${showState ? 'opacity-50' : 'group-hover:opacity-100'}`} />
-                         {option}
-                      </button>
-                    );
-                  })}
+                  <div className="grid grid-cols-1 gap-3 flex-1 overflow-y-auto pr-1">
+                    {currentDrill.options.map((option) => {
+                      const isChosen = selectedAnswer === option;
+                      const isCorrect = currentDrill.correctAnswer === option;
+                      const showState = revealed && (isChosen || isCorrect);
+                      
+                      let appearance = "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:border-white/20 hover:text-white";
+                      if (showState && isCorrect) appearance = "border-emerald-500/50 bg-emerald-500/20 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.2)] ring-1 ring-emerald-500/30 font-black";
+                      else if (isChosen && !isCorrect) appearance = "border-rose-500/50 bg-rose-500/10 text-rose-100 font-black grayscale-0";
+                      else if (revealed) appearance = "border-white/5 bg-transparent text-slate-600 opacity-40 grayscale pointer-events-none";
 
-                  {/* Next Step Overlay - Pops up over options when resolved */}
+                      return (
+                        <button
+                          key={option}
+                          onClick={() => handleReveal(option)}
+                          disabled={revealed}
+                          className={`group relative w-full rounded-2xl border p-4 sm:p-5 flex items-center justify-between text-left transition-all duration-300 ${appearance} font-black`}
+                        >
+                          <span className="text-[11px] sm:text-[12px] font-black uppercase tracking-[0.15em] leading-tight font-black">
+                            {option}
+                          </span>
+                          
+                          <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                            showState && isCorrect ? 'border-emerald-400 bg-emerald-400' : 
+                            isChosen && !isCorrect ? 'border-rose-400 bg-rose-400' : 
+                            'border-white/10 group-hover:border-white/30'
+                          }`}>
+                            {(showState && isCorrect) && <ShieldCheck className="h-3.5 w-3.5 text-emerald-950 font-black" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* RESOLVED OVERLAY */}
                   {revealed && (
-                     <div className="absolute inset-0 z-20 flex items-center justify-center animate-in zoom-in-95 duration-500 rounded-2xl overflow-hidden">
-                        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px]" />
-                        <div className="relative text-center w-full px-4">
-                           <div className={`text-[12px] font-black uppercase tracking-[0.25em] mb-4 drop-shadow-[0_0_10px_currentColor] ${selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-400' : 'text-rose-400'}`}>
-                             {selectedAnswer === currentDrill.correctAnswer ? 'Critical Hit!' : 'It Was Ineffective...'}
-                           </div>
-                           <button
-                             onClick={handleNext}
-                             className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-slate-900 py-3.5 px-4 font-black uppercase tracking-[0.2em] text-[11px] hover:bg-cyan-300 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] ring-2 ring-white/50"
-                           >
-                             {currentIndex + 1 >= drills.length ? 'Victory' : 'Continue'} <ChevronRight className="h-4 w-4" />
-                           </button>
+                    <div className="absolute inset-x-0 bottom-0 top-[unset] lg:inset-0 z-40 flex items-end lg:items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-500">
+                      <div className="absolute inset-0 bg-[#080b12]/95 backdrop-blur-md" />
+                      <div className="relative w-full max-w-sm text-center">
+                        <div className={`text-[14px] font-black uppercase tracking-[0.4em] mb-8 drop-shadow-2xl ${selectedAnswer === currentDrill.correctAnswer ? 'text-emerald-400' : 'text-rose-400'} font-black`}>
+                          {selectedAnswer === currentDrill.correctAnswer ? 'Data Match' : 'Neural Link Break'}
                         </div>
-                     </div>
+                        
+                        <button
+                          onClick={handleNext}
+                          className="w-full relative group/btn"
+                        >
+                          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-2xl blur opacity-30 group-hover/btn:opacity-60 transition duration-500"></div>
+                          <div className="relative flex items-center justify-center gap-3 rounded-2xl bg-white py-5 px-8 text-[#080b12] font-black uppercase tracking-[0.25em] text-[12px] transition-all hover:scale-[1.03] active:scale-95 shadow-2xl font-black">
+                            {currentIndex + 1 >= drills.length ? 'Finalize mission' : 'Advance Feed'}
+                            <ChevronRight className="h-5 w-5" />
+                          </div>
+                        </button>
+                      </div>
+                    </div>
                   )}
-               </div>
+                </div>
+              </div>
             </div>
-
           </div>
         )}
       </div>
     </div>
   );
 }
-
