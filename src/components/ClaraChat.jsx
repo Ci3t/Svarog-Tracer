@@ -11,8 +11,21 @@ import gsap from "gsap";
 const API_URL = import.meta.env.VITE_CLARA_API_URL || "/api/ai-analyze-warp";
 
 const FAQ_CHIPS = [
+  { id: "site_overview", label: "What does each page do?" },
+  { id: "site_utilization", label: "How do I utilize the site?" },
+  { id: "zones_page_usage", label: "What is Zone Tracker?" },
+  { id: "zones_how_to_use", label: "How do I use Zones?" },
   { id: "getting_started", label: "How should a beginner start?" },
   { id: "live_mode", label: "What is live mode?" },
+  { id: "playground_page_usage", label: "What is Playground?" },
+  { id: "marketplace_page_usage", label: "What is Marketplace for?" },
+  { id: "live_mode_how_to_use", label: "How do I use Live mode?" },
+  { id: "lab_longstring_how_to_use", label: "How do I use Lab / Long String?" },
+  { id: "kiyo_pairs_how_to_use", label: "How do I use Kiyo pairs?" },
+  { id: "warp_analyzer_how_to_use", label: "How do I use Warp Analyzer?" },
+  { id: "caverns_how_to_use", label: "How do I use Caverns?" },
+  { id: "guides_how_to_use", label: "How do I use Guides?" },
+  { id: "debug_panel_export_txt", label: "How do I export TXT logs?" },
   { id: "relic_manipulation", label: "What is relic manipulation?" },
   { id: "control_point", label: "What is the control point?" },
   { id: "caesar_shift", label: "What is Caesar shift?" },
@@ -390,9 +403,9 @@ export default function ClaraChat({ claraImageUrl }) {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.2); border-radius: 20px; }
-        @keyframes scanline { 
-          0% { transform: translateY(-100%); } 
-          100% { transform: translateY(300%); } 
+        @keyframes scanline {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(300%); }
         }
         @keyframes bubbleIn {
           from { opacity: 0; transform: translateY(10px) scale(0.95); }

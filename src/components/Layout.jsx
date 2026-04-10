@@ -2,27 +2,28 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { 
-  ArrowUpRight, 
-  BadgeCheck, 
-  BookOpen, 
-  ChevronDown, 
-  Cpu, 
-  Flame, 
-  Gamepad2, 
-  LogOut, 
-  Palette, 
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  BookOpen,
+  ChevronDown,
+  Cpu,
+  Flame,
+  Gamepad2,
+  LogOut,
+  Map as MapIcon,
+  Palette,
   Search,
-  Shield, 
-  ShieldBan, 
-  ShieldCheck, 
-  Sparkles, 
-  Snowflake, 
-  Star, 
+  Shield,
+  ShieldBan,
+  ShieldCheck,
+  Sparkles,
+  Snowflake,
+  Star,
   Store,
   Trophy,
   Users,
-  User 
+  User
 } from 'lucide-react';
 import LiveStatsBanner from './LiveStatsBanner';
 import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfig';
@@ -50,7 +51,7 @@ function resolveAuthDisplayName(user) {
   const metadata = user.user_metadata || {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
   const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
-  return metadata.global_name || metadata.full_name || discord.global_name || discord.username || metadata.user_name || user.email || user.id || '';
+  return metadata.global_name || metadata.full_name || metadata.display_name || discord.global_name || discord.full_name || discord.name || discord.display_name || discord.preferred_username || metadata.user_name || discord.username || metadata.preferred_username || metadata.name || user.email || user.id || '';
 }
 
 function resolvePresenceArea(pathname) {
@@ -63,6 +64,7 @@ function resolvePresenceArea(pathname) {
   if (value.startsWith('/warp-analyzer')) return 'Warp Analyzer';
   if (value.startsWith('/banner-tracker')) return 'Banner Tracker';
   if (value.startsWith('/caverns')) return 'Caverns';
+  if (value.startsWith('/zone-tracker')) return 'Zone Tracker';
   if (value.startsWith('/guides')) return 'Guides';
   if (value.startsWith('/tutorial')) return 'Tutorial';
   if (value.startsWith('/playground')) return 'Playground';
@@ -86,13 +88,13 @@ export default function Layout({
   const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo, user } = useAuth();
   const { stats: presenceStats } = usePresenceContext();
   const normalizedSessionTheme = sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
-  
+
   const navRef = useRef(null);
   const indicatorRef = useRef(null);
   const userMenuRef = useRef(null);
   const userMenuButtonRef = useRef(null);
   const themeMenuRef = useRef(null);
-  
+
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userMenuPosition, setUserMenuPosition] = useState({ top: -1000, left: -1000 });
@@ -106,7 +108,7 @@ export default function Layout({
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
   const [adminBanReason, setAdminBanReason] = useState('');
   const [adminUserActionLoading, setAdminUserActionLoading] = useState(false);
-  
+
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
   const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
@@ -195,18 +197,18 @@ export default function Layout({
       const onResizeScroll = () => updateUserMenuPosition();
       window.addEventListener('resize', onResizeScroll);
       window.addEventListener('scroll', onResizeScroll, true);
-      
+
       const menuItems = userMenuRef.current?.querySelectorAll('[data-user-menu-item="true"]');
       if (userMenuRef.current) {
         const animation = gsap.timeline({ defaults: { ease: 'elastic.out(1, 0.75)' } });
-        animation.fromTo(userMenuRef.current, 
-          { opacity: 0, scaleY: 0.9, filter: 'blur(10px)' }, 
+        animation.fromTo(userMenuRef.current,
+          { opacity: 0, scaleY: 0.9, filter: 'blur(10px)' },
           { opacity: 1, scaleY: 1, filter: 'blur(0px)', duration: 0.5 }
         );
         if (menuItems) {
-          animation.fromTo(menuItems, 
-            { opacity: 0, x: 20, filter: 'blur(5px)' }, 
-            { opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.4, stagger: 0.05 }, 
+          animation.fromTo(menuItems,
+            { opacity: 0, x: 20, filter: 'blur(5px)' },
+            { opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.4, stagger: 0.05 },
             "-=0.3"
           );
         }
@@ -222,7 +224,7 @@ export default function Layout({
   const deckStyles = (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-      
+
       .deck-container {
         overflow: hidden;
       }
@@ -249,7 +251,7 @@ export default function Layout({
         0% { transform: translateY(0); }
         100% { transform: translateY(50%); }
       }
-      
+
       .deck-section-header::after {
         content: '';
         flex: 1;
@@ -257,7 +259,7 @@ export default function Layout({
         background: linear-gradient(90deg, var(--theme-accent), transparent);
         opacity: 0.3;
       }
-      
+
       /* Tactical Switch */
       .tactical-switch {
         width: 32px;
@@ -289,7 +291,7 @@ export default function Layout({
         background: var(--theme-accent);
         box-shadow: 0 0 10px var(--theme-accent);
       }
-      
+
       .action-tile-deck {
         background: rgba(255,255,255,0.02);
         border: 1px solid var(--theme-border-soft);
@@ -444,6 +446,7 @@ export default function Layout({
                   { to: '/warp-analyzer', label: '📊 Warp' },
                   { to: '/banner-tracker', label: '📅 Banners' },
                   { to: '/caverns', label: '🛖 Caverns' },
+                  { to: '/zone-tracker', label: '🌀 Zones' },
                   { to: '/guides', label: '📚 Guides' },
                   { to: '/tutorial', label: 'Tutorial', icon: BookOpen },
                   { to: '/playground', label: 'Playground', icon: Gamepad2 }
@@ -493,7 +496,7 @@ export default function Layout({
                     </span>
                   </button>
                 ) : null}
-                
+
                 {isAuthenticated ? (
                   <div className="relative">
                     <button
@@ -517,9 +520,9 @@ export default function Layout({
                       <div
                         ref={userMenuRef}
                         className="deck-container fixed z-[999] w-[260px] rounded-sm border border-white/10 bg-black/95 p-4 shadow-2xl backdrop-blur-[40px]"
-                        style={{ 
+                        style={{
                           ...(themeConfig?.cssVars || {}),
-                          top: `${userMenuPosition.top}px`, 
+                          top: `${userMenuPosition.top}px`,
                           left: `${userMenuPosition.left}px`,
                           transformOrigin: 'top right',
                           ...themedDeckShellStyle,
@@ -529,7 +532,7 @@ export default function Layout({
                         <div className="deck-section-header mb-3 flex items-center gap-2 font-['Orbitron'] text-[9px] uppercase tracking-[0.15em] text-[var(--theme-accent)]" data-user-menu-item="true">
                           Access State
                         </div>
-                        
+
                         <div className="space-y-3" data-user-menu-item="true">
                           <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
                             <div className="flex flex-col">
@@ -543,7 +546,7 @@ export default function Layout({
                               <div className="tactical-switch" />
                             </label>
                           </div>
-                          
+
                           <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 border-t border-white/5 pt-3">
                             <div className="flex flex-col">
                               <span className="opacity-80">Admin Mode</span>
@@ -552,10 +555,10 @@ export default function Layout({
                               </span>
                             </div>
                             <label className="relative">
-                              <input 
-                                type="checkbox" 
-                                className="switch-input hidden" 
-                                checked={roleMode === 'admin'} 
+                              <input
+                                type="checkbox"
+                                className="switch-input hidden"
+                                checked={roleMode === 'admin'}
                                 onChange={() => setRoleMode(roleMode === 'admin' ? 'user' : 'admin')}
                               />
                               <div className="tactical-switch" />
@@ -586,62 +589,62 @@ export default function Layout({
                             {onlineMembers.length}
                           </span>
                         </button>
-                        
+
                         <div className="grid grid-cols-2 gap-1.5" data-user-menu-item="true">
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <BadgeCheck className="h-3.5 w-3.5" />
-                              Profile
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/marketplace'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <Store className="h-3.5 w-3.5" />
-                              Market
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/leaderboard'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <Trophy className="h-3.5 w-3.5" />
-                              Ladder
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/caverns'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <Flame className="h-3.5 w-3.5" />
-                              Caverns
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/playground'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <Gamepad2 className="h-3.5 w-3.5" />
-                              Forge
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => { navigate('/guides'); setUserMenuOpen(false); }}
-                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
-                             style={themedActionTileStyle}
-                           >
-                              <BookOpen className="h-3.5 w-3.5" />
-                              Guides
-                           </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <BadgeCheck className="h-3.5 w-3.5" />
+                            Profile
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/marketplace'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <Store className="h-3.5 w-3.5" />
+                            Market
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/leaderboard'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <Trophy className="h-3.5 w-3.5" />
+                            Ladder
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/caverns'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <Flame className="h-3.5 w-3.5" />
+                            Caverns
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/playground'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <Gamepad2 className="h-3.5 w-3.5" />
+                            Forge
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { navigate('/guides'); setUserMenuOpen(false); }}
+                            className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                            style={themedActionTileStyle}
+                          >
+                            <BookOpen className="h-3.5 w-3.5" />
+                            Guides
+                          </button>
                         </div>
 
                         {/* Admin Tools */}
@@ -795,47 +798,40 @@ export default function Layout({
               <div className="flex-1 overflow-y-auto px-5 py-4 tactical-scrollbar">
                 <div className="space-y-3">
                   {filteredMembers.map((member) => (
-                    <div
+                    <UserIdentityCard
                       key={member.userId}
-                      className="rounded-2xl border px-4 py-3"
-                      style={member.status === 'online' ? themedSelectedUserStyle : themedActionTileStyle}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex items-start gap-3">
-                          <div className="min-w-0 flex-1">
-                            <UserIdentityCard
-                              name={member.displayName}
-                              title={member.titleLabel || ''}
-                              rarity={member.titleRarity || 'common'}
-                              badge={member.badgeLabel || ''}
-                              badgeRarity={member.badgeRarity || 'common'}
-                              nameplate={member.nameplateLabel || ''}
-                              nameplateRarity={member.nameplateRarity || 'common'}
-                              nameplateKey={member.nameplateKey || ''}
-                              avatarUrl={member.avatarUrl || ''}
-                              frameKey={member.frameKey || ''}
-                              subtitle={member.status === 'online'
-                                ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
-                                : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
-                              className="border-white/10 bg-black/25"
-                              nameClassName="truncate text-sm font-bold text-white"
-                              titleClassName="mt-0.5 text-[10px]"
-                              rightSlot={member.role === 'admin' ? (
-                                <span className="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em]" style={themedPresenceBadgeStyle}>
-                                  Admin
-                                </span>
-                              ) : null}
-                            />
-                          </div>
+                      name={member.displayName}
+                      title={member.titleLabel || ''}
+                      rarity={member.titleRarity || 'common'}
+                      badge={member.badgeLabel || ''}
+                      badgeRarity={member.badgeRarity || 'common'}
+                      nameplate={member.nameplateLabel || ''}
+                      nameplateRarity={member.nameplateRarity || 'common'}
+                      nameplateKey={member.nameplateKey || ''}
+                      avatarUrl={member.avatarUrl || ''}
+                      frameKey={member.frameKey || ''}
+                      subtitle={member.status === 'online'
+                        ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
+                        : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
+                      className={`border-white/10 ${member.status === 'online' ? 'ring-1 ring-[var(--theme-accent-strong)] shadow-[0_0_15px_var(--theme-accent-soft)]' : ''}`}
+                      nameClassName="truncate text-sm font-bold text-white"
+                      titleClassName="mt-0.5 text-[10px]"
+                      rightSlot={
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${member.status === 'online' ? 'animate-pulse' : 'opacity-50'}`}
+                            style={member.status === 'online' ? themedPresenceBadgeStyle : themedActionTileStyle}
+                          >
+                            {member.status}
+                          </span>
+                          {member.role === 'admin' && (
+                            <span className="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em]" style={themedPresenceBadgeStyle}>
+                              Admin
+                            </span>
+                          )}
                         </div>
-                        <span
-                          className="rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em]"
-                          style={member.status === 'online' ? themedPresenceBadgeStyle : themedActionTileStyle}
-                        >
-                          {member.status}
-                        </span>
-                      </div>
-                    </div>
+                      }
+                    />
                   ))}
                   {filteredMembers.length === 0 ? (
                     <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-xs uppercase tracking-[0.18em]" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>

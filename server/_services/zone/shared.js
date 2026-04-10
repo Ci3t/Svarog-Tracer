@@ -279,7 +279,12 @@ export function extractDiscordDisplayName(user) {
   return pickFirstNonEmpty([
     metadata.global_name,
     metadata.full_name,
+    metadata.display_name,
     identityData.global_name,
+    identityData.full_name,
+    identityData.name,
+    identityData.display_name,
+    identityData.preferred_username,
     metadata.user_name,
     identityData.username,
     metadata.preferred_username,
