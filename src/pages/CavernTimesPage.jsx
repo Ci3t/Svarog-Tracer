@@ -1253,7 +1253,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
       domainLike && typeof domainLike === 'object'
         ? domainLike
         : findCavernById(domainLike);
-    if (!domain) return [];
+    if (!domain) {
+      const directId = String(domainLike || '').trim();
+      return directId ? [directId] : [];
+    }
 
     return Array.from(
       new Set(
@@ -2676,7 +2679,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
 
               <div className={`theme-subpanel flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar rounded-none border-0 ${isGlacial ? 'archive-modal-body-glacial' : ''}`}>
                 {(() => {
-                  const grouped = getGroupedTimesForDomain(selectedDomain.id);
+                  const grouped = getGroupedTimesForDomain(selectedDomain);
                   const times = Object.keys(grouped).sort((a, b) => {
                     const aLatest = Math.max(0, ...(grouped[a] || []).flatMap((card) => card.variants || []).map(getClearLastReportedTimestamp));
                     const bLatest = Math.max(0, ...(grouped[b] || []).flatMap((card) => card.variants || []).map(getClearLastReportedTimestamp));
