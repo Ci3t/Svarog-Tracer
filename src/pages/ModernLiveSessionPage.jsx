@@ -17,6 +17,9 @@ import ModernRelicPositionCard from '../components/modern/ModernRelicPositionCar
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import LiveTrackingTable3str from '../components/LiveTrackingTable3str';
 import { withBaseUrl } from '../utils/assetPaths';
+import { useAuth } from '../hooks/useAuth';
+import { resolvePlaygroundClaraAsset } from '../utils/claraCosmetics';
+import { useLiveModeCurrency } from '../hooks/useLiveModeCurrency';
 
 const LIVE_CLARA_ASSIST_KEY = 'live_clara_assist_v1';
 const LIVE_CLARA_POSITION_KEY = 'live_clara_assist_position_v1';
@@ -88,6 +91,7 @@ export default function ModernLiveSessionPage({
   kiyoDebugData,
   isAutoImporting, // NEW
 }) {
+  const { user } = useAuth();
   const [trustGuideText, setTrustGuideText] = useState(null);
   const [claraAssistEnabled, setClaraAssistEnabled] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -106,6 +110,7 @@ export default function ModernLiveSessionPage({
   });
   const dragStateRef = useRef(null);
   const claraLanguage = useMemo(() => resolveLiveClaraLanguage(), []);
+  useLiveModeCurrency(entries);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -305,11 +310,29 @@ export default function ModernLiveSessionPage({
           <div className="relative w-[320px]">
             {trustGuideText ? (
               <div className="pointer-events-none absolute bottom-[250px] left-[136px] z-20 max-w-[320px]">
-                <div className="relative rounded-[28px] border-[3px] border-sky-400 bg-white px-5 py-4 text-center shadow-[0_14px_38px_rgba(0,0,0,0.28)]">
-                  <div className="text-[14px] font-black leading-snug tracking-tight text-slate-900">
+                <div
+                  className="relative rounded-[28px] border-[3px] px-5 py-4 text-center shadow-[0_14px_38px_rgba(0,0,0,0.28)]"
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderColor: '#1a1a1a',
+                    opacity: 1,
+                    filter: 'none',
+                    mixBlendMode: 'normal',
+                  }}
+                >
+                  <div
+                    className="text-[14px] font-black leading-snug tracking-tight"
+                    style={{
+                      color: '#111111',
+                      opacity: 1,
+                      textShadow: 'none',
+                      filter: 'none',
+                      mixBlendMode: 'normal',
+                    }}
+                  >
                     {trustGuideText}
                   </div>
-                  <div className="absolute -bottom-4 left-14 h-0 w-0 border-l-[16px] border-r-[10px] border-t-[22px] border-l-transparent border-r-transparent border-t-sky-400">
+                  <div className="absolute -bottom-4 left-14 h-0 w-0 border-l-[16px] border-r-[10px] border-t-[22px] border-l-transparent border-r-transparent" style={{ borderTopColor: '#1a1a1a' }}>
                     <div className="absolute left-[-13px] top-[-24px] h-0 w-0 border-l-[13px] border-r-[8px] border-t-[18px] border-l-transparent border-r-transparent border-t-white" />
                   </div>
                 </div>
@@ -323,7 +346,7 @@ export default function ModernLiveSessionPage({
               onTouchStart={beginClaraDrag}
             >
               <img
-                src={claraSpeaking ? withBaseUrl('clara-playground-gif.gif') : withBaseUrl('clara-playground.png')}
+                src={resolvePlaygroundClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
                 alt="Clara Assist"
                 className="h-auto w-[265px] object-contain drop-shadow-[0_14px_28px_rgba(0,0,0,0.28)]"
                 style={{

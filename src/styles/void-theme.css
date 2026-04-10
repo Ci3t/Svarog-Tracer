@@ -9,20 +9,20 @@
   --crimson-border-strong: rgba(255, 77, 109, 0.5);
   --crimson-text: #ffffff;
   --crimson-muted: #a1a1aa;
-  background-color: #050505;
+  background-color: transparent;
   color: var(--crimson-text);
 }
 
 body:is(.crimson-theme, .void-theme) {
-  background-color: #050505;
+  background: transparent;
 }
 
 :is(.crimson-theme, .void-theme).theme-root {
-  background-image: linear-gradient(180deg, #0a0a0b 0%, #050505 68%, #050505 100%);
+  background-image: var(--theme-body-gradient, linear-gradient(180deg, #0a0a0b 0%, #050505 68%, #050505 100%));
   background-repeat: no-repeat;
   background-size: auto;
   background-position: center;
-  background-color: #050505;
+  background-color: transparent;
 }
 
 :is(.crimson-theme, .void-theme) .theme-glass-card,

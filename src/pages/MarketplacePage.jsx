@@ -1,6 +1,26 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { RefreshCw, Store, Wallet, Gift, Trophy } from 'lucide-react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  RefreshCw, 
+  Store, 
+  Wallet, 
+  Gift, 
+  Trophy, 
+  Shield, 
+  Monitor, 
+  Cpu, 
+  Layers, 
+  Target, 
+  Info, 
+  ArrowRight,
+  ChevronRight,
+  BadgeCheck,
+  Flame,
+  Gamepad2,
+  BookOpen,
+  History
+} from 'lucide-react';
+import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
 import { useProfileMarketplace } from '../hooks/useProfileMarketplace';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
@@ -13,53 +33,30 @@ import {
   getMarketplaceItem,
   resolveEquippedCosmeticsFromMetadata,
 } from '../utils/marketplaceCatalog';
+import { getClaraCompanionPreview, getClaraCompanionSlotLabel } from '../utils/claraCosmetics';
 import {
   getTitleBadgeStyle,
   getTitleDefinition,
   resolveEquippedTitleKeyFromMetadata,
 } from '../utils/titleCatalog';
 
+import { LOADOUT_PRESETS } from '../components/cosmetics/PremiumAssets';
+
+/* HELPER: Resolve Discord and Profile Names */
 function resolveAuthDisplayName(user) {
   if (!user || typeof user !== 'object') return '';
-  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const metadata = user.user_metadata || {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
-  const discordIdentity = identities.find((identity) => {
-    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
-    return provider === 'discord';
-  });
-  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
-    ? discordIdentity.identity_data
-    : {};
-  const picks = [
-    metadata.global_name,
-    metadata.full_name,
-    identityData.global_name,
-    metadata.user_name,
-    identityData.username,
-    metadata.preferred_username,
-    metadata.name,
-    user.email,
-    user.id,
-  ];
-  for (const value of picks) {
-    const normalized = String(value || '').trim();
-    if (normalized) return normalized;
-  }
-  return '';
+  const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
+  return metadata.global_name || metadata.full_name || discord.global_name || discord.username || metadata.user_name || user.email || user.id || '';
 }
 
 function resolveAvatarUrl(user) {
-  if (!user || typeof user !== 'object') return '';
-  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  if (!user) return '';
+  const metadata = user.user_metadata || {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
-  const discordIdentity = identities.find((identity) => {
-    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
-    return provider === 'discord';
-  });
-  const identityData = discordIdentity && typeof discordIdentity.identity_data === 'object'
-    ? discordIdentity.identity_data
-    : {};
-  const candidates = [metadata.avatar_url, metadata.avatar, identityData.avatar_url, identityData.picture];
+  const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
+  const candidates = [metadata.avatar_url, metadata.avatar, discord.avatar_url, discord.picture];
   for (const value of candidates) {
     const normalized = String(value || '').trim();
     if (!normalized) continue;
@@ -69,507 +66,686 @@ function resolveAvatarUrl(user) {
   return '';
 }
 
-function panelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-1)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
+const RARITY_LABELS = {
+  mythic: 'Grade IV',
+  legendary: 'Grade III',
+  epic: 'Grade II',
+  rare: 'Grade I',
+  common: 'Standard'
+};
+
+const LORE_BITS = {
+  frame: [
+    "Retuned from Belobog's fragmentum-scouts.",
+    "Integrated with Silvermane encryption protocols.",
+    "Lattice-work hardened by IPC Logistics.",
+    "A cold singularity-grade finish for elite tracers."
+  ],
+  badge: [
+    "Marked for orbital deployment.",
+    "Syncing with Trailblaze expedition logs.",
+    "Field-tested in the Underworld circuits.",
+    "Verified for overseas strategic oversight."
+  ],
+  nameplate: [
+    "Prismatic strip with reinforced backing.",
+    "Command-tier visual presence for active operators.",
+    "Minimalist aesthetic for high-density HUDs.",
+    "Refined for the Svarog Tracer identity."
+  ],
+  title: [
+    "Bestowed upon those who breach the data-veil.",
+    "A harmonic resonance from distant star-systems.",
+    "Coded into the down-level physics of the matrix.",
+    "Elevated identity for top-tier observers."
+  ],
+  companion: [
+    "A Clara model swap for the spaces where she teaches and guides.",
+    "Lets your hub or guide Clara match the style you want to keep around.",
+    "Cosmetic only. Voice lines stay the same unless the original angry model is active.",
+    "A collector option for players who want Clara to feel more personal."
+  ]
+};
+
+const formatTokenCount = (val) => new Intl.NumberFormat('en-US').format(Number(val || 0));
+
+/* -------------------------------------------------------------------------- */
+/*                               TACTICAL COMPONENTS                           */
+/* -------------------------------------------------------------------------- */
+
+const TacticalHeader = ({ tokens, displayName, themeAccent }) => (
+  <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-6 backdrop-blur-xl">
+    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-pulse pointer-events-none" />
+    <div className="flex items-center gap-5">
+      <div className="relative h-14 w-14 rounded-full border border-white/20 bg-slate-900 flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.05)]">
+        <Store className="h-6 w-6 text-[var(--theme-accent)]" />
+        <div className="absolute -inset-1 rounded-full border border-[var(--theme-accent-soft)] animate-ping opacity-20" />
+      </div>
+      <div>
+        <h1 className="font-['Orbitron'] text-2xl font-black uppercase tracking-[0.25em] text-white">Marketplace</h1>
+        <div className="mt-1 flex items-center gap-3 text-[10px] uppercase tracking-widest text-slate-400">
+          <span className="flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Cosmetic Shop</span>
+          <span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" /> Live Preview</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="flex flex-wrap items-center gap-4">
+      <div 
+        className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-6 py-3 transition-all hover:border-[var(--theme-accent)]"
+      >
+        <div className="text-right">
+          <div className="text-[9px] uppercase tracking-widest text-slate-500">Wallet Balance</div>
+          <div className="font-['Orbitron'] text-xl font-bold text-[var(--theme-accent)]">{formatTokenCount(tokens)}</div>
+        </div>
+        <div className="h-10 w-10 rounded-lg border border-[var(--theme-accent-soft)] bg-[var(--theme-accent-soft)]/20 flex items-center justify-center">
+          <Wallet className="h-5 w-5 text-[var(--theme-accent)]" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const IdentityTerminal = ({ user, displayName, credentials, preview, avatarUrl, initials }) => {
+  const { title, badge, banner, frame } = preview;
+  
+  const resolvePreset = (item) => {
+    if (!item?.key) return LOADOUT_PRESETS['quantum-neon'];
+    const presetKey = item.key.replace('-banner', '').replace('-frame', '').replace('-badge', '').replace('-title', '');
+    return LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
   };
-}
 
-function subtlePanelStyle(extra = {}) {
-  return {
-    background: 'var(--theme-surface-2)',
-    borderColor: 'var(--theme-border-soft)',
-    color: 'var(--theme-text-primary)',
-    ...extra,
-  };
-}
+  const FramePreset = frame ? resolvePreset(frame) : resolvePreset({key: 'quantum-neon'});
+  const BannerPreset = banner ? resolvePreset(banner) : resolvePreset({key: 'quantum-neon'});
+  const BadgePreset = badge ? resolvePreset(badge) : resolvePreset({key: 'quantum-neon'});
 
-function formatTokenCount(value) {
-  return new Intl.NumberFormat('en-US').format(Number(value || 0));
-}
+  const isMixed = (FramePreset.title !== BannerPreset.title) || (BannerPreset.title !== BadgePreset.title);
+  const dominantColor = BannerPreset.color;
 
-function formatMarketType(type) {
-  const normalized = String(type || '').trim().toLowerCase();
-  if (normalized === 'nameplate') return 'banner';
-  return normalized || 'item';
-}
-
-function getInitials(value) {
-  const text = String(value || '').trim();
-  if (!text) return '??';
-  return text
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-}
-
-function SectionCard({ title, description, icon: Icon, action, children }) {
   return (
-    <section className="rounded-xl border p-5 sm:p-6" style={panelStyle()}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border" style={subtlePanelStyle({ color: 'var(--theme-accent)' })}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold">{title}</h2>
-            {description ? <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>{description}</p> : null}
+    <div className="sticky top-10 flex flex-col gap-6 rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur-2xl shadow-2xl">
+      <div className="flex items-center gap-2 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em]" style={{color: dominantColor}}>
+        <Target className="h-3.5 w-3.5" /> Preview
+      </div>
+
+      <div className="relative group">
+        <div className="absolute inset-0 opacity-50 blur-3xl pointer-events-none transition-opacity group-hover:opacity-100" style={{ backgroundColor: `${dominantColor}15` }} />
+        
+        <div className="relative rounded-3xl border border-white/10 bg-[#0a050f] p-6 shadow-[inset_0_20px_40px_rgba(0,0,0,0.8)] overflow-hidden">
+          
+          <div className="flex flex-col items-center text-center relative z-10 w-full group">
+            
+            {/* AVATAR + FRAME ASSEMBLY */}
+            <div className="relative mb-10 h-28 w-28 flex items-center justify-center">
+              <div className="absolute inset-[-24px] pointer-events-none z-10">
+                <FramePreset.frame />
+              </div>
+              <div className="h-24 w-24 rounded-full overflow-hidden border border-white/10 relative z-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover rounded-full" />
+                ) : (
+                  <div className="h-full w-full bg-slate-900 flex items-center justify-center font-['Orbitron'] text-2xl font-black">{initials}</div>
+                )}
+              </div>
+            </div>
+
+            {/* NAMEPLATE / BANNER ASSEMBLY */}
+            <div className="relative w-[110%] h-[60px] mb-6 shadow-xl">
+              <BannerPreset.banner />
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
+                 <span className="font-['Orbitron'] text-sm font-black uppercase tracking-wider text-white drop-shadow-[0_0_10px_rgba(0,0,0,1)]">
+                   {displayName}
+                 </span>
+                 {title && (
+                   <div className="mt-1 scale-[0.85] origin-top">
+                     <AnimatedTitleText 
+                       title={title.name} 
+                       rarity={title.rarity} 
+                       className="font-black uppercase tracking-widest drop-shadow-[0_0_5px_rgba(0,0,0,1)]" 
+                     />
+                   </div>
+                 )}
+              </div>
+            </div>
+
+            {/* BADGE ASSEMBLY */}
+            <div className="relative h-20 w-20 mb-2">
+               <BadgePreset.badge />
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-2 w-full">
+              <div className="rounded-lg border border-white/5 bg-black/40 backdrop-blur-md p-2 text-center">
+                <div className="text-[8px] uppercase tracking-widest text-slate-500">Status</div>
+                <div className="mt-1 text-[10px] font-bold text-emerald-400 mr-2 uppercase drop-shadow-[0_0_5px_currentColor]">Equipped</div>
+              </div>
+              <div className="rounded-lg border border-white/5 bg-black/40 backdrop-blur-md p-2 text-center">
+                <div className="text-[8px] uppercase tracking-widest text-slate-500">Theme</div>
+                <div style={{color: isMixed ? '#cbd5e1' : dominantColor}} className="mt-1 text-[10px] font-bold uppercase drop-shadow-[0_0_5px_currentColor]">
+                  {isMixed ? 'Custom Mix' : BannerPreset.title}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        {action}
       </div>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
 
-function StatTile({ label, value, hint, accent = false }) {
-  return (
-    <div className="rounded-lg border p-4" style={subtlePanelStyle()}>
-      <div className="text-xs font-medium" style={{ color: 'var(--theme-text-muted)' }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold" style={accent ? { color: 'var(--theme-accent)' } : undefined}>{value}</div>
-      {hint ? <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-soft)' }}>{hint}</div> : null}
-    </div>
-  );
-}
-
-function EquippedSlotRow({ label, item, clearing, locked, onClear }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{item ? item.name : `No ${label.toLowerCase()} equipped`}</div>
-      </div>
-      <div className="flex items-center gap-2">
-        {item ? <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getCosmeticAccentStyle(item.rarity)}>{item.rarity}</span> : null}
-        <button
-          type="button"
-          disabled={!item || clearing || locked}
-          onClick={onClear}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          style={subtlePanelStyle()}
-        >
-          {clearing ? 'Clearing...' : 'Clear'}
-        </button>
+      <div className="mt-auto pt-6 border-t border-white/5">
+        <div className="text-[9px] uppercase tracking-[0.2em] text-slate-600 mb-4">Current Loadout</div>
+        <div className="space-y-3">
+          {['frame', 'badge', 'banner'].map(slot => {
+            const item = preview[slot] || credentials[slot];
+            return (
+              <div key={slot} className="flex items-center justify-between text-[11px] p-2 rounded-lg border border-white/5 bg-black/30">
+                <span className="text-slate-500 uppercase tracking-widest text-[9px]">{slot}</span>
+                <span className="font-bold text-slate-300 uppercase truncate max-w-[150px]">{item?.name || 'Standard'}</span>
+              </div>
+            );
+          })}
+          {[
+            { key: 'claraPlayground', label: 'Hub Clara' },
+            { key: 'claraGuide', label: 'Guide Clara' },
+          ].map(({ key, label }) => {
+            const item = credentials[key];
+            return (
+              <div key={key} className="flex items-center justify-between text-[11px] p-2 rounded-lg border border-white/5 bg-black/30">
+                <span className="text-slate-500 uppercase tracking-widest text-[9px]">{label}</span>
+                <span className="font-bold text-slate-300 uppercase truncate max-w-[150px]">{item?.name || 'Standard'}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
-}
+};
 
-function ShopItemCard({ item, actionBusy, locked, equippedKey, onPurchase, onEquip, onPreview }) {
-  const accentStyle = getCosmeticAccentStyle(item.rarity || 'common');
+const MarketMatrixCard = ({ item, actionBusy, locked, equippedKey, onPurchase, onEquip, onPreview }) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const cardRef = useRef(null);
+  const backRef = useRef(null);
+  const accent = getCosmeticAccentStyle(item.rarity || 'common');
+  
   const isTitle = item.type === 'title';
+  const isCompanion = item.type === 'companion';
   const isOwned = Boolean(item.owned);
-  const isEquipped = !isTitle && String(equippedKey || '') === String(item.key || '');
-  const actionLabel = !isOwned ? `Buy for ${formatTokenCount(item.cost)}` : isTitle ? 'Owned in Titles' : isEquipped ? 'Equipped' : 'Equip';
+  const isEquipped = String(equippedKey || '').trim() === String(item.key || '').trim();
+  const companionPreview = isCompanion ? getClaraCompanionPreview(item.key) : '';
+  const actionStyle = (() => {
+    if (isEquipped) {
+      return {
+        borderColor: 'rgba(16,185,129,0.35)',
+        color: '#d1fae5',
+        backgroundColor: 'rgba(6, 78, 59, 0.8)',
+      };
+    }
+    if (isOwned) {
+      return {
+        borderColor: 'rgba(255,255,255,0.14)',
+        color: '#f8fafc',
+        backgroundColor: isCompanion ? 'rgba(15, 23, 42, 0.92)' : 'rgba(17, 24, 39, 0.88)',
+      };
+    }
+    return {
+      borderColor: accent.borderColor,
+      color: isCompanion ? '#fff7ed' : accent.color,
+      backgroundColor: isCompanion ? 'rgba(120, 53, 15, 0.88)' : `${accent.color}20`,
+    };
+  })();
+
+  const presetKey = item.key.replace('-banner', '').replace('-frame', '').replace('-badge', '').replace('-title', '');
+  const Preset = LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
+
+  // GSAP 3D Flip Logic
+  useEffect(() => {
+    if (!cardRef.current) return;
+    gsap.to(cardRef.current, {
+      rotateY: isFlipped ? 180 : 0,
+      duration: 0.6,
+      ease: "power2.inOut",
+      transformPerspective: 1000,
+    });
+  }, [isFlipped]);
+
+  const handleAction = (e) => {
+    e.stopPropagation();
+    if (!isOwned) {
+      onPurchase?.(item.key);
+    } else if (!isTitle && !isEquipped) {
+      onEquip?.(item);
+    }
+  };
+
+  const getLore = () => {
+    const list = LORE_BITS[item.slot] || LORE_BITS[item.type] || LORE_BITS.title;
+    return list[item.key.length % list.length];
+  };
 
   return (
-    <div
-      className="rounded-lg border p-4"
-      style={subtlePanelStyle()}
+    <div 
+      className="relative h-[332px] w-full [perspective:1000px] group cursor-pointer"
       onMouseEnter={() => onPreview?.(item)}
       onFocus={() => onPreview?.(item)}
+      data-market-item="true"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {isTitle ? (
-              <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-sm font-medium" />
-            ) : (
-              <div className="text-sm font-medium">{item.name}</div>
-            )}
-            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={accentStyle}>{item.rarity}</span>
-            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>{formatMarketType(item.type)}</span>
-          </div>
-          <div className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>{item.description}</div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Cost</div>
-          <div className="mt-1 text-sm font-semibold">{formatTokenCount(item.cost)}</div>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={isOwned ? accentStyle : subtlePanelStyle()}>{isOwned ? 'Owned' : 'Available'}</span>
-        <button
-          type="button"
-          disabled={actionBusy || locked || (isOwned && isTitle) || isEquipped}
-          onClick={() => {
-            if (!isOwned) {
-              onPurchase?.(item.key);
-              return;
-            }
-            if (!isTitle) {
-              onEquip?.(item);
-            }
-          }}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          style={!isOwned || (!isTitle && !isEquipped) ? accentStyle : subtlePanelStyle()}
-        >
-          {actionBusy ? 'Working...' : actionLabel}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RewardRow({ item, claiming, onClaim }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3" style={subtlePanelStyle()}>
-      <div>
-        <div className="text-sm font-medium">{item.name}</div>
-        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{item.requirement}</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getTitleBadgeStyle(item.rarity || 'common')}>{item.rarity}</span>
-          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>{item.rewardType}</span>
-          {Number(item.grantTokens || 0) > 0 ? (
-            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium" style={subtlePanelStyle()}>
-              +{formatTokenCount(item.grantTokens)} tokens
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <button
-        type="button"
-        disabled={!item.unlocked || item.claimed || claiming}
-        onClick={() => onClaim?.(item.key)}
-        className="inline-flex items-center rounded-md border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-        style={item.unlocked && !item.claimed ? getCosmeticAccentStyle(item.rarity || 'common') : subtlePanelStyle()}
+      <div 
+        ref={cardRef}
+        className="relative h-full w-full transition-all duration-600 [transform-style:preserve-3d]"
       >
-        {item.claimed ? 'Claimed' : claiming ? 'Claiming...' : item.unlocked ? 'Claim' : 'Locked'}
-      </button>
+        {/* FRONT SIDE */}
+        <div className="absolute inset-0 h-full w-full [backface-visibility:hidden] rounded-2xl border border-white/10 bg-[#120a17] p-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col transition-all group-hover:border-white/30 group-hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
+        <div className="absolute -top-10 -right-10 h-32 w-32 blur-[60px] opacity-30 pointer-events-none" style={{ backgroundColor: isCompanion ? accent.color : Preset.color }} />
+          
+          {/* LOADOUT OPTION LABEL HEADER */}
+          <div className="relative z-10 mb-3 flex w-full items-center justify-between border-b border-white/5 pb-3">
+             <div className="font-['Orbitron'] text-[10px] font-black uppercase text-white/50 tracking-[0.2em]">ITEM PREVIEW</div>
+             <div className="text-[10px] font-bold uppercase" style={{ color: isCompanion ? accent.color : Preset.color }}>
+               {isCompanion ? getClaraCompanionSlotLabel(item.slot) : Preset.title}
+             </div>
+          </div>
+
+          <div className="relative my-3 flex flex-1 w-full items-center justify-center">
+             {/* THE ACTUAL PREMIUM ASSET */}
+             {item.slot === 'nameplate' && (
+                <div className="w-full h-[70px] pointer-events-none shadow-[0_10px_30px_rgba(0,0,0,0.8)] relative z-10">
+                   <Preset.banner />
+                </div>
+             )}
+
+             {item.slot === 'badge' && (
+                <div className="h-[100px] w-[86px] pointer-events-none relative z-10">
+                   <Preset.badge />
+                </div>
+             )}
+
+             {item.slot === 'frame' && (
+                <div className="h-[90px] w-[90px] pointer-events-none relative z-10 flex items-center justify-center relative">
+                   <div className="absolute inset-[-20px] z-10"><Preset.frame /></div>
+                   <div className="h-[75px] w-[75px] rounded-full bg-slate-800" />
+                </div>
+             )}
+
+             {isCompanion && companionPreview && (
+                <div className="relative z-10 flex h-[100px] w-full items-center justify-center overflow-hidden">
+                  <img src={companionPreview} alt={item.name} className="max-h-[96px] w-auto object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]" />
+                </div>
+             )}
+          </div>
+
+          <div className="flex items-end justify-between mb-2 relative z-10 w-full border-t border-white/5 pt-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{RARITY_LABELS[item.rarity]}</span>
+            <div className={`rounded-md border px-2 py-1 text-[8px] font-bold uppercase tracking-widest ${
+              isEquipped ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : isOwned ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-white/10 bg-white/5 text-slate-500'
+            }`}>
+              {isEquipped ? 'Equipped' : isOwned ? 'Owned' : 'Market'}
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-auto flex flex-col gap-3 border-t border-white/5 pt-3">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-[9px] uppercase tracking-widest text-slate-600">Cost</span>
+                <span className="font-['Orbitron'] text-sm font-bold text-white">{formatTokenCount(item.cost)}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsFlipped(true)}
+                className="flex items-center gap-1.5 rounded-md border border-white/5 bg-black/40 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-300 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white shadow-[0_0_10px_rgba(0,0,0,0.5)]"
+              >
+                <Info className="h-3 w-3" /> Lore
+              </button>
+            </div>
+
+            <button
+              type="button"
+              disabled={actionBusy || locked || isEquipped}
+              onClick={handleAction}
+              className="relative w-full overflow-hidden rounded-lg border py-2.5 font-['Orbitron'] text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-[0_5px_15px_rgba(0,0,0,0.4)] backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-30 group/btn"
+              style={actionStyle}
+            >
+              <div className="absolute inset-0 bg-white/10 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700" />
+              <span className="relative z-10 drop-shadow-[0_0_5px_currentColor]">{actionBusy ? 'Processing...' : isEquipped ? 'Active' : isOwned ? 'Equip' : 'Buy'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* BACK SIDE (Specs/Lore) */}
+        <div 
+          ref={backRef}
+          className="absolute inset-0 h-full w-full [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border border-white/20 bg-slate-900 p-6 flex flex-col"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2 font-['Orbitron'] text-[10px] font-black uppercase tracking-widest text-[var(--theme-accent)]">
+              <Cpu className="h-4 w-4" /> Tech Intel
+            </div>
+            <button 
+              type="button"
+              onClick={() => setIsFlipped(false)}
+              className="text-slate-500 hover:text-white transition-colors"
+            >
+              <History className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-slate-500 mb-1.5">Tactical Log</div>
+              <p className="text-[11px] leading-relaxed italic text-slate-300 font-medium">"{getLore()}"</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+              <div>
+                <div className="text-[8px] uppercase tracking-widest text-slate-600 mb-1">Batch</div>
+                <div className="text-[10px] font-mono text-slate-400">MAR-X-{item.key.slice(0,4).toUpperCase()}</div>
+              </div>
+              <div>
+                <div className="text-[8px] uppercase tracking-widest text-slate-600 mb-1">Stability</div>
+                <div className="text-[10px] font-mono text-emerald-400">99.8%</div>
+              </div>
+              <div>
+                <div className="text-[8px] uppercase tracking-widest text-slate-600 mb-1">Rarity</div>
+                <div className="text-[10px] font-bold uppercase" style={{ color: accent.color }}>{item.rarity}</div>
+              </div>
+              <div>
+                <div className="text-[8px] uppercase tracking-widest text-slate-600 mb-1">Type</div>
+                <div className="text-[10px] font-medium uppercase text-white">{item.type}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-auto text-[8px] uppercase tracking-[0.3em] text-slate-700 text-center">
+            SVAROG_DIAG_OK
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+/* -------------------------------------------------------------------------- */
+/*                               MAIN PAGE                                     */
+/* -------------------------------------------------------------------------- */
 
 export default function MarketplacePage() {
+  const navigate = useNavigate();
   const { user, replaceUser, getAuthHeader } = useAuth();
-  const { data: marketplaceData, loading: marketplaceLoading, error: marketplaceError, refresh: refreshMarketplace } = useProfileMarketplace();
+  const { data: marketplaceData, loading: marketplaceLoading, error: marketplaceError, refresh: refreshMarketplace, refreshSilent: refreshMarketplaceSilent } = useProfileMarketplace();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
+  
+  const [activeCategory, setActiveCategory] = useState('all');
   const [marketActionKey, setMarketActionKey] = useState('');
   const [marketActionError, setMarketActionError] = useState('');
-  const [claimingRewardKey, setClaimingRewardKey] = useState('');
-  const [rewardActionError, setRewardActionError] = useState('');
   const [previewItemKey, setPreviewItemKey] = useState('');
 
-  const displayName = useMemo(() => resolveAuthDisplayName(user) || 'Trailblazer', [user]);
+  // GSAP: Initial Module Entrance
+  useEffect(() => {
+    const targets = document.querySelectorAll("[data-market-item]");
+    if (targets.length === 0) return;
+
+    const ctx = gsap.context(() => {
+      gsap.from(targets, {
+        opacity: 0,
+        y: 30,
+        rotateX: -15,
+        duration: 0.8,
+        stagger: 0.08,
+        ease: "power3.out",
+        clearProps: "all"
+      });
+    });
+    return () => ctx.revert();
+  }, [marketplaceLoading, activeCategory]);
+
+  const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
   const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
-  const initials = useMemo(() => getInitials(displayName), [displayName]);
+  const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
+  
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedTitle = useMemo(() => getTitleDefinition(equippedTitleKey), [equippedTitleKey]);
-  const equippedCosmetics = useMemo(() => resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const equippedBadgeItem = useMemo(() => getMarketplaceItem(equippedCosmetics.badgeKey), [equippedCosmetics.badgeKey]);
-  const equippedNameplateItem = useMemo(() => getMarketplaceItem(equippedCosmetics.nameplateKey), [equippedCosmetics.nameplateKey]);
-  const equippedFrameItem = useMemo(() => getMarketplaceItem(equippedCosmetics.frameKey), [equippedCosmetics.frameKey]);
-  const rewardTrack = useMemo(() => Array.isArray(seasonData?.profile?.rewardTrack) ? seasonData.profile.rewardTrack : [], [seasonData?.profile?.rewardTrack]);
+  const equippedCosmetics = useMemo(() => {
+    const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
+    const fromApi = marketplaceData?.equipped && typeof marketplaceData.equipped === 'object' ? marketplaceData.equipped : {};
+    return {
+      badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
+      nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
+      frameKey: fromApi.frameKey || fromMeta.frameKey || '',
+      claraPlaygroundKey: fromApi.claraPlaygroundKey || fromMeta.claraPlaygroundKey || '',
+      claraGuideKey: fromApi.claraGuideKey || fromMeta.claraGuideKey || '',
+    };
+  }, [user?.user_metadata, marketplaceData?.equipped]);
+  const credentials = useMemo(() => ({
+    badge: getMarketplaceItem(equippedCosmetics.badgeKey),
+    banner: getMarketplaceItem(equippedCosmetics.nameplateKey),
+    frame: getMarketplaceItem(equippedCosmetics.frameKey),
+    title: equippedTitle,
+    claraPlayground: getMarketplaceItem(equippedCosmetics.claraPlaygroundKey),
+    claraGuide: getMarketplaceItem(equippedCosmetics.claraGuideKey),
+  }), [equippedCosmetics, equippedTitle]);
+
   const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
-  const testingGrant = Number(marketplaceData?.wallet?.testingGrant || 0);
   const catalog = useMemo(() => Array.isArray(marketplaceData?.catalog) ? marketplaceData.catalog : [], [marketplaceData?.catalog]);
-  const shopItems = useMemo(() => catalog.filter((item) => item.availableInShop !== false), [catalog]);
-  const ownedCosmetics = useMemo(() => catalog.filter((item) => item.type !== 'title' && item.owned), [catalog]);
-  const ownedTitles = useMemo(() => catalog.filter((item) => item.type === 'title' && item.owned), [catalog]);
-  const marketBusy = marketActionKey !== '';
+  const shopItems = useMemo(() => catalog.filter(it => it.availableInShop !== false), [catalog]);
+  const readyRewardsCount = useMemo(
+    () => (seasonData?.profile?.rewardTrack || []).filter((entry) => entry.unlocked && !entry.claimed).length,
+    [seasonData?.profile?.rewardTrack]
+  );
+  const ownedCount = useMemo(
+    () => catalog.filter((entry) => entry.owned).length,
+    [catalog]
+  );
+  
+  const filteredItems = useMemo(() => {
+    if (activeCategory === 'all') return shopItems;
+    return shopItems.filter(it => it.type === activeCategory || it.slot === activeCategory);
+  }, [shopItems, activeCategory]);
+
   const previewItem = useMemo(() => getMarketplaceItem(previewItemKey), [previewItemKey]);
-  const previewTitle = previewItem?.type === 'title' ? previewItem : null;
-  const previewBadge = previewItem?.slot === 'badge' ? previewItem : equippedBadgeItem;
-  const previewBanner = previewItem?.slot === 'nameplate' ? previewItem : equippedNameplateItem;
-  const previewFrame = previewItem?.slot === 'frame' ? previewItem : equippedFrameItem;
+  const previewData = {
+    title: previewItem?.type === 'title' ? previewItem : null,
+    badge: previewItem?.slot === 'badge' ? previewItem : null,
+    banner: previewItem?.slot === 'nameplate' ? previewItem : null,
+    frame: previewItem?.slot === 'frame' ? previewItem : null
+  };
 
   const syncAfterAction = async (payload) => {
-    if (payload?.user) {
-      replaceUser?.(payload.user);
-    }
-    await Promise.allSettled([refreshMarketplace?.(), refreshStats?.()]);
+    // Optimistically update user state without triggering a full re-mount
+    if (payload?.user) replaceUser?.(payload.user);
+    // Use silent refresh so the page does NOT reset/flash on buy or equip
+    await Promise.allSettled([refreshMarketplaceSilent?.(), refreshStats?.()]);
   };
 
   const submitMarketplaceAction = async (body) => {
-    const response = await fetch(buildApiUrl('/api/profile-marketplace'), {
+    const response = await fetch(buildApiUrl('/api/profile'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(body),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Marketplace action failed.');
-    }
+    if (!response.ok) throw new Error(payload?.error || 'Marketplace action failed.');
     await syncAfterAction(payload);
     return payload;
   };
 
   const handlePurchase = async (itemKey) => {
-    const normalizedKey = String(itemKey || '').trim();
-    if (!normalizedKey) return;
-    setMarketActionKey(`purchase:${normalizedKey}`);
+    setMarketActionKey(`purchase:${itemKey}`);
     setMarketActionError('');
     try {
-      await submitMarketplaceAction({ action: 'purchase', itemKey: normalizedKey });
+      const payload = await submitMarketplaceAction({ action: 'purchase', itemKey });
+      // Show success toast inline without page navigation
+      if (payload) {
+        setMarketActionError('');
+      }
     } catch (error) {
-      setMarketActionError(error?.message || 'Failed to purchase item.');
+      setMarketActionError(error.message);
     } finally {
       setMarketActionKey('');
     }
   };
 
   const handleEquip = async (item) => {
-    if (!item?.key || !item?.slot || item.type === 'title') return;
     setMarketActionKey(`equip:${item.key}`);
     setMarketActionError('');
     try {
       await submitMarketplaceAction({ action: 'equip', itemKey: item.key, slot: item.slot });
     } catch (error) {
-      setMarketActionError(error?.message || 'Failed to equip item.');
+      setMarketActionError(error.message);
     } finally {
       setMarketActionKey('');
     }
   };
 
-  const handleClearSlot = async (slot) => {
-    const normalizedSlot = String(slot || '').trim();
-    if (!normalizedSlot) return;
-    setMarketActionKey(`clear:${normalizedSlot}`);
-    setMarketActionError('');
-    try {
-      await submitMarketplaceAction({ action: 'clear', slot: normalizedSlot });
-    } catch (error) {
-      setMarketActionError(error?.message || 'Failed to clear slot.');
-    } finally {
-      setMarketActionKey('');
-    }
-  };
-
-  const handleClaimReward = async (rewardKey) => {
-    const normalizedKey = String(rewardKey || '').trim();
-    if (!normalizedKey) return;
-    setClaimingRewardKey(normalizedKey);
-    setRewardActionError('');
-    try {
-      const response = await fetch(buildApiUrl('/api/profile-rewards'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ rewardKey: normalizedKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to claim reward.');
-      }
-      await Promise.allSettled([refreshStats?.(), refreshMarketplace?.()]);
-    } catch (error) {
-      setRewardActionError(error?.message || 'Failed to claim reward.');
-    } finally {
-      setClaimingRewardKey('');
-    }
-  };
+  const categories = [
+    { id: 'all', label: 'All Items', icon: Store },
+    { id: 'frame', label: 'Frames', icon: Shield },
+    { id: 'badge', label: 'Badges', icon: BadgeCheck },
+    { id: 'nameplate', label: 'Banners', icon: Layers },
+    { id: 'title', label: 'Titles', icon: Trophy },
+    { id: 'companion', label: 'Clara Skins', icon: Gamepad2 },
+  ];
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-xl border p-5 sm:p-6" style={panelStyle()}>
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border" style={{ ...subtlePanelStyle(), ...getAvatarFrameStyle(equippedFrameItem?.key) }}>
-                {avatarUrl ? <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" /> : <span className="text-lg font-semibold">{initials}</span>}
-              </div>
-              <div>
-                <UserIdentityBlock
-                  name={displayName}
-                  title={equippedTitle?.name || ''}
-                  rarity={equippedTitle?.rarity || 'common'}
-                  badge={equippedBadgeItem?.name || ''}
-                  badgeRarity={equippedBadgeItem?.rarity || 'common'}
-                  nameplate={equippedNameplateItem?.name || ''}
-                  nameplateRarity={equippedNameplateItem?.rarity || 'common'}
-                  nameClassName="text-2xl font-semibold sm:text-3xl"
-                  titleClassName="mt-1 text-[12px]"
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium" style={subtlePanelStyle()}>
-                    Wallet: {formatTokenCount(walletBalance)}
-                  </span>
-                  {testingGrant > 0 ? (
-                    <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium" style={subtlePanelStyle()}>
-                      Test grant active
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+    <div className="min-h-screen relative bg-transparent px-4 py-8 sm:px-8 lg:px-12">
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden">
+        <div className="absolute top-1/4 -left-20 h-[500px] w-[500px] rounded-full bg-[var(--theme-accent-soft)] blur-[120px]" />
+        <div className="absolute bottom-1/4 -right-20 h-[500px] w-[500px] rounded-full bg-blue-500/20 blur-[120px]" />
+      </div>
+
+      <div className="mx-auto max-w-[1600px] relative z-10">
+        <TacticalHeader tokens={walletBalance} displayName={displayName} themeAccent="var(--theme-accent)" />
+
+        <div className="grid gap-10 xl:grid-cols-[280px_1fr_320px]">
+          {/* NAVIGATION SIDEBAR */}
+          <aside className="space-y-4">
+            <div className="flex items-center gap-2 mb-4 font-['Orbitron'] text-[10px] uppercase tracking-[0.2em] text-slate-500">
+              <History className="h-3.5 w-3.5" /> Categories
             </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => { refreshMarketplace?.(); refreshStats?.(); }}
-                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
-                style={subtlePanelStyle()}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
-              <Link to="/profile" className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium" style={subtlePanelStyle()}>
-                Back to Profile
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <SectionCard title="Market" description="Shop cosmetics and market-only titles." icon={Store}>
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatTile label="Tokens" value={formatTokenCount(walletBalance)} hint={testingGrant > 0 ? `Seeded once for ciet: ${formatTokenCount(testingGrant)}` : 'Earn more through claimed rewards'} accent />
-                <StatTile label="Owned titles" value={ownedTitles.length} hint="Market purchases only" />
-                <StatTile label="Owned cosmetics" value={ownedCosmetics.length} hint="Frames, badges, nameplates" />
-              </div>
-
-              {marketActionError ? <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>{marketActionError}</div> : null}
-              {marketplaceError ? <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>{marketplaceError}</div> : null}
-
-              <div className="grid gap-3 lg:grid-cols-3">
-                <EquippedSlotRow label="Frame" item={equippedFrameItem} clearing={marketActionKey === 'clear:frame'} locked={marketBusy} onClear={() => handleClearSlot('frame')} />
-                <EquippedSlotRow label="Badge" item={equippedBadgeItem} clearing={marketActionKey === 'clear:badge'} locked={marketBusy} onClear={() => handleClearSlot('badge')} />
-                <EquippedSlotRow label="Banner" item={equippedNameplateItem} clearing={marketActionKey === 'clear:nameplate'} locked={marketBusy} onClear={() => handleClearSlot('nameplate')} />
-              </div>
-
-              <div className="rounded-lg border p-4" style={subtlePanelStyle()}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-medium">Hover preview</div>
-                    <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                      Hover any shop item to preview how it changes your visible identity card.
+            <nav className="flex flex-col gap-2">
+              {categories.map(cat => {
+                const Icon = cat.icon;
+                const active = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`group flex items-center justify-between rounded-xl border px-5 py-4 transition-all duration-300 ${active ? 'border-[var(--theme-accent)] bg-[var(--theme-accent-soft)]/10 text-white shadow-[0_0_15px_var(--theme-accent-soft)]' : 'border-white/5 bg-white/[0.02] text-slate-500 hover:border-white/20 hover:text-white'}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <Icon className={`h-4 w-4 transition-colors ${active ? 'text-[var(--theme-accent)]' : 'text-slate-600 group-hover:text-slate-400'}`} />
+                      <span className="font-['Orbitron'] text-[11px] font-bold uppercase tracking-widest">{cat.label}</span>
                     </div>
-                  </div>
-                  {previewItem ? (
-                    <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getCosmeticAccentStyle(previewItem.rarity || 'common')}>
-                      Previewing {previewItem.name}
-                    </span>
-                  ) : null}
+                    {active && <div className="h-1.5 w-1.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_8px_var(--theme-accent)]" />}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="mt-10 rounded-2xl border border-white/5 bg-white/[0.02] p-6 space-y-4">
+              <div className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest text-slate-600">Quick Actions</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3">
+                  <div className="text-[8px] uppercase tracking-widest text-slate-600">Owned</div>
+                  <div className="mt-1 font-['Orbitron'] text-lg font-bold text-white">{ownedCount}</div>
                 </div>
-
-                <div className="mt-4 rounded-[18px] border px-4 py-4" style={{ ...panelStyle(), borderColor: 'var(--theme-border-strong)' }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex items-center gap-3">
-                      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border" style={{ ...subtlePanelStyle(), ...getAvatarFrameStyle(previewFrame?.key) }}>
-                        {avatarUrl ? (
-                          <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-semibold">{initials}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <UserIdentityBlock
-                          name={displayName}
-                          title={previewTitle?.name || equippedTitle?.name || ''}
-                          rarity={previewTitle?.rarity || equippedTitle?.rarity || 'common'}
-                          badge={previewBadge?.name || ''}
-                          badgeRarity={previewBadge?.rarity || 'common'}
-                          nameplate={previewBanner?.name || ''}
-                          nameplateRarity={previewBanner?.rarity || 'common'}
-                          nameClassName="text-base font-semibold"
-                          titleClassName="mt-1 text-[12px]"
-                        />
-                        <div className="mt-2 text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: 'var(--theme-text-muted)' }}>
-                          Friend list preview
-                        </div>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={subtlePanelStyle()}>
-                      Online
-                    </span>
-                  </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3">
+                  <div className="text-[8px] uppercase tracking-widest text-slate-600">Ready</div>
+                  <div className="mt-1 font-['Orbitron'] text-lg font-bold text-emerald-300">{readyRewardsCount}</div>
                 </div>
               </div>
-
-              {marketplaceLoading && shopItems.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  Loading market inventory...
+              {readyRewardsCount > 0 ? (
+                <div className="rounded-xl border border-emerald-400/15 bg-emerald-500/[0.05] px-3 py-3 text-[10px] leading-relaxed text-emerald-100/90">
+                  You have {readyRewardsCount} progression reward {readyRewardsCount === 1 ? 'item' : 'items'} still waiting to sync into your inventory.
                 </div>
               ) : null}
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                {shopItems.map((item) => {
-                  const equippedKey = item.slot === 'frame'
-                    ? equippedFrameItem?.key
-                    : item.slot === 'badge'
-                      ? equippedBadgeItem?.key
-                      : item.slot === 'nameplate'
-                        ? equippedNameplateItem?.key
-                        : '';
-                  return (
-                    <ShopItemCard
-                      key={item.key}
-                      item={item}
-                      actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
-                      locked={marketBusy}
-                      equippedKey={equippedKey}
-                      onPurchase={handlePurchase}
-                      onEquip={handleEquip}
-                      onPreview={(itemData) => setPreviewItemKey(itemData?.key || '')}
-                    />
-                  );
-                })}
-              </div>
+              <button 
+                onClick={() => { refreshMarketplace(); refreshStats(); }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/5 transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </button>
+              <button 
+                onClick={() => navigate('/profile')}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Back to Profile
+              </button>
             </div>
-          </SectionCard>
+          </aside>
 
-          <SectionCard title="Rewards" description="Claimed rewards now feed the same wallet and cosmetic loadout system." icon={Gift}>
-            <div className="space-y-4">
-              {rewardActionError ? <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'rgba(239, 68, 68, 0.32)', background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5' }}>{rewardActionError}</div> : null}
-
-              {rewardTrack.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-sm text-center" style={{ borderColor: 'var(--theme-border-soft)', color: 'var(--theme-text-muted)' }}>
-                  No seasonal rewards are visible yet for this account.
-                </div>
-              ) : rewardTrack.map((item) => (
-                <RewardRow key={item.key} item={item} claiming={claimingRewardKey === item.key} onClaim={handleClaimReward} />
-              ))}
-
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Owned market titles</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ownedTitles.length === 0 ? (
-                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No market titles owned yet.</span>
-                  ) : ownedTitles.map((item) => (
-                    <div key={item.key} className="inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold" style={getTitleBadgeStyle(item.rarity || 'common')}>
-                      <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-[11px]" />
-                    </div>
-                  ))}
-                </div>
+          {/* MAIN MATRIX GRID */}
+          <main>
+            {marketActionError && (
+              <div className="mb-6 flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-[11px] text-rose-300 font-medium">
+                <Info className="h-4 w-4" /> Error: {marketActionError}
               </div>
+            )}
 
-              <div className="rounded-lg border px-4 py-4" style={subtlePanelStyle()}>
-                <div className="text-sm font-medium">Owned cosmetics</div>
-                <div className="mt-3 space-y-2">
-                  {ownedCosmetics.length === 0 ? (
-                    <div className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No cosmetics owned yet.</div>
-                  ) : ownedCosmetics.map((item) => (
-                    <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={subtlePanelStyle()}>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">{item.name}</div>
-                        <div className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>{formatMarketType(item.type)}</div>
-                      </div>
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold" style={getCosmeticAccentStyle(item.rarity)}>{item.rarity}</span>
-                    </div>
-                  ))}
-                </div>
+            {marketplaceLoading ? (
+              <div className="flex flex-col items-center justify-center h-[600px] text-slate-600 uppercase tracking-[0.3em] font-black text-xs">
+                <div className="mb-4 h-12 w-12 rounded-full border-2 border-slate-800 border-t-[var(--theme-accent)] animate-spin" />
+                Loading Marketplace...
               </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredItems.map(item => (
+                  <MarketMatrixCard
+                    key={item.key}
+                    item={item}
+                    actionBusy={marketActionKey === `purchase:${item.key}` || marketActionKey === `equip:${item.key}`}
+                    locked={marketActionKey !== ''}
+                    equippedKey={
+                      item.slot === 'title' || item.type === 'title'
+                        ? equippedTitleKey
+                        : item.slot === 'nameplate'
+                          ? credentials.banner?.key
+                          : item.slot === 'clara_playground'
+                            ? credentials.claraPlayground?.key
+                            : item.slot === 'clara_guide'
+                              ? credentials.claraGuide?.key
+                              : credentials[item.slot]?.key
+                    }
+                    onPurchase={handlePurchase}
+                    onEquip={handleEquip}
+                    onPreview={(it) => setPreviewItemKey(it?.key || '')}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {filteredItems.length === 0 && !marketplaceLoading && (
+              <div className="flex flex-col items-center justify-center h-[400px] text-slate-600 font-['Orbitron'] text-[10px] uppercase tracking-widest">
+                No items in this category.
+              </div>
+            ) }
+          </main>
+
+          {/* IDENTITY PREVIEW TERMINAL */}
+          <aside className="hidden xl:block">
+            <IdentityTerminal
+              user={user}
+              displayName={displayName}
+              credentials={credentials}
+              preview={previewData}
+              avatarUrl={avatarUrl}
+              initials={initials}
+            />
+            
+            <div className="mt-8 rounded-2xl border border-orange-500/10 bg-orange-500/[0.02] p-5">
+              <div className="flex items-center gap-2 text-orange-400/80 mb-2">
+                <Gift className="h-4 w-4" />
+                <span className="font-['Orbitron'] text-[10px] font-black uppercase tracking-widest">Reward Reminder</span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed uppercase tracking-wider">
+                Progress rewards and unlocks land here once they are synced.
+              </p>
+              <button 
+                onClick={() => navigate('/caverns')}
+                className="mt-4 flex items-center gap-2 text-[10px] font-bold text-orange-200 hover:text-orange-400 transition-colors uppercase tracking-widest"
+              >
+                Go to Caverns <ArrowRight className="h-3 w-3" />
+              </button>
             </div>
-          </SectionCard>
+          </aside>
         </div>
-
-        <SectionCard title="What changed" description="Reward claims now do more than flip a flag." icon={Trophy}>
-          <div className="grid gap-3 md:grid-cols-3">
-            <StatTile label="Currency rewards" value="Live" hint="Caches grant tokens into the wallet now" accent />
-            <StatTile label="Cosmetic rewards" value="Equipable" hint="Claimed frames, badges, and nameplates join loadout" />
-            <StatTile label="Title market" value="Ready" hint="Bought titles unlock in the Titles section" />
-          </div>
-        </SectionCard>
       </div>
     </div>
   );

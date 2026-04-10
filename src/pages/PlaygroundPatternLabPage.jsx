@@ -26,8 +26,10 @@ import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { predictWithPairs } from '../utils/pairTransitionPredictor';
 import { decodeLongString, translateTo4 } from '../utils/stringHelpers';
 import { withBaseUrl } from '../utils/assetPaths';
+import { resolveGuideClaraAsset } from '../utils/claraCosmetics';
 import { useAuth } from '../hooks/useAuth';
 import { buildApiUrl } from '../utils/apiBase';
+import ProgressionSummaryToast from '../components/ProgressionSummaryToast';
 import {
   advancePatternProfile,
   createPatternProfile,
@@ -109,6 +111,7 @@ function PatternLabTourOverlay({
   onNext,
   onBack,
   onClose,
+  user,
   canAdvance = true,
   isWaiting = false,
 }) {
@@ -221,7 +224,7 @@ function PatternLabTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-cyan-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
+              src={resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -633,6 +636,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [claraTipIndex, setClaraTipIndex] = useState(0);
   const [claraSpeaking, setClaraSpeaking] = useState(false);
+  const [progressionSummary, setProgressionSummary] = useState(null);
   const lastRollIndexRef = useRef(0);
   const patternLabSessionKeyRef = useRef(`patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const loggedPatternLabSessionRef = useRef('');
@@ -640,37 +644,49 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   useEffect(() => {
     if (!containerRef.current) return;
     const q = gsap.utils.selector(containerRef.current);
+    const bentoTiles = q('.bento-tile');
+    const matrixFade = q('.matrix-fade');
+    const floatTargets = q('.gsap-float');
 
     // Bento entrance animation with scale and stagger
-    gsap.fromTo(q('.bento-tile'),
-      { opacity: 0, y: 40, scale: 0.95 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.7, stagger: 0.08, ease: 'back.out(1.2)' }
-    );
+    if (bentoTiles.length > 0) {
+      gsap.fromTo(bentoTiles,
+        { opacity: 0, y: 40, scale: 0.95 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.7, stagger: 0.08, ease: 'back.out(1.2)' }
+      );
+    }
 
     // Matrix fade up for Left Side elements
-    gsap.fromTo(q('.matrix-fade'),
-      { opacity: 0, x: -30 },
-      { opacity: 1, x: 0, duration: 0.8, stagger: 0.1, ease: 'power2.out' }
-    );
+    if (matrixFade.length > 0) {
+      gsap.fromTo(matrixFade,
+        { opacity: 0, x: -30 },
+        { opacity: 1, x: 0, duration: 0.8, stagger: 0.1, ease: 'power2.out' }
+      );
+    }
 
     // Floating background for Svarog
-    gsap.to(q('.gsap-float'), {
-      y: -15,
-      duration: 5,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut'
-    });
+    if (floatTargets.length > 0) {
+      gsap.to(floatTargets, {
+        y: -15,
+        duration: 5,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      });
+    }
   }, [themeConfig.rootClassName]);
 
   // Pulse animation when a step changes
   useEffect(() => {
     if (labRows.length > lastRollIndexRef.current && containerRef.current) {
       const q = gsap.utils.selector(containerRef.current);
-      gsap.fromTo(q('.gsap-pulse-row'),
-        { backgroundColor: 'rgba(255,255,255,0.2)' },
-        { backgroundColor: 'transparent', duration: 1, ease: 'power2.out' }
-      );
+      const pulseRows = q('.gsap-pulse-row');
+      if (pulseRows.length > 0) {
+        gsap.fromTo(pulseRows,
+          { backgroundColor: 'rgba(255,255,255,0.2)' },
+          { backgroundColor: 'transparent', duration: 1, ease: 'power2.out' }
+        );
+      }
     }
     lastRollIndexRef.current = labRows.length;
   }, [labRows.length]);
@@ -680,6 +696,9 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   const profileDescription = useMemo(() => describePatternProfile(patternProfile), [patternProfile]);
   const displayedStarter = (patternProfile?.starterSequence || []).join(' ');
   const remainingSourceRolls = Math.max(0, sourceSequence.length - sourceCursor);
+  const nextObservedRoll = sourceMode === 'auto'
+    ? getVisibleRollForUpgrade(patternProfile, labRows.length)
+    : sourceSequence[sourceCursor]?.visibleRoll || null;
   const familyOptionMatchesMood = familyId === 'auto'
     || familyOptions.some((option) => option.id === familyId && option.mood === mood);
 
@@ -690,7 +709,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     if (!sessionKey || loggedPatternLabSessionRef.current === sessionKey) return;
     loggedPatternLabSessionRef.current = sessionKey;
 
-    fetch(buildApiUrl('/api/practice-results'), {
+    fetch(buildApiUrl('/api/playground'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -714,7 +733,17 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           next_observed_roll: nextObservedRoll || '',
         },
       }),
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json().catch(() => null);
+      })
+      .then((payload) => {
+        if (!payload?.success || payload?.duplicate || !payload?.progressionDelta) return;
+        if (reason === 'pagehide') return;
+        setProgressionSummary(payload.progressionDelta);
+      })
+      .catch(() => {});
   }, [
     familyId,
     getAuthHeader,
@@ -732,6 +761,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     submitPatternLabSession('reset');
     patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     loggedPatternLabSessionRef.current = '';
+    setProgressionSummary(null);
     setMood(nextMood);
     setFamilyId(nextFamilyId);
     setCurrentLine(4);
@@ -745,6 +775,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     submitPatternLabSession('load-sequence');
     patternLabSessionKeyRef.current = `patternlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     loggedPatternLabSessionRef.current = '';
+    setProgressionSummary(null);
     setSourceMode(mode);
     setSourceSequence(nextSequence);
     setSourceCursor(0);
@@ -895,9 +926,6 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
     : sourceMode === 'import'
       ? `Imported replay mode. ${remainingSourceRolls > 0 ? `${remainingSourceRolls} rolls left to step.` : 'Imported session loaded. Step through it or import another file.'}`
       : `Manual replay mode. ${remainingSourceRolls > 0 ? `${remainingSourceRolls} rolls left to step.` : 'Load a pasted roll list to begin stepping.'}`;
-  const nextObservedRoll = sourceMode === 'auto'
-    ? getVisibleRollForUpgrade(patternProfile, labRows.length)
-    : sourceSequence[sourceCursor]?.visibleRoll || null;
   const svarogAssistance = useMemo(
     () => buildSvarogAssistance(prediction2, nextObservedRoll),
     [prediction2, nextObservedRoll],
@@ -1084,6 +1112,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
             onNext={nextTourStep}
             onBack={previousTourStep}
             onClose={closeTour}
+            user={user}
             canAdvance={canAdvanceTour}
             isWaiting={!canAdvanceTour}
           />
@@ -1380,7 +1409,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
                   <div className="relative h-28 w-28 md:h-40 md:w-40 shrink-0 -mt-20 md:-mt-32 ml-4 md:ml-6 group-hover:scale-110 transition-transform duration-700 z-[120]">
                     <div className={`absolute inset-0 rounded-full ${themeColors.bgGlow} blur-[60px] opacity-40 group-hover:scale-150 transition-transform duration-1000`} />
                     <img
-                      src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
+                      src={resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
                       alt="Clara Assistant Icon"
                       className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[130%] max-w-none object-contain z-10 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
                       style={{
@@ -1465,6 +1494,12 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
           </div>
         </div>
       </div>
+      <ProgressionSummaryToast
+        summary={progressionSummary}
+        title="Pattern Lab logged"
+        subtitle={importedFileName ? importedFileName : `${mood} analysis`}
+        onClose={() => setProgressionSummary(null)}
+      />
     </div>
   );
 }

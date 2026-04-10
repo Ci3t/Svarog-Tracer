@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../utils/apiBase';
 import { useAuth } from './useAuth';
 
-const PVP_STATS_API = buildApiUrl('/api/pvp-stats');
+const PVP_STATS_API = buildApiUrl('/api/profile');
 
 export function usePvpSeasonStats() {
   const { getAuthHeader, isAuthenticated } = useAuth();

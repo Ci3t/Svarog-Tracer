@@ -139,6 +139,20 @@ export const TITLE_DEFINITIONS = [
     rarity: 'epic',
     category: 'analysis',
   },
+  {
+    key: 'night-shift-operator',
+    name: 'Night Shift Operator',
+    requirement: 'Reach level 8.',
+    rarity: 'epic',
+    category: 'level',
+  },
+  {
+    key: 'trace-architect',
+    name: 'Trace Architect',
+    requirement: 'Reach level 16.',
+    rarity: 'legendary',
+    category: 'level',
+  },
 ];
 
 export const RANK_TIER_DEFINITIONS = [
@@ -219,7 +233,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'competitiveWins',
     unlockValue: 7,
     rewardType: 'currency',
-    grantTokens: 900,
+    grantTokens: 320,
   },
   {
     key: 'solver-sigil',
@@ -247,7 +261,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'leaderboardTop',
     unlockValue: 3,
     rewardType: 'seasonal',
-    grantTokens: 2400,
+    grantTokens: 900,
   },
   {
     key: 'training-chip-cache',
@@ -257,7 +271,7 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'freeTrainingSessions',
     unlockValue: 3,
     rewardType: 'currency',
-    grantTokens: 600,
+    grantTokens: 240,
   },
   {
     key: 'drill-frame',
@@ -276,6 +290,73 @@ export const REWARD_DEFINITIONS = [
     unlockType: 'patternLabAnalyses',
     unlockValue: 5,
     rewardType: 'nameplate',
+  },
+  {
+    key: 'relay-chip-cache',
+    name: 'Relay Chip Cache',
+    requirement: 'Reach level 2.',
+    rarity: 'common',
+    unlockType: 'level',
+    unlockValue: 2,
+    rewardType: 'currency',
+    grantTokens: 120,
+  },
+  {
+    key: 'relay-badge',
+    name: 'Relay Badge',
+    requirement: 'Reach level 4.',
+    rarity: 'rare',
+    unlockType: 'level',
+    unlockValue: 4,
+    rewardType: 'badge',
+  },
+  {
+    key: 'route-frame',
+    name: 'Route Frame',
+    requirement: 'Reach level 6.',
+    rarity: 'rare',
+    unlockType: 'level',
+    unlockValue: 6,
+    rewardType: 'frame',
+  },
+  {
+    key: 'night-shift-operator',
+    name: 'Night Shift Operator',
+    requirement: 'Reach level 8.',
+    rarity: 'epic',
+    unlockType: 'level',
+    unlockValue: 8,
+    rewardType: 'title',
+    titleKey: 'night-shift-operator',
+  },
+  {
+    key: 'command-strip-nameplate',
+    name: 'Command Strip',
+    requirement: 'Reach level 10.',
+    rarity: 'epic',
+    unlockType: 'level',
+    unlockValue: 10,
+    rewardType: 'nameplate',
+  },
+  {
+    key: 'deep-scan-cache',
+    name: 'Deep Scan Cache',
+    requirement: 'Reach level 12.',
+    rarity: 'legendary',
+    unlockType: 'level',
+    unlockValue: 12,
+    rewardType: 'currency',
+    grantTokens: 420,
+  },
+  {
+    key: 'trace-architect',
+    name: 'Trace Architect',
+    requirement: 'Reach level 16.',
+    rarity: 'legendary',
+    unlockType: 'level',
+    unlockValue: 16,
+    rewardType: 'title',
+    titleKey: 'trace-architect',
   },
 ];
 
@@ -450,4 +531,13 @@ export function resolveRankTier(points) {
 
 export function getRewardDefinition(key) {
   return REWARD_DEFINITION_MAP.get(String(key || '').trim()) || null;
+}
+
+export function getTotalXpRequiredForLevel(level) {
+  const targetLevel = Math.max(1, Number(level) || 1);
+  let total = 0;
+  for (let currentLevel = 1; currentLevel < targetLevel; currentLevel += 1) {
+    total += 180 + ((currentLevel - 1) * 70);
+  }
+  return total;
 }

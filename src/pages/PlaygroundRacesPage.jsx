@@ -20,7 +20,8 @@ import { buildApiUrl } from '../utils/apiBase';
 import relicSets from '../data/relics.json';
 import PvpVsMark from '../components/modern/PvpVsMark';
 import { withBaseUrl } from '../utils/assetPaths';
-import UserIdentityBlock from '../components/UserIdentityBlock';
+import { resolveGuideClaraAsset } from '../utils/claraCosmetics';
+import { UserIdentityCard } from '../components/UserIdentityBlock';
 
 const TIERS = ['new_player', 'beginner', 'intermediate', 'veteran', 'expert', 'expert_v2'];
 const TARGET_SUB_OPTIONS = [
@@ -253,6 +254,7 @@ function LobbyTourOverlay({
   onNext,
   onBack,
   onClose,
+  user,
   canAdvance = true,
   isWaiting = false,
 }) {
@@ -384,7 +386,7 @@ function LobbyTourOverlay({
             <div className="absolute inset-x-2 bottom-0 h-10 rounded-full bg-rose-500/10 blur-xl" />
             <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent" />
             <img
-              src={claraSpeaking ? withBaseUrl('clara-prof-OandMouth.gif') : withBaseUrl('clara-prof-assistant.png')}
+              src={resolveGuideClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
               alt="Clara guide"
               className="relative z-[1] max-h-[108px] w-auto object-contain"
             />
@@ -434,7 +436,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const location = useLocation();
-  const { getAuthHeader, roleMode } = useAuth();
+  const { user, getAuthHeader, roleMode } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
   const [selectedSeedMode, setSelectedSeedMode] = useState('shared');
   const [selectedSetName, setSelectedSetName] = useState('');
@@ -808,10 +810,10 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
-	              <div className="theme-subpanel rounded-lg px-4 py-3">
-	                <div className="text-xs text-slate-500">Seed</div>
-	                <div className="mt-1 font-medium text-white">Shared</div>
-	              </div>
+              <div className="theme-subpanel rounded-lg px-4 py-3">
+                <div className="text-xs text-slate-500">Seed</div>
+                <div className="mt-1 font-medium text-white capitalize">{selectedSeedMode === 'shared' ? 'Shared' : 'Random'}</div>
+              </div>
 	              <div className="theme-subpanel rounded-lg px-4 py-3">
 	                <div className="text-xs text-slate-500">Attempts</div>
 	                <div className="mt-1 font-medium text-white">3 per side</div>
@@ -976,10 +978,10 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                         key={mode}
                         type="button"
                         onClick={() => setSelectedSeedMode(mode)}
-                        className={`theme-subpanel flex min-w-[220px] flex-col items-start rounded-lg border px-4 py-3 text-left transition-colors ${
+                        className={`flex min-w-[220px] flex-col items-start rounded-lg border px-4 py-3 text-left transition-all ${
                           active
-                            ? 'border-white/20 text-white'
-                            : 'border-white/8 text-slate-400 hover:border-white/14 hover:text-white'
+                            ? 'border-[var(--theme-accent)] bg-[var(--theme-accent-soft)]/15 text-white shadow-[0_0_12px_var(--theme-accent-soft)]'
+                            : 'theme-subpanel border-white/8 text-slate-400 hover:border-white/20 hover:text-white'
                         }`}
                       >
                         <span className="text-sm font-semibold">{label}</span>
@@ -1113,26 +1115,23 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                 <div>
                   <div className="px-5 py-6">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
-                          {getRosterMark(room.host?.name, 'H')}
-                        </div>
-                        <div>
-                          <div className="mb-1 inline-flex rounded-sm border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
-                            Host
-                          </div>
-                          <UserIdentityBlock
-                            name={room.host?.name || 'Host'}
-                            title={room.host?.state?.displayTitle || ''}
-                            rarity={room.host?.state?.displayTitleRarity || 'common'}
-                            badge={room.host?.state?.displayBadge || ''}
-                            badgeRarity={room.host?.state?.displayBadgeRarity || 'common'}
-                            nameplate={room.host?.state?.displayNameplate || ''}
-                            nameplateRarity={room.host?.state?.displayNameplateRarity || 'common'}
-                            nameClassName="text-lg font-semibold text-white"
-                            titleClassName="mt-1 text-[11px]"
-                          />
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <UserIdentityCard
+                          name={room.host?.name || 'Host'}
+                          title={room.host?.state?.displayTitle || ''}
+                          rarity={room.host?.state?.displayTitleRarity || 'common'}
+                          badge={room.host?.state?.displayBadge || ''}
+                          badgeRarity={room.host?.state?.displayBadgeRarity || 'common'}
+                          nameplate={room.host?.state?.displayNameplate || ''}
+                          nameplateRarity={room.host?.state?.displayNameplateRarity || 'common'}
+                          nameplateKey={room.host?.state?.displayNameplateKey || ''}
+                          avatarUrl={room.host?.state?.displayAvatarUrl || ''}
+                          frameKey={room.host?.state?.displayFrameKey || ''}
+                          sideLabel="Host"
+                          className="border-white/10 bg-black/25"
+                          nameClassName="text-lg font-semibold text-white"
+                          titleClassName="mt-1 text-[11px]"
+                        />
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
@@ -1146,26 +1145,23 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
                       <PvpVsMark theme={sessionTheme} size="sm" />
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="theme-subpanel flex h-11 w-11 items-center justify-center rounded-md text-sm font-semibold text-white">
-                          {getRosterMark(room.guest?.name, 'G')}
-                        </div>
-                        <div>
-                          <div className="mb-1 inline-flex rounded-sm border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                            Guest
-                          </div>
-                          <UserIdentityBlock
-                            name={room.guest?.name || 'Waiting for opponent'}
-                            title={room.guest?.state?.displayTitle || ''}
-                            rarity={room.guest?.state?.displayTitleRarity || 'common'}
-                            badge={room.guest?.state?.displayBadge || ''}
-                            badgeRarity={room.guest?.state?.displayBadgeRarity || 'common'}
-                            nameplate={room.guest?.state?.displayNameplate || ''}
-                            nameplateRarity={room.guest?.state?.displayNameplateRarity || 'common'}
-                            nameClassName="text-lg font-semibold text-white"
-                            titleClassName="mt-1 text-[11px]"
-                          />
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <UserIdentityCard
+                          name={room.guest?.name || 'Waiting for opponent'}
+                          title={room.guest?.state?.displayTitle || ''}
+                          rarity={room.guest?.state?.displayTitleRarity || 'common'}
+                          badge={room.guest?.state?.displayBadge || ''}
+                          badgeRarity={room.guest?.state?.displayBadgeRarity || 'common'}
+                          nameplate={room.guest?.state?.displayNameplate || ''}
+                          nameplateRarity={room.guest?.state?.displayNameplateRarity || 'common'}
+                          nameplateKey={room.guest?.state?.displayNameplateKey || ''}
+                          avatarUrl={room.guest?.state?.displayAvatarUrl || ''}
+                          frameKey={room.guest?.state?.displayFrameKey || ''}
+                          sideLabel="Guest"
+                          className="border-white/10 bg-black/25"
+                          nameClassName="text-lg font-semibold text-white"
+                          titleClassName="mt-1 text-[11px]"
+                        />
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">Status</div>
@@ -1260,6 +1256,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
           onNext={handleNextTour}
           onBack={handleBackTour}
           onClose={handleCloseTour}
+          user={user}
           canAdvance={canAdvanceTour}
           isWaiting={Boolean(currentTourStep?.waitFor) && !canAdvanceTour}
         />

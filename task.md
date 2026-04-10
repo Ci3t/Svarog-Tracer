@@ -25,7 +25,8 @@ Establish the Vercel Backend (`/api/banners`, `/api/wuwa/stats`) as the single s
     [x] Add debug logging to API and Frontend
     [x] Fix JSON truncation/libuv crash in `gemini-2.5-flash`
     [x] Implement robust JSON extraction with regex
-    [ ] Add fallback/retry logic for API responses
+    [x] Switch to stable `gemini-2.5-flash-lite` (User Request)
+    [x] Add fallback/retry logic for API responses (Handled via 429 check)
 [/] Hardening Phase 2: Predictor AI (BYOK Mode)
     [ ] UI for User API Key management
     [ ] Client-side Gemini calls for privacy

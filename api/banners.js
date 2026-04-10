@@ -1,5 +1,5 @@
-import { GENSHIN_BANNER_CONTROL } from './_services/genshin/bannerControl.js';
-// Patch-day banner IDs live in api/_services/genshin/bannerControl.js
+import { GENSHIN_BANNER_CONTROL } from '../server/_services/genshin/bannerControl.js';
+// Patch-day banner IDs live in server/_services/genshin/bannerControl.js
 
 // =========================================================================
 // GENSHIN CONTROL CENTER - Edit this for new characters!

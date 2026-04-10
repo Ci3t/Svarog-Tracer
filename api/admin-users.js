@@ -6,7 +6,7 @@ import {
   setCorsHeaders,
   supabaseAuthAdminRequest,
   handleApiError,
-} from './_services/zone/shared.js';
+} from '../server/_services/zone/shared.js';
 
 function normalizeUserId(value) {
   const normalized = String(value || '').trim();
@@ -68,7 +68,7 @@ function toAdminListUser(user) {
 }
 
 export default async function handler(req, res) {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();

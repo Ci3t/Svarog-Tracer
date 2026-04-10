@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../utils/apiBase';
 import { useAuth } from './useAuth';
 
-const PROFILE_MARKETPLACE_API = buildApiUrl('/api/profile-marketplace');
+const PROFILE_MARKETPLACE_API = buildApiUrl('/api/profile?view=marketplace');
 
 export function useProfileMarketplace() {
   const { getAuthHeader, isAuthenticated } = useAuth();
@@ -53,11 +53,27 @@ export function useProfileMarketplace() {
     return () => controller.abort();
   }, [refresh]);
 
+  const refreshSilent = useCallback(async () => {
+    if (!isAuthenticated) return null;
+    try {
+      const response = await fetch(PROFILE_MARKETPLACE_API, {
+        method: 'GET',
+        headers: { ...getAuthHeader() },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) setData(payload || null);
+      return payload || null;
+    } catch {
+      return null;
+    }
+  }, [getAuthHeader, isAuthenticated]);
+
   return {
     data,
     loading,
     error,
     refresh,
+    refreshSilent,
   };
 }
 

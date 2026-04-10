@@ -12,6 +12,7 @@ import ModernNotesCard from '../components/modern/ModernNotesCard';
 import ModernRelicPositionCard from '../components/modern/ModernRelicPositionCard';
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import LiveTrackingTable3str from '../components/LiveTrackingTable3str';
+import { useLiveModeCurrency } from '../hooks/useLiveModeCurrency';
 
 // 🔥 Import Global Cyberpunk Theme CSS
 import '../styles/cyberpunk-theme.css';
@@ -69,6 +70,7 @@ export default function CyberLiveSessionPage({
   kiyoDebugData,
   isAutoImporting,
 }) {
+  useLiveModeCurrency(entries);
   
   // Optional: Could add subtle GSAP glitches here later if needed
 

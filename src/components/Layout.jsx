@@ -20,6 +20,7 @@ import {
   Snowflake, 
   Star, 
   Store,
+  Trophy,
   Users,
   User 
 } from 'lucide-react';
@@ -29,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import { withBaseUrl } from '../utils/assetPaths';
 import { buildApiUrl } from '../utils/apiBase';
-import UserIdentityBlock from './UserIdentityBlock';
+import { UserIdentityCard } from './UserIdentityBlock';
 import { getAvatarFrameStyle, resolveEquippedCosmeticsFromMetadata } from '../utils/marketplaceCatalog';
 
 const PATCH_PRESETS = ["4.0", "4.1", "4.2", "4.3", "4.4", "custom"];
@@ -327,9 +328,20 @@ export default function Layout({
   const authDisplayName = resolveAuthDisplayName(user) || 'Trailblazer';
   const userInitial = authDisplayName.charAt(0).toUpperCase() || 'U';
   const equippedCosmetics = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
-  const directoryUsers = Array.isArray(presenceStats?.users) ? presenceStats.users : [];
   const siteOnlineCount = Number(presenceStats?.online || 0);
-  const selfPresence = presenceStats?.self || directoryUsers.find((entry) => entry.userId === user?.id) || null;
+  const rawDirectoryUsers = Array.isArray(presenceStats?.users) ? presenceStats.users : [];
+  const explicitSelfPresence = presenceStats?.self || rawDirectoryUsers.find((entry) => entry.userId === user?.id) || null;
+  const syntheticSelfPresence = user?.id && !explicitSelfPresence ? {
+    userId: user.id,
+    displayName: authDisplayName,
+    avatarUrl: user?.user_metadata?.avatar_url || '',
+    role: roleMode === 'admin' ? 'admin' : 'user',
+    status: siteOnlineCount > 0 ? 'online' : 'offline',
+    pagePath: location.pathname || '',
+    lastSeenAt: new Date().toISOString(),
+  } : null;
+  const directoryUsers = syntheticSelfPresence ? [syntheticSelfPresence, ...rawDirectoryUsers] : rawDirectoryUsers;
+  const selfPresence = explicitSelfPresence || syntheticSelfPresence || null;
   const onlineMembers = directoryUsers.filter((entry) => entry.status === 'online');
   const presenceByUserId = new Map(directoryUsers.map((entry) => [entry.userId, entry]));
   const filteredAdminUsers = adminUsers.filter(u => {
@@ -596,6 +608,15 @@ export default function Layout({
                            </button>
                            <button
                              type="button"
+                             onClick={() => { navigate('/leaderboard'); setUserMenuOpen(false); }}
+                             className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
+                             style={themedActionTileStyle}
+                           >
+                              <Trophy className="h-3.5 w-3.5" />
+                              Ladder
+                           </button>
+                           <button
+                             type="button"
                              onClick={() => { navigate('/caverns'); setUserMenuOpen(false); }}
                              className="action-tile-deck flex flex-col items-center justify-center gap-1 p-3 text-center font-['Orbitron'] text-[9px] uppercase tracking-widest text-white cursor-pointer"
                              style={themedActionTileStyle}
@@ -771,7 +792,7 @@ export default function Layout({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4 tactical-scrollbar">
                 <div className="space-y-3">
                   {filteredMembers.map((member) => (
                     <div
@@ -781,41 +802,30 @@ export default function Layout({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex items-start gap-3">
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/30" style={getAvatarFrameStyle(member.frameKey)}>
-                            {member.avatarUrl ? (
-                              <img src={member.avatarUrl} alt={member.displayName} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-sm font-black text-white">
-                                {String(member.displayName || '?').charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="min-w-0 flex-1">
-                                <UserIdentityBlock
-                                  name={member.displayName}
-                                  title={member.titleLabel || ''}
-                                  rarity={member.titleRarity || 'common'}
-                                  badge={member.badgeLabel || ''}
-                                  badgeRarity={member.badgeRarity || 'common'}
-                                  nameplate={member.nameplateLabel || ''}
-                                  nameplateRarity={member.nameplateRarity || 'common'}
-                                  nameClassName="truncate text-sm font-bold text-white"
-                                  titleClassName="mt-0.5 text-[10px]"
-                                />
-                              </div>
-                              {member.role === 'admin' ? (
+                          <div className="min-w-0 flex-1">
+                            <UserIdentityCard
+                              name={member.displayName}
+                              title={member.titleLabel || ''}
+                              rarity={member.titleRarity || 'common'}
+                              badge={member.badgeLabel || ''}
+                              badgeRarity={member.badgeRarity || 'common'}
+                              nameplate={member.nameplateLabel || ''}
+                              nameplateRarity={member.nameplateRarity || 'common'}
+                              nameplateKey={member.nameplateKey || ''}
+                              avatarUrl={member.avatarUrl || ''}
+                              frameKey={member.frameKey || ''}
+                              subtitle={member.status === 'online'
+                                ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
+                                : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
+                              className="border-white/10 bg-black/25"
+                              nameClassName="truncate text-sm font-bold text-white"
+                              titleClassName="mt-0.5 text-[10px]"
+                              rightSlot={member.role === 'admin' ? (
                                 <span className="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em]" style={themedPresenceBadgeStyle}>
                                   Admin
                                 </span>
                               ) : null}
-                            </div>
-                            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: 'var(--theme-text-muted)' }}>
-                              {member.status === 'online'
-                                ? `Browsing: ${resolvePresenceArea(member.pagePath)}`
-                                : `Last seen ${member.lastSeenAt ? new Date(member.lastSeenAt).toLocaleString() : 'recently'}`}
-                            </div>
+                            />
                           </div>
                         </div>
                         <span
@@ -846,7 +856,7 @@ export default function Layout({
           <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
             <a href="https://twitch.tv/iciet" target="_blank" rel="noopener" className="hover:text-purple-400 transition-colors">Twitch</a>
             <a href="https://discord.gg/AtGzKP7qnZ" target="_blank" rel="noopener" className="hover:text-indigo-400 transition-colors">Protocol Discord</a>
-            <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.2</span>
+            <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.3</span>
           </div>
         </div>
       </footer>

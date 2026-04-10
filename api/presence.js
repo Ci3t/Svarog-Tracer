@@ -9,7 +9,8 @@ import {
   isZoneAdminUser,
   parseBearerToken,
   requireAuthenticatedUser,
-} from './_services/zone/shared.js';
+} from '../server/_services/zone/shared.js';
+import { ensureDailyLoginClaim } from '../server/_services/profile/account.js';
 import { resolveEquippedTitleFromUser } from '../src/utils/titleCatalog.js';
 import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../src/utils/marketplaceCatalog.js';
 
@@ -164,12 +165,16 @@ function buildAuthenticatedUserRecord(user, { pagePath = '' } = {}) {
   };
 }
 
-async function tryResolveAuthenticatedUser(req) {
+async function tryResolveAuthenticatedUser(req, { claimDaily = false } = {}) {
   const token = parseBearerToken(req);
   if (!token) return null;
   try {
     const auth = await requireAuthenticatedUser(req);
-    return auth.user || null;
+    if (!claimDaily) {
+      return auth.user || null;
+    }
+    const claimed = await ensureDailyLoginClaim(auth.user).catch(() => null);
+    return claimed?.user || auth.user || null;
   } catch {
     return null;
   }
@@ -456,7 +461,7 @@ export default async function handler(req, res) {
     }
   }
 
-  const authUser = await tryResolveAuthenticatedUser(req);
+  const authUser = await tryResolveAuthenticatedUser(req, { claimDaily: type === 'fetch' });
   const authedRecord = authUser ? buildAuthenticatedUserRecord(authUser, { pagePath }) : null;
 
   try {

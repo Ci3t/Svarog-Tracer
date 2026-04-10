@@ -56,9 +56,14 @@ export default function ModernPairPredictorCard({
   advancedPanelId,
   tutorialIds = {},
   onTrustGuideChange,
+  onAdvancedToggleChange,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTrendGlossary, setActiveTrendGlossary] = useState(null);
+
+  useEffect(() => {
+    onAdvancedToggleChange?.(expanded);
+  }, [expanded, onAdvancedToggleChange]);
 
   // Extract 2-str rolls from entries
   const rolls = useMemo(() => {

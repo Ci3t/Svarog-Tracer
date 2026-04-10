@@ -31,6 +31,20 @@ import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns 
 import TutorialPage from "./pages/TutorialPage";
 import TutorialLevelTwoPage from "./pages/TutorialLevelTwoPage";
 import TutorialLevelThreePage from "./pages/TutorialLevelThreePage";
+import TutorialLevelFourPage from "./pages/TutorialLevelFourPage";
+import TutorialLevelFivePage from "./pages/TutorialLevelFivePage";
+import TutorialLevelSixPage from "./pages/TutorialLevelSixPage";
+import TutorialLevelSevenPage from "./pages/TutorialLevelSevenPage";
+import TutorialLevelEightPage from "./pages/TutorialLevelEightPage";
+import TutorialLevelNinePage from "./pages/TutorialLevelNinePage";
+import TutorialLevelTenPage from "./pages/TutorialLevelTenPage";
+import TutorialLevelElevenPage from "./pages/TutorialLevelElevenPage";
+import TutorialLevelTwelvePage from "./pages/TutorialLevelTwelvePage";
+import TutorialLevelThirteenPage from "./pages/TutorialLevelThirteenPage";
+import TutorialLevelFourteenPage from "./pages/TutorialLevelFourteenPage";
+import TutorialLevelFifteenPage from "./pages/TutorialLevelFifteenPage";
+import TutorialLevelSixteenPage from "./pages/TutorialLevelSixteenPage";
+import TutorialCompletePage from "./pages/TutorialCompletePage";
 import PlaygroundPage from "./pages/PlaygroundPage";
 import PlaygroundFreePage from "./pages/PlaygroundFreePage";
 import PlaygroundChallengePage from "./pages/PlaygroundChallengePage";
@@ -43,6 +57,7 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ZoneTrackerPage from "./pages/ZoneTrackerPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import MarketplacePage from "./pages/MarketplacePage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
@@ -57,6 +72,7 @@ import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
 import "./styles/astral-theme.css"; // ðŸŒŒ NEW Astral Theme
 import "./styles/neon-protocol.css"; // 👾 NEW Neon Protocol
 import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Effect
+import ClaraChat from "./components/ClaraChat";
 
 
 
@@ -1197,6 +1213,20 @@ export default function App() {
             <Route path="/tutorial" element={<TutorialPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/level-2" element={<TutorialLevelTwoPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial/level-3" element={<TutorialLevelThreePage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-4" element={<TutorialLevelFourPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-5" element={<TutorialLevelFivePage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-6" element={<TutorialLevelSixPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-7" element={<TutorialLevelSevenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-8" element={<TutorialLevelEightPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-9" element={<TutorialLevelNinePage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-10" element={<TutorialLevelTenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-11" element={<TutorialLevelElevenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-12" element={<TutorialLevelTwelvePage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-13" element={<TutorialLevelThirteenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-14" element={<TutorialLevelFourteenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-15" element={<TutorialLevelFifteenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/level-16" element={<TutorialLevelSixteenPage sessionTheme={sessionTheme} />} />
+            <Route path="/tutorial/complete" element={<TutorialCompletePage sessionTheme={sessionTheme} />} />
             <Route path="/playground" element={<PlaygroundPage sessionTheme={sessionTheme} />} />
             <Route path="/playground/free" element={<PlaygroundFreePage sessionTheme={sessionTheme} />} />
             <Route path="/playground/challenge" element={<PlaygroundChallengePage sessionTheme={sessionTheme} />} />
@@ -1242,11 +1272,13 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/guides" element={<ModernGuidesPage sessionTheme={sessionTheme} />} />
           </Route>
             </Routes>
           </div>
         </div>
+        <ClaraChat />
       </div>
     </Suspense>
   );

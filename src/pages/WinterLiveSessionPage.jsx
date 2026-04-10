@@ -17,6 +17,7 @@ import ModernRelicPositionCard from '../components/modern/ModernRelicPositionCar
 import ModernDebugPanel from '../components/modern/ModernDebugPanel';
 import LiveTrackingTable3str from '../components/LiveTrackingTable3str';
 import SnowEffect from '../components/SnowEffect';
+import { useLiveModeCurrency } from '../hooks/useLiveModeCurrency';
 import '../styles/winter-theme.css';
 
 export default function WinterLiveSessionPage({
@@ -72,6 +73,7 @@ export default function WinterLiveSessionPage({
   kiyoDebugData,
   isAutoImporting,
 }) {
+  useLiveModeCurrency(entries);
   return (
     <div className="winter-theme relative overflow-x-hidden">
       <SnowEffect density={40} speed={0.6} />

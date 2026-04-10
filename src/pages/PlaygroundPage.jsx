@@ -6,10 +6,12 @@ import {
   ArrowUpRight,
   BrainCircuit,
   Dice5,
+  Play,
   Radar,
   ShieldCheck,
   Swords,
   Target,
+  Volume2,
   Wrench,
   Zap,
   Sparkles,
@@ -19,6 +21,11 @@ import {
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { useAuth } from '../hooks/useAuth';
 import { withBaseUrl } from '../utils/assetPaths';
+import { canUsePlaygroundClaraMad, resolvePlaygroundClaraAsset } from '../utils/claraCosmetics';
+import { CompanionProvider, useCompanion, COMPANION_TYPES } from '../companions/CompanionProvider';
+import CompanionWidget from '../companions/CompanionWidget';
+import CompanionSelector from '../companions/CompanionSelector';
+import '../companions/companion.css';
 
 const CLARA_TIPS = [
   'Free Mode is the cleanest place to test line routes without pressure.',
@@ -28,43 +35,32 @@ const CLARA_TIPS = [
   'Relic Races is where the same contract becomes a real duel.',
 ];
 
-const CLARA_IDLE_LINES = {
-  en: [
-    {
-      audio: withBaseUrl('VO_Archive_Clara_2_EN_KeepUpthework.ogg'),
-      text: "Let's keep up the good work today!",
-    },
-    {
-      audio: withBaseUrl('VO_Archive_Clara_EN_Database.ogg'),
-      text: "Mr. Svarog has everything in his database.",
-    },
-    {
-      audio: withBaseUrl('VO_Clara_EN_Safehere.ogg'),
-      text: "Don't worry, Mr. Svarog. We'll be safe here.",
-    },
-    {
-      audio: withBaseUrl('VO_Clara_IHOPE DIDOKAY.ogg'),
-      text: 'I hope I did okay...',
-    },
-  ],
-  jp: [
-    {
-      audio: withBaseUrl('VO_JP_Archive_Clara_2_Keepupthework.ogg'),
-      text: "I'll try my best today too.",
-    },
-    {
-      audio: withBaseUrl('VO_JP_Archive_Clara_Database.ogg'),
-      text: "Wow! Svarog's database has everything!",
-    },
-    {
-      audio: withBaseUrl('VO_JP_Clara_helpful.ogg'),
-      text: 'I hope I was helpful to everyone',
-    },
-    {
-      audio: withBaseUrl('VO_JP_Clara_Successful_ right.ogg'),
-      text: 'Did Clara... do it right?',
-    },
-  ],
+const CLARA_HI_LINE = {
+  audio: withBaseUrl('companions/Clara/playground/Clara-hi.mp3'),
+  text: "Hi. I'm ready. Pick a mode and I'll explain what it is for.",
+};
+
+const CLARA_MODE_LINES = {
+  free: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-free-exp.mp3'),
+    text: 'Free Mode is the sandbox. Use it to test routes, builder steps, and manual ideas without pressure.',
+  },
+  pvp: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-relic-races.mp3'),
+    text: 'Relic Races is the versus room. Two players read separate boards and race to solve faster.',
+  },
+  challenge: {
+    audio: withBaseUrl('companions/Clara/playground/Calra-challenge-mode.mp3'),
+    text: 'Challenge Mode is the contract ladder. It checks whether your reads stay accurate under fixed goals.',
+  },
+  drills: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-drills.mp3'),
+    text: 'Drills teach the language first. They help you read commons, noise, trust, and force logic quickly.',
+  },
+  patterns: {
+    audio: withBaseUrl('companions/Clara/playground/Clara-pattern-lab.mp3'),
+    text: 'Pattern Lab is for replay and analysis. Use it to understand why a session moved the way it did.',
+  },
 };
 
 const CLARA_MAD_LINES = {
@@ -175,7 +171,7 @@ const MODE_THEMES = {
   },
 };
 
-function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
+function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = false, className = '' }) {
   const theme = MODE_THEMES[modeId] || MODE_THEMES.free;
   const { summary, detail } = modeData;
   const Icon = theme.icon;
@@ -188,9 +184,16 @@ function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
   }[theme.color] || 'bg-white/40';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen?.();
+        }
+      }}
       className={`group theme-glass-card relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/8 p-6 text-left transition-all duration-300 hover:border-white/16 hover:bg-white/[0.04] cursor-pointer ${className}`}
     >
       <div className={`absolute left-0 top-0 h-full w-1 ${accentRailClass} opacity-80`} />
@@ -220,17 +223,30 @@ function TrainingCard({ modeId, modeData, onOpen, className = '' }) {
              <Search className="h-3 w-3" />
              {detail}
           </div>
-          <div className="h-1.5 w-1.5 rounded-full bg-white/10 group-hover:bg-white/40" />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreview?.();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition-colors hover:border-white/20 hover:text-white"
+            >
+              {isPreviewPlaying ? <Volume2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              {isPreviewPlaying ? 'Clara on' : 'Clara'}
+            </button>
+            <div className="h-1.5 w-1.5 rounded-full bg-white/10 group-hover:bg-white/40" />
+          </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
-export default function PlaygroundPage({ sessionTheme = 'modern' }) {
+export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
-  const { isAuthenticated, roleMode } = useAuth();
+  const { user, isAuthenticated, roleMode } = useAuth();
   const containerRef = useRef(null);
   const claraRef = useRef(null);
   const claraShellRef = useRef(null);
@@ -248,6 +264,8 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
   const [claraTipIndex, setClaraTipIndex] = useState(0);
   const [claraLanguage, setClaraLanguage] = useState(() => resolveClaraLanguage());
   const [claraInteractionLocked, setClaraInteractionLocked] = useState(false);
+  const [activeModePreview, setActiveModePreview] = useState('');
+  const [activeAudioSrc, setActiveAudioSrc] = useState('');
 
   const scheduleClaraReset = () => {
     if (claraResetTimeoutRef.current) {
@@ -258,6 +276,8 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
       setClaraBubble('');
       setClaraState('idle');
       setClaraInteractionLocked(false);
+      setActiveModePreview('');
+      setActiveAudioSrc('');
       if (claraModelRef.current) {
         gsap.set(claraModelRef.current, { x: 0, rotate: 0 });
       }
@@ -271,7 +291,33 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
     }
   };
 
-  const playClaraLine = (audioSrc, text, nextState = 'normal') => {
+  const stopClaraLine = () => {
+    if (singleClickTimeoutRef.current) {
+      window.clearTimeout(singleClickTimeoutRef.current);
+      singleClickTimeoutRef.current = null;
+    }
+    if (claraResetTimeoutRef.current) {
+      window.clearTimeout(claraResetTimeoutRef.current);
+      claraResetTimeoutRef.current = null;
+    }
+    if (claraAudioRef.current) {
+      claraAudioRef.current.pause();
+      claraAudioRef.current.currentTime = 0;
+      claraAudioRef.current = null;
+    }
+    setClaraSpeaking(false);
+    setClaraBubble('');
+    setClaraState('idle');
+    setClaraInteractionLocked(false);
+    setActiveModePreview('');
+    setActiveAudioSrc('');
+    if (claraModelRef.current) {
+      gsap.set(claraModelRef.current, { x: 0, rotate: 0 });
+    }
+  };
+
+  const playClaraLine = (audioSrc, text, nextState = 'normal', options = {}) => {
+    const { lockInteraction = true, modePreviewId = '' } = options;
     if (claraResetTimeoutRef.current) {
       window.clearTimeout(claraResetTimeoutRef.current);
     }
@@ -282,11 +328,13 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
 
     const audio = new Audio(audioSrc);
     claraAudioRef.current = audio;
+    setActiveAudioSrc(audioSrc);
     audio.volume = 0.75;
     setClaraState(nextState === 'mad' ? 'mad' : 'normal');
     setClaraBubble(text);
     setClaraSpeaking(true);
-    setClaraInteractionLocked(true);
+    setClaraInteractionLocked(lockInteraction);
+    setActiveModePreview(modePreviewId || '');
 
     if (nextState === 'mad' && claraModelRef.current) {
       gsap.killTweensOf(claraModelRef.current);
@@ -320,6 +368,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
       setClaraSpeaking(false);
       setClaraState(nextState === 'mad' ? 'mad' : 'idle');
       claraAudioRef.current = null;
+      setActiveAudioSrc('');
       scheduleClaraReset();
     };
 
@@ -331,24 +380,11 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
   };
 
   const handleClaraSingleClick = () => {
-    const linePool = CLARA_IDLE_LINES[claraLanguage] || CLARA_IDLE_LINES.en;
-    const usedForLanguage = claraIdleHistoryRef.current[claraLanguage] || [];
-    let availableIndexes = linePool
-      .map((_, index) => index)
-      .filter((index) => !usedForLanguage.includes(index));
-
-    if (availableIndexes.length === 0) {
-      claraIdleHistoryRef.current[claraLanguage] = [];
-      availableIndexes = linePool.map((_, index) => index);
-    }
-
-    const pickedIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-    claraIdleHistoryRef.current[claraLanguage] = [...(claraIdleHistoryRef.current[claraLanguage] || []), pickedIndex];
-    const selected = linePool[pickedIndex];
     playClaraLine(
-      selected.audio,
-      selected.text,
+      CLARA_HI_LINE.audio,
+      CLARA_HI_LINE.text,
       'normal',
+      { lockInteraction: true, modePreviewId: '' }
     );
   };
 
@@ -367,7 +403,17 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
     const pickedIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
     claraMadHistoryRef.current[claraLanguage] = [...(claraMadHistoryRef.current[claraLanguage] || []), pickedIndex];
     const selected = linePool[pickedIndex];
-    playClaraLine(selected.audio, selected.text, 'mad');
+    playClaraLine(selected.audio, selected.text, 'mad', { lockInteraction: true, modePreviewId: '' });
+  };
+
+  const handleModePreview = (modeId) => {
+    const line = CLARA_MODE_LINES[modeId];
+    if (!line) return;
+    if (claraSpeaking && activeAudioSrc === line.audio) {
+      stopClaraLine();
+      return;
+    }
+    playClaraLine(line.audio, line.text, 'normal', { lockInteraction: false, modePreviewId: modeId });
   };
 
   const handleClaraClick = () => {
@@ -382,6 +428,10 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
     }
 
     if (isRapidClick) {
+      if (!canUsePlaygroundClaraMad(user?.user_metadata || {})) {
+        handleClaraSingleClick();
+        return;
+      }
       handleClaraAngryClick();
       return;
     }
@@ -476,6 +526,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
           </div>
 
           <div className="gsap-clara-in flex items-center gap-4">
+             {/* CompanionSelector disabled */}
              <div className="theme-subpanel rounded-2xl border border-white/8 p-4 lg:px-6">
                 <div className="flex items-center gap-3">
                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -500,15 +551,10 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                     >
                       <img
                         ref={claraRef}
-                        src={
-                          claraSpeaking
-                            ? claraState === 'mad'
-                              ? withBaseUrl('clara-mad-playground-gif.gif')
-                              : withBaseUrl('clara-playground-gif.gif')
-                            : claraState === 'mad'
-                              ? withBaseUrl('clara-playground-mad.png')
-                              : withBaseUrl('clara-playground.png')
-                        }
+                        src={resolvePlaygroundClaraAsset(user?.user_metadata || {}, {
+                          speaking: claraSpeaking,
+                          mad: claraState === 'mad',
+                        })}
                         alt="Clara Assistant"
                         className="relative z-10 mx-auto h-[450px] w-auto cursor-pointer object-contain transition-transform duration-700 hover:scale-[1.03]"
                         style={{
@@ -519,11 +565,29 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                     </div>
                     {claraSpeaking && claraBubble ? (
                       <div className="absolute right-[-20px] top-[-10px] z-20 max-w-[280px] transition-transform group-hover:translate-x-2 lg:right-[-36px] lg:top-[-18px]">
-                        <div className="relative rounded-[28px] border-[3px] border-sky-400 bg-white px-5 py-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.28)]">
-                          <div className="text-[15px] font-black uppercase leading-tight tracking-tight text-slate-900">
+                        <div
+                          className="relative rounded-[28px] border-[3px] px-5 py-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.28)]"
+                          style={{
+                            backgroundColor: '#ffffff',
+                            borderColor: '#1a1a1a',
+                            opacity: 1,
+                            filter: 'none',
+                            mixBlendMode: 'normal',
+                          }}
+                        >
+                          <div
+                            className="text-[15px] font-black uppercase leading-tight tracking-tight"
+                            style={{
+                              color: '#111111',
+                              opacity: 1,
+                              textShadow: 'none',
+                              filter: 'none',
+                              mixBlendMode: 'normal',
+                            }}
+                          >
                             {claraBubble}
                           </div>
-                          <div className="absolute -bottom-5 left-12 h-0 w-0 border-l-[18px] border-r-[8px] border-t-[26px] border-l-transparent border-r-transparent border-t-sky-400">
+                          <div className="absolute -bottom-5 left-12 h-0 w-0 border-l-[18px] border-r-[8px] border-t-[26px] border-l-transparent border-r-transparent" style={{ borderTopColor: '#1a1a1a' }}>
                             <div className="absolute left-[-15px] top-[-28px] h-0 w-0 border-l-[15px] border-r-[7px] border-t-[22px] border-l-transparent border-r-transparent border-t-white" />
                           </div>
                         </div>
@@ -577,7 +641,7 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                           </div>
                           <div className="flex items-center justify-between">
                              <span className="text-xs text-slate-400">Hub Reputation</span>
-                             <span className="text-xs font-mono text-amber-400 italic">Elite Researcher</span>
+                             <span className="text-xs font-mono text-amber-400 italic">Elite Manipulator</span>
                           </div>
                        </div>
                     </div>
@@ -603,17 +667,19 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
                  {[
-                   { id: 'free', gridClass: 'md:col-span-8 md:row-span-2', summary: 'The ultimate sandbox for manual manipulation, setup line rehearsals, and pure board logic.', detail: 'MANUAL REELS · LOOP STUDY' },
-                   { id: 'pvp', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Test your reads under room-based pressure with shared contracts and shared board learning.', detail: 'ACTIVE ROOMS · VERSUS' },
-                   { id: 'challenge', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Climb the proficiency ladder with structured contracts and hard win-gates.', detail: 'CONTRACTS · PROFICIENCY' },
-                   { id: 'drills', gridClass: 'md:col-span-6 md:row-span-1', summary: 'High-speed reps for board vocabulary, noise reads, and common recognition.', detail: 'SPEED · VOCABULARY' },
-                   { id: 'patterns', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Import real session logs to step through board history and inspect Svarog eyes.', detail: 'RESEARCH · HISTORICAL DATA' },
+                    { id: 'free', gridClass: 'md:col-span-8 md:row-span-2', summary: 'A sandbox to practice your moves and test line routes without any pressure.', detail: 'MANUAL REELS · LOOP STUDY' },
+                    { id: 'pvp', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Race against other manipulators in real-time. Speed and accuracy win!', detail: 'ACTIVE ROOMS · VERSUS' },
+                    { id: 'challenge', gridClass: 'md:col-span-4 md:row-span-1', summary: 'Complete structured contracts to prove your skills and climb the rankings.', detail: 'CONTRACTS · PROFICIENCY' },
+                    { id: 'drills', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Quick practice to learn board language and spot noise easily.', detail: 'SPEED · VOCABULARY' },
+                    { id: 'patterns', gridClass: 'md:col-span-6 md:row-span-1', summary: 'Look at old session logs to understand how Svarog predicts the future.', detail: 'RESEARCH · HISTORICAL DATA' },
                  ].map((mode) => (
                    <TrainingCard 
                       key={mode.id} 
                       modeId={mode.id} 
                       modeData={mode} 
                       className={`gsap-grid-in ${mode.gridClass}`}
+                      onPreview={() => handleModePreview(mode.id)}
+                      isPreviewPlaying={activeModePreview === mode.id && claraSpeaking && claraState !== 'mad'}
                       onOpen={() => navigate(MODE_THEMES[mode.id]?.route || '/playground')}
                    />
                  ))}
@@ -659,8 +725,17 @@ export default function PlaygroundPage({ sessionTheme = 'modern' }) {
                  </div>
               </div>
            </div>
-        </footer>
+         </footer>
       </div>
+      {/* Companion Widget disabled */}
     </div>
+  );
+}
+
+export default function PlaygroundPage(props) {
+  return (
+    <CompanionProvider>
+      <PlaygroundPageInner {...props} />
+    </CompanionProvider>
   );
 }
