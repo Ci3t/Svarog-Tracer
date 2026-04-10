@@ -497,13 +497,9 @@
 }
 
 .gamer-prestige-name {
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  background-image: linear-gradient(135deg, #fff 40%, var(--theme-accent) 60%, #fff 80%);
-  background-size: 200% auto;
-  animation: gamer-prestige-shimmer 3s infinite linear;
-  text-shadow: 0 0 15px color-mix(in srgb, var(--theme-accent) 40%, transparent);
+  color: #f8fafc;
+  -webkit-text-fill-color: #f8fafc;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--theme-accent) 32%, transparent);
 }
 
 /* --- SICK BANNER GEAR --- */
