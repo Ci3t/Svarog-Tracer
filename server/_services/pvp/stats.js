@@ -940,7 +940,7 @@ export async function getSeasonStatsSnapshot({ viewer = null, limit = DEFAULT_LE
 }
 
 export async function handler(req, res) {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();

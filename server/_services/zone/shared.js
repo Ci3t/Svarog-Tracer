@@ -54,13 +54,20 @@ export class HttpError extends Error {
   }
 }
 
-export function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+export function setCorsHeaders(reqOrRes, maybeRes) {
+  const req = maybeRes ? reqOrRes : null;
+  const res = maybeRes || reqOrRes;
+  const requestOrigin = String(req?.headers?.origin || '').trim();
+  const requestHeaders = String(req?.headers?.['access-control-request-headers'] || '').trim();
+
+  res.setHeader('Access-Control-Allow-Origin', requestOrigin || '*');
+  res.setHeader('Vary', 'Origin, Access-Control-Request-Headers');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE, HEAD');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-Requested-With,content-type,Cache-Control,Authorization,x-api-key,Pragma'
+    requestHeaders || 'X-Requested-With, Content-Type, Cache-Control, Authorization, x-api-key, Pragma'
   );
+  res.setHeader('Access-Control-Max-Age', '86400');
 }
 
 export function ensureSupabaseConfig() {

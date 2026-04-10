@@ -311,7 +311,7 @@ export async function getChallengeLeaderboardSnapshot({ limit = DEFAULT_LIMIT } 
 }
 
 export async function handler(req, res) {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
