@@ -13,6 +13,7 @@ import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
 // Import Backend API Client
 import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
+import { buildApiUrl } from './apiBase';
 import bannerHistory from '../data/bannerHistory.json';
 
 // Import Banner Display Configuration
@@ -148,11 +149,8 @@ async function fetchWithProxyFallback(targetUrl) {
 // Genshin Character Image Base (Ambr.top has good icons)
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
-// Banner API endpoint - Intelligent switching between Local and Prod
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const BANNER_API_URL = isLocal
-  ? '/api/banners'
-  : 'https://svarog-tracer.vercel.app/api/banners';
+// Banner API endpoint - always follow the current deployed origin / configured API base
+const BANNER_API_URL = buildApiUrl('/api/banners');
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners(game = 'all') {
