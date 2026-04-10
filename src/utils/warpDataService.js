@@ -944,9 +944,8 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300095_zibai", bannerId: "300095", name: "Zibai", type: "character", image: `https://paimon.moe/images/characters/zibai.png`, characterId: "zibai", game: "genshin" },
-  { id: "300095_neuvillette", bannerId: "300095", name: "Neuvillette", type: "character", image: `https://paimon.moe/images/characters/neuvillette.png`, characterId: "neuvillette", game: "genshin" },
-  { id: "400094_weapon", bannerId: "400094", name: "Lightbearing Moonshard / Tome of the Eternal Flow", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2094.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "300098_character", bannerId: "300098", name: "Linnea / Chasca", type: "character", image: `https://paimon.moe/images/characters/linnea.png`, characterId: "linnea", game: "genshin" },
+  { id: "400097_weapon", bannerId: "400097", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2097.png", characterId: "weapon_banner", game: "genshin" },
 ];
 
 
@@ -1204,7 +1203,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const CACHE_KEY = 'genshin_cached_banners';
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
-  const CURRENT_CACHE_VERSION = '1.2'; // Increment this when overrides change
+  const CURRENT_CACHE_VERSION = '1.3'; // Increment this when banner overrides or active pairings change
   
   // Check cache version and invalidate if outdated
   const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);

@@ -419,7 +419,7 @@ export default function HomePage({
                 homeTheme.chipPrimaryClass || "bg-slate-900/30 border-white/5 text-slate-400"
               }`}
             >
-              Ver.4.1.2 FCS
+              Ver.4.1.3 FCS
             </div>
             <div
               className={`px-6 py-2 border rounded-full text-[10px] uppercase tracking-widest font-medium backdrop-blur-sm ${

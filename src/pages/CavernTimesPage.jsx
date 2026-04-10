@@ -372,7 +372,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     const now = new Date();
     const nextReset = new Date();
     nextReset.setUTCHours(6, 0, 0, 0);
-    const day = nextReset.getUTCDay(); 
+    const day = nextReset.getUTCDay();
     // If it's Monday but before 6 AM UTC, target today. Otherwise target next Monday.
     let diff = (1 - day + 7) % 7;
     if (diff === 0 && now.getUTCHours() >= 6) diff = 7;
@@ -935,16 +935,16 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
   const currentItemData = category === 'relics' ? relicsData : materialsData;
   const getItem = (id) => {
     if (!id) return { name: 'Unknown', image: '', rarity: 1 };
-    
+
     // Check for Domain/Cavern
     const dFound = HSR_DOMAINS.find(d => d.id === id);
     if (dFound) {
       const s0 = relicsData.find(r => r.id === dFound.relicSetIds[0]);
-      return { 
-        ...dFound, 
-        image: s0 ? s0.image : '', 
-        rarity: 5, 
-        isDomain: true 
+      return {
+        ...dFound,
+        image: s0 ? s0.image : '',
+        rarity: 5,
+        isDomain: true
       };
     }
 
@@ -1352,20 +1352,20 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
     if (category !== 'relics') return [];
     return HSR_DOMAINS.filter(domain => {
       // Passes if SEARCH matches domain name OR any item name
-      const passSearch = !searchTerm || 
+      const passSearch = !searchTerm ||
         domain.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         domain.relics.some(r => r.toLowerCase().includes(searchTerm.toLowerCase()));
-      
+
       if (!passSearch) return false;
 
       // Passes if any contained item matches filters
       return domain.relicSetIds.some(setId => {
         const item = relicsData.find(r => r.id === setId);
         if (!item) return false;
-        
+
         const passDomain = activeFilters.length === 0 || activeFilters.includes(item.id);
         const passRarity = !rarityFilter || item.rarity === rarityFilter;
-        
+
         return passDomain && passRarity;
       });
     }).sort((a, b) => {
@@ -1452,7 +1452,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                   className="flex items-center gap-2 px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase rounded-full tracking-widest animate-pulse"
                 >
                   <Trophy className="w-3 h-3" /> Admin Mode Active
-                </div>
+                </div>
+
               </div>
             )}
             <p className="max-w-xl text-slate-400 text-sm md:text-base font-medium leading-relaxed mt-2">
@@ -1462,142 +1463,141 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         </div>
 
         {/* Toolbar */}
-        <div 
+        <div
           className={`cavern-toolbar-shell flex flex-col gap-4 bg-slate-900/60 backdrop-blur-xl p-5 sm:p-6 pt-6 rounded-[2.5rem] border border-white/5 shadow-2xl sticky z-40 theme-glass-card overflow-hidden ${themeConfig.caverns.toolbarStickyClass}`}
           style={{ '--card-radius': '2.5rem' }}
         >
           <div className="relative z-20 flex flex-col gap-4">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
-              <button
-                onClick={() => { setCategory('relics'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
-                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'relics' ? themeConfig.caverns.relicActiveClass : themeConfig.caverns.inactiveChipClass}`}
-              >
-                📦 Relics & Planars
-              </button>
-              <button
-                onClick={() => { setCategory('traces'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
-                className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
-              >
-                ⚡ Traces / Mats
-              </button>
+              <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 w-full md:w-auto overflow-hidden">
+                <button
+                  onClick={() => { setCategory('relics'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
+                  className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'relics' ? themeConfig.caverns.relicActiveClass : themeConfig.caverns.inactiveChipClass}`}
+                >
+                  📦 Relics & Planars
+                </button>
+                <button
+                  onClick={() => { setCategory('traces'); setFormItemId(''); setIsFormOpen(false); setActiveFilters([]); setRarityFilter(null); }}
+                  className={`flex-1 md:flex-none px-8 py-3 rounded-[1rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all cursor-pointer ${category === 'traces' ? themeConfig.caverns.traceActiveClass : themeConfig.caverns.inactiveChipClass}`}
+                >
+                  ⚡ Traces / Mats
+                </button>
+              </div>
+
+              <div className="flex-1 max-w-md w-full flex flex-col gap-2">
+                <div className="relative group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
+                  <input
+                    type="text"
+                    placeholder="Search domains..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="theme-input w-full rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold outline-none"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 pl-2">
+                  <Clock className="w-3 h-3 text-slate-500" />
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500/80">
+                    Archives Reset Weekly (Mon 06:00). Next wipe in: <span className="text-white ml-1 font-mono">{resetTimer}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 w-full md:w-auto">
+                <button
+                  onClick={fetchClears}
+                  className="theme-action-secondary p-4 rounded-2xl transition-all cursor-pointer group shrink-0"
+                  title="Sync Database"
+                >
+                  <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-white ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={handlePrimaryRecordAction}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all text-xs md:text-sm uppercase tracking-widest cursor-pointer ${themeConfig.caverns.addButtonClass}`}
+                >
+                  {isAuthenticated && isFormOpen ? <X className="w-5 h-5 shrink-0" /> : <PlusCircle className="w-5 h-5 shrink-0" />}
+                  {isAuthenticated ? (isFormOpen ? 'Close Portal' : 'Add New Record') : 'Log in'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 max-w-md w-full flex flex-col gap-2">
-              <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
-                <input
-                  type="text"
-                  placeholder="Search domains..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="theme-input w-full rounded-2xl py-3.5 pl-10 pr-10 text-xs font-bold outline-none"
-                />
-                {searchTerm && (
+            {/* Multi-Select Quick Filter Bar */}
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4 pt-3 border-t border-white/5">
+
+              {/* Rarity Filter - ONLY FOR TRACES */}
+              {category === 'traces' && (
+                <div className="flex items-center gap-4 animate-in slide-in-from-left-4">
+                  <div className="flex items-center gap-2 text-slate-500 shrink-0">
+                    <Star className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Rarity Filter</span>
+                  </div>
+                  <div className="flex gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                    {[1, 2, 3, 4].map(r => (
+                      <button
+                        key={r}
+                        onClick={() => setRarityFilter(prev => prev === r ? null : r)}
+                        className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all cursor-pointer ${rarityFilter === r ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
+                      >
+                        {r}★
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {category === 'traces' && <div className="h-10 w-px bg-white/5 hidden lg:block mx-2"></div>}
+
+              {/* Domain Filter */}
+              <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-x-hidden overflow-y-visible">
+                <div className="flex items-center gap-2 text-slate-500 shrink-0">
+                  <Filter className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Domain Filter</span>
+                </div>
+
+                <div
+                  ref={scrollRef}
+                  className="flex-1 flex gap-2 overflow-x-auto overflow-y-visible pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
+                >
+                  {currentItemData.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => toggleFilter(item.id)}
+                      className={`cavern-filter-chip group/filter relative flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
+                    >
+                      <div className={`cavern-filter-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover/filter:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap scale-75 group-hover/filter:scale-100 origin-bottom ${category === 'traces'
+                          ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
+                          : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
+                        }`}>
+                        {item.name}
+                        <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
+                      </div>
+                      <VisualIcon src={item.image} name={item.name} className="w-full h-full" />
+                    </div>
+                  ))}
+                </div>
+
+                {(activeFilters.length > 0 || rarityFilter) && (
                   <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all cursor-pointer"
+                    onClick={() => { setActiveFilters([]); setRarityFilter(null); }}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all cursor-pointer h-10 shrink-0"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
+                    Reset
                   </button>
                 )}
               </div>
-              
-              <div className="flex items-center gap-2 pl-2">
-                <Clock className="w-3 h-3 text-slate-500" />
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500/80">
-                  Archives Reset Weekly (Mon 06:00). Next wipe in: <span className="text-white ml-1 font-mono">{resetTimer}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 w-full md:w-auto">
-              <button
-                onClick={fetchClears}
-                className="theme-action-secondary p-4 rounded-2xl transition-all cursor-pointer group shrink-0"
-                title="Sync Database"
-              >
-                <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-white ${loading ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={handlePrimaryRecordAction}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all text-xs md:text-sm uppercase tracking-widest cursor-pointer ${themeConfig.caverns.addButtonClass}`}
-              >
-                {isAuthenticated && isFormOpen ? <X className="w-5 h-5 shrink-0" /> : <PlusCircle className="w-5 h-5 shrink-0" />}
-                {isAuthenticated ? (isFormOpen ? 'Close Portal' : 'Add New Record') : 'Log in'}
-              </button>
-            </div>
-          </div>
-
-          {/* Multi-Select Quick Filter Bar */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4 pt-3 border-t border-white/5">
-
-            {/* Rarity Filter - ONLY FOR TRACES */}
-            {category === 'traces' && (
-              <div className="flex items-center gap-4 animate-in slide-in-from-left-4">
-                <div className="flex items-center gap-2 text-slate-500 shrink-0">
-                  <Star className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Rarity Filter</span>
-                </div>
-                <div className="flex gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5">
-                  {[1, 2, 3, 4].map(r => (
-                    <button
-                      key={r}
-                      onClick={() => setRarityFilter(prev => prev === r ? null : r)}
-                      className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all cursor-pointer ${rarityFilter === r ? themeConfig.caverns.rarityActiveClass : themeConfig.caverns.inactiveChipClass}`}
-                    >
-                      {r}★
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {category === 'traces' && <div className="h-10 w-px bg-white/5 hidden lg:block mx-2"></div>}
-
-            {/* Domain Filter */}
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 overflow-x-hidden overflow-y-visible">
-              <div className="flex items-center gap-2 text-slate-500 shrink-0">
-                <Filter className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Domain Filter</span>
-              </div>
-
-              <div
-                ref={scrollRef}
-                className="flex-1 flex gap-2 overflow-x-auto overflow-y-visible pb-2 custom-scrollbar mask-fade-right cursor-ew-resize"
-              >
-                {currentItemData.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => toggleFilter(item.id)}
-                    className={`cavern-filter-chip group/filter relative flex-shrink-0 w-10 h-10 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-center p-1.5 ${activeFilters.includes(item.id) ? 'border-indigo-500 bg-indigo-500/20 scale-110 shadow-lg shadow-indigo-500/20' : 'border-white/5 bg-black/20 hover:border-white/20'}`}
-                  >
-                    <div className={`cavern-filter-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover/filter:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap scale-75 group-hover/filter:scale-100 origin-bottom ${
-                      category === 'traces'
-                        ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
-                        : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
-                    }`}>
-                      {item.name}
-                      <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
-                    </div>
-                    <VisualIcon src={item.image} name={item.name} className="w-full h-full" />
-                  </div>
-                ))}
-              </div>
-
-              {(activeFilters.length > 0 || rarityFilter) && (
-                <button
-                  onClick={() => { setActiveFilters([]); setRarityFilter(null); }}
-                  className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all cursor-pointer h-10 shrink-0"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Reset
-                </button>
-              )}
             </div>
           </div>
         </div>
-      </div>
 
         {isFormOpen && (
           <div className="theme-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pt-16 sm:pt-20 transition-all modal-overlay overflow-y-auto overscroll-contain">
@@ -1617,11 +1617,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.2 Active</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Sync Protocol v4.1.3 Active</p>
                       </div>
-                      
+
                       <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
-                      
+
                       {/* QUICK NAV SWITCH */}
                       <div className="theme-subpanel cavern-modal-switch-shell flex items-center rounded-xl p-1 gap-1 shadow-inner overflow-hidden">
                         {isNeon ? (
@@ -1674,11 +1674,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             return !prev;
                           });
                         }}
-                        className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer border ${
-                          isBatchMode
+                        className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer border ${isBatchMode
                             ? themeConfig.caverns.traceActiveClass
                             : 'theme-action-secondary text-slate-400 border-white/10 hover:text-white'
-                        }`}
+                          }`}
                         title="Batch mode keeps the modal open after each save"
                       >
                         <Users className="w-3 h-3" />
@@ -1732,44 +1731,40 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         <button
                           type="button"
                           onClick={() => togglePresetFlag('keepItem')}
-                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                            presetFlags.keepItem
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${presetFlags.keepItem
                               ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
                               : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
-                          }`}
+                            }`}
                         >
                           Keep Cavern
                         </button>
                         <button
                           type="button"
                           onClick={() => togglePresetFlag('keepTeam')}
-                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                            presetFlags.keepTeam
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${presetFlags.keepTeam
                               ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
                               : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
-                          }`}
+                            }`}
                         >
                           Keep Team
                         </button>
                         <button
                           type="button"
                           onClick={() => togglePresetFlag('keepDiscord')}
-                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                            presetFlags.keepDiscord
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${presetFlags.keepDiscord
                               ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
                               : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
-                          }`}
+                            }`}
                         >
                           Keep Discord
                         </button>
                         <button
                           type="button"
                           onClick={() => togglePresetFlag('keepMainStat')}
-                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                            presetFlags.keepMainStat
+                          className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${presetFlags.keepMainStat
                               ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
                               : 'bg-black/30 border-white/10 text-slate-400 hover:text-slate-200'
-                          }`}
+                            }`}
                         >
                           Keep Main Stat
                         </button>
@@ -1856,7 +1851,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                               const isSelected = formItemId === domain.id;
                                               const s0 = relicsData.find(r => r.id === domain.relicSetIds[0]);
                                               const s1 = relicsData.find(r => r.id === domain.relicSetIds[1]);
-                                              
+
                                               return (
                                                 <div
                                                   key={domain.id}
@@ -1865,11 +1860,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                                     addRecentItem(category, domain.id);
                                                     setShowItemSelector(false);
                                                   }}
-                                                  className={`flex flex-col items-center p-5 rounded-[2rem] cursor-pointer border-2 transition-all duration-500 relative group hover:-translate-y-2 hover:shadow-2xl ${
-                                                    isSelected 
-                                                      ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_40px_rgba(245,158,11,0.3)] z-10' 
+                                                  className={`flex flex-col items-center p-5 rounded-[2rem] cursor-pointer border-2 transition-all duration-500 relative group hover:-translate-y-2 hover:shadow-2xl ${isSelected
+                                                      ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_40px_rgba(245,158,11,0.3)] z-10'
                                                       : `border-white/5 ${themeColors.itemBg} ${themeColors.itemHover}`
-                                                  }`}
+                                                    }`}
                                                 >
                                                   {/* Tooltip */}
                                                   <div className={`absolute left-1/2 -top-12 -translate-x-1/2 px-4 py-2 font-bold text-[10px] text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom border ${themeColors.tooltipBg} ${themeColors.tooltipShadow} ${themeColors.tooltipBorder}`}>
@@ -1902,12 +1896,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                           addRecentItem(category, item.id);
                                           setShowItemSelector(false);
                                         }}
-                                        className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${
-                                          item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
-                                          item.rarity === 3 ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' :
-                                          item.rarity === 2 ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' :
-                                          'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20'
-                                        }`}
+                                        className={`flex flex-col items-center p-3 rounded-2xl cursor-pointer border-2 transition-all duration-300 relative group hover:-translate-y-1.5 hover:shadow-xl hover:border-white/40 ${formItemId === item.id ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] z-10' : 'border-white/5'} ${item.rarity === 4 ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20' :
+                                            item.rarity === 3 ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20' :
+                                              item.rarity === 2 ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' :
+                                                'bg-slate-500/10 border-slate-500/20 hover:bg-slate-500/20'
+                                          }`}
                                       >
                                         <div className={`absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom border ${themeColors.tooltipBg} ${themeColors.tooltipShadow} ${themeColors.tooltipBorder}`}>
                                           {item.name}
@@ -1938,11 +1931,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                       setFormItemId(id);
                                       addRecentItem(category, id);
                                     }}
-                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
-                                      formItemId === id
+                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${formItemId === id
                                         ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
                                         : `border-white/10 ${themeColors.itemBg} text-slate-300 hover:border-white/20`
-                                    }`}
+                                      }`}
                                   >
                                     <div className="w-6 h-6 rounded-lg overflow-hidden flex items-center justify-center">
                                       {it.isDomain ? (
@@ -1973,12 +1965,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                               onChange={e => setFormDiscord(e.target.value)}
                               readOnly={isAuthenticated}
                               disabled={!isAuthenticated}
-                              className={`w-full bg-white/[0.03] backdrop-blur-sm shadow-[inset_0_0_15px_rgba(255,255,255,0.02)] border border-white/10 rounded-[1.5rem] p-5 pl-12 text-white font-black outline-none transition-all placeholder:text-slate-500 cursor-text hover:bg-white/[0.08] hover:border-white/20 focus:bg-white/[0.08] focus:border-amber-500/50 ${
-                                isCrimson ? 'focus:ring-red-500/20 focus:ring-4' :
-                                isGlacial ? 'focus:ring-cyan-500/20 focus:ring-4' :
-                                isNeon ? 'focus:ring-cyan-500/20 focus:ring-4' :
-                                'focus:ring-blue-500/20 focus:ring-4'
-                              }`}
+                              className={`w-full bg-white/[0.03] backdrop-blur-sm shadow-[inset_0_0_15px_rgba(255,255,255,0.02)] border border-white/10 rounded-[1.5rem] p-5 pl-12 text-white font-black outline-none transition-all placeholder:text-slate-500 cursor-text hover:bg-white/[0.08] hover:border-white/20 focus:bg-white/[0.08] focus:border-amber-500/50 ${isCrimson ? 'focus:ring-red-500/20 focus:ring-4' :
+                                  isGlacial ? 'focus:ring-cyan-500/20 focus:ring-4' :
+                                    isNeon ? 'focus:ring-cyan-500/20 focus:ring-4' :
+                                      'focus:ring-blue-500/20 focus:ring-4'
+                                }`}
                             />
                           </div>
                           <div className="flex flex-col gap-2 relative">
@@ -2123,7 +2114,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-black">{category === 'relics' ? '04' : '03'}</span>
                             <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Squad Assembly <span className="text-slate-600 ml-2">({formChars.length}/4 REQUIRED)</span></h3>
                           </div>
-                          
+
                           <div className="flex items-center gap-4">
                             {submitStatus.msg && (
                               <div className={`px-4 py-3 rounded-xl font-black text-xs border-2 ${submitStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
@@ -2147,11 +2138,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                     type="submit"
                                     onClick={() => { submitModeRef.current = 'continue'; }}
                                     disabled={submitting || formChars.length !== 4}
-                                    className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
-                                      submitting
+                                    className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${submitting
                                         ? 'bg-slate-800 text-slate-500'
                                         : 'bg-emerald-500 text-black hover:bg-emerald-400'
-                                    }`}
+                                      }`}
                                   >
                                     Save Record
                                   </button>
@@ -2169,11 +2159,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                   type="submit"
                                   onClick={() => { submitModeRef.current = 'close'; }}
                                   disabled={submitting || formChars.length !== 4}
-                                  className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${
-                                    submitting
+                                  className={`px-8 py-4 font-black rounded-2xl shadow-xl transition-all text-xs uppercase tracking-[0.15em] cursor-pointer disabled:opacity-20 active:translate-y-1 ${submitting
                                       ? 'bg-slate-800 text-slate-500'
                                       : 'bg-[#fcd34d] text-black hover:bg-white'
-                                  }`}
+                                    }`}
                                 >
                                   Push & Close
                                 </button>
@@ -2442,27 +2431,27 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           ) : (
             category === 'relics' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8">
-                  {filteredDomains.map(domain => {
-                    const totalDomainRecords = clears
-                      .filter(c => doesClearBelongToDomain(c, domain))
-                      .reduce((sum, c) => sum + (c.verifiedCount || 1), 0);
+                {filteredDomains.map(domain => {
+                  const totalDomainRecords = clears
+                    .filter(c => doesClearBelongToDomain(c, domain))
+                    .reduce((sum, c) => sum + (c.verifiedCount || 1), 0);
 
-                    const anyRecentClears = clears.some(c => doesClearBelongToDomain(c, domain));
-                    const domainPreview = {
-                      ...domain,
-                      image: relicsData.find(r => r.id === domain.relicSetIds[0])?.image || '',
-                      isDomain: true,
-                    };
+                  const anyRecentClears = clears.some(c => doesClearBelongToDomain(c, domain));
+                  const domainPreview = {
+                    ...domain,
+                    image: relicsData.find(r => r.id === domain.relicSetIds[0])?.image || '',
+                    isDomain: true,
+                  };
 
-                    return (
-                      <div
-                        key={domain.id}
-                        onClick={() => setSelectedDomain(domainPreview)}
-                        className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
-                      >
+                  return (
+                    <div
+                      key={domain.id}
+                      onClick={() => setSelectedDomain(domainPreview)}
+                      className="domain-card cavern-domain-card group relative flex flex-col min-h-[22rem] p-8 bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-[2.5rem] hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)] transition-all cursor-pointer overflow-hidden theme-glass-card"
+                    >
                       {/* Background Accents */}
                       <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700"></div>
-                      
+
                       {/* Domain Header */}
                       <div className="flex flex-col gap-1 mb-6 relative z-10">
                         <span className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400/80 group-hover:text-indigo-300 transition-colors">
@@ -2482,19 +2471,18 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             return (
                               <div
                                 key={setId}
-                                className={`absolute w-32 h-32 p-4 flex items-center justify-center transition-all duration-500 group-hover:scale-110 ${
-                                  idx === 0 
-                                    ? 'z-10 -translate-x-8 -rotate-12 group-hover:-translate-x-12 group-hover:-rotate-[15deg] group-hover:brightness-110' 
+                                className={`absolute w-32 h-32 p-4 flex items-center justify-center transition-all duration-500 group-hover:scale-110 ${idx === 0
+                                    ? 'z-10 -translate-x-8 -rotate-12 group-hover:-translate-x-12 group-hover:-rotate-[15deg] group-hover:brightness-110'
                                     : 'z-20 translate-x-8 rotate-12 group-hover:translate-x-12 group-hover:rotate-[15deg]'
-                                }`}
+                                  }`}
                               >
                                 <VisualIcon src={item.image} name={item.name} className="w-full h-full object-contain drop-shadow-2xl" />
-                                
+
                                 {/* Item Small Label on hover */}
                                 <div className="absolute -bottom-2 translate-y-full opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-30">
-                                   <span className="bg-slate-950/90 border border-white/10 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-slate-400">
-                                     {item.name}
-                                   </span>
+                                  <span className="bg-slate-950/90 border border-white/10 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-slate-400">
+                                    {item.name}
+                                  </span>
                                 </div>
                               </div>
                             );
@@ -2514,12 +2502,11 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                         {/* Stats Row */}
                         <div className="flex items-center justify-between">
                           {totalDomainRecords > 0 ? (
-                            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border transition-all ${
-                                anyRecentClears
-                                  ? (isCrimson ? 'bg-red-500/15 border-red-500/40 text-red-300' : isGlacial ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300' : 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 shadow-[inset_0_0_12px_rgba(99,102,241,0.1)]')
-                                  : (isCrimson ? 'bg-red-500/10 border-red-500/20 text-red-400' : isGlacial ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400')
+                            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border transition-all ${anyRecentClears
+                                ? (isCrimson ? 'bg-red-500/15 border-red-500/40 text-red-300' : isGlacial ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300' : 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 shadow-[inset_0_0_12px_rgba(99,102,241,0.1)]')
+                                : (isCrimson ? 'bg-red-500/10 border-red-500/20 text-red-400' : isGlacial ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400')
                               }`}>
-                              <CheckCircle2 className="w-3.5 h-3.5" /> 
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                               {totalDomainRecords} <span className="opacity-60">Verified Records</span>
                             </div>
                           ) : (
@@ -2551,22 +2538,20 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       className="domain-card cavern-domain-card flex min-h-[18rem] sm:min-h-[19.5rem] flex-col items-center self-start text-center gap-2 p-5 sm:p-6 bg-slate-900/60 backdrop-blur-sm border border-white/5 rounded-3xl hover:bg-slate-800/80 hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all cursor-pointer group relative theme-glass-card"
                       style={{ '--card-radius': '1.5rem' }}
                     >
-                      <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${
-                        category === 'traces'
+                      <div className={`cavern-domain-tooltip absolute left-1/2 -top-10 -translate-x-1/2 px-3 py-1.5 font-bold text-[10px] text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[60] whitespace-nowrap scale-75 group-hover:scale-100 origin-bottom ${category === 'traces'
                           ? 'bg-emerald-600 border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.4)]'
                           : 'bg-indigo-600 border border-indigo-400/30 shadow-[0_4px_20px_rgba(79,70,229,0.4)]'
-                      }`}>
+                        }`}>
                         {item.name}
                         <div className={`absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent ${category === 'traces' ? 'border-t-emerald-600' : 'border-t-indigo-600'}`}></div>
                       </div>
                       {itemClears.length > 0 && (
                         <>
                           <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none ${isCrimson ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}></div>
-                          <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${
-                            isCrimson
+                          <div className={`absolute top-5 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-md border rounded-lg text-[8px] font-black tracking-widest shadow-xl z-30 ${isCrimson
                               ? 'border-red-500/25 text-red-300'
                               : 'border-white/10 text-emerald-400'
-                          }`}>
+                            }`}>
                             <Clock className="w-2.5 h-2.5" />
                             <span className="font-mono">{resetTimer}</span>
                           </div>
@@ -2582,10 +2567,9 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                       </div>
                       <div className="mt-auto pt-1">
                         {itemClears.length > 0 ? (
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${
-                              isCrimson
-                                ? 'bg-red-500/15 border-red-500/35 text-red-300'
-                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-black uppercase tracking-widest shadow-inner ${isCrimson
+                              ? 'bg-red-500/15 border-red-500/35 text-red-300'
+                              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                             }`}>
                             <CheckCircle2 className="w-3 h-3" /> {itemClears.reduce((sum, c) => sum + (c.verifiedCount || 1), 0)} Records
                           </span>
@@ -2651,15 +2635,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             setArchiveViewMode('grouped');
                             setArchiveFocusedTime(null);
                           }}
-                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            archiveViewMode === 'grouped'
+                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${archiveViewMode === 'grouped'
                               ? (isGlacial
                                 ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
                                 : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
                               : (isGlacial
                                 ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
                                 : 'text-slate-300 hover:text-white hover:bg-white/10')
-                          }`}
+                            }`}
                         >
                           By Time
                         </button>
@@ -2668,15 +2651,14 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             setArchiveViewMode('flat');
                             setArchiveFocusedTime(null);
                           }}
-                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            archiveViewMode === 'flat'
+                          className={`px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${archiveViewMode === 'flat'
                               ? (isGlacial
                                 ? 'bg-cyan-400 text-slate-950 shadow-[0_0_14px_rgba(34,211,238,0.4)]'
                                 : 'bg-indigo-600 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]')
                               : (isGlacial
                                 ? 'text-cyan-100/80 hover:text-cyan-50 hover:bg-cyan-300/15'
                                 : 'text-slate-300 hover:text-white hover:bg-white/10')
-                          }`}
+                            }`}
                         >
                           All Grid
                         </button>
@@ -2736,11 +2718,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                             <div className="flex items-center gap-3">
                               <button
                                 onClick={() => setArchiveFocusedTime(null)}
-                                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${
-                                  isGlacial
+                                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${isGlacial
                                     ? 'bg-cyan-500/15 border-cyan-300/30 text-cyan-100 hover:bg-cyan-400/25'
                                     : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
-                                }`}
+                                  }`}
                               >
                                 <ChevronLeft className="w-3.5 h-3.5" />
                                 Back
@@ -2819,11 +2800,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                 }}
                                 role="button"
                                 tabIndex={0}
-                                className={`group rounded-[1.5rem] border p-4 text-left transition-all cursor-pointer ${
-                                  isGlacial
+                                className={`group rounded-[1.5rem] border p-4 text-left transition-all cursor-pointer ${isGlacial
                                     ? 'bg-cyan-950/25 border-cyan-300/20 hover:border-cyan-300/45 hover:bg-cyan-900/30'
                                     : 'bg-white/[0.02] border-white/10 hover:border-indigo-500/45 hover:bg-white/[0.045]'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-2 mb-3">
                                   <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[14px] font-black font-mono tracking-tight ${isGlacial ? 'bg-cyan-500 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.35)]' : 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,0.35)]'}`}>
@@ -2838,11 +2818,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                             e.stopPropagation();
                                             shiftTimeNodePreview(time, timeCards.length, -1);
                                           }}
-                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
-                                            isGlacial
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${isGlacial
                                               ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
                                               : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
-                                          }`}
+                                            }`}
                                         >
                                           <ChevronLeft className="w-3.5 h-3.5" />
                                         </button>
@@ -2852,11 +2831,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                             e.stopPropagation();
                                             shiftTimeNodePreview(time, timeCards.length, 1);
                                           }}
-                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
-                                            isGlacial
+                                          className={`w-7 h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${isGlacial
                                               ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20'
                                               : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
-                                          }`}
+                                            }`}
                                         >
                                           <ChevronRight className="w-3.5 h-3.5" />
                                         </button>
@@ -2873,9 +2851,8 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                       return (
                                         <div
                                           key={`${time}-${charId}-${idx}`}
-                                          className={`w-8 h-8 rounded-full border-2 overflow-hidden ${
-                                            ch.rarity === 5 ? 'border-orange-400' : 'border-purple-400'
-                                          }`}
+                                          className={`w-8 h-8 rounded-full border-2 overflow-hidden ${ch.rarity === 5 ? 'border-orange-400' : 'border-purple-400'
+                                            }`}
                                         >
                                           <VisualIcon src={ch.image} name={ch.name} className="w-full h-full object-cover" />
                                         </div>
@@ -2899,11 +2876,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                       )}
                                     </div>
                                     {previewMainStat && (
-                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.08em] ${
-                                        isGlacial
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.08em] ${isGlacial
                                           ? 'bg-cyan-950/35 border-cyan-300/25 text-cyan-100'
                                           : 'bg-black/30 border-white/10 text-indigo-200'
-                                      }`}>
+                                        }`}>
                                         {previewMainStat.split(': ').pop()}
                                       </span>
                                     )}
@@ -2912,11 +2888,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                         previewSubstats.map((s) => (
                                           <span
                                             key={`${time}-${s}`}
-                                            className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-[0.08em] ${
-                                              isGlacial
+                                            className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-[0.08em] ${isGlacial
                                                 ? 'bg-cyan-950/45 border border-cyan-300/20 text-cyan-100'
                                                 : 'bg-black/25 border border-white/10 text-amber-300'
-                                            }`}
+                                              }`}
                                           >
                                             {String(s).replace(/_/g, ' ')}
                                           </span>
@@ -2926,11 +2901,10 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
                                       )}
                                     </div>
                                     {previewNote && (
-                                      <div className={`rounded-lg border px-2.5 py-2 text-[10px] font-semibold leading-snug line-clamp-2 ${
-                                        isGlacial
+                                      <div className={`rounded-lg border px-2.5 py-2 text-[10px] font-semibold leading-snug line-clamp-2 ${isGlacial
                                           ? 'bg-cyan-950/30 border-cyan-300/20 text-cyan-100/90'
                                           : 'bg-black/25 border-white/10 text-slate-200'
-                                      }`}>
+                                        }`}>
                                         {previewNote}
                                       </div>
                                     )}

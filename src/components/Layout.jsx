@@ -328,9 +328,20 @@ export default function Layout({
   const authDisplayName = resolveAuthDisplayName(user) || 'Trailblazer';
   const userInitial = authDisplayName.charAt(0).toUpperCase() || 'U';
   const equippedCosmetics = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
-  const directoryUsers = Array.isArray(presenceStats?.users) ? presenceStats.users : [];
   const siteOnlineCount = Number(presenceStats?.online || 0);
-  const selfPresence = presenceStats?.self || directoryUsers.find((entry) => entry.userId === user?.id) || null;
+  const rawDirectoryUsers = Array.isArray(presenceStats?.users) ? presenceStats.users : [];
+  const explicitSelfPresence = presenceStats?.self || rawDirectoryUsers.find((entry) => entry.userId === user?.id) || null;
+  const syntheticSelfPresence = user?.id && !explicitSelfPresence ? {
+    userId: user.id,
+    displayName: authDisplayName,
+    avatarUrl: user?.user_metadata?.avatar_url || '',
+    role: roleMode === 'admin' ? 'admin' : 'user',
+    status: siteOnlineCount > 0 ? 'online' : 'offline',
+    pagePath: location.pathname || '',
+    lastSeenAt: new Date().toISOString(),
+  } : null;
+  const directoryUsers = syntheticSelfPresence ? [syntheticSelfPresence, ...rawDirectoryUsers] : rawDirectoryUsers;
+  const selfPresence = explicitSelfPresence || syntheticSelfPresence || null;
   const onlineMembers = directoryUsers.filter((entry) => entry.status === 'online');
   const presenceByUserId = new Map(directoryUsers.map((entry) => [entry.userId, entry]));
   const filteredAdminUsers = adminUsers.filter(u => {
@@ -845,7 +856,7 @@ export default function Layout({
           <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
             <a href="https://twitch.tv/iciet" target="_blank" rel="noopener" className="hover:text-purple-400 transition-colors">Twitch</a>
             <a href="https://discord.gg/AtGzKP7qnZ" target="_blank" rel="noopener" className="hover:text-indigo-400 transition-colors">Protocol Discord</a>
-            <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.2</span>
+            <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.3</span>
           </div>
         </div>
       </footer>
