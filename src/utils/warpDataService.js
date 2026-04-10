@@ -155,6 +155,21 @@ const BANNER_API_URL = buildApiUrl('/api/banners');
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners(game = 'all') {
   try {
+    if (game === 'genshin') {
+      const genshinBanners = await genshinApi.getBanners();
+      return Array.isArray(genshinBanners)
+        ? genshinBanners.map((b) => ({
+          id: b.id,
+          bannerId: b.bannerId,
+          name: b.name,
+          image: b.image,
+          type: b.type,
+          characterId: b.characterId,
+          game: 'genshin',
+        }))
+        : [];
+    }
+
     const params = new URLSearchParams();
     if (game && game !== 'all') params.set('game', game);
     const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
