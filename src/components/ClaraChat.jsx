@@ -6,9 +6,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { resolvePlaygroundClaraAsset } from "../utils/claraCosmetics";
+import { buildApiUrl } from "../utils/apiBase";
 import gsap from "gsap";
 
-const API_URL = import.meta.env.VITE_CLARA_API_URL || "/api/ai-analyze-warp";
+const API_URL = import.meta.env.VITE_CLARA_API_URL || buildApiUrl("/api/ai-analyze-warp");
 
 const FAQ_CHIPS = [
   { id: "site_overview", label: "What does each page do?" },
