@@ -18,8 +18,12 @@ import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../src
 
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const IS_PRODUCTION = Boolean(REDIS_URL && REDIS_TOKEN);
+const HAS_SUPABASE_PRESENCE = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 const USER_PRESENCE_TABLE = process.env.SUPABASE_USER_PRESENCE_TABLE || 'user_presence_directory';
+const USER_PRESENCE_ACTIVE_TABLE = process.env.SUPABASE_USER_PRESENCE_ACTIVE_TABLE || 'user_presence_active_sessions';
+const USER_PRESENCE_PREDICTION_TABLE = process.env.SUPABASE_USER_PRESENCE_PREDICTION_TABLE || 'user_presence_prediction_sessions';
+const USER_PRESENCE_COUNTER_TABLE = process.env.SUPABASE_USER_PRESENCE_COUNTER_TABLE || 'user_presence_counters';
+const USER_PRESENCE_COUNTER_ID = 'global';
 
 const TTL_USER = 10 * 60;
 const TTL_PREDICTOR = 5 * 60;
@@ -381,6 +385,149 @@ async function listPresenceUsersFromSupabase(limit = MEMBER_DIRECTORY_LIMIT) {
   }
 }
 
+async function upsertActivePresenceSession(sessionId, { userId = null, pagePath = '' } = {}) {
+  if (!sessionId) return;
+  await supabaseAdminRequest(
+    buildTablePath(USER_PRESENCE_ACTIVE_TABLE, {
+      filters: { on_conflict: 'session_id' },
+    }),
+    {
+      method: 'POST',
+      body: {
+        session_id: sessionId,
+        user_id: userId || null,
+        page_path: normalizePath(pagePath),
+        touched_at: new Date().toISOString(),
+      },
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    }
+  );
+}
+
+async function upsertPredictionPresenceSession(sessionId) {
+  if (!sessionId) return;
+  await supabaseAdminRequest(
+    buildTablePath(USER_PRESENCE_PREDICTION_TABLE, {
+      filters: { on_conflict: 'session_id' },
+    }),
+    {
+      method: 'POST',
+      body: {
+        session_id: sessionId,
+        touched_at: new Date().toISOString(),
+      },
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    }
+  );
+}
+
+async function deletePresenceSessions(sessionId) {
+  if (!sessionId) return;
+  await Promise.all([
+    supabaseAdminRequest(`${USER_PRESENCE_ACTIVE_TABLE}?session_id=${encodeURIComponent(`eq.${sessionId}`)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }),
+    supabaseAdminRequest(`${USER_PRESENCE_PREDICTION_TABLE}?session_id=${encodeURIComponent(`eq.${sessionId}`)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }),
+  ]);
+}
+
+async function incrementSupabasePresenceCounter(todayStr) {
+  const payload = await supabaseAdminRequest('rpc/increment_presence_prediction', {
+    method: 'POST',
+    body: { target_day: todayStr },
+    prefer: 'return=representation',
+  });
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  return {
+    total: Number(row?.total_predictions || 0),
+    today: Number(row?.today_predictions || 0),
+    date: String(row?.today_date || todayStr),
+  };
+}
+
+async function readSupabasePresenceCounter(todayStr) {
+  const rows = await supabaseAdminRequest(
+    buildTablePath(USER_PRESENCE_COUNTER_TABLE, {
+      select: 'counter_id,total_predictions,today_predictions,today_date',
+      filters: {
+        counter_id: `eq.${USER_PRESENCE_COUNTER_ID}`,
+        limit: '1',
+      },
+    }),
+    { method: 'GET' }
+  );
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  const rowDate = String(row?.today_date || todayStr);
+  return {
+    total: Number(row?.total_predictions || 0),
+    today: rowDate === todayStr ? Number(row?.today_predictions || 0) : 0,
+    date: rowDate,
+  };
+}
+
+async function listSupabasePresenceSessions(table, touchedField, sinceIso, limit = 1000) {
+  const rows = await supabaseAdminRequest(
+    buildTablePath(table, {
+      select: `session_id,${touchedField}`,
+      filters: {
+        [touchedField]: `gte.${sinceIso}`,
+        order: `${touchedField}.desc`,
+        limit: String(limit),
+      },
+    }),
+    { method: 'GET' }
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function cleanupSupabasePresenceSessions() {
+  const cleanupKey = 'presence-supabase-cleanup';
+  if (isRateLimited(cleanupKey, 6 * 60 * 60 * 1000)) return;
+
+  const activeCutoff = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString();
+  const predictionCutoff = new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString();
+
+  await Promise.allSettled([
+    supabaseAdminRequest(`${USER_PRESENCE_ACTIVE_TABLE}?touched_at=${encodeURIComponent(`lt.${activeCutoff}`)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }),
+    supabaseAdminRequest(`${USER_PRESENCE_PREDICTION_TABLE}?touched_at=${encodeURIComponent(`lt.${predictionCutoff}`)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }),
+  ]);
+}
+
+async function buildSupabasePresencePayload({ includeUsers, authUser }) {
+  const now = Date.now();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const onlineSinceIso = new Date(now - (TTL_USER * 1000)).toISOString();
+  const predictionSinceIso = new Date(now - (TTL_PREDICTOR * 1000)).toISOString();
+
+  const [counter, activeSessions, predictionSessions, users] = await Promise.all([
+    readSupabasePresenceCounter(todayStr),
+    listSupabasePresenceSessions(USER_PRESENCE_ACTIVE_TABLE, 'touched_at', onlineSinceIso),
+    listSupabasePresenceSessions(USER_PRESENCE_PREDICTION_TABLE, 'touched_at', predictionSinceIso),
+    includeUsers ? listPresenceUsersFromSupabase() : Promise.resolve([]),
+  ]);
+
+  return buildPresencePayload({
+    stats: {
+      total: counter.total,
+      today: counter.today,
+      online: activeSessions.length,
+      predicting: predictionSessions.length,
+    },
+    users,
+    authUser,
+  });
+}
+
 function cleanupLocalPresence(data) {
   const now = Date.now();
   Object.keys(data.activePredictors || {}).forEach((sid) => {
@@ -508,63 +655,56 @@ export default async function handler(req, res) {
   const authedRecord = authUser ? buildAuthenticatedUserRecord(authUser, { pagePath }) : null;
 
   try {
-    if (IS_PRODUCTION) {
+    if (HAS_SUPABASE_PRESENCE) {
       try {
         const limitKey = `${ip}:${type}`;
         const limitMs = type === 'fetch' ? RATE_LIMIT_FETCH : type === 'active' ? RATE_LIMIT_ACTIVE : RATE_LIMIT_PRED;
 
-        const stats = await redisGetStats();
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (stats.date !== todayStr) {
-          await redisDailyReset(todayStr);
-          stats.today = 0;
-        }
-
-        const countsBefore = await redisCountPresence();
-        const usersBefore = includeUsers ? await listPresenceUsersFromSupabase() : [];
+        await cleanupSupabasePresenceSessions();
 
         if (type !== 'offline' && isRateLimited(limitKey, limitMs)) {
-          return res.status(200).json(buildPresencePayload({
-            stats: { ...stats, online: countsBefore.online, predicting: countsBefore.predicting },
-            users: usersBefore,
+          return res.status(200).json(await buildSupabasePresencePayload({
+            includeUsers,
             authUser,
           }));
         }
 
         if (type === 'prediction') {
-          await redisIncrPrediction(sessionId);
-          stats.total += 1;
-          stats.today += 1;
+          await Promise.all([
+            upsertActivePresenceSession(sessionId, { userId: authUser?.id || null, pagePath }),
+            upsertPredictionPresenceSession(sessionId),
+            incrementSupabasePresenceCounter(new Date().toISOString().split('T')[0]),
+          ]);
         } else if (type === 'active') {
-          await redisMarkActive(sessionId);
+          await upsertActivePresenceSession(sessionId, { userId: authUser?.id || null, pagePath });
+        } else if (type === 'fetch') {
+          await upsertActivePresenceSession(sessionId, { userId: authUser?.id || null, pagePath });
         } else if (type === 'offline') {
-          await redisMarkOffline(sessionId);
+          await deletePresenceSessions(sessionId);
         }
 
-        if (authedRecord && (type === 'active' || type === 'fetch')) {
+        if (authedRecord && (type === 'active' || type === 'fetch' || type === 'prediction')) {
           await upsertPresenceDirectoryRecord(authedRecord);
         }
 
-        const countsAfter = await redisCountPresence();
-        const usersAfter = includeUsers ? await listPresenceUsersFromSupabase() : [];
-        return res.status(200).json(buildPresencePayload({
-          stats: { ...stats, online: countsAfter.online, predicting: countsAfter.predicting },
-          users: usersAfter,
+        return res.status(200).json(await buildSupabasePresencePayload({
+          includeUsers,
           authUser,
         }));
       } catch (error) {
         console.error('Presence production fallback:', error);
-        const users = includeUsers ? await listPresenceUsersFromSupabase().catch(() => []) : [];
-        return res.status(200).json(buildPresencePayload({
-          stats: {
-            total: 0,
-            today: 0,
-            online: users.filter((entry) => entry.status === 'online').length,
-            predicting: 0,
-          },
-          users,
+        return res.status(200).json(await buildSupabasePresencePayload({
+          includeUsers,
           authUser,
-        }));
+        }).catch(() => ({
+          success: true,
+          count: 0,
+          online: 0,
+          total: 0,
+          today: 0,
+          users: [],
+          self: null,
+        })));
       }
     }
 
