@@ -37,10 +37,12 @@ import { CHALLENGE_CONTRACT_ORDER } from '../data/challengeContracts';
 import { usePvpSeasonStats } from '../hooks/usePvpSeasonStats';
 import { useChallengeResults } from '../hooks/useChallengeResults';
 import { useProfileMarketplace } from '../hooks/useProfileMarketplace';
+import { useOwnedRoster } from '../hooks/useOwnedRoster';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import { withBaseUrl } from '../utils/assetPaths';
 import { buildApiUrl } from '../utils/apiBase';
 import UserIdentityBlock, { AnimatedTitleText } from '../components/UserIdentityBlock';
+import OwnedRosterPanel from '../components/zone/OwnedRosterPanel';
 import {
   getAvatarFrameStyle,
   getCosmeticAccentStyle,
@@ -582,6 +584,67 @@ const RecentUnlocksView = ({ items }) => (
   </div>
 );
 
+const RosterView = ({
+  user,
+  ownedOptions,
+  ownedSet,
+  ownedSearchTerm,
+  setOwnedSearchTerm,
+  toggleOwnedCharacter,
+  saveOwnedRoster,
+  loadOwnedRoster,
+  importOwnedRosterFile,
+  ownedLoading,
+  ownedSaving,
+  ownedImporting,
+  error,
+  success,
+}) => (
+  <div className="space-y-6">
+    <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Roster Sync</div>
+          <h3 className="mt-2 text-2xl font-black uppercase tracking-[0.08em] text-white">Owned Characters Import</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Import your Reliquary JSON or manually mark characters here. This is the same saved owned roster used by Zones, so changes made in Profile are immediately linked there too.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+          Shared With Zones
+        </div>
+      </div>
+    </div>
+
+    {error ? (
+      <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+        {error}
+      </div>
+    ) : null}
+
+    {success ? (
+      <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+        {success}
+      </div>
+    ) : null}
+
+    <OwnedRosterPanel
+      user={user}
+      ownedOptions={ownedOptions}
+      ownedSet={ownedSet}
+      ownedSearchTerm={ownedSearchTerm}
+      setOwnedSearchTerm={setOwnedSearchTerm}
+      toggleOwnedCharacter={toggleOwnedCharacter}
+      saveOwnedRoster={saveOwnedRoster}
+      loadOwnedRoster={loadOwnedRoster}
+      importOwnedRosterFile={importOwnedRosterFile}
+      ownedLoading={ownedLoading}
+      ownedSaving={ownedSaving}
+      ownedImporting={ownedImporting}
+    />
+  </div>
+);
+
 /* -------------------------------------------------------------------------- */
 /*                               MAIN PAGE                                     */
 /* -------------------------------------------------------------------------- */
@@ -592,6 +655,7 @@ export default function UserProfilePage() {
   const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
   const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
   const { stats: presenceStats, refreshPresence } = usePresenceContext();
+  const ownedRoster = useOwnedRoster();
 
   const [activeTab, setActiveTab] = useState('dossier');
   const [equippingKey, setEquippingKey] = useState('');
@@ -733,6 +797,7 @@ export default function UserProfilePage() {
     { id: 'combat', label: 'Matches', icon: Target },
     { id: 'arsenal', label: 'Arsenal', icon: Briefcase },
     { id: 'loadout', label: 'Gear', icon: Boxes },
+    { id: 'roster', label: 'Roster', icon: Users },
     { id: 'milestones', label: 'Progress', icon: Award },
     { id: 'recent', label: 'Recent', icon: History },
   ];
@@ -770,6 +835,24 @@ export default function UserProfilePage() {
                 activeTitleKey={equippedTitleKey} 
                 unlockedTitles={unlockedTitleKeys}
                 actionKey={equippingKey}
+              />
+            )}
+            {activeTab === 'roster' && (
+              <RosterView
+                user={ownedRoster.user}
+                ownedOptions={ownedRoster.ownedOptions}
+                ownedSet={ownedRoster.ownedSet}
+                ownedSearchTerm={ownedRoster.ownedSearchTerm}
+                setOwnedSearchTerm={ownedRoster.setOwnedSearchTerm}
+                toggleOwnedCharacter={ownedRoster.toggleOwnedCharacter}
+                saveOwnedRoster={ownedRoster.saveOwnedRoster}
+                loadOwnedRoster={ownedRoster.loadOwnedRoster}
+                importOwnedRosterFile={ownedRoster.importOwnedRosterFile}
+                ownedLoading={ownedRoster.ownedLoading}
+                ownedSaving={ownedRoster.ownedSaving}
+                ownedImporting={ownedRoster.ownedImporting}
+                error={ownedRoster.error}
+                success={ownedRoster.success}
               />
             )}
             {activeTab === 'milestones' && <MilestonesView achievements={profile.progression?.achievements || []} />}

@@ -10,6 +10,7 @@ import {
   Cpu,
   Flame,
   Gamepad2,
+  Heart,
   LogOut,
   Map as MapIcon,
   Palette,
@@ -259,6 +260,10 @@ export default function Layout({
       @keyframes scanline {
         0% { transform: translateY(0); }
         100% { transform: translateY(50%); }
+      }
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
       }
 
       .deck-section-header::after {
@@ -861,12 +866,44 @@ export default function Layout({
           <p className="mx-auto max-w-4xl text-xs leading-6 text-slate-400">
             Svarog Tracer is an RNG observation and training tool. It does not inject, automate, edit game files, or perform cheating actions. It helps users study visible outcomes, track patterns, and practice decision-making around relic and banner results.
           </p>
-          <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
             <a href="https://twitch.tv/iciet" target="_blank" rel="noopener" className="hover:text-purple-400 transition-colors">Twitch</a>
             <a href="https://discord.gg/AtGzKP7qnZ" target="_blank" rel="noopener" className="hover:text-indigo-400 transition-colors">Personal Discord</a>
             <a href="https://discord.gg/YqAeBjpbE4" target="_blank" rel="noopener" className="hover:text-fuchsia-400 transition-colors">Genius Society</a>
-            <a href="https://paypal.me/RaNi141" target="_blank" rel="noopener" className="hover:text-emerald-400 transition-colors">Donate PayPal</a>
-            
+            <a
+              href="https://paypal.me/RaNi141"
+              target="_blank"
+              rel="noopener"
+              className="group relative flex items-center gap-3 px-6 py-3 transition-all duration-500 hover:-translate-y-1"
+            >
+              {/* The Atmosphere Glow */}
+              <div className="absolute inset-0 scale-75 blur-3xl transition-all duration-700 group-hover:bg-pink-500/10 group-hover:scale-110" />
+              
+              {/* Tactical Scanning Line */}
+              <div className="absolute bottom-0 left-1/2 h-[1px] w-0 -translate-x-1/2 bg-gradient-to-r from-transparent via-pink-500 to-transparent transition-all duration-700 ease-out group-hover:w-full" />
+              <div className="absolute top-0 left-1/2 h-[1px] w-0 -translate-x-1/2 bg-gradient-to-r from-transparent via-pink-500/30 to-transparent transition-all duration-700 ease-out group-hover:w-1/2" />
+
+              <div className="relative flex items-center gap-2.5">
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-pink-500/5 transition-colors group-hover:bg-pink-500/10">
+                   <div className="absolute inset-0 animate-ping rounded-lg bg-pink-500/10 duration-[3000ms]" />
+                   <Heart className="h-4 w-4 fill-pink-500/10 text-pink-500 transition-all duration-500 group-hover:scale-110 group-hover:fill-pink-500 group-hover:filter group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" />
+                </div>
+                
+                <div className="flex flex-col items-start translate-y-0.5">
+                  <span className="bg-gradient-to-r from-slate-200 to-slate-400 bg-clip-text font-['Orbitron'] text-[11px] font-black uppercase tracking-[0.3em] text-transparent transition-all duration-500 group-hover:from-white group-hover:to-pink-400">
+                    Donate
+                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-600 transition-colors group-hover:text-pink-500/60">
+                    Support Development
+                  </span>
+                </div>
+              </div>
+              
+              {/* Small accent dots */}
+              <div className="absolute left-0 top-1/2 h-1 w-1 -translate-y-1/2 rounded-full bg-pink-500 opacity-0 group-hover:opacity-100 transition-all duration-500 group-hover:left-2" />
+              <div className="absolute right-0 top-1/2 h-1 w-1 -translate-y-1/2 rounded-full bg-pink-500 opacity-0 group-hover:opacity-100 transition-all duration-500 group-hover:right-2" />
+            </a>
+
             <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.3</span>
           </div>
         </div>
