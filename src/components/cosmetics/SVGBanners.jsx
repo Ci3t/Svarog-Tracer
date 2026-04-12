@@ -1,5 +1,15 @@
 import React from 'react';
 
+export function NeuralScanline() {
+  return (
+    <pattern id="neural-scanline" width="100" height="2" patternUnits="userSpaceOnUse">
+      <rect width="100" height="0.5" fill="var(--theme-accent, #22d3ee)" fillOpacity="0.08">
+        <animate attributeName="y" values="0;2;0" dur="3s" repeatCount="indefinite" />
+      </rect>
+    </pattern>
+  );
+}
+
 // Common base wrapper
 export function BannerSvgWrapper({ children, className = '' }) {
   return (
@@ -9,6 +19,11 @@ export function BannerSvgWrapper({ children, className = '' }) {
       viewBox="0 0 100 100"
       xmlns="http://www.w3.org/2000/svg"
     >
+      <defs>
+        <NeuralScanline />
+      </defs>
+      {/* Global scanline overlay */}
+      <rect width="100" height="100" fill="url(#neural-scanline)" opacity="0.4" />
       {children}
     </svg>
   );
@@ -286,7 +301,7 @@ export function getSvgBannerByKey(key, theme) {
   // Default minimal high-tech line
   return (
     <BannerSvgWrapper>
-      <rect width="100" height="100" fill="#0f172a" opacity="0.6" />
+      <rect width="100" height="100" fill="transparent" />
       <path d="M 0,0 L 100,0 M 0,100 L 100,100" fill="none" stroke="#cbd5e1" strokeWidth="0.5" opacity="0.2" />
       <polygon points="100,0 80,0 100,20" fill="#334155" opacity="0.3" />
     </BannerSvgWrapper>

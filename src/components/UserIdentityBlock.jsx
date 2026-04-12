@@ -113,6 +113,7 @@ export default function UserIdentityBlock({
   align = 'left',
   theme = 'default',
   nameplateKey = '',
+  transparent = false,
 }) {
   const { titleRef, titleStyle } = useAnimatedTitleEffect(title, rarity);
   const badgeStyle = useMemo(() => getCosmeticAccentStyle(badgeRarity), [badgeRarity]);
@@ -125,17 +126,17 @@ export default function UserIdentityBlock({
     const accent = getCosmeticAccentStyle(nameplateRarity);
     return {
       ...accent,
-      padding: '14px 22px',
+      padding: transparent ? '0' : '14px 22px',
       position: 'relative',
       overflow: 'hidden',
       maxWidth: '100%',
-      backgroundColor: '#050510', // Deep base so SVGs pop
+      backgroundColor: transparent ? 'transparent' : '#050510', // Deep base so SVGs pop
       borderRadius: isMythic ? '0px' : '14px',
-      boxShadow: isMythic
+      boxShadow: transparent ? 'none' : (isMythic
         ? '0 0 50px rgba(255, 107, 159, 0.3), inset 0 0 25px rgba(255, 107, 159, 0.2)'
         : isLegendary
           ? '0 0 40px rgba(246, 183, 60, 0.25), inset 0 0 20px rgba(246, 183, 60, 0.15)'
-          : '0 0 15px rgba(0,0,0,0.4)',
+          : '0 0 15px rgba(0,0,0,0.4)'),
     };
   }, [nameplate, nameplateRarity, isMythic, isLegendary]);
 
@@ -143,7 +144,7 @@ export default function UserIdentityBlock({
     align === 'right' ? 'text-right' : '',
     isMythic ? 'rarity-mythic-banner-bg banner-clip-shard' : '',
     isMythic || isLegendary ? 'rarity-shimmer-container' : '',
-    'gamer-hud-glass-panel'
+    transparent ? '' : 'gamer-hud-glass-panel'
   ].filter(Boolean).join(' ');
 
   const bannerBorderClass = isMythic ? 'rarity-mythic-border-box' : isLegendary ? 'rarity-legendary-border-box' : '';
@@ -154,14 +155,14 @@ export default function UserIdentityBlock({
       <div className={containerClasses} style={nameplateStyle || undefined}>
         
         {/* === PREMIUM SVG BACKDROP === */}
-        {nameplate && (
+        {nameplate && !transparent && (
           <div className="absolute inset-0 z-0 opacity-80 pointer-events-none">
              {getSvgBannerByKey(nameplateKey || theme, theme)}
           </div>
         )}
 
-        {/* Global Shading for readability */}
-        {nameplate && <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />}
+        {/* Global Shading for readability - only when NOT in transparent mode (where parent handles it) */}
+        {nameplate && !transparent && <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />}
         
         {/* === TEXT & CONTENT LAYER === */}
         <div className="flex flex-wrap items-center gap-3 relative z-10">
@@ -224,13 +225,19 @@ export function UserIdentityCard({
   const hasIdentityDecor = Boolean(nameplate || title || badge);
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black/35 ${className}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] ${className}`} style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+      {/* Tactical border glint */}
+      <div className="absolute inset-0 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+      </div>
+
       {hasIdentityDecor ? (
         <>
-          <div className="absolute inset-0 opacity-90 pointer-events-none">
+          <div className="absolute inset-0 opacity-100 pointer-events-none">
             {getSvgBannerByKey(nameplateKey || 'default', 'default')}
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/35 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-black/35 pointer-events-none" />
+          <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
         </>
       ) : null}
       <div className="relative z-10 flex items-start justify-between gap-4 px-4 py-4">
@@ -264,6 +271,7 @@ export function UserIdentityCard({
               nameplateKey={nameplateKey}
               nameClassName={nameClassName}
               titleClassName={titleClassName}
+              transparent={hasIdentityDecor}
             />
             {subtitle ? (
               <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">

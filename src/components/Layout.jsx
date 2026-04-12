@@ -858,9 +858,15 @@ export default function Layout({
       <footer className="mt-auto border-t border-slate-800/50 bg-slate-900/30 backdrop-blur-md py-12 px-4 text-center">
         <div className="max-w-[1920px] mx-auto space-y-6">
           <div className="text-sm font-bold text-slate-300 uppercase tracking-[0.3em]">Svarog Tracer <span className="text-slate-600 px-2">//</span> Observation Suite</div>
+          <p className="mx-auto max-w-4xl text-xs leading-6 text-slate-400">
+            Svarog Tracer is an RNG observation and training tool. It does not inject, automate, edit game files, or perform cheating actions. It helps users study visible outcomes, track patterns, and practice decision-making around relic and banner results.
+          </p>
           <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
             <a href="https://twitch.tv/iciet" target="_blank" rel="noopener" className="hover:text-purple-400 transition-colors">Twitch</a>
-            <a href="https://discord.gg/AtGzKP7qnZ" target="_blank" rel="noopener" className="hover:text-indigo-400 transition-colors">Protocol Discord</a>
+            <a href="https://discord.gg/AtGzKP7qnZ" target="_blank" rel="noopener" className="hover:text-indigo-400 transition-colors">Personal Discord</a>
+            <a href="https://discord.gg/YqAeBjpbE4" target="_blank" rel="noopener" className="hover:text-fuchsia-400 transition-colors">Genius Society</a>
+            <a href="https://paypal.me/RaNi141" target="_blank" rel="noopener" className="hover:text-emerald-400 transition-colors">Donate PayPal</a>
+            
             <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.3</span>
           </div>
         </div>
@@ -868,3 +874,4 @@ export default function Layout({
     </div>
   );
 }
+
