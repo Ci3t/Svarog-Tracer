@@ -6,9 +6,10 @@ import { buildApiUrl } from '../utils/apiBase';
 const PRESENCE_API = buildApiUrl('/api/presence');
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
-const ACTIVE_INTERVAL_MS = 45000;
-const ACTIVE_GRACE_MS = 60000;
-const PREDICTION_GRACE_MS = 100;
+const ACTIVE_INTERVAL_MS = 180000;
+const ACTIVE_GRACE_MS = 120000;
+const DIRECTORY_REFRESH_MS = 120000;
+const PREDICTION_GRACE_MS = 5000;
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -58,6 +59,7 @@ export function usePresence() {
   const sessionIdRef = useRef(null);
   const lastActiveRef = useRef(0);
   const lastPredictionRef = useRef(0);
+  const lastDirectoryRef = useRef(0);
   const previousAuthRef = useRef(false);
 
   useEffect(() => {
@@ -77,14 +79,16 @@ export function usePresence() {
     if (!sessionId) return null;
 
     const now = Date.now();
-    const { force = false, includeUsers = isAuthenticated, keepalive = false } = options;
+    const { force = false, includeUsers = false, keepalive = false } = options;
     if (!force) {
       if (type === 'active' && now - lastActiveRef.current < ACTIVE_GRACE_MS) return null;
       if (type === 'prediction' && now - lastPredictionRef.current < PREDICTION_GRACE_MS) return null;
+      if (includeUsers && now - lastDirectoryRef.current < DIRECTORY_REFRESH_MS) return null;
     }
 
     if (type === 'active') lastActiveRef.current = now;
     if (type === 'prediction') lastPredictionRef.current = now;
+    if (includeUsers) lastDirectoryRef.current = now;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -109,21 +113,25 @@ export function usePresence() {
         throw new Error(data?.error || data?.message || 'Presence request failed.');
       }
 
-      const nextStats = {
-        active: data.count || 0,
-        online: data.online || 0,
-        today: data.today || 0,
-        total: data.total || 0,
-        users: Array.isArray(data.users) ? data.users : [],
-        self: data.self || null,
-        loading: false,
-        error: null,
-      };
-      setStats(nextStats);
+      let resolvedStats = null;
+      setStats((prev) => {
+        const nextStats = {
+          active: data.count || 0,
+          online: data.online || 0,
+          today: data.today || 0,
+          total: data.total || 0,
+          users: includeUsers ? (Array.isArray(data.users) ? data.users : []) : prev.users,
+          self: includeUsers ? (data.self || null) : prev.self,
+          loading: false,
+          error: null,
+        };
+        resolvedStats = nextStats;
+        return nextStats;
+      });
       if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStats));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resolvedStats));
       }
-      return nextStats;
+      return resolvedStats;
     } catch (error) {
       setStats((prev) => ({ ...prev, loading: false, error: error?.message || true }));
       return null;
@@ -152,17 +160,28 @@ export function usePresence() {
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
-    pingPresence('active', { force: true, includeUsers: true });
+    pingPresence('active', { force: true, includeUsers: false });
     const timer = window.setInterval(() => {
-      pingPresence('active', { force: true, includeUsers: true });
+      pingPresence('active', { force: true, includeUsers: false });
     }, ACTIVE_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, pingPresence]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    pingPresence('active', { force: true, includeUsers: true });
+    pingPresence('active', { force: true, includeUsers: false });
   }, [isAuthenticated, location.pathname, pingPresence]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pingPresence('active', { includeUsers: false });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, pingPresence]);
 
   useEffect(() => {
     const wasAuthenticated = previousAuthRef.current;
@@ -184,15 +203,18 @@ export function usePresence() {
   }, [markOffline]);
 
   const trackPrediction = useCallback(() => {
-    pingPresence('prediction', { includeUsers: isAuthenticated });
+    pingPresence('prediction', { includeUsers: false });
   }, [isAuthenticated, pingPresence]);
 
   const trackActivity = useCallback(() => {
-    pingPresence('active', { includeUsers: isAuthenticated });
+    pingPresence('active', { includeUsers: false });
   }, [isAuthenticated, pingPresence]);
 
-  const refreshPresence = useCallback(() => {
-    return pingPresence('fetch', { force: true, includeUsers: isAuthenticated });
+  const refreshPresence = useCallback((options = {}) => {
+    return pingPresence('fetch', {
+      force: true,
+      includeUsers: Boolean(options.includeUsers ?? isAuthenticated),
+    });
   }, [isAuthenticated, pingPresence]);
 
   return {

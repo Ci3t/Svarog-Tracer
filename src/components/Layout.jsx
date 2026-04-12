@@ -86,7 +86,7 @@ export default function Layout({
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo, user } = useAuth();
-  const { stats: presenceStats } = usePresenceContext();
+  const { stats: presenceStats, refreshPresence } = usePresenceContext();
   const normalizedSessionTheme = sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
 
   const navRef = useRef(null);
@@ -112,6 +112,15 @@ export default function Layout({
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
   const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
+
+  useEffect(() => {
+    if (!isAuthenticated || !membersDrawerOpen) return undefined;
+    refreshPresence({ includeUsers: true });
+    const timer = window.setInterval(() => {
+      refreshPresence({ includeUsers: true });
+    }, 120000);
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated, membersDrawerOpen, refreshPresence]);
 
   const loadAdminUsers = useCallback(async () => {
     if (!isAuthenticated || roleMode !== 'admin') return;
@@ -859,4 +868,3 @@ export default function Layout({
     </div>
   );
 }
-

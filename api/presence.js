@@ -5,10 +5,12 @@
 import fs from 'fs';
 import path from 'path';
 import {
+  buildTablePath,
   extractDiscordDisplayName,
   isZoneAdminUser,
   parseBearerToken,
   requireAuthenticatedUser,
+  supabaseAdminRequest,
 } from '../server/_services/zone/shared.js';
 import { ensureDailyLoginClaim } from '../server/_services/profile/account.js';
 import { resolveEquippedTitleFromUser } from '../src/utils/titleCatalog.js';
@@ -17,14 +19,17 @@ import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../src
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const IS_PRODUCTION = Boolean(REDIS_URL && REDIS_TOKEN);
+const USER_PRESENCE_TABLE = process.env.SUPABASE_USER_PRESENCE_TABLE || 'user_presence_directory';
 
-const TTL_USER = 5 * 60;
+const TTL_USER = 10 * 60;
 const TTL_PREDICTOR = 5 * 60;
 const FEATURE_ENABLED = process.env.PRESENCE_ENABLED !== 'false';
-const RATE_LIMIT_FETCH = 5000;
-const RATE_LIMIT_ACTIVE = 30000;
-const RATE_LIMIT_PRED = 200;
+const RATE_LIMIT_FETCH = 15000;
+const RATE_LIMIT_ACTIVE = 120000;
+const RATE_LIMIT_PRED = 5000;
 const MEMBER_DIRECTORY_LIMIT = 60;
+const DIRECTORY_RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const DIRECTORY_ONLINE_WINDOW_MS = TTL_USER * 1000;
 const LOCAL_DB_FILE = path.join(process.cwd(), 'presence_store.json');
 
 const reqTimestamps = new Map();
@@ -110,6 +115,17 @@ function normalizePath(value) {
   const normalized = String(value || '').trim();
   if (!normalized) return '';
   return normalized.slice(0, 120);
+}
+
+function isMissingTableError(error) {
+  const details = error?.details;
+  if (details && typeof details === 'object') {
+    if (String(details.code || '').trim() === '42P01') return true;
+    const raw = `${details.message || ''} ${details.details || ''} ${details.hint || ''}`.toLowerCase();
+    if (raw.includes('relation') && raw.includes('does not exist')) return true;
+  }
+  const raw = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return raw.includes('42p01') || (raw.includes('relation') && raw.includes('does not exist'));
 }
 
 function resolveAvatarUrl(user) {
@@ -205,83 +221,108 @@ async function redisDailyReset(todayStr) {
 }
 
 async function redisIncrPrediction(sessionId) {
+  const now = Date.now();
   await redisPipeline([
     ['INCR', 'p:total'],
     ['INCR', 'p:today'],
-    ['SET', `p:pred:${sessionId}`, '1', 'EX', TTL_PREDICTOR],
-    ['SET', `p:u:${sessionId}`, '1', 'EX', TTL_USER],
+    ['ZADD', 'p:online:sessions', now, sessionId],
+    ['ZADD', 'p:prediction:sessions', now, sessionId],
   ]);
 }
 
 async function redisMarkActive(sessionId) {
-  await redisCmd('SET', `p:u:${sessionId}`, '1', 'EX', `${TTL_USER}`);
+  const now = Date.now();
+  await redisCmd('ZADD', 'p:online:sessions', now, sessionId);
 }
 
-async function redisCountOnline() {
-  let userCount = 0;
-  let predCount = 0;
-  let cursor = '0';
-  do {
-    const results = await redisPipeline([
-      ['SCAN', cursor, 'MATCH', 'p:u:*', 'COUNT', '100'],
-      ['SCAN', cursor, 'MATCH', 'p:pred:*', 'COUNT', '100'],
-    ]);
-    cursor = results?.[0]?.result?.[0] || '0';
-    userCount += Array.isArray(results?.[0]?.result?.[1]) ? results[0].result[1].length : 0;
-    predCount += Array.isArray(results?.[1]?.result?.[1]) ? results[1].result[1].length : 0;
-  } while (cursor !== '0');
-  return { online: userCount, predicting: predCount };
-}
-
-async function redisUpsertAuthenticatedPresence(sessionId, record) {
-  if (!record?.userId) return;
+async function redisMarkOffline(sessionId) {
+  if (!sessionId) return;
   await redisPipeline([
-    ['SET', `p:auth:${sessionId}`, JSON.stringify(record), 'EX', TTL_USER],
-    ['SET', `p:user:${record.userId}`, JSON.stringify(record)],
-    ['SADD', 'p:users', record.userId],
+    ['ZREM', 'p:online:sessions', sessionId],
+    ['ZREM', 'p:prediction:sessions', sessionId],
   ]);
 }
 
-async function redisMarkAuthenticatedOffline(sessionId) {
-  if (!sessionId) return;
-  const raw = await redisCmd('GET', `p:auth:${sessionId}`);
-  const record = safeJsonParse(raw);
-  const commands = [
-    ['DEL', `p:auth:${sessionId}`],
-    ['DEL', `p:u:${sessionId}`],
-    ['DEL', `p:pred:${sessionId}`],
-  ];
-  if (record?.userId) {
-    commands.push([
-      'SET',
-      `p:user:${record.userId}`,
-      JSON.stringify({
-        ...record,
-        lastSeenAt: new Date().toISOString(),
-      }),
-    ]);
-    commands.push(['SADD', 'p:users', record.userId]);
-  }
-  await redisPipeline(commands);
+async function redisCountPresence() {
+  const now = Date.now();
+  const onlineMinScore = now - (TTL_USER * 1000);
+  const predictionMinScore = now - (TTL_PREDICTOR * 1000);
+  const results = await redisPipeline([
+    ['ZREMRANGEBYSCORE', 'p:online:sessions', '-inf', onlineMinScore],
+    ['ZREMRANGEBYSCORE', 'p:prediction:sessions', '-inf', predictionMinScore],
+    ['ZCARD', 'p:online:sessions'],
+    ['ZCARD', 'p:prediction:sessions'],
+  ]);
+  return {
+    online: parseInt(results?.[2]?.result ?? '0', 10) || 0,
+    predicting: parseInt(results?.[3]?.result ?? '0', 10) || 0,
+  };
 }
 
-async function redisReadActiveAuthenticatedUsers() {
-  let cursor = '0';
-  const sessionRecords = [];
-  do {
-    const scanResults = await redisPipeline([
-      ['SCAN', cursor, 'MATCH', 'p:auth:*', 'COUNT', '100'],
-    ]);
-    cursor = scanResults?.[0]?.result?.[0] || '0';
-    const keys = Array.isArray(scanResults?.[0]?.result?.[1]) ? scanResults[0].result[1] : [];
-    if (!keys.length) continue;
-    const getResults = await redisPipeline(keys.map((key) => ['GET', key]));
-    for (const result of getResults) {
-      const record = safeJsonParse(result?.result);
-      if (record?.userId) sessionRecords.push(record);
-    }
-  } while (cursor !== '0');
-  return sessionRecords;
+async function upsertPresenceDirectoryRecord(record) {
+  if (!record?.userId) return;
+  try {
+    await supabaseAdminRequest(
+      buildTablePath(USER_PRESENCE_TABLE, {
+        select: 'user_id,last_seen_at',
+        filters: { on_conflict: 'user_id' },
+      }),
+      {
+        method: 'POST',
+        body: {
+          user_id: record.userId,
+          display_name: record.displayName,
+          title_key: record.titleKey,
+          title_label: record.titleLabel,
+          title_rarity: record.titleRarity,
+          badge_key: record.badgeKey,
+          badge_label: record.badgeLabel,
+          badge_rarity: record.badgeRarity,
+          nameplate_key: record.nameplateKey,
+          nameplate_label: record.nameplateLabel,
+          nameplate_rarity: record.nameplateRarity,
+          frame_key: record.frameKey,
+          frame_label: record.frameLabel,
+          frame_rarity: record.frameRarity,
+          avatar_url: record.avatarUrl,
+          role: record.role,
+          page_path: record.pagePath,
+          last_seen_at: record.lastSeenAt,
+        },
+        prefer: 'resolution=merge-duplicates,return=representation',
+      }
+    );
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
+function mapPresenceDirectoryRow(row, nowMs) {
+  if (!row?.user_id) return null;
+  const lastSeenAt = row.last_seen_at || null;
+  const lastSeenMs = Date.parse(lastSeenAt || 0) || 0;
+  return {
+    userId: String(row.user_id || '').trim(),
+    displayName: String(row.display_name || '').trim(),
+    titleKey: String(row.title_key || '').trim(),
+    titleLabel: String(row.title_label || '').trim(),
+    titleRarity: String(row.title_rarity || '').trim(),
+    badgeKey: String(row.badge_key || '').trim(),
+    badgeLabel: String(row.badge_label || '').trim(),
+    badgeRarity: String(row.badge_rarity || '').trim(),
+    nameplateKey: String(row.nameplate_key || '').trim(),
+    nameplateLabel: String(row.nameplate_label || '').trim(),
+    nameplateRarity: String(row.nameplate_rarity || '').trim(),
+    frameKey: String(row.frame_key || '').trim(),
+    frameLabel: String(row.frame_label || '').trim(),
+    frameRarity: String(row.frame_rarity || '').trim(),
+    avatarUrl: String(row.avatar_url || '').trim(),
+    role: String(row.role || 'user').trim() || 'user',
+    pagePath: String(row.page_path || '').trim(),
+    lastSeenAt,
+    status: nowMs - lastSeenMs <= DIRECTORY_ONLINE_WINDOW_MS ? 'online' : 'offline',
+  };
 }
 
 function sortPresenceUsers(users) {
@@ -295,47 +336,49 @@ function sortPresenceUsers(users) {
   });
 }
 
-async function redisListPresenceUsers(limit = MEMBER_DIRECTORY_LIMIT) {
-  const activeSessions = await redisReadActiveAuthenticatedUsers();
-  const activeByUserId = new Map();
-  for (const record of activeSessions) {
-    const existing = activeByUserId.get(record.userId);
-    const recordTime = Date.parse(record.lastSeenAt || 0) || 0;
-    const existingTime = Date.parse(existing?.lastSeenAt || 0) || 0;
-    if (!existing || recordTime >= existingTime) {
-      activeByUserId.set(record.userId, record);
-    }
+async function listPresenceUsersFromSupabase(limit = MEMBER_DIRECTORY_LIMIT) {
+  try {
+    const sinceIso = new Date(Date.now() - DIRECTORY_RECENT_WINDOW_MS).toISOString();
+    const rows = await supabaseAdminRequest(
+      buildTablePath(USER_PRESENCE_TABLE, {
+        select: [
+          'user_id',
+          'display_name',
+          'title_key',
+          'title_label',
+          'title_rarity',
+          'badge_key',
+          'badge_label',
+          'badge_rarity',
+          'nameplate_key',
+          'nameplate_label',
+          'nameplate_rarity',
+          'frame_key',
+          'frame_label',
+          'frame_rarity',
+          'avatar_url',
+          'role',
+          'page_path',
+          'last_seen_at',
+        ].join(','),
+        filters: {
+          last_seen_at: `gte.${sinceIso}`,
+          order: 'last_seen_at.desc',
+          limit: String(limit),
+        },
+      }),
+      { method: 'GET' }
+    );
+    const nowMs = Date.now();
+    return sortPresenceUsers(
+      (Array.isArray(rows) ? rows : [])
+        .map((row) => mapPresenceDirectoryRow(row, nowMs))
+        .filter(Boolean)
+    ).slice(0, limit);
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
   }
-
-  const knownIds = await redisCmd('SMEMBERS', 'p:users');
-  const userIds = Array.isArray(knownIds) ? knownIds.slice(0, limit * 2) : [];
-  const storedResults = userIds.length
-    ? await redisPipeline(userIds.map((userId) => ['GET', `p:user:${userId}`]))
-    : [];
-
-  const merged = [];
-  const seen = new Set();
-  userIds.forEach((userId, index) => {
-    const storedRecord = safeJsonParse(storedResults?.[index]?.result);
-    const activeRecord = activeByUserId.get(userId);
-    const baseRecord = activeRecord || storedRecord;
-    if (!baseRecord?.userId || seen.has(baseRecord.userId)) return;
-    seen.add(baseRecord.userId);
-    merged.push({
-      ...baseRecord,
-      status: activeRecord ? 'online' : 'offline',
-      lastSeenAt: activeRecord?.lastSeenAt || storedRecord?.lastSeenAt || baseRecord.lastSeenAt || null,
-      pagePath: activeRecord?.pagePath || '',
-    });
-  });
-
-  for (const activeRecord of activeByUserId.values()) {
-    if (!activeRecord?.userId || seen.has(activeRecord.userId)) continue;
-    seen.add(activeRecord.userId);
-    merged.push({ ...activeRecord, status: 'online' });
-  }
-
-  return sortPresenceUsers(merged).slice(0, limit);
 }
 
 function cleanupLocalPresence(data) {
@@ -466,48 +509,63 @@ export default async function handler(req, res) {
 
   try {
     if (IS_PRODUCTION) {
-      const limitKey = `${ip}:${type}`;
-      const limitMs = type === 'fetch' ? RATE_LIMIT_FETCH : type === 'active' ? RATE_LIMIT_ACTIVE : RATE_LIMIT_PRED;
+      try {
+        const limitKey = `${ip}:${type}`;
+        const limitMs = type === 'fetch' ? RATE_LIMIT_FETCH : type === 'active' ? RATE_LIMIT_ACTIVE : RATE_LIMIT_PRED;
 
-      const stats = await redisGetStats();
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (stats.date !== todayStr) {
-        await redisDailyReset(todayStr);
-        stats.today = 0;
-      }
+        const stats = await redisGetStats();
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (stats.date !== todayStr) {
+          await redisDailyReset(todayStr);
+          stats.today = 0;
+        }
 
-      const countsBefore = await redisCountOnline();
-      const usersBefore = includeUsers ? await redisListPresenceUsers() : [];
+        const countsBefore = await redisCountPresence();
+        const usersBefore = includeUsers ? await listPresenceUsersFromSupabase() : [];
 
-      if (type !== 'offline' && isRateLimited(limitKey, limitMs)) {
+        if (type !== 'offline' && isRateLimited(limitKey, limitMs)) {
+          return res.status(200).json(buildPresencePayload({
+            stats: { ...stats, online: countsBefore.online, predicting: countsBefore.predicting },
+            users: usersBefore,
+            authUser,
+          }));
+        }
+
+        if (type === 'prediction') {
+          await redisIncrPrediction(sessionId);
+          stats.total += 1;
+          stats.today += 1;
+        } else if (type === 'active') {
+          await redisMarkActive(sessionId);
+        } else if (type === 'offline') {
+          await redisMarkOffline(sessionId);
+        }
+
+        if (authedRecord && (type === 'active' || type === 'fetch')) {
+          await upsertPresenceDirectoryRecord(authedRecord);
+        }
+
+        const countsAfter = await redisCountPresence();
+        const usersAfter = includeUsers ? await listPresenceUsersFromSupabase() : [];
         return res.status(200).json(buildPresencePayload({
-          stats: { ...stats, online: countsBefore.online, predicting: countsBefore.predicting },
-          users: usersBefore,
+          stats: { ...stats, online: countsAfter.online, predicting: countsAfter.predicting },
+          users: usersAfter,
+          authUser,
+        }));
+      } catch (error) {
+        console.error('Presence production fallback:', error);
+        const users = includeUsers ? await listPresenceUsersFromSupabase().catch(() => []) : [];
+        return res.status(200).json(buildPresencePayload({
+          stats: {
+            total: 0,
+            today: 0,
+            online: users.filter((entry) => entry.status === 'online').length,
+            predicting: 0,
+          },
+          users,
           authUser,
         }));
       }
-
-      if (type === 'prediction') {
-        await redisIncrPrediction(sessionId);
-        stats.total += 1;
-        stats.today += 1;
-      } else if (type === 'active') {
-        await redisMarkActive(sessionId);
-      } else if (type === 'offline') {
-        await redisMarkAuthenticatedOffline(sessionId);
-      }
-
-      if (authedRecord && type !== 'offline' && (type === 'active' || type === 'prediction')) {
-        await redisUpsertAuthenticatedPresence(sessionId, authedRecord);
-      }
-
-      const countsAfter = type === 'offline' ? await redisCountOnline() : await redisCountOnline();
-      const usersAfter = includeUsers ? await redisListPresenceUsers() : [];
-      return res.status(200).json(buildPresencePayload({
-        stats: { ...stats, online: countsAfter.online, predicting: countsAfter.predicting },
-        users: usersAfter,
-        authUser,
-      }));
     }
 
     const data = localLoad();

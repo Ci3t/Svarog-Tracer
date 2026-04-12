@@ -5,27 +5,6 @@ const PresenceContext = createContext(null);
 
 export function PresenceProvider({ children }) {
   const presence = usePresence();
-  const { trackActivity } = presence;
-  
-  // Centralized activity tracking (non-idle users)
-  useEffect(() => {
-    const handleActivity = () => {
-      trackActivity();
-    };
-    
-    // Events that signal a user is active (non-idle)
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    
-    events.forEach(event => {
-      window.addEventListener(event, handleActivity, { passive: true });
-    });
-    
-    return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, handleActivity);
-      });
-    };
-  }, [trackActivity]);
   
   // Global expose for App.jsx (hacky but effective for current structure)
   useEffect(() => {
