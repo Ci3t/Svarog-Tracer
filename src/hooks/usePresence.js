@@ -41,7 +41,7 @@ function sendPresenceBeacon(sessionId, type = 'offline') {
 
 export function usePresence() {
   const location = useLocation();
-  const { isAuthenticated, getAuthHeader } = useAuth();
+  const { isAuthenticated, getAuthHeader, loading } = useAuth();
   const [stats, setStats] = useState(() => {
     const cached = readCachedStats();
     return {
@@ -61,6 +61,7 @@ export function usePresence() {
   const lastPredictionRef = useRef(0);
   const lastDirectoryRef = useRef(0);
   const previousAuthRef = useRef(false);
+  const previousPathRef = useRef(null);
 
   useEffect(() => {
     if (sessionIdRef.current || typeof window === 'undefined') return;
@@ -75,6 +76,8 @@ export function usePresence() {
   }, []);
 
   const pingPresence = useCallback(async (type = 'fetch', options = {}) => {
+    if (loading && type !== 'offline') return null;
+
     const sessionId = sessionIdRef.current;
     if (!sessionId) return null;
 
@@ -136,7 +139,7 @@ export function usePresence() {
       setStats((prev) => ({ ...prev, loading: false, error: error?.message || true }));
       return null;
     }
-  }, [getAuthHeader, isAuthenticated, location.pathname]);
+  }, [getAuthHeader, isAuthenticated, loading, location.pathname]);
 
   const markOffline = useCallback(() => {
     const sessionId = sessionIdRef.current;
@@ -155,25 +158,43 @@ export function usePresence() {
   }, []);
 
   useEffect(() => {
-    pingPresence('fetch', { force: true, includeUsers: isAuthenticated });
-  }, [isAuthenticated, pingPresence]);
+    if (loading) return undefined;
+
+    const fetchTimer = window.setTimeout(() => {
+      pingPresence('fetch', { force: true, includeUsers: false });
+    }, 800);
+
+    return () => window.clearTimeout(fetchTimer);
+  }, [loading, pingPresence]);
 
   useEffect(() => {
-    if (!isAuthenticated) return undefined;
+    if (loading || !isAuthenticated) return undefined;
     pingPresence('active', { force: true, includeUsers: false });
     const timer = window.setInterval(() => {
       pingPresence('active', { force: true, includeUsers: false });
     }, ACTIVE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [isAuthenticated, pingPresence]);
+  }, [isAuthenticated, loading, pingPresence]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    pingPresence('active', { force: true, includeUsers: false });
-  }, [isAuthenticated, location.pathname, pingPresence]);
+    if (loading || !isAuthenticated) return;
+
+    if (previousPathRef.current === null) {
+      previousPathRef.current = location.pathname;
+      return;
+    }
+
+    if (previousPathRef.current !== location.pathname) {
+      previousPathRef.current = location.pathname;
+      pingPresence('active', { force: true, includeUsers: false });
+      return;
+    }
+
+    previousPathRef.current = location.pathname;
+  }, [isAuthenticated, loading, location.pathname, pingPresence]);
 
   useEffect(() => {
-    if (!isAuthenticated) return undefined;
+    if (loading || !isAuthenticated) return undefined;
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         pingPresence('active', { includeUsers: false });
@@ -181,7 +202,7 @@ export function usePresence() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isAuthenticated, pingPresence]);
+  }, [isAuthenticated, loading, pingPresence]);
 
   useEffect(() => {
     const wasAuthenticated = previousAuthRef.current;
@@ -204,11 +225,11 @@ export function usePresence() {
 
   const trackPrediction = useCallback(() => {
     pingPresence('prediction', { includeUsers: false });
-  }, [isAuthenticated, pingPresence]);
+  }, [pingPresence]);
 
   const trackActivity = useCallback(() => {
     pingPresence('active', { includeUsers: false });
-  }, [isAuthenticated, pingPresence]);
+  }, [pingPresence]);
 
   const refreshPresence = useCallback((options = {}) => {
     return pingPresence('fetch', {

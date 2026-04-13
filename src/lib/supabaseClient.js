@@ -1,4 +1,5 @@
 const SESSION_STORAGE_KEY = 'svarog_zone_auth_session_v1';
+const AUTH_REQUEST_TIMEOUT_MS = 12000;
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -60,17 +61,41 @@ export function isSessionExpired(session, bufferMs = 0) {
   return Date.now() + Math.max(0, Number(bufferMs) || 0) >= Number(session.expires_at);
 }
 
-export async function fetchSupabaseUser(accessToken) {
+async function fetchSupabaseAuth(path, { method = 'GET', accessToken = '', body } = {}) {
   if (!hasSupabaseClientConfig()) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
   }
 
-  const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/user`, {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}${path}`, {
+      method,
+      signal: controller.signal,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    return response;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Supabase auth request timed out.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+export async function fetchSupabaseUser(accessToken) {
+  const response = await fetchSupabaseAuth('/auth/v1/user', {
     method: 'GET',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
+    accessToken,
   });
 
   if (!response.ok) {
@@ -87,12 +112,9 @@ export async function revokeSupabaseSession(accessToken) {
   }
 
   try {
-    await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/logout`, {
+    await fetchSupabaseAuth('/auth/v1/logout', {
       method: 'POST',
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
+      accessToken,
     });
   } catch {
     // Best effort logout.
@@ -104,15 +126,11 @@ export async function refreshSupabaseSession(refreshToken) {
     throw new Error('Missing refresh token.');
   }
 
-  const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+  const response = await fetchSupabaseAuth('/auth/v1/token?grant_type=refresh_token', {
     method: 'POST',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       refresh_token: refreshToken,
-    }),
+    },
   });
 
   const payload = await response.json().catch(() => ({}));

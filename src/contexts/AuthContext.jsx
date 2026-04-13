@@ -127,13 +127,20 @@ export function AuthProvider({ children }) {
 
       try {
         const hydratedSession = await refreshSession(stored);
-        const nextUser = await fetchSupabaseUser(hydratedSession.access_token);
+        if (!hydratedSession?.access_token) {
+          if (!cancelled) {
+            resetAuth();
+          }
+          return;
+        }
+        const nextUser = hydratedSession.user || (await fetchSupabaseUser(hydratedSession.access_token));
         if (!cancelled) {
           applySession(hydratedSession, nextUser);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           resetAuth();
+          setAuthError(error?.message || '');
         }
       } finally {
         if (!cancelled) {

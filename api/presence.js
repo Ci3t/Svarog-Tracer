@@ -18,6 +18,8 @@ import { getMarketplaceItem, resolveEquippedCosmeticsFromMetadata } from '../src
 
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const HAS_SUPABASE_PRESENCE = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 const USER_PRESENCE_TABLE = process.env.SUPABASE_USER_PRESENCE_TABLE || 'user_presence_directory';
 const USER_PRESENCE_ACTIVE_TABLE = process.env.SUPABASE_USER_PRESENCE_ACTIVE_TABLE || 'user_presence_active_sessions';
@@ -484,6 +486,35 @@ async function listSupabasePresenceSessions(table, touchedField, sinceIso, limit
   return Array.isArray(rows) ? rows : [];
 }
 
+async function countSupabasePresenceSessions(table, touchedField, sinceIso) {
+  const response = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${buildTablePath(table, {
+      select: 'session_id',
+      filters: {
+        [touchedField]: `gte.${sinceIso}`,
+      },
+    })}`,
+    {
+      method: 'GET',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        Prefer: 'count=exact',
+        Range: '0-0',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const rawError = await response.text();
+    throw new Error(rawError || `Failed to count ${table}.`);
+  }
+
+  const contentRange = response.headers.get('content-range') || '';
+  const countMatch = contentRange.match(/\/(\d+)$/);
+  return countMatch ? Number(countMatch[1]) || 0 : 0;
+}
+
 async function cleanupSupabasePresenceSessions() {
   const cleanupKey = 'presence-supabase-cleanup';
   if (isRateLimited(cleanupKey, 6 * 60 * 60 * 1000)) return;
@@ -509,10 +540,10 @@ async function buildSupabasePresencePayload({ includeUsers, authUser }) {
   const onlineSinceIso = new Date(now - (TTL_USER * 1000)).toISOString();
   const predictionSinceIso = new Date(now - (TTL_PREDICTOR * 1000)).toISOString();
 
-  const [counter, activeSessions, predictionSessions, users] = await Promise.all([
+  const [counter, onlineCount, predictingCount, users] = await Promise.all([
     readSupabasePresenceCounter(todayStr),
-    listSupabasePresenceSessions(USER_PRESENCE_ACTIVE_TABLE, 'touched_at', onlineSinceIso),
-    listSupabasePresenceSessions(USER_PRESENCE_PREDICTION_TABLE, 'touched_at', predictionSinceIso),
+    countSupabasePresenceSessions(USER_PRESENCE_ACTIVE_TABLE, 'touched_at', onlineSinceIso),
+    countSupabasePresenceSessions(USER_PRESENCE_PREDICTION_TABLE, 'touched_at', predictionSinceIso),
     includeUsers ? listPresenceUsersFromSupabase() : Promise.resolve([]),
   ]);
 
@@ -520,8 +551,8 @@ async function buildSupabasePresencePayload({ includeUsers, authUser }) {
     stats: {
       total: counter.total,
       today: counter.today,
-      online: activeSessions.length,
-      predicting: predictionSessions.length,
+      online: onlineCount,
+      predicting: predictingCount,
     },
     users,
     authUser,
