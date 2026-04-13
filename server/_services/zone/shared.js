@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY =
   env.SUPABASE_ANON_KEY ||
   env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_REQUEST_TIMEOUT_MS = Math.max(3000, Number(env.SUPABASE_REQUEST_TIMEOUT_MS || 12000) || 12000);
 
 export const ZONE_EPOCH_TABLE = env.SUPABASE_ZONE_EPOCH_TABLE || 'zone_epochs';
 export const ZONE_RUNS_TABLE = env.SUPABASE_ZONE_RUNS_TABLE || 'zone_runs';
@@ -51,6 +52,25 @@ export class HttpError extends Error {
     this.name = 'HttpError';
     this.status = status;
     this.details = details;
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = SUPABASE_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new HttpError(504, 'Supabase request timed out.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -510,7 +530,7 @@ export async function requireAuthenticatedUser(req) {
 
   const baseUrl = SUPABASE_URL.replace(/\/$/, '');
   const apiKey = SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
-  const response = await fetch(`${baseUrl}/auth/v1/user`, {
+  const response = await fetchWithTimeout(`${baseUrl}/auth/v1/user`, {
     method: 'GET',
     headers: {
       apikey: apiKey,
@@ -551,7 +571,7 @@ export async function supabaseAuthAdminRequest(
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${baseUrl}/auth/v1/admin/${path}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/auth/v1/admin/${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -587,7 +607,7 @@ export async function supabaseAdminRequest(
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/rest/v1/${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),

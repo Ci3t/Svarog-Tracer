@@ -3,11 +3,12 @@ import React, {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useState,
   useRef,
   useCallback,
 } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // ðŸ”¥ OLD Kiyo
 import { predictWithPairs } from "./utils/pairTransitionPredictor"; // ðŸ”¥ NEW SUGGEST
 import {
@@ -139,6 +140,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const isDebugMode = urlParams.get("debug") === "true";
 
 export default function App() {
+  const location = useLocation();
   const [entries, setEntries] = useState([]);
   const [prevSessions, setPrevSessions] = useState([]);
   const [rollInput, setRollInput] = useState("");
@@ -1038,45 +1040,55 @@ export default function App() {
   }
 
 
-  const freq2 = buildPrefixFreq(entries, 2, { translateAll: true });
-  const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
-  const freq4 = buildPrefixFreq(entries, 4, { translateAll: true });
-  const freq5 = buildPrefixFreq(entries, 5, { translateAll: true });
+  const isLiveRoute = location.pathname === "/live";
+  const {
+    freq2,
+    freq3,
+    freq4,
+    freq5,
+    livePrediction,
+    livePrediction3,
+    livePrediction4,
+  } = useMemo(() => {
+    if (!isLiveRoute) {
+      return {
+        freq2: {},
+        freq3: {},
+        freq4: {},
+        freq5: {},
+        livePrediction: { prediction: "-", confidence: 0 },
+        livePrediction3: { prediction: "-", confidence: 0 },
+        livePrediction4: { prediction: "-", confidence: 0 },
+      };
+    }
 
-  const rolls2 = entries
-    .map((e) => (e.translated || "").slice(0, 2))
-    .filter((r) => r.length === 2);
+    const nextFreq2 = buildPrefixFreq(entries, 2, { translateAll: true });
+    const nextFreq3 = buildPrefixFreq(entries, 3, { translateAll: true });
+    const nextFreq4 = buildPrefixFreq(entries, 4, { translateAll: true });
+    const nextFreq5 = buildPrefixFreq(entries, 5, { translateAll: true });
 
-  const rolls3 = entries
-    .map((e) => (e.s3 || "").replace(/0+$/, ""))
-    .filter((r) => r.length === 3);
+    const rolls2 = entries
+      .map((e) => (e.translated || "").slice(0, 2))
+      .filter((r) => r.length === 2);
 
-  const rolls4 = entries
-    .map((e) => (e.s4 || "").replace(/0+$/, ""))
-    .filter((r) => r.length >= 4);
+    const rolls3 = entries
+      .map((e) => (e.s3 || "").replace(/0+$/, ""))
+      .filter((r) => r.length === 3);
 
-  // ðŸ”¥ UPDATED: Use BBP mode for live prediction display
-  const livePrediction = rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "â€”", confidence: 0 };
+    const rolls4 = entries
+      .map((e) => (e.s4 || "").replace(/0+$/, ""))
+      .filter((r) => r.length >= 4);
 
-  const livePrediction3 = predictNext3(rolls3);
-  const livePrediction4 = predictNext4(rolls4);
-
-  // Calculate session accuracy for header (Main + Alt hits)
-  const sessionAccuracy = debugLogs.length > 0
-    ? Math.round(
-      (debugLogs.filter((log) => {
-        const pred = String(log.prediction);
-        const alt = log.alt ? String(log.alt) : null;
-        const actual = String(log.actual);
-        // Count as hit if main prediction matches OR alt prediction matches
-        const mainHit = pred === actual || pred === actual.slice(0, pred.length);
-        const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
-        return mainHit || altHit;
-      }).length /
-        debugLogs.length) *
-      100
-    )
-    : 0;
+    return {
+      freq2: nextFreq2,
+      freq3: nextFreq3,
+      freq4: nextFreq4,
+      freq5: nextFreq5,
+      livePrediction: rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "-", confidence: 0 },
+      livePrediction3: predictNext3(rolls3),
+      livePrediction4: predictNext4(rolls4),
+    };
+  }, [entries, isLiveRoute]);
 
   return (
     <Suspense
