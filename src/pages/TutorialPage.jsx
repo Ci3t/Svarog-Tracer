@@ -1164,6 +1164,7 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
           setRoundIndex((value) => Math.min(value + 1, rounds.length - 1));
           return;
         }
+        const isFinalSequenceStep = stageState.sequenceIndex + 1 >= sequence.length;
         setStageState((current) => {
           const next = applyProgressionStep(current, step);
           const finished = next.sequenceIndex >= sequence.length;
@@ -1174,6 +1175,13 @@ export default function TutorialPage({ sessionTheme = 'modern', level = 1 }) {
             eventLog: finished ? [...next.eventLog, 'This guided sequence is complete. Review the board once more, then continue.'] : next.eventLog,
           };
         });
+        if (!isFinalSequenceStep) {
+          window.setTimeout(() => {
+            if (actionLockRef.current === actionLockKey) {
+              actionLockRef.current = null;
+            }
+          }, 0);
+        }
         break;
       }
     }

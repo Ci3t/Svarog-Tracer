@@ -1,6 +1,8 @@
 // 🎯 Step 1: Identify the 2 Commons (Virtual Column A) and Noise (Virtual Column B)
 import { predictWithPairs } from './pairTransitionPredictor';
 
+const TWO_STR_VALUES = ['41', '42', '43', '44'];
+
 /**
  * Clean raw rolls into 2-digit strings in [41-44]
  */
@@ -937,7 +939,7 @@ export function predictNext2BBPMode(rolls, options = {}) {
   // Check pair evidence density: how many reliable transitions does lastRoll have?
   const lastRollForBlend = cleanedRolls[cleanedRolls.length - 1];
   const pairEvidenceCount = suggest?.lastRoll && lastRollForBlend
-    ? VALUES.filter(v => {
+    ? TWO_STR_VALUES.filter(v => {
         const cell = suggest.pairMatrix?.[lastRollForBlend]?.[v];
         return cell?.reliable === true;
       }).length

@@ -3,12 +3,12 @@ import React, {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useState,
   useRef,
   useCallback,
 } from "react";
-import { Routes, Route } from "react-router-dom";
-import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // ðŸ”¥ OLD Kiyo
 import { predictWithPairs } from "./utils/pairTransitionPredictor"; // ðŸ”¥ NEW SUGGEST
 import {
@@ -20,44 +20,6 @@ import {
 // Layout Component
 import Layout from "./components/Layout";
 
-import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // ðŸ”¥ NEW Modern UI
-import ModernLongStringPage from "./pages/ModernLongStringPage"; // ðŸ”¥ NEW Modern Long String
-import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // ðŸ”¥ NEW Modern Kiyo Mode
-import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // ðŸ”¥ NEW Warp Analyzer
-import ModernGuidesPage from "./pages/ModernGuidesPage"; // ðŸ”¥ NEW Guides Page
-import HomePage from "./pages/HomePage"; // ðŸ”¥ NEW Landing Page
-import BannerTracker from "./pages/BannerTracker"; // ðŸ”¥ NEW Banner Tracker
-import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns Page
-import TutorialPage from "./pages/TutorialPage";
-import TutorialLevelTwoPage from "./pages/TutorialLevelTwoPage";
-import TutorialLevelThreePage from "./pages/TutorialLevelThreePage";
-import TutorialLevelFourPage from "./pages/TutorialLevelFourPage";
-import TutorialLevelFivePage from "./pages/TutorialLevelFivePage";
-import TutorialLevelSixPage from "./pages/TutorialLevelSixPage";
-import TutorialLevelSevenPage from "./pages/TutorialLevelSevenPage";
-import TutorialLevelEightPage from "./pages/TutorialLevelEightPage";
-import TutorialLevelNinePage from "./pages/TutorialLevelNinePage";
-import TutorialLevelTenPage from "./pages/TutorialLevelTenPage";
-import TutorialLevelElevenPage from "./pages/TutorialLevelElevenPage";
-import TutorialLevelTwelvePage from "./pages/TutorialLevelTwelvePage";
-import TutorialLevelThirteenPage from "./pages/TutorialLevelThirteenPage";
-import TutorialLevelFourteenPage from "./pages/TutorialLevelFourteenPage";
-import TutorialLevelFifteenPage from "./pages/TutorialLevelFifteenPage";
-import TutorialLevelSixteenPage from "./pages/TutorialLevelSixteenPage";
-import TutorialCompletePage from "./pages/TutorialCompletePage";
-import PlaygroundPage from "./pages/PlaygroundPage";
-import PlaygroundFreePage from "./pages/PlaygroundFreePage";
-import PlaygroundChallengePage from "./pages/PlaygroundChallengePage";
-import PlaygroundChallengeAdminPage from "./pages/PlaygroundChallengeAdminPage";
-import PlaygroundDrillsPage from "./pages/PlaygroundDrillsPage";
-import PlaygroundPatternLabPage from "./pages/PlaygroundPatternLabPage";
-import PlaygroundRacesPage from "./pages/PlaygroundRacesPage";
-import AuthPage from "./pages/AuthPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
-import ZoneTrackerPage from "./pages/ZoneTrackerPage";
-import UserProfilePage from "./pages/UserProfilePage";
-import MarketplacePage from "./pages/MarketplacePage";
-import LeaderboardPage from "./pages/LeaderboardPage";
 import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
@@ -72,12 +34,10 @@ import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
 import "./styles/astral-theme.css"; // ðŸŒŒ NEW Astral Theme
 import "./styles/neon-protocol.css"; // 👾 NEW Neon Protocol
 import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Effect
-import ClaraChat from "./components/ClaraChat";
 
 
 
 import {
-  translateTo4,
   splitString,
   buildPrefixFreq,
   sanitizeRollInput,
@@ -87,18 +47,70 @@ import {
   predictNext3,
   predictNext3EU,
   predictNext4,
-  resetSessionStats,
 } from "./utils/predictNext";
-import KiyoModeCard from "./components/KiyoModeCard";
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // ðŸ”¥ NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
 import { getWaveAndTableSignals } from "./utils/kiyo2strSignals";
 
+const ModernLiveSessionPage = lazy(() => import('./pages/ModernLiveSessionPage'));
+const ModernLongStringPage = lazy(() => import('./pages/ModernLongStringPage'));
+const ModernKiyoModePage = lazy(() => import('./pages/ModernKiyoModePage'));
+const WarpAnalyzerPage = lazy(() => import('./pages/WarpAnalyzerPage'));
+const ModernGuidesPage = lazy(() => import('./pages/ModernGuidesPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const BannerTracker = lazy(() => import('./pages/BannerTracker'));
+const CavernTimesPage = lazy(() => import('./pages/CavernTimesPage'));
+const TutorialPage = lazy(() => import('./pages/TutorialPage'));
+const TutorialLevelTwoPage = lazy(() => import('./pages/TutorialLevelTwoPage'));
+const TutorialLevelThreePage = lazy(() => import('./pages/TutorialLevelThreePage'));
+const TutorialLevelFourPage = lazy(() => import('./pages/TutorialLevelFourPage'));
+const TutorialLevelFivePage = lazy(() => import('./pages/TutorialLevelFivePage'));
+const TutorialLevelSixPage = lazy(() => import('./pages/TutorialLevelSixPage'));
+const TutorialLevelSevenPage = lazy(() => import('./pages/TutorialLevelSevenPage'));
+const TutorialLevelEightPage = lazy(() => import('./pages/TutorialLevelEightPage'));
+const TutorialLevelNinePage = lazy(() => import('./pages/TutorialLevelNinePage'));
+const TutorialLevelTenPage = lazy(() => import('./pages/TutorialLevelTenPage'));
+const TutorialLevelElevenPage = lazy(() => import('./pages/TutorialLevelElevenPage'));
+const TutorialLevelTwelvePage = lazy(() => import('./pages/TutorialLevelTwelvePage'));
+const TutorialLevelThirteenPage = lazy(() => import('./pages/TutorialLevelThirteenPage'));
+const TutorialLevelFourteenPage = lazy(() => import('./pages/TutorialLevelFourteenPage'));
+const TutorialLevelFifteenPage = lazy(() => import('./pages/TutorialLevelFifteenPage'));
+const TutorialLevelSixteenPage = lazy(() => import('./pages/TutorialLevelSixteenPage'));
+const TutorialCompletePage = lazy(() => import('./pages/TutorialCompletePage'));
+const PlaygroundPage = lazy(() => import('./pages/PlaygroundPage'));
+const PlaygroundFreePage = lazy(() => import('./pages/PlaygroundFreePage'));
+const PlaygroundChallengePage = lazy(() => import('./pages/PlaygroundChallengePage'));
+const PlaygroundChallengeAdminPage = lazy(() => import('./pages/PlaygroundChallengeAdminPage'));
+const PlaygroundDrillsPage = lazy(() => import('./pages/PlaygroundDrillsPage'));
+const PlaygroundPatternLabPage = lazy(() => import('./pages/PlaygroundPatternLabPage'));
+const PlaygroundRacesPage = lazy(() => import('./pages/PlaygroundRacesPage'));
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
+const ZoneTrackerPage = lazy(() => import('./pages/ZoneTrackerPage'));
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
+const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const ClaraChat = lazy(() => import('./components/ClaraChat'));
+
+
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
 const SESSION_SECONDS = 5 * 60;
 const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const getFiveMinuteBucketStartMs = (nowMs = Date.now()) => {
+  const start = new Date(nowMs);
+  start.setSeconds(0, 0);
+  start.setMinutes(Math.floor(start.getMinutes() / 5) * 5);
+  return start.getTime();
+};
+
+const getFiveMinuteBucketSecondsLeft = (nowMs = Date.now()) => {
+  const startMs = getFiveMinuteBucketStartMs(nowMs);
+  const endMs = startMs + SESSION_SECONDS * 1000;
+  return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
+};
 
 const normalizeSessionTheme = (theme) => {
   if (theme === "winter") return "arctic";
@@ -128,6 +140,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const isDebugMode = urlParams.get("debug") === "true";
 
 export default function App() {
+  const location = useLocation();
   const [entries, setEntries] = useState([]);
   const [prevSessions, setPrevSessions] = useState([]);
   const [rollInput, setRollInput] = useState("");
@@ -146,6 +159,7 @@ export default function App() {
   const [debugLogs, setDebugLogs] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [activeLiveWindowStartMs, setActiveLiveWindowStartMs] = useState(null);
 
   const [freqTab, setFreqTab] = useState("2");
   const [sessionTab, setSessionTab] = useState("current");
@@ -158,8 +172,13 @@ export default function App() {
   const pendingKiyoSnapshotsRef = useRef([]); // ðŸ‘ˆ ADD
   const lastSnapshotKeyRef = useRef(null); // ðŸ‘ˆ ADD (dedupe)
   const timerRef = useRef(null);
+  const timerRunningRef = useRef(false);
+  const timerPausedRef = useRef(false);
   const longStringCtxRef = useRef([]);
   const livePrefixPredictionRef = useRef(null);
+  useEffect(() => {
+    timerRunningRef.current = timerRunning;
+  }, [timerRunning]);
   const onSendKiyoDebugData = (debugData) => {
     // keep latest snapshot for UI
     setKiyoDebugData(debugData);
@@ -494,27 +513,34 @@ export default function App() {
 
   /* ========= TIMER ========= */
   useEffect(() => {
-    if (!timerRunning) return;
-    timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
-    }, 1000);
+    if (!timerRunning) return undefined;
+
+    const syncTimerToLiveWindow = () => {
+      if (!timerRunningRef.current || timerPausedRef.current) return;
+      const nowMs = Date.now();
+      const currentBucketStartMs = getFiveMinuteBucketStartMs(nowMs);
+
+      if (activeLiveWindowStartMs !== null && currentBucketStartMs !== activeLiveWindowStartMs) {
+        if (!timerRunningRef.current || timerPausedRef.current) return;
+        archiveCurrentSession(entriesRef.current);
+        setActiveLiveWindowStartMs(currentBucketStartMs);
+      } else if (activeLiveWindowStartMs === null) {
+        setActiveLiveWindowStartMs(currentBucketStartMs);
+      }
+
+      if (!timerRunningRef.current || timerPausedRef.current) return;
+      setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
+    };
+
+    syncTimerToLiveWindow();
+    timerRef.current = setInterval(syncTimerToLiveWindow, 1000);
     return () => clearInterval(timerRef.current);
-  }, [timerRunning]);
+  }, [timerRunning, activeLiveWindowStartMs]);
 
-  useEffect(() => {
-    if (secondsLeft === 0 && timerRunning) {
-      archiveCurrentSession();
-      setSecondsLeft(SESSION_SECONDS);
-    }
-  }, [secondsLeft, timerRunning]);
-
-  function archiveCurrentSession() {
-    if (entries.length > 0) {
-      // ðŸ”¥ Calculate BBP Mode frequency distribution for this session
-      const rollValues = entries
+  function archiveCurrentSession(sessionEntries = entriesRef.current) {
+    if (sessionEntries.length > 0) {
+      // Calculate BBP Mode frequency distribution for this session
+      const rollValues = sessionEntries
         .map(e => (e.translated || e.s2 || '').slice(0, 2))
         .filter(Boolean);
 
@@ -556,8 +582,8 @@ export default function App() {
         }
       }
 
-      // ðŸ”¥ NEW: Calculate BBP Mode 3-str frequency distribution
-      const rollValues3str = entries
+      // NEW: Calculate BBP Mode 3-str frequency distribution
+      const rollValues3str = sessionEntries
         .map(e => (e.translated || '').slice(0, 3))
         .filter(v => v && v.length === 3);
 
@@ -605,9 +631,9 @@ export default function App() {
           startedAt: new Date().toISOString(),
           region,
           patch,
-          entries,
-          beastAnalysis, // ðŸ”¥ NEW: Save BBP Mode analysis
-          beastAnalysis3str, // ðŸ”¥ NEW: Save BBP Mode 3-str analysis
+          entries: sessionEntries,
+          beastAnalysis,
+          beastAnalysis3str,
         },
         ...prev,
       ]);
@@ -616,18 +642,37 @@ export default function App() {
   }
 
   function handleStartSession() {
-    archiveCurrentSession();
-    setSecondsLeft(SESSION_SECONDS);
+    const nowMs = Date.now();
+    const currentBucketStartMs = getFiveMinuteBucketStartMs(nowMs);
+
+    if (!timerPausedRef.current && activeLiveWindowStartMs !== null && activeLiveWindowStartMs !== currentBucketStartMs) {
+      archiveCurrentSession();
+    }
+
+    timerPausedRef.current = false;
+    timerRunningRef.current = true;
+    setActiveLiveWindowStartMs(currentBucketStartMs);
+    setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
     setTimerRunning(true);
   }
 
   function handleStopSession() {
+    timerPausedRef.current = true;
+    timerRunningRef.current = false;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setTimerRunning(false);
   }
 
   function handleRestartSession() {
-    archiveCurrentSession(); // Archive current session to history
-    setSecondsLeft(SESSION_SECONDS);
+    const nowMs = Date.now();
+    archiveCurrentSession();
+    timerPausedRef.current = false;
+    timerRunningRef.current = true;
+    setActiveLiveWindowStartMs(getFiveMinuteBucketStartMs(nowMs));
+    setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
     setTimerRunning(true);
   }
 
@@ -646,12 +691,14 @@ export default function App() {
 
     if (!clean) return;
 
+    const nowTs = Date.now();
+    const nowIso = new Date(nowTs).toISOString();
+    const currentBucketStartMs = getFiveMinuteBucketStartMs(nowTs);
+
     const { s2, s3, s4, s5 } = splitString(clean);
-    const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    // ðŸ”¥ FIXED: Capture the CURRENT live prediction BEFORE adding the roll
-    // Use entriesRef.current to avoid stale closures during auto-import
+    // Capture the current live prediction before adding the roll.
     const currentEntries = entriesRef.current;
 
     const rolls2Before = currentEntries
@@ -675,7 +722,6 @@ export default function App() {
     const actual3 = translated.slice(0, 3);
     const actual4 = translated.slice(0, 4);
 
-    const nowTs = Date.now();
     const safeCandidates = (p) =>
       Array.isArray(p?.candidates) ? p.candidates : [];
 
@@ -754,6 +800,7 @@ export default function App() {
     if (manualValue === null) {
       setRollInput("");
     }
+
   }
   // ðŸ”¬ Long String sandbox â†’ stream to debug (supports both 2-str and 3-str)
   function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
@@ -993,45 +1040,55 @@ export default function App() {
   }
 
 
-  const freq2 = buildPrefixFreq(entries, 2, { translateAll: true });
-  const freq3 = buildPrefixFreq(entries, 3, { translateAll: true });
-  const freq4 = buildPrefixFreq(entries, 4, { translateAll: true });
-  const freq5 = buildPrefixFreq(entries, 5, { translateAll: true });
+  const isLiveRoute = location.pathname === "/live";
+  const {
+    freq2,
+    freq3,
+    freq4,
+    freq5,
+    livePrediction,
+    livePrediction3,
+    livePrediction4,
+  } = useMemo(() => {
+    if (!isLiveRoute) {
+      return {
+        freq2: {},
+        freq3: {},
+        freq4: {},
+        freq5: {},
+        livePrediction: { prediction: "-", confidence: 0 },
+        livePrediction3: { prediction: "-", confidence: 0 },
+        livePrediction4: { prediction: "-", confidence: 0 },
+      };
+    }
 
-  const rolls2 = entries
-    .map((e) => (e.translated || "").slice(0, 2))
-    .filter((r) => r.length === 2);
+    const nextFreq2 = buildPrefixFreq(entries, 2, { translateAll: true });
+    const nextFreq3 = buildPrefixFreq(entries, 3, { translateAll: true });
+    const nextFreq4 = buildPrefixFreq(entries, 4, { translateAll: true });
+    const nextFreq5 = buildPrefixFreq(entries, 5, { translateAll: true });
 
-  const rolls3 = entries
-    .map((e) => (e.s3 || "").replace(/0+$/, ""))
-    .filter((r) => r.length === 3);
+    const rolls2 = entries
+      .map((e) => (e.translated || "").slice(0, 2))
+      .filter((r) => r.length === 2);
 
-  const rolls4 = entries
-    .map((e) => (e.s4 || "").replace(/0+$/, ""))
-    .filter((r) => r.length >= 4);
+    const rolls3 = entries
+      .map((e) => (e.s3 || "").replace(/0+$/, ""))
+      .filter((r) => r.length === 3);
 
-  // ðŸ”¥ UPDATED: Use BBP mode for live prediction display
-  const livePrediction = rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "â€”", confidence: 0 };
+    const rolls4 = entries
+      .map((e) => (e.s4 || "").replace(/0+$/, ""))
+      .filter((r) => r.length >= 4);
 
-  const livePrediction3 = predictNext3(rolls3);
-  const livePrediction4 = predictNext4(rolls4);
-
-  // Calculate session accuracy for header (Main + Alt hits)
-  const sessionAccuracy = debugLogs.length > 0
-    ? Math.round(
-      (debugLogs.filter((log) => {
-        const pred = String(log.prediction);
-        const alt = log.alt ? String(log.alt) : null;
-        const actual = String(log.actual);
-        // Count as hit if main prediction matches OR alt prediction matches
-        const mainHit = pred === actual || pred === actual.slice(0, pred.length);
-        const altHit = alt && (alt === actual || alt === actual.slice(0, alt.length));
-        return mainHit || altHit;
-      }).length /
-        debugLogs.length) *
-      100
-    )
-    : 0;
+    return {
+      freq2: nextFreq2,
+      freq3: nextFreq3,
+      freq4: nextFreq4,
+      freq5: nextFreq5,
+      livePrediction: rolls2.length >= 6 ? predictWithPairs(rolls2) : { prediction: "-", confidence: 0 },
+      livePrediction3: predictNext3(rolls3),
+      livePrediction4: predictNext4(rolls4),
+    };
+  }, [entries, isLiveRoute]);
 
   return (
     <Suspense
@@ -1134,6 +1191,7 @@ export default function App() {
                   setIsCustomPatch={setIsCustomPatch}
                   debugLogs={debugLogs}
                   secondsLeft={secondsLeft}
+                  timerRunning={timerRunning}
                   freqTab={freqTab}
                   setFreqTab={setFreqTab}
                   sessionTab={sessionTab}
@@ -1283,6 +1341,7 @@ export default function App() {
     </Suspense>
   );
 }
+
 
 
 

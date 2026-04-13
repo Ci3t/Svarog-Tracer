@@ -49,6 +49,8 @@ let memoryCache = {
   knownUsers: {},
   ipTimestamps: {},
 };
+const supabasePresencePayloadCache = new Map();
+const SUPABASE_PRESENCE_CACHE_MS = 8000;
 
 function isRateLimited(key, limitMs) {
   const last = reqTimestamps.get(key) || 0;
@@ -534,7 +536,15 @@ async function cleanupSupabasePresenceSessions() {
   ]);
 }
 
-async function buildSupabasePresencePayload({ includeUsers, authUser }) {
+async function buildSupabasePresencePayload({ includeUsers, authUser, allowCached = false }) {
+  const cacheKey = includeUsers ? 'members' : 'public';
+  if (allowCached) {
+    const cached = getCachedSupabasePresencePayload(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
   const now = Date.now();
   const todayStr = new Date().toISOString().split('T')[0];
   const onlineSinceIso = new Date(now - (TTL_USER * 1000)).toISOString();
@@ -547,7 +557,7 @@ async function buildSupabasePresencePayload({ includeUsers, authUser }) {
     includeUsers ? listPresenceUsersFromSupabase() : Promise.resolve([]),
   ]);
 
-  return buildPresencePayload({
+  const payload = buildPresencePayload({
     stats: {
       total: counter.total,
       today: counter.today,
@@ -557,6 +567,9 @@ async function buildSupabasePresencePayload({ includeUsers, authUser }) {
     users,
     authUser,
   });
+
+  setCachedSupabasePresencePayload(cacheKey, payload);
+  return payload;
 }
 
 function cleanupLocalPresence(data) {
@@ -654,6 +667,27 @@ function buildPresencePayload({ stats, users, authUser }) {
   };
 }
 
+function getCachedSupabasePresencePayload(cacheKey) {
+  const cached = supabasePresencePayloadCache.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAt > SUPABASE_PRESENCE_CACHE_MS) {
+    supabasePresencePayloadCache.delete(cacheKey);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedSupabasePresencePayload(cacheKey, payload) {
+  supabasePresencePayloadCache.set(cacheKey, {
+    payload,
+    createdAt: Date.now(),
+  });
+}
+
+function clearCachedSupabasePresencePayloads() {
+  supabasePresencePayloadCache.clear();
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -697,6 +731,7 @@ export default async function handler(req, res) {
           return res.status(200).json(await buildSupabasePresencePayload({
             includeUsers,
             authUser,
+            allowCached: true,
           }));
         }
 
@@ -714,6 +749,8 @@ export default async function handler(req, res) {
           await deletePresenceSessions(sessionId);
         }
 
+        clearCachedSupabasePresencePayloads();
+
         if (authedRecord && (type === 'active' || type === 'fetch' || type === 'prediction')) {
           await upsertPresenceDirectoryRecord(authedRecord);
         }
@@ -721,12 +758,14 @@ export default async function handler(req, res) {
         return res.status(200).json(await buildSupabasePresencePayload({
           includeUsers,
           authUser,
+          allowCached: false,
         }));
       } catch (error) {
         console.error('Presence production fallback:', error);
         return res.status(200).json(await buildSupabasePresencePayload({
           includeUsers,
           authUser,
+          allowCached: true,
         }).catch(() => ({
           success: true,
           count: 0,

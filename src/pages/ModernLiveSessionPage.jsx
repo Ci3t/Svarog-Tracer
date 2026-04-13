@@ -52,6 +52,7 @@ export default function ModernLiveSessionPage({
   setIsCustomPatch,
   debugLogs,
   secondsLeft,
+  timerRunning,
   freqTab,
   setFreqTab,
   sessionTab,
@@ -92,6 +93,7 @@ export default function ModernLiveSessionPage({
   isAutoImporting, // NEW
 }) {
   const { user } = useAuth();
+  const autoStartRef = useRef(false);
   const [trustGuideText, setTrustGuideText] = useState(null);
   const [claraAssistEnabled, setClaraAssistEnabled] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -111,6 +113,14 @@ export default function ModernLiveSessionPage({
   const dragStateRef = useRef(null);
   const claraLanguage = useMemo(() => resolveLiveClaraLanguage(), []);
   useLiveModeCurrency(entries);
+
+  useEffect(() => {
+    if (autoStartRef.current) return;
+    autoStartRef.current = true;
+    if (!timerRunning) {
+      handleStartSession();
+    }
+  }, [handleStartSession, timerRunning]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -184,7 +194,8 @@ export default function ModernLiveSessionPage({
         onStart={handleStartSession}
         onStop={handleStopSession}
         onRestart={handleRestartSession}
-        timerRunning={secondsLeft < 300}
+        timerRunning={timerRunning}
+        canResume={secondsLeft < 300 || entries.length > 0}
         rollInput={rollInput}
         setRollInput={setRollInput}
         onAddRoll={handleAddRoll}
