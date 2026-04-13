@@ -8,7 +8,6 @@ import React, {
   useCallback,
 } from "react";
 import { Routes, Route } from "react-router-dom";
-import { predictNext2Smart } from "./utils/enhanced-2str-predictor";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // ðŸ”¥ OLD Kiyo
 import { predictWithPairs } from "./utils/pairTransitionPredictor"; // ðŸ”¥ NEW SUGGEST
 import {
@@ -20,44 +19,6 @@ import {
 // Layout Component
 import Layout from "./components/Layout";
 
-import ModernLiveSessionPage from "./pages/ModernLiveSessionPage"; // ðŸ”¥ NEW Modern UI
-import ModernLongStringPage from "./pages/ModernLongStringPage"; // ðŸ”¥ NEW Modern Long String
-import ModernKiyoModePage from "./pages/ModernKiyoModePage"; // ðŸ”¥ NEW Modern Kiyo Mode
-import WarpAnalyzerPage from "./pages/WarpAnalyzerPage"; // ðŸ”¥ NEW Warp Analyzer
-import ModernGuidesPage from "./pages/ModernGuidesPage"; // ðŸ”¥ NEW Guides Page
-import HomePage from "./pages/HomePage"; // ðŸ”¥ NEW Landing Page
-import BannerTracker from "./pages/BannerTracker"; // ðŸ”¥ NEW Banner Tracker
-import CavernTimesPage from "./pages/CavernTimesPage"; // ðŸ”¥ NEW Caverns Page
-import TutorialPage from "./pages/TutorialPage";
-import TutorialLevelTwoPage from "./pages/TutorialLevelTwoPage";
-import TutorialLevelThreePage from "./pages/TutorialLevelThreePage";
-import TutorialLevelFourPage from "./pages/TutorialLevelFourPage";
-import TutorialLevelFivePage from "./pages/TutorialLevelFivePage";
-import TutorialLevelSixPage from "./pages/TutorialLevelSixPage";
-import TutorialLevelSevenPage from "./pages/TutorialLevelSevenPage";
-import TutorialLevelEightPage from "./pages/TutorialLevelEightPage";
-import TutorialLevelNinePage from "./pages/TutorialLevelNinePage";
-import TutorialLevelTenPage from "./pages/TutorialLevelTenPage";
-import TutorialLevelElevenPage from "./pages/TutorialLevelElevenPage";
-import TutorialLevelTwelvePage from "./pages/TutorialLevelTwelvePage";
-import TutorialLevelThirteenPage from "./pages/TutorialLevelThirteenPage";
-import TutorialLevelFourteenPage from "./pages/TutorialLevelFourteenPage";
-import TutorialLevelFifteenPage from "./pages/TutorialLevelFifteenPage";
-import TutorialLevelSixteenPage from "./pages/TutorialLevelSixteenPage";
-import TutorialCompletePage from "./pages/TutorialCompletePage";
-import PlaygroundPage from "./pages/PlaygroundPage";
-import PlaygroundFreePage from "./pages/PlaygroundFreePage";
-import PlaygroundChallengePage from "./pages/PlaygroundChallengePage";
-import PlaygroundChallengeAdminPage from "./pages/PlaygroundChallengeAdminPage";
-import PlaygroundDrillsPage from "./pages/PlaygroundDrillsPage";
-import PlaygroundPatternLabPage from "./pages/PlaygroundPatternLabPage";
-import PlaygroundRacesPage from "./pages/PlaygroundRacesPage";
-import AuthPage from "./pages/AuthPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
-import ZoneTrackerPage from "./pages/ZoneTrackerPage";
-import UserProfilePage from "./pages/UserProfilePage";
-import MarketplacePage from "./pages/MarketplacePage";
-import LeaderboardPage from "./pages/LeaderboardPage";
 import RequireAuth from "./components/auth/RequireAuth";
 import ArcticSnow from "./components/snow/ArcticSnow";
 import { getRootThemeClassName, getSessionThemeConfig } from "./theme/sessionThemeConfig";
@@ -72,12 +33,10 @@ import "./styles/void-theme.css"; // í¼¸ NEW Void Theme
 import "./styles/astral-theme.css"; // ðŸŒŒ NEW Astral Theme
 import "./styles/neon-protocol.css"; // 👾 NEW Neon Protocol
 import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Effect
-import ClaraChat from "./components/ClaraChat";
 
 
 
 import {
-  translateTo4,
   splitString,
   buildPrefixFreq,
   sanitizeRollInput,
@@ -87,13 +46,52 @@ import {
   predictNext3,
   predictNext3EU,
   predictNext4,
-  resetSessionStats,
 } from "./utils/predictNext";
-import KiyoModeCard from "./components/KiyoModeCard";
 import { predictNext3BBPMode } from "./utils/bbp-mode-3str"; // ðŸ”¥ NEW 3-str
 import { predictWithCascadingPriority } from "./utils/cascadingPredictor";
 import { EU_SEQUENTIAL_2STR_RECENT, EU_SEQUENTIAL_3STR_RECENT } from "./utils/euLiveSheetData";
 import { getWaveAndTableSignals } from "./utils/kiyo2strSignals";
+
+const ModernLiveSessionPage = lazy(() => import('./pages/ModernLiveSessionPage'));
+const ModernLongStringPage = lazy(() => import('./pages/ModernLongStringPage'));
+const ModernKiyoModePage = lazy(() => import('./pages/ModernKiyoModePage'));
+const WarpAnalyzerPage = lazy(() => import('./pages/WarpAnalyzerPage'));
+const ModernGuidesPage = lazy(() => import('./pages/ModernGuidesPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const BannerTracker = lazy(() => import('./pages/BannerTracker'));
+const CavernTimesPage = lazy(() => import('./pages/CavernTimesPage'));
+const TutorialPage = lazy(() => import('./pages/TutorialPage'));
+const TutorialLevelTwoPage = lazy(() => import('./pages/TutorialLevelTwoPage'));
+const TutorialLevelThreePage = lazy(() => import('./pages/TutorialLevelThreePage'));
+const TutorialLevelFourPage = lazy(() => import('./pages/TutorialLevelFourPage'));
+const TutorialLevelFivePage = lazy(() => import('./pages/TutorialLevelFivePage'));
+const TutorialLevelSixPage = lazy(() => import('./pages/TutorialLevelSixPage'));
+const TutorialLevelSevenPage = lazy(() => import('./pages/TutorialLevelSevenPage'));
+const TutorialLevelEightPage = lazy(() => import('./pages/TutorialLevelEightPage'));
+const TutorialLevelNinePage = lazy(() => import('./pages/TutorialLevelNinePage'));
+const TutorialLevelTenPage = lazy(() => import('./pages/TutorialLevelTenPage'));
+const TutorialLevelElevenPage = lazy(() => import('./pages/TutorialLevelElevenPage'));
+const TutorialLevelTwelvePage = lazy(() => import('./pages/TutorialLevelTwelvePage'));
+const TutorialLevelThirteenPage = lazy(() => import('./pages/TutorialLevelThirteenPage'));
+const TutorialLevelFourteenPage = lazy(() => import('./pages/TutorialLevelFourteenPage'));
+const TutorialLevelFifteenPage = lazy(() => import('./pages/TutorialLevelFifteenPage'));
+const TutorialLevelSixteenPage = lazy(() => import('./pages/TutorialLevelSixteenPage'));
+const TutorialCompletePage = lazy(() => import('./pages/TutorialCompletePage'));
+const PlaygroundPage = lazy(() => import('./pages/PlaygroundPage'));
+const PlaygroundFreePage = lazy(() => import('./pages/PlaygroundFreePage'));
+const PlaygroundChallengePage = lazy(() => import('./pages/PlaygroundChallengePage'));
+const PlaygroundChallengeAdminPage = lazy(() => import('./pages/PlaygroundChallengeAdminPage'));
+const PlaygroundDrillsPage = lazy(() => import('./pages/PlaygroundDrillsPage'));
+const PlaygroundPatternLabPage = lazy(() => import('./pages/PlaygroundPatternLabPage'));
+const PlaygroundRacesPage = lazy(() => import('./pages/PlaygroundRacesPage'));
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
+const ZoneTrackerPage = lazy(() => import('./pages/ZoneTrackerPage'));
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
+const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const ClaraChat = lazy(() => import('./components/ClaraChat'));
+
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
@@ -1331,6 +1329,7 @@ export default function App() {
     </Suspense>
   );
 }
+
 
 
 
