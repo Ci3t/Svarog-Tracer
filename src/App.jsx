@@ -38,6 +38,7 @@ import AetherEffect from "./components/snow/AetherEffect"; // 👾 NEW Aether Ef
 
 
 import {
+  translateTo4,
   splitString,
   buildPrefixFreq,
   sanitizeRollInput,
