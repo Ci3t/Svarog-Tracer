@@ -100,6 +100,19 @@ const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
 const SESSION_SECONDS = 5 * 60;
 const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+const getFiveMinuteBucketStartMs = (nowMs = Date.now()) => {
+  const start = new Date(nowMs);
+  start.setSeconds(0, 0);
+  start.setMinutes(Math.floor(start.getMinutes() / 5) * 5);
+  return start.getTime();
+};
+
+const getFiveMinuteBucketSecondsLeft = (nowMs = Date.now()) => {
+  const startMs = getFiveMinuteBucketStartMs(nowMs);
+  const endMs = startMs + SESSION_SECONDS * 1000;
+  return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
+};
+
 const normalizeSessionTheme = (theme) => {
   if (theme === "winter") return "arctic";
   if (theme === "void") return "crimson";
@@ -146,6 +159,7 @@ export default function App() {
   const [debugLogs, setDebugLogs] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [activeLiveWindowStartMs, setActiveLiveWindowStartMs] = useState(null);
 
   const [freqTab, setFreqTab] = useState("2");
   const [sessionTab, setSessionTab] = useState("current");
@@ -158,8 +172,13 @@ export default function App() {
   const pendingKiyoSnapshotsRef = useRef([]); // ðŸ‘ˆ ADD
   const lastSnapshotKeyRef = useRef(null); // ðŸ‘ˆ ADD (dedupe)
   const timerRef = useRef(null);
+  const timerRunningRef = useRef(false);
+  const timerPausedRef = useRef(false);
   const longStringCtxRef = useRef([]);
   const livePrefixPredictionRef = useRef(null);
+  useEffect(() => {
+    timerRunningRef.current = timerRunning;
+  }, [timerRunning]);
   const onSendKiyoDebugData = (debugData) => {
     // keep latest snapshot for UI
     setKiyoDebugData(debugData);
@@ -494,27 +513,34 @@ export default function App() {
 
   /* ========= TIMER ========= */
   useEffect(() => {
-    if (!timerRunning) return;
-    timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
-    }, 1000);
+    if (!timerRunning) return undefined;
+
+    const syncTimerToLiveWindow = () => {
+      if (!timerRunningRef.current || timerPausedRef.current) return;
+      const nowMs = Date.now();
+      const currentBucketStartMs = getFiveMinuteBucketStartMs(nowMs);
+
+      if (activeLiveWindowStartMs !== null && currentBucketStartMs !== activeLiveWindowStartMs) {
+        if (!timerRunningRef.current || timerPausedRef.current) return;
+        archiveCurrentSession(entriesRef.current);
+        setActiveLiveWindowStartMs(currentBucketStartMs);
+      } else if (activeLiveWindowStartMs === null) {
+        setActiveLiveWindowStartMs(currentBucketStartMs);
+      }
+
+      if (!timerRunningRef.current || timerPausedRef.current) return;
+      setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
+    };
+
+    syncTimerToLiveWindow();
+    timerRef.current = setInterval(syncTimerToLiveWindow, 1000);
     return () => clearInterval(timerRef.current);
-  }, [timerRunning]);
+  }, [timerRunning, activeLiveWindowStartMs]);
 
-  useEffect(() => {
-    if (secondsLeft === 0 && timerRunning) {
-      archiveCurrentSession();
-      setSecondsLeft(SESSION_SECONDS);
-    }
-  }, [secondsLeft, timerRunning]);
-
-  function archiveCurrentSession() {
-    if (entries.length > 0) {
-      // ðŸ”¥ Calculate BBP Mode frequency distribution for this session
-      const rollValues = entries
+  function archiveCurrentSession(sessionEntries = entriesRef.current) {
+    if (sessionEntries.length > 0) {
+      // Calculate BBP Mode frequency distribution for this session
+      const rollValues = sessionEntries
         .map(e => (e.translated || e.s2 || '').slice(0, 2))
         .filter(Boolean);
 
@@ -556,8 +582,8 @@ export default function App() {
         }
       }
 
-      // ðŸ”¥ NEW: Calculate BBP Mode 3-str frequency distribution
-      const rollValues3str = entries
+      // NEW: Calculate BBP Mode 3-str frequency distribution
+      const rollValues3str = sessionEntries
         .map(e => (e.translated || '').slice(0, 3))
         .filter(v => v && v.length === 3);
 
@@ -605,9 +631,9 @@ export default function App() {
           startedAt: new Date().toISOString(),
           region,
           patch,
-          entries,
-          beastAnalysis, // ðŸ”¥ NEW: Save BBP Mode analysis
-          beastAnalysis3str, // ðŸ”¥ NEW: Save BBP Mode 3-str analysis
+          entries: sessionEntries,
+          beastAnalysis,
+          beastAnalysis3str,
         },
         ...prev,
       ]);
@@ -616,18 +642,37 @@ export default function App() {
   }
 
   function handleStartSession() {
-    archiveCurrentSession();
-    setSecondsLeft(SESSION_SECONDS);
+    const nowMs = Date.now();
+    const currentBucketStartMs = getFiveMinuteBucketStartMs(nowMs);
+
+    if (!timerPausedRef.current && activeLiveWindowStartMs !== null && activeLiveWindowStartMs !== currentBucketStartMs) {
+      archiveCurrentSession();
+    }
+
+    timerPausedRef.current = false;
+    timerRunningRef.current = true;
+    setActiveLiveWindowStartMs(currentBucketStartMs);
+    setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
     setTimerRunning(true);
   }
 
   function handleStopSession() {
+    timerPausedRef.current = true;
+    timerRunningRef.current = false;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setTimerRunning(false);
   }
 
   function handleRestartSession() {
-    archiveCurrentSession(); // Archive current session to history
-    setSecondsLeft(SESSION_SECONDS);
+    const nowMs = Date.now();
+    archiveCurrentSession();
+    timerPausedRef.current = false;
+    timerRunningRef.current = true;
+    setActiveLiveWindowStartMs(getFiveMinuteBucketStartMs(nowMs));
+    setSecondsLeft(getFiveMinuteBucketSecondsLeft(nowMs));
     setTimerRunning(true);
   }
 
@@ -646,12 +691,14 @@ export default function App() {
 
     if (!clean) return;
 
+    const nowTs = Date.now();
+    const nowIso = new Date(nowTs).toISOString();
+    const currentBucketStartMs = getFiveMinuteBucketStartMs(nowTs);
+
     const { s2, s3, s4, s5 } = splitString(clean);
-    const nowIso = new Date().toISOString();
     const translated = translateTo4(clean);
 
-    // ðŸ”¥ FIXED: Capture the CURRENT live prediction BEFORE adding the roll
-    // Use entriesRef.current to avoid stale closures during auto-import
+    // Capture the current live prediction before adding the roll.
     const currentEntries = entriesRef.current;
 
     const rolls2Before = currentEntries
@@ -675,7 +722,6 @@ export default function App() {
     const actual3 = translated.slice(0, 3);
     const actual4 = translated.slice(0, 4);
 
-    const nowTs = Date.now();
     const safeCandidates = (p) =>
       Array.isArray(p?.candidates) ? p.candidates : [];
 
@@ -754,6 +800,7 @@ export default function App() {
     if (manualValue === null) {
       setRollInput("");
     }
+
   }
   // ðŸ”¬ Long String sandbox â†’ stream to debug (supports both 2-str and 3-str)
   function handleLongStringToDebug(newRolls = [], targetStream = "2-str") {
@@ -1134,6 +1181,7 @@ export default function App() {
                   setIsCustomPatch={setIsCustomPatch}
                   debugLogs={debugLogs}
                   secondsLeft={secondsLeft}
+                  timerRunning={timerRunning}
                   freqTab={freqTab}
                   setFreqTab={setFreqTab}
                   sessionTab={sessionTab}

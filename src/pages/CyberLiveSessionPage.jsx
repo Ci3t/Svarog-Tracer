@@ -1,5 +1,5 @@
 // Cyberpunk Live Session Page - Built on Modern UI logic
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernAccuracyCard from '../components/modern/ModernAccuracyCard';
 import ModernFrequencyCard from '../components/modern/ModernFrequencyCard';
@@ -31,6 +31,7 @@ export default function CyberLiveSessionPage({
   setIsCustomPatch,
   debugLogs,
   secondsLeft,
+  timerRunning,
   freqTab,
   setFreqTab,
   sessionTab,
@@ -70,7 +71,16 @@ export default function CyberLiveSessionPage({
   kiyoDebugData,
   isAutoImporting,
 }) {
+  const autoStartRef = useRef(false);
   useLiveModeCurrency(entries);
+
+  useEffect(() => {
+    if (autoStartRef.current) return;
+    autoStartRef.current = true;
+    if (!timerRunning) {
+      handleStartSession();
+    }
+  }, [handleStartSession, timerRunning]);
   
   // Optional: Could add subtle GSAP glitches here later if needed
 
@@ -85,7 +95,8 @@ export default function CyberLiveSessionPage({
         onStart={handleStartSession}
         onStop={handleStopSession}
         onRestart={handleRestartSession}
-        timerRunning={secondsLeft < 300}
+        timerRunning={timerRunning}
+        canResume={secondsLeft < 300 || entries.length > 0}
         rollInput={rollInput}
         setRollInput={setRollInput}
         onAddRoll={handleAddRoll}

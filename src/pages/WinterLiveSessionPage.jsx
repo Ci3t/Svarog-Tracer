@@ -1,5 +1,5 @@
 // Winter Live Session Page - Clara Edition ❄️
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import ModernPredictionCard from '../components/modern/ModernPredictionCard';
 import ModernPairPredictorCard from '../components/modern/ModernPairPredictorCard';
 import ModernAccuracyCard from '../components/modern/ModernAccuracyCard';
@@ -34,6 +34,7 @@ export default function WinterLiveSessionPage({
   setIsCustomPatch,
   debugLogs,
   secondsLeft,
+  timerRunning,
   freqTab,
   setFreqTab,
   sessionTab,
@@ -73,7 +74,17 @@ export default function WinterLiveSessionPage({
   kiyoDebugData,
   isAutoImporting,
 }) {
+  const autoStartRef = useRef(false);
   useLiveModeCurrency(entries);
+
+  useEffect(() => {
+    if (autoStartRef.current) return;
+    autoStartRef.current = true;
+    if (!timerRunning) {
+      handleStartSession();
+    }
+  }, [handleStartSession, timerRunning]);
+
   return (
     <div className="winter-theme relative overflow-x-hidden">
       <SnowEffect density={40} speed={0.6} />
@@ -84,7 +95,8 @@ export default function WinterLiveSessionPage({
           onStart={handleStartSession}
           onStop={handleStopSession}
           onRestart={handleRestartSession}
-          timerRunning={secondsLeft < 300}
+          timerRunning={timerRunning}
+          canResume={secondsLeft < 300 || entries.length > 0}
           rollInput={rollInput}
           setRollInput={setRollInput}
           onAddRoll={handleAddRoll}

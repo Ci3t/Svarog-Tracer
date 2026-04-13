@@ -9,6 +9,7 @@ export default function ModernStickyHeader({
   onStop,
   onRestart,
   timerRunning,
+  canResume = false,
   rollInput,
   setRollInput,
   onAddRoll,
@@ -57,6 +58,11 @@ export default function ModernStickyHeader({
   const handleSubmit = (e) => {
     e.preventDefault();
     onAddRoll();
+  };
+
+  const handleStopIntent = (event) => {
+    event.preventDefault();
+    onStop();
   };
 
   return (
@@ -137,12 +143,13 @@ export default function ModernStickyHeader({
                   onClick={onStart}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-500/20 active:scale-95 transition-all whitespace-nowrap"
                 >
-                  START SESSION
+                  {canResume ? 'RESUME' : 'START SESSION'}
                 </button>
               ) : (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={onStop}
+                    onPointerDown={handleStopIntent}
+                    onClick={handleStopIntent}
                     className="p-2 sm:px-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all"
                     title="Stop"
                   >
