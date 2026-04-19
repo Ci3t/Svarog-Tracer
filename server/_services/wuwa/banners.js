@@ -4,6 +4,14 @@
  */
 
 const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100030': {
+    name: 'Lynae',
+    type: 'character',
+  },
+  '200002': {
+    name: 'Stringmaster',
+    type: 'weapon',
+  },
   '100034': {
     name: 'Sigrika',
     type: 'character',
@@ -13,6 +21,24 @@ const WUWA_KNOWN_BANNERS = Object.freeze({
     type: 'weapon',
   },
 });
+
+const CURRENT_WUWA_BANNER_PRIORITY = Object.freeze({
+  character: Object.freeze(['100030']),
+  weapon: Object.freeze(['200002']),
+});
+
+function pickPreferredWuWaBanner(banners, type) {
+  const pool = banners.filter((banner) => banner.type === type);
+  if (pool.length === 0) return null;
+
+  const priorities = CURRENT_WUWA_BANNER_PRIORITY[type] || [];
+  for (const bannerId of priorities) {
+    const exact = pool.find((banner) => String(banner.bannerId) === String(bannerId));
+    if (exact) return exact;
+  }
+
+  return pool.sort((a, b) => String(b.bannerId).localeCompare(String(a.bannerId)))[0] || null;
+}
 
 function slugifyBannerName(value) {
   // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
@@ -120,7 +146,30 @@ export async function handler(req, res) {
       });
     }
     
-    // Emergency Fallback
+    // Emergency Fallbacks for current reruns / direct active banners
+    if (!banners.some(b => b.id.includes('100030')) && html.includes('Lynae')) {
+      banners.push({
+        id: '100030_character',
+        bannerId: '100030',
+        name: 'Lynae',
+        type: 'character',
+        image: buildWuWaImageUrl('character-portraits', 'lynae-portrait.webp'),
+        game: 'wuwa'
+      });
+    }
+
+    if (!banners.some(b => b.id.includes('200002')) && html.includes('Stringmaster')) {
+      banners.push({
+        id: '200002_weapon',
+        bannerId: '200002',
+        name: 'Stringmaster',
+        type: 'weapon',
+        image: buildWuWaImageUrl('weapon-portraits', 'stringmaster-portrait.png'),
+        game: 'wuwa'
+      });
+    }
+
+    // Legacy emergency fallback
     if (!banners.some(b => b.id.includes('100034')) && html.includes('Sigrika')) {
       banners.push({
         id: '100034_character',
@@ -143,10 +192,10 @@ export async function handler(req, res) {
       });
     }
     
-    // Filter to most recent banners
-    const characterBanners = banners.filter(b => b.type === 'character').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
-    const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
-    const recentBanners = [...characterBanners, ...weaponBanners];
+    const recentBanners = [
+      pickPreferredWuWaBanner(banners, 'character'),
+      pickPreferredWuWaBanner(banners, 'weapon'),
+    ].filter(Boolean);
     
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
     return res.status(200).json(recentBanners);

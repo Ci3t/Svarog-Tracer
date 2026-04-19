@@ -39,7 +39,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 5, // Increment this to force cache refresh after fallback logic updates
+  CACHE_VERSION: 6, // Increment this to force cache refresh after banner discovery updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -457,6 +457,14 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100030': {
+    name: 'Lynae',
+    type: 'character',
+  },
+  '200002': {
+    name: 'Stringmaster',
+    type: 'weapon',
+  },
   '100034': {
     name: 'Sigrika',
     type: 'character',
@@ -466,6 +474,24 @@ const WUWA_KNOWN_BANNERS = Object.freeze({
     type: 'weapon',
   },
 });
+
+const CURRENT_WUWA_BANNER_PRIORITY = Object.freeze({
+  character: Object.freeze(['100030']),
+  weapon: Object.freeze(['200002']),
+});
+
+function pickPreferredWuWaBanner(banners, type) {
+  const pool = banners.filter((banner) => banner.type === type);
+  if (pool.length === 0) return null;
+
+  const priorities = CURRENT_WUWA_BANNER_PRIORITY[type] || [];
+  for (const bannerId of priorities) {
+    const exact = pool.find((banner) => String(banner.id) === String(bannerId));
+    if (exact) return exact;
+  }
+
+  return pool.sort((a, b) => String(b.id).localeCompare(String(a.id)))[0] || null;
+}
 
 function slugifyWuWaName(value) {
   return String(value || '')
@@ -619,7 +645,27 @@ async function fetchWuWaLiveBanners() {
       });
     }
 
-    // Emergency Fallback for Sigrika
+    // Emergency fallback for current reruns / active banners
+    if (!banners.some(b => b.id === '100030') && html.includes('Lynae')) {
+      banners.push({
+        id: '100030',
+        name: 'Lynae',
+        type: 'character',
+        image: buildWuWaImageUrl('character-portraits', 'lynae-portrait.webp'),
+        game: 'wuwa'
+      });
+    }
+    if (!banners.some(b => b.id === '200002') && html.includes('Stringmaster')) {
+      banners.push({
+        id: '200002',
+        name: 'Stringmaster',
+        type: 'weapon',
+        image: buildWuWaImageUrl('weapon-portraits', 'stringmaster-portrait.png'),
+        game: 'wuwa'
+      });
+    }
+
+    // Legacy emergency fallback for Sigrika
     if (!banners.some(b => b.id === '100034') && html.includes('Sigrika')) {
       banners.push({
         id: '100034',
@@ -640,9 +686,9 @@ async function fetchWuWaLiveBanners() {
       });
     }
 
-    // Sort and return latest
-    const latestChar = banners.filter(b => b.type === 'character').sort((a, b) => b.id.localeCompare(a.id))[0];
-    const latestWeapon = banners.filter(b => b.type === 'weapon').sort((a, b) => b.id.localeCompare(a.id))[0];
+    // Prefer currently featured reruns when they are present; otherwise fall back to highest ID
+    const latestChar = pickPreferredWuWaBanner(banners, 'character');
+    const latestWeapon = pickPreferredWuWaBanner(banners, 'weapon');
 
     const results = [];
     if (latestChar) results.push(latestChar);

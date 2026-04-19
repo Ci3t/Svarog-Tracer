@@ -1408,24 +1408,42 @@ function extractGenshinWeaponNames(list) {
 
 // WuWa preset banners (fallback if auto-discovery fails)
 export const WUWA_PRESET_BANNERS = [
-  // Current featured banners (Ver 1.4 Phase 2)
+  // Current featured banners
   { 
-    id: "100034", 
-    name: "Sigrika", 
+    id: "100030", 
+    name: "Lynae", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fsigrika-portrait.webp&w=828&q=75", 
-    characterId: "sigrika", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75", 
+    characterId: "lynae", 
     game: "wuwa" 
   },
   { 
-    id: "200034", 
-    name: "Solsworn Ciphers", 
+    id: "200002", 
+    name: "Stringmaster", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fsolsworn-ciphers-portrait.png&w=828&q=75", 
-    characterId: "solsworn_ciphers", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstringmaster-portrait.png&w=828&q=75", 
+    characterId: "stringmaster", 
     game: "wuwa" 
   },
 ];
+
+const CURRENT_WUWA_BANNER_PRIORITY = Object.freeze({
+  character: Object.freeze(['100030']),
+  weapon: Object.freeze(['200002']),
+});
+
+function pickPreferredWuWaBanner(banners, type) {
+  const pool = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === type);
+  if (pool.length === 0) return null;
+
+  const priorities = CURRENT_WUWA_BANNER_PRIORITY[type] || [];
+  for (const bannerId of priorities) {
+    const exact = pool.find((banner) => String(banner.bannerId || banner.id) === String(bannerId));
+    if (exact) return exact;
+  }
+
+  return pool.sort((a, b) => String(b.bannerId || b.id).localeCompare(String(a.bannerId || a.id)))[0] || null;
+}
 
 
 /**
@@ -1608,7 +1626,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache';
+  const CACHE_KEY = 'wuwa_live_banners_cache_v2';
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -1713,11 +1731,11 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
-    // Filter to show only the most recent (featured) banners
-    // Keep only the newest character banner and newest weapon banner
-    const characterBanners = banners.filter(b => b.type === 'character').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
-    const weaponBanners = banners.filter(b => b.type === 'weapon').sort((a, b) => b.bannerId.localeCompare(a.bannerId)).slice(0, 1);
-    const recentBanners = [...characterBanners, ...weaponBanners];
+    // Prefer current reruns when present; otherwise fall back to the highest known banner ID
+    const recentBanners = [
+      pickPreferredWuWaBanner(banners, 'character'),
+      pickPreferredWuWaBanner(banners, 'weapon'),
+    ].filter(Boolean);
     
     console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => `${b.name} (${b.bannerId})`));
     
