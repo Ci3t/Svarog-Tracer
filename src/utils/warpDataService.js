@@ -1410,7 +1410,7 @@ function extractGenshinWeaponNames(list) {
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners
   { 
-    id: "100030", 
+    id: "100035", 
     name: "Lynae", 
     type: "character", 
     image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75", 
@@ -1418,31 +1418,91 @@ export const WUWA_PRESET_BANNERS = [
     game: "wuwa" 
   },
   { 
-    id: "200002", 
-    name: "Stringmaster", 
+    id: "200035", 
+    name: "Spectrum Blaster", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fstringmaster-portrait.png&w=828&q=75", 
-    characterId: "stringmaster", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster-portrait.png&w=828&q=75", 
+    characterId: "spectrum_blaster", 
     game: "wuwa" 
   },
 ];
 
-const CURRENT_WUWA_BANNER_PRIORITY = Object.freeze({
-  character: Object.freeze(['100030']),
-  weapon: Object.freeze(['200002']),
+const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
+  lynae: 'Spectrum Blaster',
 });
 
-function pickPreferredWuWaBanner(banners, type) {
-  const pool = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === type);
-  if (pool.length === 0) return null;
+function compareWuWaBannerIdsDesc_Client(a, b) {
+  return Number.parseInt(String(b?.bannerId || b?.id || '0'), 10) - Number.parseInt(String(a?.bannerId || a?.id || '0'), 10);
+}
 
-  const priorities = CURRENT_WUWA_BANNER_PRIORITY[type] || [];
-  for (const bannerId of priorities) {
-    const exact = pool.find((banner) => String(banner.bannerId || banner.id) === String(bannerId));
-    if (exact) return exact;
+function pickHighestWuWaBanner_Client(banners) {
+  return [...(Array.isArray(banners) ? banners : [])].sort(compareWuWaBannerIdsDesc_Client)[0] || null;
+}
+
+function extractWuWaCurrentTitle_Client(html) {
+  const match = String(html || '').match(/<title>\s*([^<|]+?)\s*\|\s*Global Statistics/i);
+  return match?.[1] ? String(match[1]).trim() : '';
+}
+
+function findWuWaBannerByTitle_Client(banners, title) {
+  const normalizedTitle = String(title || '').trim().toLowerCase();
+  if (!normalizedTitle) return null;
+  return pickHighestWuWaBanner_Client(
+    banners.filter((banner) => normalizedTitle.includes(String(banner.name || '').trim().toLowerCase()))
+  );
+}
+
+function findWuWaBannerByExactName_Client(banners, name) {
+  const normalizedName = String(name || '').trim().toLowerCase();
+  if (!normalizedName) return null;
+  return pickHighestWuWaBanner_Client(
+    banners.filter((banner) => String(banner.name || '').trim().toLowerCase() === normalizedName)
+  );
+}
+
+function findWuWaBannerByOccurrence_Client(banners, html) {
+  const source = String(html || '').toLowerCase();
+  let winner = null;
+  let bestIndex = Number.POSITIVE_INFINITY;
+
+  for (const banner of banners) {
+    const name = String(banner.name || '').trim().toLowerCase();
+    if (!name) continue;
+    const index = source.indexOf(name);
+    if (
+      index >= 0 && (
+        index < bestIndex ||
+        (index === bestIndex && compareWuWaBannerIdsDesc_Client(banner, winner) < 0)
+      )
+    ) {
+      bestIndex = index;
+      winner = banner;
+    }
   }
 
-  return pool.sort((a, b) => String(b.bannerId || b.id).localeCompare(String(a.bannerId || a.id)))[0] || null;
+  return winner;
+}
+
+function selectWuWaVisibleBanners_Client(banners, html) {
+  const characterBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'character');
+  const weaponBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'weapon');
+  const currentTitle = extractWuWaCurrentTitle_Client(html);
+
+  const selectedCharacter =
+    findWuWaBannerByTitle_Client(characterBanners, currentTitle) ||
+    findWuWaBannerByOccurrence_Client(characterBanners, html) ||
+    characterBanners[0] ||
+    null;
+  const pairedWeaponName = selectedCharacter
+    ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
+    : '';
+  const selectedWeapon =
+    findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
+    findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
+    weaponBanners[0] ||
+    null;
+
+  return [selectedCharacter, selectedWeapon].filter(Boolean);
 }
 
 
@@ -1626,7 +1686,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v2';
+  const CACHE_KEY = 'wuwa_live_banners_cache_v3';
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -1731,11 +1791,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
-    // Prefer current reruns when present; otherwise fall back to the highest known banner ID
-    const recentBanners = [
-      pickPreferredWuWaBanner(banners, 'character'),
-      pickPreferredWuWaBanner(banners, 'weapon'),
-    ].filter(Boolean);
+    const recentBanners = selectWuWaVisibleBanners_Client(banners, html);
     
     console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => `${b.name} (${b.bannerId})`));
     

@@ -457,12 +457,20 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100035': {
+    name: 'Lynae',
+    type: 'character',
+  },
   '100030': {
     name: 'Lynae',
     type: 'character',
   },
-  '200002': {
-    name: 'Stringmaster',
+  '200035': {
+    name: 'Spectrum Blaster',
+    type: 'weapon',
+  },
+  '200030': {
+    name: 'Spectrum Blaster',
     type: 'weapon',
   },
   '100034': {
@@ -475,22 +483,83 @@ const WUWA_KNOWN_BANNERS = Object.freeze({
   },
 });
 
-const CURRENT_WUWA_BANNER_PRIORITY = Object.freeze({
-  character: Object.freeze(['100030']),
-  weapon: Object.freeze(['200002']),
+const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
+  lynae: 'Spectrum Blaster',
 });
 
-function pickPreferredWuWaBanner(banners, type) {
-  const pool = banners.filter((banner) => banner.type === type);
-  if (pool.length === 0) return null;
+function compareWuWaBannerIdsDesc(a, b) {
+  return Number.parseInt(String(b?.bannerId || b?.id || '0'), 10) - Number.parseInt(String(a?.bannerId || a?.id || '0'), 10);
+}
 
-  const priorities = CURRENT_WUWA_BANNER_PRIORITY[type] || [];
-  for (const bannerId of priorities) {
-    const exact = pool.find((banner) => String(banner.id) === String(bannerId));
-    if (exact) return exact;
+function pickHighestWuWaBanner(banners) {
+  return [...(Array.isArray(banners) ? banners : [])].sort(compareWuWaBannerIdsDesc)[0] || null;
+}
+
+function extractWuWaCurrentTitle(html) {
+  const match = String(html || '').match(/<title>\s*([^<|]+?)\s*\|\s*Global Statistics/i);
+  return match?.[1] ? String(match[1]).trim() : '';
+}
+
+function findBannerByTitleMatch(banners, title) {
+  const normalizedTitle = String(title || '').trim().toLowerCase();
+  if (!normalizedTitle) return null;
+  return pickHighestWuWaBanner(
+    banners.filter((banner) => normalizedTitle.includes(String(banner.name || '').trim().toLowerCase()))
+  );
+}
+
+function findBannerByExactName(banners, name) {
+  const normalizedName = String(name || '').trim().toLowerCase();
+  if (!normalizedName) return null;
+  return pickHighestWuWaBanner(
+    banners.filter((banner) => String(banner.name || '').trim().toLowerCase() === normalizedName)
+  );
+}
+
+function findBannerByFirstOccurrence(banners, html) {
+  const source = String(html || '').toLowerCase();
+  let winner = null;
+  let bestIndex = Number.POSITIVE_INFINITY;
+
+  for (const banner of banners) {
+    const name = String(banner.name || '').trim().toLowerCase();
+    if (!name) continue;
+    const index = source.indexOf(name);
+    if (
+      index >= 0 && (
+        index < bestIndex ||
+        (index === bestIndex && compareWuWaBannerIdsDesc(banner, winner) < 0)
+      )
+    ) {
+      bestIndex = index;
+      winner = banner;
+    }
   }
 
-  return pool.sort((a, b) => String(b.id).localeCompare(String(a.id)))[0] || null;
+  return winner;
+}
+
+function selectWuWaVisibleBanners(banners, html) {
+  const characterBanners = banners.filter((banner) => banner.type === 'character');
+  const weaponBanners = banners.filter((banner) => banner.type === 'weapon');
+  const currentTitle = extractWuWaCurrentTitle(html);
+
+  const selectedCharacter =
+    findBannerByTitleMatch(characterBanners, currentTitle) ||
+    findBannerByFirstOccurrence(characterBanners, html) ||
+    characterBanners[0] ||
+    null;
+
+  const pairedWeaponName = selectedCharacter
+    ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
+    : '';
+  const selectedWeapon =
+    findBannerByExactName(weaponBanners, pairedWeaponName) ||
+    findBannerByFirstOccurrence(weaponBanners, html) ||
+    weaponBanners[0] ||
+    null;
+
+  return [selectedCharacter, selectedWeapon].filter(Boolean);
 }
 
 function slugifyWuWaName(value) {
@@ -646,21 +715,21 @@ async function fetchWuWaLiveBanners() {
     }
 
     // Emergency fallback for current reruns / active banners
-    if (!banners.some(b => b.id === '100030') && html.includes('Lynae')) {
+    if (!banners.some(b => b.id === '100035') && html.includes('Lynae')) {
       banners.push({
-        id: '100030',
+        id: '100035',
         name: 'Lynae',
         type: 'character',
         image: buildWuWaImageUrl('character-portraits', 'lynae-portrait.webp'),
         game: 'wuwa'
       });
     }
-    if (!banners.some(b => b.id === '200002') && html.includes('Stringmaster')) {
+    if (!banners.some(b => b.name === 'Spectrum Blaster') && html.includes('Spectrum Blaster')) {
       banners.push({
-        id: '200002',
-        name: 'Stringmaster',
+        id: '200035',
+        name: 'Spectrum Blaster',
         type: 'weapon',
-        image: buildWuWaImageUrl('weapon-portraits', 'stringmaster-portrait.png'),
+        image: buildWuWaImageUrl('weapon-portraits', 'spectrum-blaster-portrait.png'),
         game: 'wuwa'
       });
     }
@@ -686,13 +755,7 @@ async function fetchWuWaLiveBanners() {
       });
     }
 
-    // Prefer currently featured reruns when they are present; otherwise fall back to highest ID
-    const latestChar = pickPreferredWuWaBanner(banners, 'character');
-    const latestWeapon = pickPreferredWuWaBanner(banners, 'weapon');
-
-    const results = [];
-    if (latestChar) results.push(latestChar);
-    if (latestWeapon) results.push(latestWeapon);
+    const results = selectWuWaVisibleBanners(banners, html);
 
     console.log(`[WuWa] Scraped: ${results.map(r => r.name).join(', ')}`);
     return results;
