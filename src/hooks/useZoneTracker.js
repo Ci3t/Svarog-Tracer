@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { gsap } from 'gsap';
 import charactersData from '../data/characters.json';
-import { HSR_CAVERNS, findCavernById } from '../constants/caverns';
+import { findCavernById } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl as buildZoneApiUrl } from '../utils/apiBase';
@@ -1221,7 +1221,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
       setError(SINGLE_TRAILBLAZER_TEAM_MESSAGE);
       return;
     }
-    if (!cavern) { setError('Cavern is required (Optional Details step).'); return; }
+    if (!cavern) { setError('Domain is required (Optional Details step).'); return; }
     const clearTimeSeconds = parseClearTimeToSeconds(clearTimeInput);
     if (clearTimeSeconds === null) { setError('Clear time is required. Use MM:SS format.'); return; }
     const invalidRelic = relicCards.find((card) => !Array.isArray(card.substats) || card.substats.length !== 4);

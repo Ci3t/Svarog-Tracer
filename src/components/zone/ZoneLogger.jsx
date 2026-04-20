@@ -16,7 +16,7 @@ import {
   OUTCOME_OPTIONS,
   SERVER_REGION_SUBMIT_OPTIONS
 } from '../../hooks/useZoneTracker';
-import { HSR_CAVERNS } from '../../constants/caverns';
+import { HSR_DOMAINS } from '../../constants/caverns';
 import relicsData from '../../data/relics.json';
 
 function CharacterAvatar({ char, imageClassName = '', fallbackClassName = '' }) {
@@ -116,15 +116,28 @@ export default function ZoneLogger({
   const visibleCharacters = rosterMode === 'owned' ? ownedOptions : characterOptions;
   const visibleSearchTerm = rosterMode === 'owned' ? ownedSearchTerm : charSearchTerm;
   const visibleSubstatOptions = relicSubstatView === 'pairs' ? RELIC_SUBSTAT_PAIR_OPTIONS : RELIC_SUBSTAT_OPTIONS;
-  const cavernOptions = React.useMemo(() => (
-    HSR_CAVERNS.map((entry) => ({
+  const domainSections = React.useMemo(() => {
+    const entries = HSR_DOMAINS.map((entry) => ({
       ...entry,
       relicImages: (Array.isArray(entry.relicSetIds) ? entry.relicSetIds : [])
         .slice(0, 2)
         .map((setId) => relicsData.find((relic) => relic.id === setId)?.image || '')
         .filter(Boolean),
-    }))
-  ), []);
+    }));
+
+    return [
+      {
+        id: 'cavern',
+        label: 'Cavern Relics',
+        items: entries.filter((entry) => entry.type === 'cavern'),
+      },
+      {
+        id: 'planar',
+        label: 'Planar Ornaments',
+        items: entries.filter((entry) => entry.type === 'planar'),
+      },
+    ].filter((section) => section.items.length > 0);
+  }, []);
 
   const handleRosterSearchChange = (value) => {
     if (rosterMode === 'owned') {
@@ -411,51 +424,60 @@ export default function ZoneLogger({
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Cavern Location</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Domain Location</label>
                     <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-2">
-                      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                        {cavernOptions.map((entry) => {
-                          const isActive = cavern === entry.id;
-                          return (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              onClick={() => setCavern(entry.id)}
-                              className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
-                                isActive
-                                  ? 'border-indigo-400/60 bg-indigo-500/12'
-                                  : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-950'
-                              }`}
-                            >
-                              <div className="relative h-11 w-14 flex-shrink-0">
-                                {entry.relicImages[0] ? (
-                                  <img
-                                    src={entry.relicImages[0]}
-                                    alt={entry.relics?.[0] || entry.name}
-                                    className="absolute left-0 top-1/2 h-10 w-10 -translate-y-1/2 -rotate-12 object-contain"
-                                    loading="lazy"
-                                  />
-                                ) : null}
-                                {entry.relicImages[1] ? (
-                                  <img
-                                    src={entry.relicImages[1]}
-                                    alt={entry.relics?.[1] || entry.name}
-                                    className="absolute right-0 top-1/2 h-10 w-10 -translate-y-1/2 rotate-12 object-contain"
-                                    loading="lazy"
-                                  />
-                                ) : null}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className={`truncate text-xs font-black uppercase tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-200'}`}>
-                                  {entry.name}
-                                </div>
-                                <div className="mt-1 truncate text-[10px] text-slate-500">
-                                  {entry.location}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
+                      <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                        {domainSections.map((section) => (
+                          <div key={section.id} className="space-y-2">
+                            <div className="px-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                              {section.label}
+                            </div>
+                            <div className="space-y-2">
+                              {section.items.map((entry) => {
+                                const isActive = cavern === entry.id;
+                                return (
+                                  <button
+                                    key={entry.id}
+                                    type="button"
+                                    onClick={() => setCavern(entry.id)}
+                                    className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                                      isActive
+                                        ? 'border-indigo-400/60 bg-indigo-500/12'
+                                        : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-950'
+                                    }`}
+                                  >
+                                    <div className="relative h-11 w-14 flex-shrink-0">
+                                      {entry.relicImages[0] ? (
+                                        <img
+                                          src={entry.relicImages[0]}
+                                          alt={entry.relics?.[0] || entry.name}
+                                          className="absolute left-0 top-1/2 h-10 w-10 -translate-y-1/2 -rotate-12 object-contain"
+                                          loading="lazy"
+                                        />
+                                      ) : null}
+                                      {entry.relicImages[1] ? (
+                                        <img
+                                          src={entry.relicImages[1]}
+                                          alt={entry.relics?.[1] || entry.name}
+                                          className="absolute right-0 top-1/2 h-10 w-10 -translate-y-1/2 rotate-12 object-contain"
+                                          loading="lazy"
+                                        />
+                                      ) : null}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className={`truncate text-xs font-black uppercase tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-200'}`}>
+                                        {entry.name}
+                                      </div>
+                                      <div className="mt-1 truncate text-[10px] text-slate-500">
+                                        {entry.location}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
