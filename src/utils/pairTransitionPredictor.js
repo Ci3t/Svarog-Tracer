@@ -550,16 +550,20 @@ function scoreSvarogAnalyzerPicks({
     const overdueVsGap = avgNoiseGap
       ? ((seenAgo < 0 ? commonsSinceNoise + 1 : seenAgo) / Math.max(avgNoiseGap, 1))
       : 0;
-    const timingBonus = noise?.includes(value)
+    // Dead noise: absent 8+ rolls, no recent activity, low trust, not rising
+    // These values are likely absent from this session window — stop boosting them
+    const isDeadNoise = noise?.includes(value) && seenAgo >= 8 && recent4Hits === 0 &&
+      recent2Hits === 0 && trust <= 0.6 && direction !== 'rising';
+    const timingBonus = noise?.includes(value) && !isDeadNoise
       ? (
           noiseTiming === 'due'
-            ? Math.max(0, Math.round((overdueVsGap - 0.7) * 10))
+            ? Math.min(18, Math.max(0, Math.round((overdueVsGap - 0.7) * 10)))
             : noiseTiming === 'approaching'
-              ? Math.max(0, Math.round((overdueVsGap - 0.4) * 6))
+              ? Math.min(12, Math.max(0, Math.round((overdueVsGap - 0.4) * 6)))
               : -6
         )
-      : 0;
-    const pressureBonus = noise?.includes(value)
+      : noise?.includes(value) ? -8 : 0;  // dead noise gets negative timing
+    const pressureBonus = noise?.includes(value) && !isDeadNoise
       ? (
           noiseTiming === 'due'
             ? Math.round((latentPressure - 35) * 0.18)
@@ -606,6 +610,8 @@ function scoreSvarogAnalyzerPicks({
     else score -= 6;
     if (noise?.includes(value) && recent6 < 25 && effectivePressure < 30) score -= 8;
     else if (noise?.includes(value) && recent6 < 25 && effectivePressure < 42) score -= 4;
+    // Dead noise: extra penalty — gap pressure alone cannot resurrect invisible values
+    if (isDeadNoise) score -= 12;
 
     return {
       value,
@@ -631,6 +637,7 @@ function scoreSvarogAnalyzerPicks({
       noisePriorityTier,
       totalCount,
       effectivePressure,
+      isDeadNoise,
     };
   }).sort((a, b) => b.score - a.score);
 
@@ -640,7 +647,7 @@ function scoreSvarogAnalyzerPicks({
     .filter(entry => noise.includes(entry.value))
     .map((entry) => {
       const rawGap = entry.seenAgo < 0 ? commonsSinceNoise + 2 : entry.seenAgo;
-      const overdueNorm = avgNoiseGap ? rawGap / Math.max(avgNoiseGap, 1) : rawGap / 4;
+      const overdueNorm = Math.min(avgNoiseGap ? rawGap / Math.max(avgNoiseGap, 1) : rawGap / 4, 3.0);
       const overdueScore = Math.min(40, Math.round(overdueNorm * 18));
       const neverSeenBonus = entry.seenAgo < 0
         ? (noiseTiming === 'due' ? 16 : noiseTiming === 'approaching' ? 12 : 8)
@@ -782,6 +789,34 @@ function scoreSvarogAnalyzerPicks({
     else if (topNoiseCount === 1) analyzerMode = 'break-watch';
   }
 
+  // Dominant run guard: when one value clearly dominates (70%+ share, 3+ run),
+  // don't let gap pressure on absent noise push it out of the top-2.
+  const dominantValue = VALUES.find(v =>
+    (distribution[v] || 0) >= 70 && v === lastRoll && currentRunLen >= 3
+  );
+  if (dominantValue) {
+    const dominantInTop2 = analyzerTop1?.value === dominantValue || analyzerTop2?.value === dominantValue;
+    if (!dominantInTop2) {
+      const dominantEntry = analyzerRanked.find(entry => entry.value === dominantValue);
+      if (dominantEntry) {
+        // Replace the weaker pick, preferring to replace noise over commons
+        if (analyzerTop2 && noise.includes(analyzerTop2.value)) {
+          analyzerTop2 = dominantEntry;
+        } else if (analyzerTop1 && noise.includes(analyzerTop1.value)) {
+          analyzerTop2 = dominantEntry;
+        }
+      }
+    }
+    // Both picks are noise during a dominant run → force dominant into alt
+    if (
+      analyzerTop1 && noise.includes(analyzerTop1.value) &&
+      analyzerTop2 && noise.includes(analyzerTop2.value)
+    ) {
+      const dominantEntry = analyzerRanked.find(entry => entry.value === dominantValue);
+      if (dominantEntry) analyzerTop2 = dominantEntry;
+    }
+  }
+
   // Narrow exact-pick helper for first-break moments after x3/x4 runs.
   // We keep the balanced base scorer intact, then let the best non-runner
   // challenger compete when the current run is stretched enough to be fragile.
@@ -789,7 +824,7 @@ function scoreSvarogAnalyzerPicks({
     const exhaustionRatio = currentRunLen / Math.max(avgObservedRunLen || 2.5, 1);
     const selfEntry = scored.find(entry => entry.isSelfTransition);
     const challengerPool = scored
-      .filter(entry => !entry.isSelfTransition)
+      .filter(entry => !entry.isSelfTransition && !entry.isDeadNoise)
       .map((entry) => {
         const unseenBonus = entry.seenAgo < 0 ? 14 : 0;
         const overdueBonus = entry.seenAgo >= 5 ? 10 : entry.seenAgo >= 3 ? 6 : 0;
