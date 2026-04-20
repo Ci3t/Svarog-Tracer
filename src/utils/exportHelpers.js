@@ -47,9 +47,11 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       const supportTier = trend.supportTier || 'weak';
       const latent = Math.round(trend.latentPressure ?? 0);
       const latentTier = trend.latentTier || 'quiet';
+      const noisePriority = Math.round(trend.noisePriorityScore ?? 0);
+      const noisePriorityTier = trend.noisePriorityTier || 'quiet';
       const state = trend.state || 'unknown';
       const direction = trend.direction || 'stable';
-      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | support ${support}% (${supportTier}) | latent ${latent}% (${latentTier}) | ${state} | ${direction}`;
+      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | support ${support}% (${supportTier}) | latent ${latent}% (${latentTier}) | noise ${noisePriority}% (${noisePriorityTier}) | ${state} | ${direction}`;
     });
   };
 
@@ -61,6 +63,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(', ');
   };
 
+  const formatNoiseScores = (scores) => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry.candidateScore || entry.score || 0)}(p:${Math.round(entry.pressureScore || 0)},a:${Math.round(entry.activationScore || 0)},gap:${Math.round((entry.overdueNorm || 0) * 100) / 100})`)
+      .join(', ');
+  };
+
   const formatDormantCandidates = (data) => {
     const trends = data?.trends;
     if (!trends || typeof trends !== 'object') return ['none'];
@@ -68,10 +78,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .map((value) => ({ value, trend: trends[value] || {} }))
       .filter(({ trend }) =>
         (trend.current ?? 0) === 0 &&
-        ((trend.trustScore ?? 0) >= 0.45 || (trend.arrowWeight ?? 0) >= 0.4 || (trend.supportScore ?? 0) >= 42)
+        ((trend.trustScore ?? 0) >= 0.45 || (trend.arrowWeight ?? 0) >= 0.4 || (trend.supportScore ?? 0) >= 42 || (trend.noisePriorityScore ?? 0) >= 48)
       )
       .map(({ value, trend }) =>
-        `${value}: trust ${formatTrendPercent(trend.trustScore ?? 0)}% | fresh ${formatTrendPercent(trend.arrowWeight ?? 0)}% | support ${Math.round(trend.supportScore ?? 0)}% (${trend.supportTier || 'weak'}) | latent ${Math.round(trend.latentPressure ?? 0)}% (${trend.latentTier || 'quiet'}) | ${trend.state || 'unknown'} | ${trend.direction || 'stable'}`
+        `${value}: trust ${formatTrendPercent(trend.trustScore ?? 0)}% | fresh ${formatTrendPercent(trend.arrowWeight ?? 0)}% | support ${Math.round(trend.supportScore ?? 0)}% (${trend.supportTier || 'weak'}) | latent ${Math.round(trend.latentPressure ?? 0)}% (${trend.latentTier || 'quiet'}) | noise ${Math.round(trend.noisePriorityScore ?? 0)}% (${trend.noisePriorityTier || 'quiet'}) | ${trend.state || 'unknown'} | ${trend.direction || 'stable'}`
       );
     return dormant.length > 0 ? dormant : ['none'];
   };
@@ -216,6 +226,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         avg_noise_gap: ${data.avgNoiseGap ?? 'n/a'}\n`;
       content += `         current_run_len: ${data.currentRunLen ?? data.currentRunLength ?? 0}\n`;
       content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
+      content += `         analyzer_noise_scores: ${formatNoiseScores(data.analyzerNoiseScores)}\n`;
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
       content += `         trends:\n`;

@@ -489,12 +489,17 @@ function scoreSvarogAnalyzerPicks({
     const pair1Reliable = !!matrix?.[lastRoll]?.[value]?.reliable;
     const pair2 = pair2gramRow?.[value]?.pct || 0;
     const pair2Reliable = !!pair2gramRow?.[value]?.reliable;
+    const weightedPair1 = pair1 * (pair1Reliable ? 1 : pair1 >= 80 ? 0.35 : 0.55);
+    const weightedPair2 = pair2 * (pair2Reliable ? 1 : pair2 >= 80 ? 0.45 : 0.65);
     const trust = trends?.[value]?.trustScore ?? 0.5;
     const arrowWeight = trends?.[value]?.arrowWeight ?? 0.6;
     const supportScore = trends?.[value]?.supportScore ?? 35;
     const supportTier = trends?.[value]?.supportTier ?? 'thin';
     const latentPressure = trends?.[value]?.latentPressure ?? 18;
     const latentTier = trends?.[value]?.latentTier ?? 'low';
+    const noisePriorityScore = trends?.[value]?.noisePriorityScore ?? 18;
+    const noisePriorityTier = trends?.[value]?.noisePriorityTier ?? 'quiet';
+    const totalCount = trends?.[value]?.totalCount ?? 0;
     const direction = trends?.[value]?.direction || 'stable';
     const momentum = ((momentumScores?.[value] || 0) / maxMomentum) * 100;
     const recent6 = recent6Dist?.[value] || 0;
@@ -520,8 +525,8 @@ function scoreSvarogAnalyzerPicks({
       seenAgo < 0
         ? Math.min(rolls.length * 12, 100)
         : Math.min((effectiveGap / Math.max(expectedGap, 1)) * 40, 100);
-    const pairSignal = Math.min(pair1, 100);
-    const pair2Signal = Math.min(pair2, 100);
+    const pairSignal = Math.min(weightedPair1, 100);
+    const pair2Signal = Math.min(weightedPair2, 100);
     const freqSignal = Math.min(distribution?.[value] || 0, 100);
     const momentumSignal = Math.min(momentum, 100);
     const recentSignal = Math.min(recent6 * 2, 100);
@@ -606,7 +611,9 @@ function scoreSvarogAnalyzerPicks({
       value,
       score: Math.round(score * 100) / 100,
       pair1,
+      pair1Reliable,
       pair2,
+      pair2Reliable,
       freqSignal,
       recentSignal,
       momentumSignal,
@@ -620,53 +627,159 @@ function scoreSvarogAnalyzerPicks({
       supportTier,
       latentPressure,
       latentTier,
+      noisePriorityScore,
+      noisePriorityTier,
+      totalCount,
       effectivePressure,
     };
   }).sort((a, b) => b.score - a.score);
 
   const bestCommon = scored.find(entry => commons.includes(entry.value)) || null;
   const secondCommon = scored.find(entry => commons.includes(entry.value) && entry.value !== bestCommon?.value) || null;
-  const bestNoise = scored.find(entry => noise.includes(entry.value)) || null;
-  const noiseCanCompete =
-    !!bestNoise &&
-    noiseTiming !== 'not_due' &&
+  const noiseEntries = scored
+    .filter(entry => noise.includes(entry.value))
+    .map((entry) => {
+      const rawGap = entry.seenAgo < 0 ? commonsSinceNoise + 2 : entry.seenAgo;
+      const overdueNorm = avgNoiseGap ? rawGap / Math.max(avgNoiseGap, 1) : rawGap / 4;
+      const overdueScore = Math.min(40, Math.round(overdueNorm * 18));
+      const neverSeenBonus = entry.seenAgo < 0
+        ? (noiseTiming === 'due' ? 16 : noiseTiming === 'approaching' ? 12 : 8)
+        : 0;
+      const scarcityBonus = entry.totalCount <= 1 ? 8 : entry.totalCount === 2 ? 3 : 0;
+      const outsiderBonus = freshOutsider?.value === entry.value
+        ? (
+            entry.direction === 'falling'
+              ? 4
+              : noiseTiming === 'approaching' ? 18
+              : noiseTiming === 'due' ? 12
+              : 7
+          )
+        : 0;
+      const activationScore =
+        Math.round((((entry.pair1Reliable ? (entry.pair1 || 0) : (entry.pair1 || 0) * ((entry.pair1 || 0) >= 80 ? 0.35 : 0.55)))) * 0.34) +
+        Math.round((((entry.pair2Reliable ? (entry.pair2 || 0) : (entry.pair2 || 0) * ((entry.pair2 || 0) >= 80 ? 0.45 : 0.65)))) * 0.22) +
+        Math.round((entry.effectivePressure || 0) * 0.12) +
+        ((entry.recent2Hits || 0) * 12) +
+        ((entry.recent4Hits || 0) * 6) +
+        outsiderBonus +
+        (entry.direction === 'rising' ? 6 : entry.direction === 'stable' ? 2 : -5);
+      const pressureScore =
+        Math.round((entry.noisePriorityScore || 0) * 0.58) +
+        Math.round(overdueScore * 0.72) +
+        neverSeenBonus +
+        scarcityBonus +
+        (entry.direction === 'falling' ? -4 : 0);
+      const pressureWeight = noiseTiming === 'due' ? 0.62 : noiseTiming === 'approaching' ? 0.46 : 0.26;
+      const activationWeight = noiseTiming === 'due' ? 0.38 : noiseTiming === 'approaching' ? 0.54 : 0.74;
+      const candidateScore = Math.round(
+        pressureScore * pressureWeight +
+        activationScore * activationWeight
+      );
+      return {
+        ...entry,
+        rawGap,
+        overdueNorm,
+        overdueScore,
+        neverSeenBonus,
+        scarcityBonus,
+        outsiderBonus,
+        activationScore,
+        pressureScore,
+        candidateScore,
+      };
+    })
+    .sort((a, b) => {
+      const pressureDiff = (b.pressureScore || 0) - (a.pressureScore || 0);
+      const activationDiff = (b.activationScore || 0) - (a.activationScore || 0);
+      if (
+        noiseTiming === 'approaching' &&
+        Math.max(a.activationScore || 0, b.activationScore || 0) < 18 &&
+        Math.abs(pressureDiff) >= 4
+      ) {
+        return pressureDiff;
+      }
+      const scoreDiff = b.candidateScore - a.candidateScore;
+      if (Math.abs(scoreDiff) >= 3) return scoreDiff;
+      if (noiseTiming === 'due' && Math.abs(pressureDiff) >= 4) return pressureDiff;
+      if (noiseTiming === 'approaching' && Math.abs(activationDiff) >= 4) return activationDiff;
+      const overdueDiff = (b.overdueNorm || 0) - (a.overdueNorm || 0);
+      if (Math.abs(overdueDiff) >= 0.45) return overdueDiff > 0 ? 1 : -1;
+      const unseenDiff = (b.neverSeenBonus || 0) - (a.neverSeenBonus || 0);
+      if (Math.abs(unseenDiff) >= 4) return unseenDiff;
+      if ((freshOutsider?.value && a.value === freshOutsider.value) || (freshOutsider?.value && b.value === freshOutsider.value)) {
+        return (b.activationScore || 0) - (a.activationScore || 0);
+      }
+      return (b.noisePriorityScore || 0) - (a.noisePriorityScore || 0);
+    });
+  const bestNoise = noiseEntries[0] || null;
+  const noiseEntryMap = new Map(noiseEntries.map((entry) => [entry.value, entry]));
+  const normalizedNoiseTiming = noiseTiming === 'unknown' ? 'not_due' : noiseTiming;
+  const analyzerRanked = scored
+    .map((entry) => {
+      const noiseEntry = noiseEntryMap.get(entry.value);
+      let exactScore = entry.score;
+      if (noise.includes(entry.value)) {
+        if (normalizedNoiseTiming === 'due') {
+          exactScore += (noiseEntry?.candidateScore || 0) * 0.62;
+        } else if (normalizedNoiseTiming === 'approaching') {
+          exactScore += (noiseEntry?.candidateScore || 0) * 0.38;
+        } else {
+          exactScore -= 6;
+        }
+      } else {
+        if (normalizedNoiseTiming === 'due') {
+          const commonSupport = entry.supportScore ?? 40;
+          if (commonSupport < 42) exactScore -= 6;
+          else if (commonSupport >= 55) exactScore += 3;
+        } else if (normalizedNoiseTiming === 'approaching') {
+          const commonSupport = entry.supportScore ?? 40;
+          if (commonSupport >= 48) exactScore += 2;
+        }
+      }
+      return {
+        ...entry,
+        exactScore: Math.round(exactScore * 100) / 100,
+      };
+    })
+    .sort((a, b) => {
+      const diff = (b.exactScore || 0) - (a.exactScore || 0);
+      if (Math.abs(diff) >= 2) return diff;
+      if (normalizedNoiseTiming === 'due') {
+        const bNoise = noiseEntryMap.get(b.value);
+        const aNoise = noiseEntryMap.get(a.value);
+        if (bNoise || aNoise) {
+          const pressureDiff = ((bNoise?.pressureScore || 0) - (aNoise?.pressureScore || 0));
+          if (Math.abs(pressureDiff) >= 4) return pressureDiff;
+        }
+      }
+      const pairDiff = (b.pair1 || 0) - (a.pair1 || 0);
+      if (Math.abs(pairDiff) >= 8) return pairDiff;
+      return (b.score || 0) - (a.score || 0);
+    });
+  const analyzerTop1 = analyzerRanked[0] || null;
+  let analyzerTop2 = analyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
+  const strongestBackedCommon = analyzerRanked.find((entry) =>
+    commons.includes(entry.value) &&
     (
-      bestNoise.effectivePressure >= (noiseTiming === 'due' ? 46 : 52) ||
-      bestNoise.pair1 >= 12 ||
-      bestNoise.pair2 >= 12 ||
-      bestNoise.value === freshOutsider?.value
-    );
-  const noiseCanTakeMain =
-    !!bestNoise &&
-    noiseTiming === 'due' &&
-    (
-      bestNoise.pair1 >= 18 ||
-      bestNoise.pair2 >= 18 ||
-      bestNoise.value === freshOutsider?.value ||
-      bestNoise.recent2Hits >= 1
-    ) &&
-    bestNoise.score >= ((bestCommon?.score ?? -999) - 2);
-
-  if (noiseCanTakeMain) {
-    return {
-      prediction: bestNoise.value,
-      alt: bestCommon?.value || scored.find(entry => entry.value !== bestNoise.value)?.value || null,
-      scores: scored,
-      mode: 'break',
-      noiseTiming,
-      noiseDueRatio,
-    };
+      (entry.supportScore ?? 0) >= 48 ||
+      (entry.freqSignal ?? 0) >= 60 ||
+      (entry.pair1 ?? 0) >= 40
+    )
+  ) || null;
+  const topPairValues = [analyzerTop1?.value, analyzerTop2?.value].filter(Boolean);
+  if (
+    strongestBackedCommon &&
+    !topPairValues.includes(strongestBackedCommon.value) &&
+    analyzerTop2 &&
+    strongestBackedCommon.exactScore >= (analyzerTop2.exactScore - 8)
+  ) {
+    analyzerTop2 = strongestBackedCommon;
   }
-
-  if (noiseCanCompete && bestCommon) {
-    return {
-      prediction: bestCommon.value,
-      alt: bestNoise.value,
-      scores: scored,
-      mode: 'break',
-      noiseTiming,
-      noiseDueRatio,
-    };
+  const topNoiseCount = [analyzerTop1, analyzerTop2].filter((entry) => entry && noise.includes(entry.value)).length;
+  let analyzerMode = 'pair';
+  if (normalizedNoiseTiming !== 'not_due') {
+    if (topNoiseCount === 2 || (analyzerTop1 && noise.includes(analyzerTop1.value))) analyzerMode = 'break';
+    else if (topNoiseCount === 1) analyzerMode = 'break-watch';
   }
 
   // Narrow exact-pick helper for first-break moments after x3/x4 runs.
@@ -719,6 +832,7 @@ function scoreSvarogAnalyzerPicks({
           prediction: promotedMain,
           alt: promotedAlt,
           scores: scored,
+          noiseScores: noiseEntries,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -732,6 +846,7 @@ function scoreSvarogAnalyzerPicks({
           prediction: currentMain,
           alt: bestChallenger.value,
           scores: scored,
+          noiseScores: noiseEntries,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -741,11 +856,12 @@ function scoreSvarogAnalyzerPicks({
   }
 
   return {
-    prediction: scored[0]?.value || null,
-    alt: scored.find(entry => entry.value !== scored[0]?.value)?.value || null,
+    prediction: analyzerTop1?.value || scored[0]?.value || null,
+    alt: analyzerTop2?.value || scored.find(entry => entry.value !== (analyzerTop1?.value || scored[0]?.value))?.value || null,
     scores: scored,
-    mode: noiseCanCompete ? 'break-watch' : 'pair',
-    noiseTiming,
+    noiseScores: noiseEntries,
+    mode: analyzerMode,
+    noiseTiming: normalizedNoiseTiming,
     noiseDueRatio,
   };
 }
@@ -1078,8 +1194,11 @@ export function calculateTrends(rolls) {
         supportTier: 'weak',
         latentPressure: 18,
         latentTier: 'low',
+        noisePriorityScore: 22,
+        noisePriorityTier: 'quiet',
         recentCount: 0,
         olderCount: 0,
+        totalCount: 0,
       };
       return acc;
     }, {});
@@ -1185,6 +1304,22 @@ export function calculateTrends(rolls) {
       : latentPressure >= 44 ? 'watch'
       : latentPressure >= 30 ? 'low'
       : 'quiet';
+    const noisePriorityScore = Math.max(0, Math.min(100, Math.round(
+      absencePct * 0.44 +
+      trustPct * 0.18 +
+      freshnessPct * 0.08 +
+      olderPct * 0.16 +
+      (recentPct === 0 ? 14 : recentPct <= 20 ? 5 : 0) +
+      (olderCount > 0 && recentCount === 0 ? 8 : 0) +
+      (totalCount <= 1 ? 10 : totalCount === 2 ? 4 : 0) +
+      (totalCount === 0 ? 10 : 0) +
+      (direction === 'rising' ? 6 : direction === 'stable' ? 3 : -8)
+    )));
+    const noisePriorityTier =
+      noisePriorityScore >= 62 ? 'primed'
+      : noisePriorityScore >= 48 ? 'live'
+      : noisePriorityScore >= 34 ? 'watch'
+      : 'quiet';
 
     trends[v] = {
       direction,
@@ -1198,8 +1333,11 @@ export function calculateTrends(rolls) {
       supportTier,
       latentPressure,
       latentTier,
+      noisePriorityScore,
+      noisePriorityTier,
       recentCount,
       olderCount,
+      totalCount,
     };
   });
 
@@ -2774,6 +2912,7 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerPrediction: analyzer.prediction,
     analyzerAlt: analyzer.alt,
     analyzerScores: analyzer.scores,
+    analyzerNoiseScores: analyzer.noiseScores || [],
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
     analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,
