@@ -88,6 +88,7 @@ export default function ModernPairPredictorCard({
     trustedPair, pairSafety, noiseRisk, freshOutsider, mixedWindow, pairScoreGap,
     analyzerPrediction, analyzerAlt,
     analyzerDecisionScores,
+    analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
     analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
@@ -267,16 +268,27 @@ export default function ModernPairPredictorCard({
   const analyzerMain = analyzerPicks[0] || null;
   const analyzerSecond = analyzerPicks[1] || null;
   const noiseOrder = useMemo(() => {
-    if (!Array.isArray(data.analyzerNoiseScores)) return [];
-    return data.analyzerNoiseScores
+    if (!Array.isArray(analyzerNoiseDecisionScores) || analyzerNoiseDecisionScores.length === 0) return [];
+    return analyzerNoiseDecisionScores
       .map((entry) => entry?.value)
       .filter((value, index, array) => value && array.indexOf(value) === index)
       .slice(0, 2);
-  }, [data.analyzerNoiseScores]);
-  const analyzerDecisionMap = useMemo(() => {
-    const entries = Array.isArray(analyzerDecisionScores) ? analyzerDecisionScores : [];
+  }, [analyzerNoiseDecisionScores]);
+  const commonOrder = useMemo(() => {
+    if (!Array.isArray(analyzerCommonDecisionScores) || analyzerCommonDecisionScores.length === 0) return [];
+    return analyzerCommonDecisionScores
+      .map((entry) => entry?.value)
+      .filter((value, index, array) => value && array.indexOf(value) === index)
+      .slice(0, 2);
+  }, [analyzerCommonDecisionScores]);
+  const commonDecisionMap = useMemo(() => {
+    const entries = Array.isArray(analyzerCommonDecisionScores) ? analyzerCommonDecisionScores : [];
     return new Map(entries.map((entry) => [entry.value, entry]));
-  }, [analyzerDecisionScores]);
+  }, [analyzerCommonDecisionScores]);
+  const noiseDecisionMap = useMemo(() => {
+    const entries = Array.isArray(analyzerNoiseDecisionScores) ? analyzerNoiseDecisionScores : [];
+    return new Map(entries.map((entry) => [entry.value, entry]));
+  }, [analyzerNoiseDecisionScores]);
 
   // 🚨 SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
@@ -816,6 +828,19 @@ export default function ModernPairPredictorCard({
                 <span className="pl-2 text-slate-500">Use this only when you think the next hit leaves the commons pair.</span>
               </div>
             )}
+            {commonOrder.length > 0 && (
+              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+                <span className="font-semibold text-slate-200">Commons order:</span>{' '}
+                <span className="text-violet-300">{commonOrder[0]}</span>
+                {commonOrder[1] ? (
+                  <>
+                    <span className="px-1 text-slate-500">&gt;</span>
+                    <span className="text-amber-300">{commonOrder[1]}</span>
+                  </>
+                ) : null}
+                <span className="pl-2 text-slate-500">Use this when you think the board stays on the commons pair.</span>
+              </div>
+            )}
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
                 const t = trends?.[v] || { direction: 'stable', current: 0 };
@@ -826,7 +851,8 @@ export default function ModernPairPredictorCard({
                 const isMain = v === analyzerMain;
                 const trustPct = Math.round((t.trustScore ?? 0) * 100);
                 const freshnessPct = Math.round((t.arrowWeight ?? 0) * 100);
-                const deciderPct = Math.round(analyzerDecisionMap.get(v)?.decisionScore ?? 0);
+                const commonDecider = Math.round(commonDecisionMap.get(v)?.commonScore ?? 0);
+                const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
                 const freshnessLabel = t.arrowAge === 0 ? 'fresh'
                   : t.arrowAge === 1 ? 'held'
                   : 'stale';
@@ -853,7 +879,9 @@ export default function ModernPairPredictorCard({
                     <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
                     <div className={`text-[11px] ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
-                    <div className="mt-1 text-[10px] font-medium text-violet-300">decider {deciderPct}%</div>
+                    <div className="mt-1 text-[10px] font-medium text-violet-300">
+                      {commons.includes(v) ? `common ${commonDecider}` : `noise ${noiseDecider}`}
+                    </div>
                     <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
                     <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
                     <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
@@ -863,7 +891,7 @@ export default function ModernPairPredictorCard({
             </div>
             <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
               `trend share` = how much this value owns the latest 5-roll window.
-              `decider` = Svarog's final tie-break after all pair and noise context.
+              `common / noise` = Svarog's pool-specific tie-break edge after all pair and trend context. Higher wins. It is not a probability.
               `trust` = internal confidence in the arrow direction.
               `fresh` = how recently that same arrow changed or stayed alive.
             </div>
@@ -1050,5 +1078,6 @@ export default function ModernPairPredictorCard({
     </div>
   );
 }
+
 
 

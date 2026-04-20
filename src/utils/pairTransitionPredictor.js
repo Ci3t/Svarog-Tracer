@@ -499,6 +499,7 @@ function scoreSvarogAnalyzerPicks({
     const latentTier = trends?.[value]?.latentTier ?? 'low';
     const noisePriorityScore = trends?.[value]?.noisePriorityScore ?? 18;
     const noisePriorityTier = trends?.[value]?.noisePriorityTier ?? 'quiet';
+    const currentShare = trends?.[value]?.current ?? 0;
     const totalCount = trends?.[value]?.totalCount ?? 0;
     const direction = trends?.[value]?.direction || 'stable';
     const momentum = ((momentumScores?.[value] || 0) / maxMomentum) * 100;
@@ -554,6 +555,20 @@ function scoreSvarogAnalyzerPicks({
     // These values are likely absent from this session window — stop boosting them
     const isDeadNoise = noise?.includes(value) && seenAgo >= 8 && recent4Hits === 0 &&
       recent2Hits === 0 && trust <= 0.6 && direction !== 'rising';
+    const armedNoiseBoost =
+      noise?.includes(value) &&
+      currentShare === 0 &&
+      trust >= 0.6 &&
+      arrowWeight >= 0.75 &&
+      direction !== 'falling' &&
+      latentPressure >= 55 &&
+      noisePriorityScore >= 60 &&
+      seenAgo >= Math.max(5, Math.round((avgNoiseGap || 4) * 1.5))
+        ? 18 +
+          Math.max(0, Math.round((noisePriorityScore - 55) * 0.45)) +
+          Math.max(0, Math.round((latentPressure - 50) * 0.25)) +
+          (totalCount <= 1 ? 6 : totalCount === 2 ? 3 : 0)
+        : 0;
     const timingBonus = noise?.includes(value) && !isDeadNoise
       ? (
           noiseTiming === 'due'
@@ -601,6 +616,7 @@ function scoreSvarogAnalyzerPicks({
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
     if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
     score += latentNoiseBonus;
+    score += armedNoiseBoost;
     score += (effectivePressure - 40) * 0.24;
     score += timingBonus;
     score += pressureBonus;
@@ -629,15 +645,19 @@ function scoreSvarogAnalyzerPicks({
       recent4Hits,
       isSelfTransition,
       direction,
+      trustScore: trust,
+      arrowWeight,
       supportScore,
       supportTier,
       latentPressure,
       latentTier,
       noisePriorityScore,
       noisePriorityTier,
+      currentShare,
       totalCount,
       effectivePressure,
       isDeadNoise,
+      armedNoiseBoost,
     };
   }).sort((a, b) => b.score - a.score);
 
@@ -763,17 +783,70 @@ function scoreSvarogAnalyzerPicks({
       if (Math.abs(pairDiff) >= 8) return pairDiff;
       return (b.score || 0) - (a.score || 0);
     });
-  const decisionTemperature = 10;
-  const decisionWeightSum = analyzerRanked.reduce(
-    (sum, entry) => sum + Math.exp((entry.exactScore || 0) / decisionTemperature),
-    0
-  ) || 1;
+  const minExactScore = analyzerRanked.reduce(
+    (min, entry) => Math.min(min, entry.exactScore || 0),
+    Number.POSITIVE_INFINITY
+  );
   const analyzerDecisionScores = analyzerRanked.map((entry, index) => ({
     value: entry.value,
-    decisionScore: Math.max(1, Math.round((Math.exp((entry.exactScore || 0) / decisionTemperature) / decisionWeightSum) * 100)),
+    decisionScore: Math.max(1, Math.round((entry.exactScore || 0) - minExactScore + 12)),
     decisionRank: index + 1,
     exactScore: Math.round((entry.exactScore || 0) * 100) / 100,
   }));
+  const normalizePoolScores = (entries, rawKey, scoreKey) => {
+    if (!entries.length) return [];
+    const minRaw = entries.reduce((min, entry) => Math.min(min, entry[rawKey] || 0), Number.POSITIVE_INFINITY);
+    const adjusted = entries.map((entry) => ({
+      ...entry,
+      [scoreKey]: Math.max(1, Math.round((entry[rawKey] || 0) - minRaw + 12)),
+    }));
+    const total = adjusted.reduce((sum, entry) => sum + (entry[scoreKey] || 0), 0) || 1;
+    return adjusted
+      .map((entry, index) => ({
+        value: entry.value,
+        [scoreKey]: Math.round(((entry[scoreKey] || 0) / total) * 100),
+        rank: index + 1,
+        raw: Math.round((entry[rawKey] || 0) * 100) / 100,
+      }))
+      .sort((a, b) => (b[scoreKey] || 0) - (a[scoreKey] || 0));
+  };
+  const commonDecisionRaw = analyzerRanked
+    .filter((entry) => commons.includes(entry.value))
+    .map((entry) => {
+      const trustPct = Math.round((entry.trustScore || 0) * 100);
+      const freshnessPct = Math.round((entry.arrowWeight || 0) * 100);
+      const raw =
+        (entry.supportScore || 0) * 0.34 +
+        (entry.currentShare || 0) * 0.22 +
+        trustPct * 0.12 +
+        freshnessPct * 0.08 +
+        (entry.pair1 || 0) * 0.14 +
+        (entry.pair2 || 0) * 0.06 +
+        Math.max(entry.exactScore || 0, 0) * 0.12 +
+        (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6);
+      return { ...entry, commonDecisionRaw: raw };
+    })
+    .sort((a, b) => (b.commonDecisionRaw || 0) - (a.commonDecisionRaw || 0));
+  const noiseDecisionRaw = noiseEntries
+    .map((entry) => {
+      const trustPct = Math.round((entry.trustScore || 0) * 100);
+      const freshnessPct = Math.round((entry.arrowWeight || 0) * 100);
+      const timingPoolBonus = normalizedNoiseTiming === 'due' ? 10 : normalizedNoiseTiming === 'approaching' ? 5 : -3;
+      const raw =
+        (entry.noisePriorityScore || 0) * 0.28 +
+        (entry.latentPressure || 0) * 0.20 +
+        trustPct * 0.10 +
+        freshnessPct * 0.08 +
+        (entry.pressureScore || 0) * 0.18 +
+        (entry.activationScore || 0) * 0.12 +
+        (entry.armedNoiseBoost || 0) * 0.18 +
+        timingPoolBonus +
+        (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -4);
+      return { ...entry, noiseDecisionRaw: raw };
+    })
+    .sort((a, b) => (b.noiseDecisionRaw || 0) - (a.noiseDecisionRaw || 0));
+  const commonDecisionScores = normalizePoolScores(commonDecisionRaw, 'commonDecisionRaw', 'commonScore');
+  const noiseDecisionScores = normalizePoolScores(noiseDecisionRaw, 'noiseDecisionRaw', 'noiseScore');
   const analyzerTop1 = analyzerRanked[0] || null;
   let analyzerTop2 = analyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
   const strongestBackedCommon = analyzerRanked.find((entry) =>
@@ -880,6 +953,8 @@ function scoreSvarogAnalyzerPicks({
           scores: scored,
           noiseScores: noiseEntries,
           decisionScores: analyzerDecisionScores,
+          commonDecisionScores,
+          noiseDecisionScores,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -895,6 +970,8 @@ function scoreSvarogAnalyzerPicks({
           scores: scored,
           noiseScores: noiseEntries,
           decisionScores: analyzerDecisionScores,
+          commonDecisionScores,
+          noiseDecisionScores,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -909,6 +986,8 @@ function scoreSvarogAnalyzerPicks({
     scores: scored,
     noiseScores: noiseEntries,
     decisionScores: analyzerDecisionScores,
+    commonDecisionScores,
+    noiseDecisionScores,
     mode: analyzerMode,
     noiseTiming: normalizedNoiseTiming,
     noiseDueRatio,
@@ -2963,6 +3042,8 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerScores: analyzer.scores,
     analyzerNoiseScores: analyzer.noiseScores || [],
     analyzerDecisionScores: analyzer.decisionScores || [],
+    analyzerCommonDecisionScores: analyzer.commonDecisionScores || [],
+    analyzerNoiseDecisionScores: analyzer.noiseDecisionScores || [],
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
     analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,

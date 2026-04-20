@@ -79,6 +79,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(', ');
   };
 
+  const formatPoolScores = (scores, scoreKey = 'commonScore') => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry[scoreKey] || 0)}(#${entry.rank || '?'})`)
+      .join(', ');
+  };
+
   const formatDormantCandidates = (data) => {
     const trends = data?.trends;
     if (!trends || typeof trends !== 'object') return ['none'];
@@ -236,6 +244,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
       content += `         analyzer_noise_scores: ${formatNoiseScores(data.analyzerNoiseScores)}\n`;
       content += `         analyzer_decider_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
+      content += `         analyzer_common_scores: ${formatPoolScores(data.analyzerCommonDecisionScores, 'commonScore')}\n`;
+      content += `         analyzer_noise_pool_scores: ${formatPoolScores(data.analyzerNoiseDecisionScores, 'noiseScore')}\n`;
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
       content += `         trends:\n`;
