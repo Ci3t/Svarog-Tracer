@@ -203,7 +203,7 @@ function scoreTrustedPairs({
   const freshOutsider = outsiderSignals[0] || null;
   const mixedWindow = new Set(rolls.slice(-6)).size >= 3;
 
-  const trustedSignals = trustedPair.map((value) => {
+  const buildTrustedSignals = (pairValues) => pairValues.map((value) => {
     const recent = recent6Dist[value] || 0;
     const recent2Hits = recent2.filter(r => r === value).length;
     const recent4Hits = recent4.filter(r => r === value).length;
@@ -224,10 +224,12 @@ function scoreTrustedPairs({
     return { value, score, recent, direction };
   }).sort((a, b) => b.score - a.score);
 
-  const weakestTrusted = trustedSignals[trustedSignals.length - 1];
-  const strongestTrusted = trustedSignals[0];
-  const weakestTrustedRecent = weakestTrusted ? (recent6Dist[weakestTrusted.value] || 0) : 0;
-  const weakestTrustedRecent2Hits = weakestTrusted ? recent2.filter(r => r === weakestTrusted.value).length : 0;
+  let trustedSignals = buildTrustedSignals(trustedPair);
+
+  let weakestTrusted = trustedSignals[trustedSignals.length - 1];
+  let strongestTrusted = trustedSignals[0];
+  let weakestTrustedRecent = weakestTrusted ? (recent6Dist[weakestTrusted.value] || 0) : 0;
+  let weakestTrustedRecent2Hits = weakestTrusted ? recent2.filter(r => r === weakestTrusted.value).length : 0;
   const outsiderRecent = freshOutsider ? (recent6Dist[freshOutsider.value] || 0) : 0;
   const outsiderHasCaughtWeakCommon =
     outsiderRecent >= weakestTrustedRecent ||
@@ -262,6 +264,11 @@ function scoreTrustedPairs({
     trustedPair = [strongestTrusted.value, freshOutsider.value].sort();
     noisePair = VALUES.filter(value => !trustedPair.includes(value));
     runnerUpPair = pairScores.find(entry => entry.pair.join('/') !== trustedPair.join('/'))?.pair || noisePair;
+    trustedSignals = buildTrustedSignals(trustedPair);
+    weakestTrusted = trustedSignals[trustedSignals.length - 1];
+    strongestTrusted = trustedSignals[0];
+    weakestTrustedRecent = weakestTrusted ? (recent6Dist[weakestTrusted.value] || 0) : 0;
+    weakestTrustedRecent2Hits = weakestTrusted ? recent2.filter(r => r === weakestTrusted.value).length : 0;
   }
 
   const recentNoiseShare = noisePair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
@@ -291,6 +298,20 @@ function scoreTrustedPairs({
   else if (scoreGap >= cautionThreshold && noiseRisk <= 56 && !freshOutsiderHot) pairSafety = 'caution';
   else if (scoreGap >= safeThreshold + 4 && noiseRisk <= 44 && freshOutsider?.recent4Hits === 0) pairSafety = 'caution';
 
+  const staleTrustedCount = trustedPair.filter((value) => {
+    const direction = trends[value]?.direction || 'stable';
+    const arrowWeight = trends[value]?.arrowWeight ?? 1;
+    const trust = trends[value]?.trustScore ?? 0.6;
+    return direction === 'falling' || arrowWeight <= 0.4 || trust <= 0.4;
+  }).length;
+  const fallingTrustedCount = trustedPair.filter((value) => (trends[value]?.direction || 'stable') === 'falling').length;
+  const top2Share = trustedPair.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+  const pairAge = trustedPair.reduce((minCount, value) => {
+    const occurrences = rolls.filter((roll) => roll === value).length;
+    return Math.min(minCount, occurrences);
+  }, Infinity);
+  const freshOutsiderLead = freshOutsider && strongestTrusted ? Math.round((freshOutsider.score || 0) - (strongestTrusted.score || 0)) : 0;
+
   return {
     trustedPair,
     noisePair,
@@ -302,6 +323,11 @@ function scoreTrustedPairs({
     outsiderPressure,
     mixedWindow,
     freshOutsider,
+    staleTrustedCount,
+    fallingTrustedCount,
+    top2Share,
+    pairAge: Number.isFinite(pairAge) ? pairAge : 0,
+    freshOutsiderLead,
   };
 }
 
@@ -406,6 +432,12 @@ function scoreSvarogAnalyzerPicks({
   const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
   const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
   const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
+  const commonPairAge = commons.reduce((minCount, value) => {
+    const occurrences = rolls.filter((roll) => roll === value).length;
+    return Math.min(minCount, occurrences);
+  }, Infinity);
+  const allowDormantRescue = rolls.length >= 8 && Number.isFinite(commonPairAge) && commonPairAge >= 3;
+  const recentTop2Share = commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
   const staleCommons = commons.filter((value) => {
     const direction = trends?.[value]?.direction || 'stable';
     const arrowWeight = trends?.[value]?.arrowWeight ?? 1.0;
@@ -481,14 +513,16 @@ function scoreSvarogAnalyzerPicks({
     const recentSignal = Math.min(recent6 * 2, 100);
     const absenceSignal = Math.min(absenceCredit, 100);
     const latentNoiseBonus =
+      allowDormantRescue &&
       noise?.includes(value) &&
       seenAgo < 0 &&
       recent6 === 0 &&
       pair1 === 0 &&
       pair2 === 0 &&
       direction !== 'falling' &&
-      staleCommons >= 1
-        ? (staleCommons >= 2 ? 18 : 10) + Math.round((trust - 0.5) * 10) + Math.round(arrowWeight * 10)
+      staleCommons >= 1 &&
+      (regime !== 'stable' || recentTop2Share < 65)
+        ? (staleCommons >= 2 ? 12 : 6) + Math.round((trust - 0.5) * 8) + Math.round(arrowWeight * 8)
         : 0;
 
     let score =
@@ -2426,6 +2460,29 @@ export function predictWithPairs(rolls, options = {}) {
     regime,
   });
 
+  const mainTrend = trends?.[prediction] || {};
+  const mainIsFreshRising = mainTrend.direction === 'rising' && (mainTrend.arrowWeight ?? 0) >= 0.75;
+  const minimumDegradedRollsMet = rolls.length >= 8;
+  const minimumPairAgeMet = (pairOutlook.pairAge || 0) >= 3;
+  const allowDegradedLogic = minimumDegradedRollsMet && minimumPairAgeMet;
+  const staleCommonsWeak =
+    pairOutlook.staleTrustedCount >= 2 ||
+    (pairOutlook.staleTrustedCount >= 1 && pairOutlook.fallingTrustedCount >= 1);
+  const noisyBoard =
+    (displayNoiseRisk ?? 0) > 40 ||
+    pairOutlook.mixedWindow;
+  const weakLaneShare = (pairOutlook.top2Share ?? 100) < 65;
+  const strongBreakLead = (pairOutlook.freshOutsiderLead ?? 0) > 15;
+  const degradedSignals = [
+    staleCommonsWeak,
+    displayPairSafety !== 'safe',
+    noisyBoard,
+    weakLaneShare,
+    strongBreakLead,
+  ].filter(Boolean).length;
+  const isDegradedBoard = allowDegradedLogic && degradedSignals >= 3;
+  const isDeepDegradedBoard = allowDegradedLogic && degradedSignals >= 4;
+
   // Mixed and transition boards can get stuck on stale lane memory.
   // Let the analyzer take over only when it clearly beats the current main read.
   const analyzerTop = analyzer.scores?.[0] || null;
@@ -2433,14 +2490,22 @@ export function predictWithPairs(rolls, options = {}) {
   const analyzerTopGap = analyzerTop && analyzerRunner ? analyzerTop.score - analyzerRunner.score : 0;
   const analyzerCurrentMain = analyzer.scores?.find(entry => entry.value === prediction) || null;
   const analyzerBeatsMainBy = analyzerTop && analyzerCurrentMain ? analyzerTop.score - analyzerCurrentMain.score : 0;
+  const analyzerLeadThreshold = Math.max(
+    12,
+    Math.round(Math.abs(analyzerCurrentMain?.score || analyzerTop?.score || 0) * 0.18)
+  );
   const analyzerTopIsTrusted = !!analyzerTop?.value && pairOutlook.trustedPair?.includes(analyzerTop.value);
   const analyzerTopIsOutsider = analyzerTop?.value && pairOutlook.freshOutsider?.value === analyzerTop.value;
   const outsiderStrongEnoughForMain = analyzerTopIsOutsider && (
-    (pairOutlook.freshOutsider?.recent2Hits || 0) >= 2 ||
+    isDeepDegradedBoard &&
+    !mainIsFreshRising &&
+    (
+      (pairOutlook.freshOutsider?.recent2Hits || 0) >= 2 ||
     (
       (pairOutlook.freshOutsider?.recent4Hits || 0) >= 2 &&
       pairOutlook.freshOutsider?.direction === 'rising' &&
       displayNoiseRisk >= 62
+    )
     )
   );
   const analyzerCanOverrideMain =
@@ -2448,13 +2513,10 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerTop.value !== prediction &&
     !method.startsWith('pattern-shift') &&
     !method.startsWith('post-noise-recovery') &&
-    (
-      pairOutlook.mixedWindow ||
-      regime !== 'stable' ||
-      displayPairSafety !== 'safe'
-    ) &&
+    isDegradedBoard &&
+    !mainIsFreshRising &&
     analyzerTopGap >= 6 &&
-    analyzerBeatsMainBy >= (analyzerTopIsOutsider ? 14 : 8) &&
+    analyzerBeatsMainBy >= (analyzerTopIsOutsider ? Math.max(16, analyzerLeadThreshold + 2) : analyzerLeadThreshold) &&
     (analyzerTopIsTrusted || outsiderStrongEnoughForMain);
 
   if (analyzerCanOverrideMain) {
@@ -2472,15 +2534,12 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerTop &&
     analyzerTop.value !== prediction &&
     analyzerTop.value !== alt &&
-    (
-      pairOutlook.mixedWindow ||
-      displayPairSafety !== 'safe' ||
-      regime !== 'stable'
-    ) &&
+    isDegradedBoard &&
     (
       analyzerTopIsTrusted ||
       (
         analyzerTopIsOutsider &&
+        !mainIsFreshRising &&
         (
           (pairOutlook.freshOutsider?.recent2Hits || 0) >= 1 ||
           (
@@ -2542,6 +2601,12 @@ export function predictWithPairs(rolls, options = {}) {
     noiseRisk: displayNoiseRisk,
     pairScoreGap: Math.round(pairOutlook.scoreGap),
     mixedWindow: pairOutlook.mixedWindow,
+    degradedSignals,
+    isDegradedBoard,
+    pairAge: pairOutlook.pairAge,
+    top2Share: pairOutlook.top2Share,
+    staleTrustedCount: pairOutlook.staleTrustedCount,
+    freshOutsiderLead: pairOutlook.freshOutsiderLead,
     freshOutsider: pairOutlook.freshOutsider,
     analyzerPrediction: analyzer.prediction,
     analyzerAlt: analyzer.alt,
