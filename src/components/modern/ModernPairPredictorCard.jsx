@@ -493,7 +493,7 @@ export default function ModernPairPredictorCard({
                 <span className={`text-xs font-bold mt-0.5 ${isChaotic ? 'text-orange-300' : 'text-violet-300'}`}>{mainPct}%</span>
               </div>
               <span className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
-                {leadingModel === 'break-risk' ? 'lane baseline' : 'lane lead'}
+                lane lead
               </span>
             </div>
 
