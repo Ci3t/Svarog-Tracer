@@ -1093,14 +1093,28 @@ function scoreSvarogAnalyzerPicks({
         (bestNoiseDecision.direction === 'rising' ? 4 : bestNoiseDecision.direction === 'stable' ? 2 : -4)
       )
     : -Infinity;
+  const hiddenNoiseException =
+    !!bestCommonRanked &&
+    !!secondCommonRanked &&
+    !!bestNoiseRanked &&
+    normalizedNoiseTiming === 'not_due' &&
+    (bestNoiseDecision?.currentShare || 0) === 0 &&
+    (bestNoiseDecision?.latentPressure || 0) >= 65 &&
+    (bestNoiseDecision?.noiseScore || 0) >= 68 &&
+    (bestNoiseDecision?.trustScore || 0) >= 0.5 &&
+    (bestNoiseDecision?.supportScore || 0) <= 22 &&
+    bestNoiseChallengeScore >= secondCommonHoldScore + 10 &&
+    (bestCommonDecision?.commonScore || 0) >= 60;
   const allowBreakChallenge =
     !!bestCommonRanked &&
     !!secondCommonRanked &&
     !!bestNoiseRanked &&
-    normalizedNoiseTiming !== 'not_due' &&
+    (normalizedNoiseTiming !== 'not_due' || hiddenNoiseException) &&
     (bestCommonDecision?.commonScore || 0) >= 52;
   const breakChallengeMargin =
-    normalizedNoiseTiming === 'due'
+    hiddenNoiseException
+      ? 10
+      : normalizedNoiseTiming === 'due'
       ? 4
       : normalizedNoiseTiming === 'approaching'
         ? 8
