@@ -87,6 +87,7 @@ export default function ModernPairPredictorCard({
     isAlternating,
     trustedPair, pairSafety, noiseRisk, freshOutsider, mixedWindow, pairScoreGap,
     analyzerPrediction, analyzerAlt,
+    analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
     // 🚨 Emergency brake
@@ -223,9 +224,14 @@ export default function ModernPairPredictorCard({
 
     const analyzerMatchesLane = analyzerPicks.some((pick) => displayPair?.includes(pick));
     const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
+    const analyzerSupport = trends?.[analyzerPrediction]?.supportScore ?? 0;
+    const analyzerSupportTier = trends?.[analyzerPrediction]?.supportTier ?? 'weak';
 
     if (pairSafety === 'danger' && analyzerLeadsOutsider) {
-      return `Trust Svarog Eye here: ${freshOutsider.value} is the active break-pressure roll and the pair is fragile.`;
+      if (analyzerSupport >= 55) {
+        return `Svarog has real backing here: ${freshOutsider.value} is carrying the live break-pressure read on a fragile pair.`;
+      }
+      return `Svarog sees ${freshOutsider.value} pressure, but the support is only ${analyzerSupportTier}. Treat it as a watch signal, not a free click.`;
     }
     if (pairSafety === 'safe') {
       return 'Trust the commons lane here. Use Svarog Eye mainly as a confirmation layer.';
@@ -308,6 +314,12 @@ export default function ModernPairPredictorCard({
     : confidencePct; // fallback to confidence-based split
   const mainPct = Math.min(Math.max(rawMainPct, 30), pctCap); // also floor at 30% — never show 0%
   const altPct  = 100 - mainPct;
+  const pairSpread = Math.abs(mainPct - altPct);
+  const splitPairRead = pairSpread <= 14 || (pairSafety !== 'safe' && pairSpread <= 18);
+  const playPairText = displayPair?.join(' / ') || `${mainCommon} / ${altCommon}`;
+  const decisionLine = splitPairRead
+    ? `Play ${playPairText}. No strong side yet — treat both as the live pair.`
+    : `Play ${playPairText}. Lean ${mainCommon} first, but keep ${altCommon} live behind it.`;
 
   // Noise watch values — in chaos show ALL noise values, not just one
   const noiseWatchValues = (() => {
@@ -328,31 +340,40 @@ export default function ModernPairPredictorCard({
   const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
   const followGuide = (() => {
     if (!analyzerPicks.length) return null;
+    if (analyzerMode === 'break') {
+      return {
+        tone: 'analyzer',
+        title: 'Svarog Break Mode',
+        text: `Noise looks ${analyzerNoiseTiming}. Svarog is ranking ${analyzerPicks.join(' / ')} as the exact next-line pair.`,
+      };
+    }
     if (analyzerMatchesLane && analyzerAgreesOnMain) {
       return {
         tone: 'good',
-        title: 'Both agree',
-        text: 'Strongest signal. Lane and analyzer point to the same side.',
+        title: splitPairRead ? 'Pair confirmed' : 'Main confirmed',
+        text: splitPairRead
+          ? 'Lane and analyzer agree on the same 2 picks. Stay on the pair.'
+          : 'Lane and analyzer point to the same first lean.',
       };
     }
     if (pairSafety === 'safe') {
       return {
         tone: 'lane',
-        title: 'Follow Main Predictor',
-        text: 'Safe lane. Trust the 2 picks first and use Svarog only as a lean.',
+        title: 'Play the pair',
+        text: 'Use the 2 commons first. Treat Svarog as a tie-break or confirmation layer.',
       };
     }
     if (pairSafety === 'danger') {
       return {
         tone: 'analyzer',
-        title: 'Check Svarog Analyzer',
-        text: 'Pair is fragile. Use Svarog for the sharper break guess.',
+        title: 'Fragile pair',
+        text: 'Stay on the pair unless the same outsider keeps repeating.',
       };
     }
     return {
       tone: 'split',
-      title: 'Split Read',
-      text: 'Main = safer lane. Svarog = riskier exact next-line lean.',
+      title: 'Mixed board',
+      text: 'Keep the pair first. Use Svarog only if break pressure keeps confirming.',
     };
   })();
 
@@ -374,29 +395,46 @@ export default function ModernPairPredictorCard({
 
   const trustGuideLine = (() => {
     if (!analyzerPicks.length) return null;
-    const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
-    if (pairSafety === 'danger' && analyzerLeadsOutsider) {
+    if (analyzerMode === 'break') {
+      const ratioPct = Math.round((analyzerNoiseDueRatio || 0) * 100);
       return {
-        tone: 'danger',
-        text: `Trust Svarog Eye here: ${freshOutsider.value} is the active break-pressure roll and the pair is fragile.`,
+        tone: 'warn',
+        text: `Svarog is in break mode here. Noise timing is ${analyzerNoiseTiming} (${ratioPct} ratio), so use its exact pair before trusting the usual commons lean.`,
+      };
+    }
+    const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
+    const analyzerSupport = trends?.[analyzerPrediction]?.supportScore ?? 0;
+    const analyzerSupportTier = trends?.[analyzerPrediction]?.supportTier ?? 'weak';
+    if (pairSafety === 'danger' && analyzerLeadsOutsider) {
+      if (analyzerSupport >= 55) {
+        return {
+          tone: 'danger',
+          text: `Svarog has real backing here: ${freshOutsider.value} is carrying the live break-pressure read on a fragile pair.`,
+        };
+      }
+      return {
+        tone: 'warn',
+        text: `Svarog sees ${freshOutsider.value} pressure, but the support is only ${analyzerSupportTier}. Treat it as a watch signal, not a free click.`,
       };
     }
     if (pairSafety === 'safe') {
       return {
         tone: 'good',
-        text: 'Trust the commons lane here. Use Svarog Eye mainly as a confirmation layer.',
+        text: 'Decision order: play the commons pair first, then use Svarog only to break ties.',
       };
     }
     if (pairSafety === 'caution' && analyzerMatchesLane) {
       return {
         tone: 'warn',
-        text: 'The board is shaky, but the commons lane and Svarog Eye still overlap. Keep the main lane first.',
+        text: splitPairRead
+          ? 'Board is shaky, but both systems still point to the same pair. Play both commons.'
+          : 'Board is shaky, but both systems still point to the same pair. Lean the lane lead first.',
       };
     }
     if (pairSafety === 'caution' && !analyzerMatchesLane) {
       return {
         tone: 'warn',
-        text: 'Mixed pressure. Keep the lane as baseline, but watch Svarog Eye if the outsider keeps repeating.',
+        text: 'Mixed pressure. Keep playing the pair unless the outsider repeats and proves the break.',
       };
     }
     return null;
@@ -433,6 +471,21 @@ export default function ModernPairPredictorCard({
 
       {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
       <div className="px-4 pb-3">
+        <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/40 px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Next 2 picks</p>
+              <p className="mt-1 text-[13px] font-semibold text-slate-100">{decisionLine}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Decision mode</p>
+              <p className={`mt-1 text-[11px] font-semibold ${splitPairRead ? 'text-amber-300' : 'text-violet-300'}`}>
+                {splitPairRead ? 'Split pair' : 'Lead + fallback'}
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Pair safety strip */}
         <div id={tutorialIds.warningStripId} className={`mb-4 rounded-xl border px-3 py-2 ${
           pairSafety === 'safe'
@@ -477,7 +530,7 @@ export default function ModernPairPredictorCard({
         {/* YOUR 2 PICKS */}
         <div id={tutorialIds.mainPredictorId} className="mb-1">
           <div className="text-[9px] text-slate-500 uppercase tracking-widest text-center mb-2">
-            Trusted Pair View
+            Play this pair next
           </div>
           <div className="flex gap-3 justify-center">
 
@@ -493,12 +546,12 @@ export default function ModernPairPredictorCard({
                 <span className={`text-xs font-bold mt-0.5 ${isChaotic ? 'text-orange-300' : 'text-violet-300'}`}>{mainPct}%</span>
               </div>
               <span className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
-                lane lead
+                {splitPairRead ? 'play pair' : 'first lean'}
               </span>
             </div>
 
             {/* Divider */}
-            <div className="flex flex-col items-center justify-center text-slate-600 text-sm font-bold">or</div>
+            <div className="flex flex-col items-center justify-center text-slate-600 text-sm font-bold">/</div>
 
             {/* Alt pick — always a common, never noise */}
             <div className="flex flex-col items-center">
@@ -506,7 +559,7 @@ export default function ModernPairPredictorCard({
                 <span className="text-2xl font-bold text-slate-300">{altCommon}</span>
                 <span className="text-xs text-slate-500 mt-0.5">{altPct}%</span>
               </div>
-              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">lane fallback</span>
+              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">{splitPairRead ? 'play pair' : 'second lean'}</span>
             </div>
           </div>
         </div>
@@ -523,6 +576,9 @@ export default function ModernPairPredictorCard({
                 />
                 <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
                 <p className="text-[11px] text-slate-400 mt-1 pl-8">Svarog Analyzer — Next exact line</p>
+                <p className="text-[10px] text-slate-500 mt-1 pl-8">
+                  Mode: {analyzerMode === 'break' ? 'break pair' : analyzerMode === 'break-watch' ? 'break watch' : 'pair exact'}
+                </p>
               </div>
               <div className="flex items-center gap-2.5">
                 {analyzerPicks.map((pick, idx) => (

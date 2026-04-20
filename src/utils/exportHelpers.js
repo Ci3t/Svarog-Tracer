@@ -43,9 +43,13 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       const share = trend.current ?? 0;
       const trust = formatTrendPercent(trend.trustScore ?? 0);
       const freshness = formatTrendPercent(trend.arrowWeight ?? 0);
+      const support = Math.round(trend.supportScore ?? 0);
+      const supportTier = trend.supportTier || 'weak';
+      const latent = Math.round(trend.latentPressure ?? 0);
+      const latentTier = trend.latentTier || 'quiet';
       const state = trend.state || 'unknown';
       const direction = trend.direction || 'stable';
-      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | ${state} | ${direction}`;
+      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | support ${support}% (${supportTier}) | latent ${latent}% (${latentTier}) | ${state} | ${direction}`;
     });
   };
 
@@ -64,10 +68,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .map((value) => ({ value, trend: trends[value] || {} }))
       .filter(({ trend }) =>
         (trend.current ?? 0) === 0 &&
-        ((trend.trustScore ?? 0) >= 0.45 || (trend.arrowWeight ?? 0) >= 0.4)
+        ((trend.trustScore ?? 0) >= 0.45 || (trend.arrowWeight ?? 0) >= 0.4 || (trend.supportScore ?? 0) >= 42)
       )
       .map(({ value, trend }) =>
-        `${value}: trust ${formatTrendPercent(trend.trustScore ?? 0)}% | fresh ${formatTrendPercent(trend.arrowWeight ?? 0)}% | ${trend.state || 'unknown'} | ${trend.direction || 'stable'}`
+        `${value}: trust ${formatTrendPercent(trend.trustScore ?? 0)}% | fresh ${formatTrendPercent(trend.arrowWeight ?? 0)}% | support ${Math.round(trend.supportScore ?? 0)}% (${trend.supportTier || 'weak'}) | latent ${Math.round(trend.latentPressure ?? 0)}% (${trend.latentTier || 'quiet'}) | ${trend.state || 'unknown'} | ${trend.direction || 'stable'}`
       );
     return dormant.length > 0 ? dormant : ['none'];
   };
@@ -191,10 +195,13 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         alt_prediction: ${alt || 'none'}\n`;
       content += `         analyzer_prediction: ${analyzerPred || 'none'}\n`;
       content += `         analyzer_alt: ${analyzerAlt || 'none'}\n`;
+      content += `         analyzer_mode: ${data.analyzerMode || 'pair'}\n`;
+      content += `         analyzer_noise_timing: ${data.analyzerNoiseTiming || 'unknown'}\n`;
+      content += `         analyzer_noise_due_ratio_pct: ${Math.round((data.analyzerNoiseDueRatio || 0) * 100)}\n`;
       content += `         label: ${data.label || 'none'}\n`;
       content += `         reason_line: ${data.reasonLine || 'none'}\n`;
       content += `         confidence_pct: ${conf}\n`;
-      content += `         confidence_gap_pct: ${Math.round((data.confidenceGap || 0) * 100)}\n`;
+      content += `         confidence_gap_pct: ${Math.round(data.confidenceGap || 0)}\n`;
       content += `         method: ${method}\n`;
       content += `         trusted_pair: ${data.trustedPair?.join(' ') || 'none'}\n`;
       content += `         runner_up_pair: ${data.runnerUpPair?.join(' ') || 'none'}\n`;

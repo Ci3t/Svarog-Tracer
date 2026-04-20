@@ -424,6 +424,8 @@ function scoreSvarogAnalyzerPicks({
   freshOutsider,
   lastSeen,
   avgObservedRunLen,
+  avgNoiseGap,
+  commonsSinceNoise,
   regime,
 }) {
   const recent6Dist = getDistribution(rolls.slice(-6));
@@ -438,6 +440,14 @@ function scoreSvarogAnalyzerPicks({
   }, Infinity);
   const allowDormantRescue = rolls.length >= 8 && Number.isFinite(commonPairAge) && commonPairAge >= 3;
   const recentTop2Share = commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
+  const noiseDueRatio = avgNoiseGap ? commonsSinceNoise / Math.max(avgNoiseGap, 1) : 0;
+  const noiseTiming = !avgNoiseGap
+    ? 'unknown'
+    : noiseDueRatio >= 0.95
+      ? 'due'
+      : noiseDueRatio >= 0.55
+        ? 'approaching'
+        : 'not_due';
   const staleCommons = commons.filter((value) => {
     const direction = trends?.[value]?.direction || 'stable';
     const arrowWeight = trends?.[value]?.arrowWeight ?? 1.0;
@@ -481,6 +491,10 @@ function scoreSvarogAnalyzerPicks({
     const pair2Reliable = !!pair2gramRow?.[value]?.reliable;
     const trust = trends?.[value]?.trustScore ?? 0.5;
     const arrowWeight = trends?.[value]?.arrowWeight ?? 0.6;
+    const supportScore = trends?.[value]?.supportScore ?? 35;
+    const supportTier = trends?.[value]?.supportTier ?? 'thin';
+    const latentPressure = trends?.[value]?.latentPressure ?? 18;
+    const latentTier = trends?.[value]?.latentTier ?? 'low';
     const direction = trends?.[value]?.direction || 'stable';
     const momentum = ((momentumScores?.[value] || 0) / maxMomentum) * 100;
     const recent6 = recent6Dist?.[value] || 0;
@@ -521,9 +535,34 @@ function scoreSvarogAnalyzerPicks({
       pair2 === 0 &&
       direction !== 'falling' &&
       staleCommons >= 1 &&
+      latentPressure >= 44 &&
       (regime !== 'stable' || recentTop2Share < 65)
-        ? (staleCommons >= 2 ? 12 : 6) + Math.round((trust - 0.5) * 8) + Math.round(arrowWeight * 8)
+        ? (staleCommons >= 2 ? 12 : 6) + Math.round((trust - 0.5) * 8) + Math.round(arrowWeight * 8) + Math.round((latentPressure - 40) * 0.25)
         : 0;
+    const effectivePressure = noise?.includes(value) && recent6 < 25
+      ? Math.max(supportScore, latentPressure)
+      : supportScore;
+    const overdueVsGap = avgNoiseGap
+      ? ((seenAgo < 0 ? commonsSinceNoise + 1 : seenAgo) / Math.max(avgNoiseGap, 1))
+      : 0;
+    const timingBonus = noise?.includes(value)
+      ? (
+          noiseTiming === 'due'
+            ? Math.max(0, Math.round((overdueVsGap - 0.7) * 10))
+            : noiseTiming === 'approaching'
+              ? Math.max(0, Math.round((overdueVsGap - 0.4) * 6))
+              : -6
+        )
+      : 0;
+    const pressureBonus = noise?.includes(value)
+      ? (
+          noiseTiming === 'due'
+            ? Math.round((latentPressure - 35) * 0.18)
+            : noiseTiming === 'approaching'
+              ? Math.round((latentPressure - 45) * 0.1)
+              : 0
+        )
+      : 0;
 
     let score =
       pairSignal * 0.22 +
@@ -553,10 +592,15 @@ function scoreSvarogAnalyzerPicks({
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
     if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
     score += latentNoiseBonus;
+    score += (effectivePressure - 40) * 0.24;
+    score += timingBonus;
+    score += pressureBonus;
 
-    if (direction === 'rising') score += 7;
+    if (direction === 'rising') score += effectivePressure >= 55 ? 7 : effectivePressure >= 42 ? 3 : -5;
     else if (direction === 'stable') score += 2;
     else score -= 6;
+    if (noise?.includes(value) && recent6 < 25 && effectivePressure < 30) score -= 8;
+    else if (noise?.includes(value) && recent6 < 25 && effectivePressure < 42) score -= 4;
 
     return {
       value,
@@ -568,10 +612,62 @@ function scoreSvarogAnalyzerPicks({
       momentumSignal,
       absenceSignal,
       seenAgo,
+      recent2Hits,
+      recent4Hits,
       isSelfTransition,
       direction,
+      supportScore,
+      supportTier,
+      latentPressure,
+      latentTier,
+      effectivePressure,
     };
   }).sort((a, b) => b.score - a.score);
+
+  const bestCommon = scored.find(entry => commons.includes(entry.value)) || null;
+  const secondCommon = scored.find(entry => commons.includes(entry.value) && entry.value !== bestCommon?.value) || null;
+  const bestNoise = scored.find(entry => noise.includes(entry.value)) || null;
+  const noiseCanCompete =
+    !!bestNoise &&
+    noiseTiming !== 'not_due' &&
+    (
+      bestNoise.effectivePressure >= (noiseTiming === 'due' ? 46 : 52) ||
+      bestNoise.pair1 >= 12 ||
+      bestNoise.pair2 >= 12 ||
+      bestNoise.value === freshOutsider?.value
+    );
+  const noiseCanTakeMain =
+    !!bestNoise &&
+    noiseTiming === 'due' &&
+    (
+      bestNoise.pair1 >= 18 ||
+      bestNoise.pair2 >= 18 ||
+      bestNoise.value === freshOutsider?.value ||
+      bestNoise.recent2Hits >= 1
+    ) &&
+    bestNoise.score >= ((bestCommon?.score ?? -999) - 2);
+
+  if (noiseCanTakeMain) {
+    return {
+      prediction: bestNoise.value,
+      alt: bestCommon?.value || scored.find(entry => entry.value !== bestNoise.value)?.value || null,
+      scores: scored,
+      mode: 'break',
+      noiseTiming,
+      noiseDueRatio,
+    };
+  }
+
+  if (noiseCanCompete && bestCommon) {
+    return {
+      prediction: bestCommon.value,
+      alt: bestNoise.value,
+      scores: scored,
+      mode: 'break',
+      noiseTiming,
+      noiseDueRatio,
+    };
+  }
 
   // Narrow exact-pick helper for first-break moments after x3/x4 runs.
   // We keep the balanced base scorer intact, then let the best non-runner
@@ -623,6 +719,9 @@ function scoreSvarogAnalyzerPicks({
           prediction: promotedMain,
           alt: promotedAlt,
           scores: scored,
+          mode: 'pair',
+          noiseTiming,
+          noiseDueRatio,
         };
       }
 
@@ -633,6 +732,9 @@ function scoreSvarogAnalyzerPicks({
           prediction: currentMain,
           alt: bestChallenger.value,
           scores: scored,
+          mode: 'pair',
+          noiseTiming,
+          noiseDueRatio,
         };
       }
     }
@@ -642,6 +744,9 @@ function scoreSvarogAnalyzerPicks({
     prediction: scored[0]?.value || null,
     alt: scored.find(entry => entry.value !== scored[0]?.value)?.value || null,
     scores: scored,
+    mode: noiseCanCompete ? 'break-watch' : 'pair',
+    noiseTiming,
+    noiseDueRatio,
   };
 }
 
@@ -961,7 +1066,21 @@ export function calculateWaveSignals(rolls, commons = []) {
 export function calculateTrends(rolls) {
   if (!rolls || rolls.length < 6) {
     return VALUES.reduce((acc, v) => {
-      acc[v] = { direction: 'stable', delta: 0, current: 0, arrowAge: 0, arrowWeight: 1.0 };
+      acc[v] = {
+        direction: 'stable',
+        delta: 0,
+        current: 0,
+        arrowAge: 0,
+        arrowWeight: 1.0,
+        trustScore: 0.6,
+        state: 'fresh',
+        supportScore: 22,
+        supportTier: 'weak',
+        latentPressure: 18,
+        latentTier: 'low',
+        recentCount: 0,
+        olderCount: 0,
+      };
       return acc;
     }, {});
   }
@@ -1033,6 +1152,39 @@ export function calculateTrends(rolls) {
     const trustScore = direction === 'rising' ? 1.0
                      : direction === 'stable'  ? 0.6
                      : 0.25; // falling = likely cooling off, don't let it flip reads
+    const trustPct = trustScore * 100;
+    const freshnessPct = arrowWeight * 100;
+    const state = arrowAge === 0 ? 'fresh' : arrowAge === 1 ? 'held' : 'stale';
+    const totalCount = rolls.filter(r => r === v).length;
+    const lastIndex = rolls.lastIndexOf(v);
+    const lastSeenGap = lastIndex >= 0 ? (rolls.length - 1 - lastIndex) : rolls.length;
+    const absencePct = Math.max(0, Math.min(100, Math.round((lastSeenGap / Math.max(rolls.length, 1)) * 100)));
+    const supportScore = Math.max(0, Math.min(100, Math.round(
+      recentPct * 0.55 +
+      olderPct * 0.15 +
+      trustPct * 0.20 +
+      freshnessPct * 0.10 +
+      (direction === 'rising' ? 4 : direction === 'falling' ? -6 : 0)
+    )));
+    const supportTier =
+      supportScore >= 55 ? 'backed'
+      : supportScore >= 42 ? 'supported'
+      : supportScore >= 30 ? 'thin'
+      : 'weak';
+    const latentPressure = Math.max(0, Math.min(100, Math.round(
+      absencePct * 0.38 +
+      trustPct * 0.24 +
+      freshnessPct * 0.12 +
+      olderPct * 0.14 +
+      (recentPct === 0 ? 10 : 0) +
+      (totalCount === 0 ? 8 : 0) +
+      (direction === 'rising' ? 6 : direction === 'stable' ? 2 : 0)
+    )));
+    const latentTier =
+      latentPressure >= 58 ? 'armed'
+      : latentPressure >= 44 ? 'watch'
+      : latentPressure >= 30 ? 'low'
+      : 'quiet';
 
     trends[v] = {
       direction,
@@ -1041,6 +1193,13 @@ export function calculateTrends(rolls) {
       arrowAge,
       arrowWeight,
       trustScore,
+      state,
+      supportScore,
+      supportTier,
+      latentPressure,
+      latentTier,
+      recentCount,
+      olderCount,
     };
   });
 
@@ -2457,6 +2616,8 @@ export function predictWithPairs(rolls, options = {}) {
     freshOutsider: pairOutlook.freshOutsider,
     lastSeen,
     avgObservedRunLen,
+    avgNoiseGap,
+    commonsSinceNoise,
     regime,
   });
 
@@ -2490,6 +2651,7 @@ export function predictWithPairs(rolls, options = {}) {
   const analyzerTopGap = analyzerTop && analyzerRunner ? analyzerTop.score - analyzerRunner.score : 0;
   const analyzerCurrentMain = analyzer.scores?.find(entry => entry.value === prediction) || null;
   const analyzerBeatsMainBy = analyzerTop && analyzerCurrentMain ? analyzerTop.score - analyzerCurrentMain.score : 0;
+  const analyzerTrendSupport = trends?.[analyzerTop?.value]?.supportScore ?? 0;
   const analyzerLeadThreshold = Math.max(
     12,
     Math.round(Math.abs(analyzerCurrentMain?.score || analyzerTop?.score || 0) * 0.18)
@@ -2516,6 +2678,7 @@ export function predictWithPairs(rolls, options = {}) {
     isDegradedBoard &&
     !mainIsFreshRising &&
     analyzerTopGap >= 6 &&
+    analyzerTrendSupport >= 42 &&
     analyzerBeatsMainBy >= (analyzerTopIsOutsider ? Math.max(16, analyzerLeadThreshold + 2) : analyzerLeadThreshold) &&
     (analyzerTopIsTrusted || outsiderStrongEnoughForMain);
 
@@ -2611,6 +2774,9 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerPrediction: analyzer.prediction,
     analyzerAlt: analyzer.alt,
     analyzerScores: analyzer.scores,
+    analyzerMode: analyzer.mode || 'pair',
+    analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
+    analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,
     noiseWatch: noiseWatchValue,
     overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,
@@ -2700,5 +2866,9 @@ export function formatTrendsForExport(trends) {
 export function formatPairRowForExport(matrix, lastRoll) {
   if (!matrix || !lastRoll || !matrix[lastRoll]) return '';
   const row = matrix[lastRoll];
-  return VALUES.map(v => `${v}:${row[v]}%`).join(', ');
+  return VALUES.map((value) => {
+    const entry = row[value];
+    const pct = typeof entry === 'object' ? Math.round(entry?.pct || 0) : Math.round(entry || 0);
+    return `${value}:${pct}%`;
+  }).join(', ');
 }
