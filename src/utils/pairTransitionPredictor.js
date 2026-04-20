@@ -959,20 +959,17 @@ function scoreSvarogAnalyzerPicks({
     commonDecisionScores,
     noiseDecisionScores,
   });
-  const trendOverallMap = new Map(trendOverallScores.map((entry) => [entry.value, entry]));
   const refinedAnalyzerRanked = analyzerRanked
     .map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
       const noisePool = noiseDecisionMap.get(entry.value);
-      const overallEntry = trendOverallMap.get(entry.value);
       const poolBoost = commons.includes(entry.value)
         ? (((commonPool?.commonScore ?? 50) - 50) * 0.12)
         : (((noisePool?.noiseScore ?? 50) - 50) * (normalizedNoiseTiming === 'due' ? 0.18 : normalizedNoiseTiming === 'approaching' ? 0.14 : 0.08));
       const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
-      const overallBoost = (((overallEntry?.overallScore ?? 50) - 50) * (commons.includes(entry.value) ? 0.08 : normalizedNoiseTiming === 'due' ? 0.10 : 0.06));
       return {
         ...entry,
-        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost + overallBoost) * 100) / 100,
+        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost) * 100) / 100,
       };
     })
     .sort((a, b) => {
@@ -1693,12 +1690,17 @@ export function calculateTrends(rolls) {
       (lastSeenGap === 0 ? 18 : lastSeenGap === 1 ? 10 : lastSeenGap === 2 ? 5 : 0) +
       (recent8Count >= 3 ? 8 : recent8Count === 2 ? 4 : 0) +
       (olderCount >= 2 ? 6 : olderCount === 1 ? 3 : 0);
-    const trustScore = Math.max(0.18, Math.min(1,
+    const trustScore = Math.max(0.2, Math.min(1,
       direction === 'rising'
-        ? 0.58 + Math.min(0.24, deltaStrength * 0.24) + Math.min(0.18, memoryGuard / 220)
+        ? 0.82 + Math.min(0.12, deltaStrength * 0.12) + Math.min(0.08, memoryGuard / 360)
         : direction === 'stable'
-          ? 0.46 + Math.min(0.18, memoryGuard / 200) + (recentPct >= 40 ? 0.08 : recentPct >= 20 ? 0.04 : 0)
-          : 0.22 + Math.min(0.24, memoryGuard / 180) - deltaStrength * 0.08
+          ? 0.56 + Math.min(0.12, memoryGuard / 260) + (recentPct >= 40 ? 0.06 : recentPct >= 20 ? 0.03 : 0)
+          : 0.25 +
+            Math.min(0.16, memoryGuard / 240) +
+            (lastSeenGap === 0 ? 0.14 : lastSeenGap === 1 ? 0.08 : lastSeenGap === 2 ? 0.04 : 0) +
+            (recentPct >= 20 ? 0.06 : 0) +
+            (olderCount >= 2 ? 0.04 : olderCount === 1 ? 0.02 : 0) -
+            deltaStrength * 0.03
     ));
     const trustPct = trustScore * 100;
     const freshnessPct = arrowWeight * 100;
