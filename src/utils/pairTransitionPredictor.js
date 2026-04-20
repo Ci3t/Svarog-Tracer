@@ -803,7 +803,7 @@ function scoreSvarogAnalyzerPicks({
     const total = adjusted.reduce((sum, entry) => sum + (entry[scoreKey] || 0), 0) || 1;
     return adjusted
       .map((entry, index) => ({
-        value: entry.value,
+        ...entry,
         [scoreKey]: Math.round(((entry[scoreKey] || 0) / total) * 100),
         rank: index + 1,
         raw: Math.round((entry[rawKey] || 0) * 100) / 100,
@@ -815,6 +815,42 @@ function scoreSvarogAnalyzerPicks({
     .map((entry) => {
       const trustPct = Math.round((entry.trustScore || 0) * 100);
       const freshnessPct = Math.round((entry.arrowWeight || 0) * 100);
+      const otherCommon = commons.find((value) => value !== entry.value) || null;
+      const otherCommonShare = otherCommon ? (distribution?.[otherCommon] || 0) : 0;
+      const fallenCommon = (entry.currentShare || 0) < 25;
+      const dominantOtherCommon =
+        !!otherCommon &&
+        (
+          otherCommon === lastRoll ||
+          otherCommonShare >= 55 ||
+          (lastRoll === otherCommon && currentRunLen >= 3)
+        );
+      const reboundArmed =
+        fallenCommon &&
+        dominantOtherCommon &&
+        (entry.totalCount || 0) >= 2 &&
+        (
+          (entry.trustScore || 0) >= 0.6 ||
+          (entry.arrowWeight || 0) >= 0.75 ||
+          (entry.pair1 || 0) >= 35 ||
+          (entry.pair2 || 0) >= 45
+        );
+      const reboundRaw =
+        reboundArmed
+          ? (
+              Math.max(0, 70 - (entry.currentShare || 0)) * 0.32 +
+              Math.max(0, otherCommonShare - (entry.currentShare || 0)) * 0.18 +
+              (entry.pair1 || 0) * 0.28 +
+              (entry.pair2 || 0) * 0.14 +
+              trustPct * 0.10 +
+              freshnessPct * 0.08 +
+              ((entry.totalCount || 0) >= 4 ? 6 : (entry.totalCount || 0) >= 2 ? 3 : 0) +
+              (entry.direction === 'rising' ? 7 : entry.direction === 'stable' ? 3 : -3) +
+              (lastRoll === otherCommon ? 8 : 0) +
+              (currentRunLen >= 4 ? 6 : currentRunLen >= 3 ? 3 : 0)
+            )
+          : 0;
+      const reboundBoost = reboundArmed ? Math.min(18, Math.round(reboundRaw * 0.18)) : 0;
       const raw =
         (entry.supportScore || 0) * 0.34 +
         (entry.currentShare || 0) * 0.22 +
@@ -823,8 +859,16 @@ function scoreSvarogAnalyzerPicks({
         (entry.pair1 || 0) * 0.14 +
         (entry.pair2 || 0) * 0.06 +
         Math.max(entry.exactScore || 0, 0) * 0.12 +
-        (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6);
-      return { ...entry, commonDecisionRaw: raw };
+        (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6) +
+        reboundBoost;
+      return {
+        ...entry,
+        fallenCommon,
+        reboundArmed,
+        reboundRaw: Math.round(reboundRaw * 100) / 100,
+        reboundBoost,
+        commonDecisionRaw: raw,
+      };
     })
     .sort((a, b) => (b.commonDecisionRaw || 0) - (a.commonDecisionRaw || 0));
   const noiseDecisionRaw = noiseEntries
@@ -832,6 +876,30 @@ function scoreSvarogAnalyzerPicks({
       const trustPct = Math.round((entry.trustScore || 0) * 100);
       const freshnessPct = Math.round((entry.arrowWeight || 0) * 100);
       const timingPoolBonus = normalizedNoiseTiming === 'due' ? 10 : normalizedNoiseTiming === 'approaching' ? 5 : -3;
+      const dormantOverdueBonus =
+        entry.currentShare === 0 && entry.seenAgo >= Math.max(4, Math.round((avgNoiseGap || 3) * 1.8))
+          ? (
+              normalizedNoiseTiming === 'due'
+                ? 16
+                : normalizedNoiseTiming === 'approaching'
+                  ? 9
+                  : 3
+            )
+          : 0;
+      const recentOutsiderPenalty =
+        entry.currentShare > 0 &&
+        (entry.pair1 || 0) === 0 &&
+        (entry.pair2 || 0) === 0 &&
+        entry.seenAgo >= 0 &&
+        entry.seenAgo <= Math.max(2, Math.round(avgNoiseGap || 2))
+          ? (
+              normalizedNoiseTiming === 'due'
+                ? -12
+                : normalizedNoiseTiming === 'approaching'
+                  ? -7
+                  : -3
+            )
+          : 0;
       const raw =
         (entry.noisePriorityScore || 0) * 0.28 +
         (entry.latentPressure || 0) * 0.20 +
@@ -841,15 +909,113 @@ function scoreSvarogAnalyzerPicks({
         (entry.activationScore || 0) * 0.12 +
         (entry.armedNoiseBoost || 0) * 0.18 +
         timingPoolBonus +
+        dormantOverdueBonus +
+        recentOutsiderPenalty +
         (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -4);
-      return { ...entry, noiseDecisionRaw: raw };
+      return {
+        ...entry,
+        dormantOverdueBonus,
+        recentOutsiderPenalty,
+        noiseDecisionRaw: raw,
+      };
     })
     .sort((a, b) => (b.noiseDecisionRaw || 0) - (a.noiseDecisionRaw || 0));
   const commonDecisionScores = normalizePoolScores(commonDecisionRaw, 'commonDecisionRaw', 'commonScore');
   const noiseDecisionScores = normalizePoolScores(noiseDecisionRaw, 'noiseDecisionRaw', 'noiseScore');
-  const analyzerTop1 = analyzerRanked[0] || null;
-  let analyzerTop2 = analyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
-  const strongestBackedCommon = analyzerRanked.find((entry) =>
+  const commonDecisionMap = new Map(commonDecisionScores.map((entry) => [entry.value, entry]));
+  const noiseDecisionMap = new Map(noiseDecisionScores.map((entry) => [entry.value, entry]));
+  const refinedAnalyzerRanked = analyzerRanked
+    .map((entry) => {
+      const commonPool = commonDecisionMap.get(entry.value);
+      const noisePool = noiseDecisionMap.get(entry.value);
+      const poolBoost = commons.includes(entry.value)
+        ? (((commonPool?.commonScore ?? 50) - 50) * 0.12)
+        : (((noisePool?.noiseScore ?? 50) - 50) * (normalizedNoiseTiming === 'due' ? 0.18 : normalizedNoiseTiming === 'approaching' ? 0.14 : 0.08));
+      const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
+      return {
+        ...entry,
+        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost) * 100) / 100,
+      };
+    })
+    .sort((a, b) => {
+      const diff = (b.refinedExactScore || 0) - (a.refinedExactScore || 0);
+      if (Math.abs(diff) >= 1.25) return diff;
+      const bCommon = commonDecisionMap.get(b.value);
+      const aCommon = commonDecisionMap.get(a.value);
+      if (bCommon || aCommon) {
+        const commonDiff = ((bCommon?.commonScore || 0) - (aCommon?.commonScore || 0));
+        if (Math.abs(commonDiff) >= 6) return commonDiff;
+      }
+      const bNoise = noiseDecisionMap.get(b.value);
+      const aNoise = noiseDecisionMap.get(a.value);
+      if (bNoise || aNoise) {
+        const noiseDiff = ((bNoise?.noiseScore || 0) - (aNoise?.noiseScore || 0));
+        if (Math.abs(noiseDiff) >= 6) return noiseDiff;
+      }
+      return (b.exactScore || 0) - (a.exactScore || 0);
+    });
+  const finalAnalyzerRanked = refinedAnalyzerRanked.length ? refinedAnalyzerRanked : analyzerRanked;
+  const analyzerTop1 = finalAnalyzerRanked[0] || null;
+  let analyzerTop2 = finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
+  const bestCommonDecision = commonDecisionScores[0] || null;
+  const secondCommonDecision = commonDecisionScores[1] || null;
+  const bestNoiseDecision = noiseDecisionScores[0] || null;
+
+  const bestCommonRanked = bestCommonDecision
+    ? finalAnalyzerRanked.find((entry) => entry.value === bestCommonDecision.value) || null
+    : null;
+  const secondCommonRanked = secondCommonDecision
+    ? finalAnalyzerRanked.find((entry) => entry.value === secondCommonDecision.value) || null
+    : null;
+  const bestNoiseRanked = bestNoiseDecision
+    ? finalAnalyzerRanked.find((entry) => entry.value === bestNoiseDecision.value) || null
+    : null;
+
+  const secondCommonHoldScore = secondCommonDecision
+    ? (
+        (secondCommonDecision.commonScore || 0) * 0.46 +
+        (secondCommonDecision.supportScore || 0) * 0.18 +
+        (secondCommonDecision.pair1 || 0) * 0.14 +
+        (secondCommonDecision.pair2 || 0) * 0.08 +
+        (secondCommonDecision.freqSignal || 0) * 0.08 +
+        (secondCommonDecision.reboundBoost || 0) * 0.90 +
+        (secondCommonDecision.fallenCommon ? -10 : 0) +
+        (secondCommonDecision.direction === 'rising' ? 4 : secondCommonDecision.direction === 'stable' ? 2 : -4)
+      )
+    : -Infinity;
+  const bestNoiseChallengeScore = bestNoiseDecision
+    ? (
+        (bestNoiseDecision.noiseScore || 0) * 0.42 +
+        (bestNoiseDecision.pressureScore || 0) * 0.20 +
+        (bestNoiseDecision.activationScore || 0) * 0.16 +
+        (bestNoiseDecision.latentPressure || 0) * 0.12 +
+        (bestNoiseDecision.armedNoiseBoost || 0) * 0.65 +
+        (normalizedNoiseTiming === 'due' ? 12 : normalizedNoiseTiming === 'approaching' ? 6 : -4) +
+        (bestNoiseDecision.direction === 'rising' ? 4 : bestNoiseDecision.direction === 'stable' ? 2 : -4)
+      )
+    : -Infinity;
+  const allowBreakChallenge =
+    !!bestCommonRanked &&
+    !!secondCommonRanked &&
+    !!bestNoiseRanked &&
+    normalizedNoiseTiming !== 'not_due' &&
+    (bestCommonDecision?.commonScore || 0) >= 52;
+  const breakChallengeMargin =
+    normalizedNoiseTiming === 'due'
+      ? 2
+      : normalizedNoiseTiming === 'approaching'
+        ? 6
+        : 999;
+  const shouldPromoteNoiseOverSecondCommon =
+    allowBreakChallenge &&
+    bestNoiseChallengeScore >= secondCommonHoldScore + breakChallengeMargin &&
+    bestNoiseDecision?.value !== bestCommonDecision?.value;
+  if (shouldPromoteNoiseOverSecondCommon) {
+    analyzerTop2 = bestNoiseRanked?.value === analyzerTop1?.value
+      ? (secondCommonRanked?.value !== analyzerTop1?.value ? secondCommonRanked : finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null)
+      : bestNoiseRanked;
+  }
+  const strongestBackedCommon = finalAnalyzerRanked.find((entry) =>
     commons.includes(entry.value) &&
     (
       (entry.supportScore ?? 0) >= 48 ||
@@ -862,7 +1028,7 @@ function scoreSvarogAnalyzerPicks({
     strongestBackedCommon &&
     !topPairValues.includes(strongestBackedCommon.value) &&
     analyzerTop2 &&
-    strongestBackedCommon.exactScore >= (analyzerTop2.exactScore - 8)
+    strongestBackedCommon.refinedExactScore >= ((analyzerTop2.refinedExactScore ?? analyzerTop2.exactScore) - 8)
   ) {
     analyzerTop2 = strongestBackedCommon;
   }
@@ -871,6 +1037,9 @@ function scoreSvarogAnalyzerPicks({
   if (normalizedNoiseTiming !== 'not_due') {
     if (topNoiseCount === 2 || (analyzerTop1 && noise.includes(analyzerTop1.value))) analyzerMode = 'break';
     else if (topNoiseCount === 1) analyzerMode = 'break-watch';
+  }
+  if (shouldPromoteNoiseOverSecondCommon) {
+    analyzerMode = normalizedNoiseTiming === 'due' ? 'break' : 'break-watch';
   }
 
   // Dominant run guard: when one value clearly dominates (70%+ share, 3+ run),
@@ -881,7 +1050,7 @@ function scoreSvarogAnalyzerPicks({
   if (dominantValue) {
     const dominantInTop2 = analyzerTop1?.value === dominantValue || analyzerTop2?.value === dominantValue;
     if (!dominantInTop2) {
-      const dominantEntry = analyzerRanked.find(entry => entry.value === dominantValue);
+      const dominantEntry = finalAnalyzerRanked.find(entry => entry.value === dominantValue);
       if (dominantEntry) {
         // Replace the weaker pick, preferring to replace noise over commons
         if (analyzerTop2 && noise.includes(analyzerTop2.value)) {
@@ -896,9 +1065,18 @@ function scoreSvarogAnalyzerPicks({
       analyzerTop1 && noise.includes(analyzerTop1.value) &&
       analyzerTop2 && noise.includes(analyzerTop2.value)
     ) {
-      const dominantEntry = analyzerRanked.find(entry => entry.value === dominantValue);
+      const dominantEntry = finalAnalyzerRanked.find(entry => entry.value === dominantValue);
       if (dominantEntry) analyzerTop2 = dominantEntry;
     }
+  }
+
+  if (analyzerTop2?.value === analyzerTop1?.value) {
+    analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value && entry.value !== analyzerTop1?.value) ||
+      (bestCommonRanked && bestCommonRanked.value !== analyzerTop1?.value ? bestCommonRanked : null) ||
+      (secondCommonRanked && secondCommonRanked.value !== analyzerTop1?.value ? secondCommonRanked : null) ||
+      (bestNoiseRanked && bestNoiseRanked.value !== analyzerTop1?.value ? bestNoiseRanked : null) ||
+      null;
   }
 
   // Narrow exact-pick helper for first-break moments after x3/x4 runs.
@@ -955,6 +1133,16 @@ function scoreSvarogAnalyzerPicks({
           decisionScores: analyzerDecisionScores,
           commonDecisionScores,
           noiseDecisionScores,
+          breakChallenge: {
+            allowBreakChallenge,
+            secondCommonHoldScore: Math.round(secondCommonHoldScore * 100) / 100,
+            bestNoiseChallengeScore: Math.round(bestNoiseChallengeScore * 100) / 100,
+            margin: breakChallengeMargin,
+            promoted: shouldPromoteNoiseOverSecondCommon,
+            topCommon: bestCommonDecision?.value || null,
+            secondCommon: secondCommonDecision?.value || null,
+            topNoise: bestNoiseDecision?.value || null,
+          },
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -972,6 +1160,16 @@ function scoreSvarogAnalyzerPicks({
           decisionScores: analyzerDecisionScores,
           commonDecisionScores,
           noiseDecisionScores,
+          breakChallenge: {
+            allowBreakChallenge,
+            secondCommonHoldScore: Math.round(secondCommonHoldScore * 100) / 100,
+            bestNoiseChallengeScore: Math.round(bestNoiseChallengeScore * 100) / 100,
+            margin: breakChallengeMargin,
+            promoted: shouldPromoteNoiseOverSecondCommon,
+            topCommon: bestCommonDecision?.value || null,
+            secondCommon: secondCommonDecision?.value || null,
+            topNoise: bestNoiseDecision?.value || null,
+          },
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -988,6 +1186,16 @@ function scoreSvarogAnalyzerPicks({
     decisionScores: analyzerDecisionScores,
     commonDecisionScores,
     noiseDecisionScores,
+    breakChallenge: {
+      allowBreakChallenge,
+      secondCommonHoldScore: Math.round(secondCommonHoldScore * 100) / 100,
+      bestNoiseChallengeScore: Math.round(bestNoiseChallengeScore * 100) / 100,
+      margin: breakChallengeMargin,
+      promoted: shouldPromoteNoiseOverSecondCommon,
+      topCommon: bestCommonDecision?.value || null,
+      secondCommon: secondCommonDecision?.value || null,
+      topNoise: bestNoiseDecision?.value || null,
+    },
     mode: analyzerMode,
     noiseTiming: normalizedNoiseTiming,
     noiseDueRatio,
@@ -3044,6 +3252,7 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerDecisionScores: analyzer.decisionScores || [],
     analyzerCommonDecisionScores: analyzer.commonDecisionScores || [],
     analyzerNoiseDecisionScores: analyzer.noiseDecisionScores || [],
+    analyzerBreakChallenge: analyzer.breakChallenge || null,
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
     analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,

@@ -246,6 +246,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         analyzer_decider_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
       content += `         analyzer_common_scores: ${formatPoolScores(data.analyzerCommonDecisionScores, 'commonScore')}\n`;
       content += `         analyzer_noise_pool_scores: ${formatPoolScores(data.analyzerNoiseDecisionScores, 'noiseScore')}\n`;
+      if (data.analyzerBreakChallenge) {
+        const bc = data.analyzerBreakChallenge;
+        content += `         analyzer_break_challenge: allow=${bc.allowBreakChallenge ? 'yes' : 'no'} | promoted=${bc.promoted ? 'yes' : 'no'} | top_common=${bc.topCommon || 'none'} | second_common=${bc.secondCommon || 'none'} | top_noise=${bc.topNoise || 'none'} | hold=${bc.secondCommonHoldScore ?? 'n/a'} | challenge=${bc.bestNoiseChallengeScore ?? 'n/a'} | margin=${bc.margin ?? 'n/a'}\n`;
+      }
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
       content += `         trends:\n`;

@@ -89,6 +89,7 @@ export default function ModernPairPredictorCard({
     analyzerPrediction, analyzerAlt,
     analyzerDecisionScores,
     analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
+    analyzerBreakChallenge,
     analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
@@ -259,14 +260,6 @@ export default function ModernPairPredictorCard({
     onTrustGuideChange(trustGuideAssistText);
   }, [onTrustGuideChange, trustGuideAssistText]);
 
-  const analyzerPicks = useMemo(() => {
-    const picks = [];
-    if (analyzerPrediction) picks.push(analyzerPrediction);
-    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
-    return picks.slice(0, 2);
-  }, [analyzerAlt, analyzerPrediction]);
-  const analyzerMain = analyzerPicks[0] || null;
-  const analyzerSecond = analyzerPicks[1] || null;
   const noiseOrder = useMemo(() => {
     if (!Array.isArray(analyzerNoiseDecisionScores) || analyzerNoiseDecisionScores.length === 0) return [];
     return analyzerNoiseDecisionScores
@@ -289,6 +282,55 @@ export default function ModernPairPredictorCard({
     const entries = Array.isArray(analyzerNoiseDecisionScores) ? analyzerNoiseDecisionScores : [];
     return new Map(entries.map((entry) => [entry.value, entry]));
   }, [analyzerNoiseDecisionScores]);
+  const analyzerPicks = useMemo(() => {
+    const picks = [];
+    if (analyzerPrediction) picks.push(analyzerPrediction);
+    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
+
+    const breakTopCommon = analyzerBreakChallenge?.topCommon || null;
+    const breakTopNoise = analyzerBreakChallenge?.topNoise || null;
+    const breakSecondCommon = analyzerBreakChallenge?.secondCommon || null;
+
+    if (picks.length < 2 && analyzerBreakChallenge?.promoted) {
+      [breakTopCommon, breakTopNoise].forEach((value) => {
+        if (value && !picks.includes(value)) picks.push(value);
+      });
+    }
+
+    if (picks.length < 2) {
+      [commonOrder[0], commonOrder[1], breakSecondCommon, noiseOrder[0], noiseOrder[1]]
+        .forEach((value) => {
+          if (value && !picks.includes(value)) picks.push(value);
+        });
+    }
+
+    return picks.slice(0, 2);
+  }, [
+    analyzerAlt,
+    analyzerBreakChallenge,
+    analyzerPrediction,
+    commonOrder,
+    noiseOrder,
+  ]);
+  const analyzerMain = analyzerPicks[0] || null;
+  const analyzerSecond = analyzerPicks[1] || null;
+  const breakChallengeSummary = useMemo(() => {
+    if (!analyzerBreakChallenge?.allowBreakChallenge) return null;
+    const topCommon = analyzerBreakChallenge.topCommon;
+    const secondCommon = analyzerBreakChallenge.secondCommon;
+    const topNoise = analyzerBreakChallenge.topNoise;
+    const hold = analyzerBreakChallenge.secondCommonHoldScore ?? null;
+    const challenge = analyzerBreakChallenge.bestNoiseChallengeScore ?? null;
+    const margin = analyzerBreakChallenge.margin ?? null;
+    if (!topCommon || !secondCommon || !topNoise || hold == null || challenge == null || margin == null) return null;
+    const challengerWins = challenge >= hold + margin;
+    return {
+      challengerWins,
+      text: challengerWins
+        ? `Hybrid read: keep ${topCommon}, but let ${topNoise} replace ${secondCommon} when break pressure wins (${Math.round(challenge)} vs ${Math.round(hold)}).`
+        : `Hybrid read: keep ${topCommon}/${secondCommon}. Noise ${topNoise} is live, but the common hold still wins (${Math.round(hold)} vs ${Math.round(challenge)}).`,
+    };
+  }, [analyzerBreakChallenge]);
 
   // 🚨 SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
@@ -841,6 +883,14 @@ export default function ModernPairPredictorCard({
                 <span className="pl-2 text-slate-500">Use this when you think the board stays on the commons pair.</span>
               </div>
             )}
+            {breakChallengeSummary && (
+              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+                <span className="font-semibold text-slate-200">Hybrid read:</span>{' '}
+                <span className={breakChallengeSummary.challengerWins ? 'text-cyan-300' : 'text-slate-300'}>
+                  {breakChallengeSummary.text}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
                 const t = trends?.[v] || { direction: 'stable', current: 0 };
@@ -851,7 +901,8 @@ export default function ModernPairPredictorCard({
                 const isMain = v === analyzerMain;
                 const trustPct = Math.round((t.trustScore ?? 0) * 100);
                 const freshnessPct = Math.round((t.arrowWeight ?? 0) * 100);
-                const commonDecider = Math.round(commonDecisionMap.get(v)?.commonScore ?? 0);
+                const commonEntry = commonDecisionMap.get(v);
+                const commonDecider = Math.round(commonEntry?.commonScore ?? 0);
                 const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
                 const freshnessLabel = t.arrowAge === 0 ? 'fresh'
                   : t.arrowAge === 1 ? 'held'
@@ -879,9 +930,26 @@ export default function ModernPairPredictorCard({
                     <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
                     <div className={`text-[11px] ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
-                    <div className="mt-1 text-[10px] font-medium text-violet-300">
-                      {commons.includes(v) ? `common ${commonDecider}` : `noise ${noiseDecider}`}
-                    </div>
+                    {(() => {
+                      const isCommon = commons.includes(v);
+                      const isFallenCommon = isCommon && (t.current ?? 0) < 25;
+                      const isReboundLive = !!commonEntry?.reboundArmed;
+                      if (isFallenCommon) {
+                        return (
+                          <>
+                            <div className="mt-1 text-[10px] font-medium text-orange-400">common {commonDecider}%</div>
+                            <div className={`text-[8px] font-black uppercase tracking-widest ${isReboundLive ? 'text-emerald-300/90' : 'text-orange-400/80'}`}>
+                              {isReboundLive ? 'REBOUND LIVE' : 'WEAK - check pair row'}
+                            </div>
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 text-[10px] font-medium text-violet-300">
+                          {isCommon ? `common ${commonDecider}%` : `noise ${noiseDecider}%`}
+                        </div>
+                      );
+                    })()}
                     <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
                     <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
                     <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
@@ -891,7 +959,7 @@ export default function ModernPairPredictorCard({
             </div>
             <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
               `trend share` = how much this value owns the latest 5-roll window.
-              `common / noise` = Svarog's pool-specific tie-break edge after all pair and trend context. Higher wins. It is not a probability.
+              `common / noise` = Svarog's pool-specific tie-break percent inside its own pool. Higher wins inside commons or inside noise.
               `trust` = internal confidence in the arrow direction.
               `fresh` = how recently that same arrow changed or stayed alive.
             </div>
@@ -1078,6 +1146,3 @@ export default function ModernPairPredictorCard({
     </div>
   );
 }
-
-
-
