@@ -495,6 +495,7 @@ function scoreSvarogAnalyzerPicks({
     const arrowWeight = trends?.[value]?.arrowWeight ?? 0.6;
     const supportScore = trends?.[value]?.supportScore ?? 35;
     const supportTier = trends?.[value]?.supportTier ?? 'thin';
+    const recentCarryScore = trends?.[value]?.recentCarryScore ?? 24;
     const latentPressure = trends?.[value]?.latentPressure ?? 18;
     const latentTier = trends?.[value]?.latentTier ?? 'low';
     const noisePriorityScore = trends?.[value]?.noisePriorityScore ?? 18;
@@ -649,6 +650,7 @@ function scoreSvarogAnalyzerPicks({
       arrowWeight,
       supportScore,
       supportTier,
+      recentCarryScore,
       latentPressure,
       latentTier,
       noisePriorityScore,
@@ -818,6 +820,7 @@ function scoreSvarogAnalyzerPicks({
       const recent8 = rolls.slice(-8);
       const recent8Count = recent8.filter((roll) => roll === entry.value).length;
       const recent8Pct = recent8.length ? (recent8Count / recent8.length) * 100 : 0;
+      const recentCarrySignal = entry.recentCarryScore || 0;
       const otherCommon = commons.find((value) => value !== entry.value) || null;
       const otherCommonShare = otherCommon ? (distribution?.[otherCommon] || 0) : 0;
       const fallenCommon = (entry.currentShare || 0) < 25;
@@ -855,8 +858,9 @@ function scoreSvarogAnalyzerPicks({
           : 0;
       const reboundBoost = reboundArmed ? Math.min(18, Math.round(reboundRaw * 0.18)) : 0;
       const recentCommonMemoryRaw =
-        recent8Pct * 0.32 +
-        (entry.currentShare || 0) * 0.10 +
+        recent8Pct * 0.28 +
+        recentCarrySignal * 0.26 +
+        (entry.currentShare || 0) * 0.08 +
         (entry.pair1 || 0) * 0.16 +
         (entry.pair2 || 0) * 0.08 +
         trustPct * 0.08 +
@@ -870,13 +874,14 @@ function scoreSvarogAnalyzerPicks({
           ? Math.min(16, Math.max(0, Math.round(recentCommonMemoryRaw * 0.12)))
           : 0;
       const raw =
-        (entry.supportScore || 0) * 0.34 +
-        (entry.currentShare || 0) * 0.22 +
-        trustPct * 0.12 +
+        (entry.supportScore || 0) * 0.26 +
+        recentCarrySignal * 0.20 +
+        (entry.currentShare || 0) * 0.16 +
+        trustPct * 0.11 +
         freshnessPct * 0.08 +
-        (entry.pair1 || 0) * 0.14 +
-        (entry.pair2 || 0) * 0.06 +
-        Math.max(entry.exactScore || 0, 0) * 0.12 +
+        (entry.pair1 || 0) * 0.12 +
+        (entry.pair2 || 0) * 0.08 +
+        Math.max(entry.exactScore || 0, 0) * 0.10 +
         (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6) +
         reboundBoost +
         recentCarryBoost;
@@ -947,17 +952,27 @@ function scoreSvarogAnalyzerPicks({
   const noiseDecisionScores = normalizePoolScores(noiseDecisionRaw, 'noiseDecisionRaw', 'noiseScore');
   const commonDecisionMap = new Map(commonDecisionScores.map((entry) => [entry.value, entry]));
   const noiseDecisionMap = new Map(noiseDecisionScores.map((entry) => [entry.value, entry]));
+  const trendOverallScores = buildTrendOverallScores({
+    trends,
+    commons,
+    noise,
+    commonDecisionScores,
+    noiseDecisionScores,
+  });
+  const trendOverallMap = new Map(trendOverallScores.map((entry) => [entry.value, entry]));
   const refinedAnalyzerRanked = analyzerRanked
     .map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
       const noisePool = noiseDecisionMap.get(entry.value);
+      const overallEntry = trendOverallMap.get(entry.value);
       const poolBoost = commons.includes(entry.value)
         ? (((commonPool?.commonScore ?? 50) - 50) * 0.12)
         : (((noisePool?.noiseScore ?? 50) - 50) * (normalizedNoiseTiming === 'due' ? 0.18 : normalizedNoiseTiming === 'approaching' ? 0.14 : 0.08));
       const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
+      const overallBoost = (((overallEntry?.overallScore ?? 50) - 50) * (commons.includes(entry.value) ? 0.08 : normalizedNoiseTiming === 'due' ? 0.10 : 0.06));
       return {
         ...entry,
-        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost) * 100) / 100,
+        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost + overallBoost) * 100) / 100,
       };
     })
     .sort((a, b) => {
@@ -1164,6 +1179,7 @@ function scoreSvarogAnalyzerPicks({
           decisionScores: analyzerDecisionScores,
           commonDecisionScores,
           noiseDecisionScores,
+          trendOverallScores,
           breakChallenge: {
             allowBreakChallenge,
             secondCommonHoldScore: Math.round(secondCommonHoldScore * 100) / 100,
@@ -1217,6 +1233,7 @@ function scoreSvarogAnalyzerPicks({
     decisionScores: analyzerDecisionScores,
     commonDecisionScores,
     noiseDecisionScores,
+    trendOverallScores,
     breakChallenge: {
       allowBreakChallenge,
       secondCommonHoldScore: Math.round(secondCommonHoldScore * 100) / 100,
@@ -1559,12 +1576,15 @@ export function calculateTrends(rolls) {
         state: 'fresh',
         supportScore: 22,
         supportTier: 'weak',
+        recentCarryScore: 24,
         latentPressure: 18,
         latentTier: 'low',
         noisePriorityScore: 22,
         noisePriorityTier: 'quiet',
         recentCount: 0,
         olderCount: 0,
+        recent8Count: 0,
+        recent8Pct: 0,
         totalCount: 0,
       };
       return acc;
@@ -1610,9 +1630,24 @@ export function calculateTrends(rolls) {
     const recentCount = recentRolls.filter(r => r === v).length;
     const olderCount  = olderRolls.length > 0 ? olderRolls.filter(r => r === v).length : 0;
     const recentPct   = (recentCount / recentRolls.length) * 100;
-    const olderPct    = olderRolls.length > 0 ? (olderCount / olderRolls.length) * 100 : recentPct;
-    const delta       = Math.round(recentPct - olderPct);
-    const direction   = currentDir[v];
+    const totalCount = rolls.filter(r => r === v).length;
+    const globalPct = (totalCount / Math.max(rolls.length, 1)) * 100;
+    const olderPctRaw = olderRolls.length > 0 ? (olderCount / olderRolls.length) * 100 : recentPct;
+    const baselineWeight =
+      olderRolls.length >= 5 ? 0.8 :
+      olderRolls.length >= 3 ? 0.6 :
+      olderRolls.length === 2 ? 0.4 :
+      olderRolls.length === 1 ? 0.2 :
+      0;
+    const olderPct = olderPctRaw * baselineWeight + globalPct * (1 - baselineWeight);
+    const delta = Math.round(recentPct - olderPct);
+    const directionThreshold =
+      olderRolls.length >= 5 ? 10 :
+      olderRolls.length >= 3 ? 12 :
+      olderRolls.length === 2 ? 18 :
+      olderRolls.length === 1 ? 24 :
+      14;
+    const direction = delta >= directionThreshold ? 'rising' : delta <= -directionThreshold ? 'falling' : 'stable';
 
     // arrowAge: how many consecutive windows has direction been the same?
     // age 0 = just changed this window (fresh)
@@ -1632,25 +1667,52 @@ export function calculateTrends(rolls) {
                       : arrowAge === 1 ? 0.75
                       : 0.40; // age 2+ = stale
 
-    // trustScore: how much to trust this value as a candidate
-    // rising = confident pick, stable = neutral, falling = soft noise flag
-    // Applied as a multiplier — not a hard gate (Codex: "treat as modifier, not belief system")
-    const trustScore = direction === 'rising' ? 1.0
-                     : direction === 'stable'  ? 0.6
-                     : 0.25; // falling = likely cooling off, don't let it flip reads
+    const lastIndex = rolls.lastIndexOf(v);
+    const lastSeenGap = lastIndex >= 0 ? (rolls.length - 1 - lastIndex) : rolls.length;
+    const recent8 = rolls.slice(-8);
+    const recent8Count = recent8.filter(r => r === v).length;
+    const recent8Pct = recent8.length > 0 ? (recent8Count / recent8.length) * 100 : 0;
+    const recencyBonus =
+      lastSeenGap === 0 ? 18 :
+      lastSeenGap === 1 ? 12 :
+      lastSeenGap === 2 ? 8 :
+      lastSeenGap <= 4 ? 4 :
+      0;
+    const recentCarryScore = Math.max(0, Math.min(100, Math.round(
+      recent8Pct * 0.46 +
+      globalPct * 0.20 +
+      recencyBonus +
+      (recentCount > 0 ? 6 : 0) +
+      (totalCount >= 4 ? 8 : totalCount >= 2 ? 4 : 0) +
+      (direction === 'rising' ? 4 : direction === 'stable' ? 2 : -2)
+    )));
+    const deltaStrength = Math.min(1, Math.abs(delta) / 38);
+    const memoryGuard =
+      recentCarryScore * 0.24 +
+      Math.min(globalPct, 40) * 0.22 +
+      (lastSeenGap === 0 ? 18 : lastSeenGap === 1 ? 10 : lastSeenGap === 2 ? 5 : 0) +
+      (recent8Count >= 3 ? 8 : recent8Count === 2 ? 4 : 0) +
+      (olderCount >= 2 ? 6 : olderCount === 1 ? 3 : 0);
+    const trustScore = Math.max(0.18, Math.min(1,
+      direction === 'rising'
+        ? 0.58 + Math.min(0.24, deltaStrength * 0.24) + Math.min(0.18, memoryGuard / 220)
+        : direction === 'stable'
+          ? 0.46 + Math.min(0.18, memoryGuard / 200) + (recentPct >= 40 ? 0.08 : recentPct >= 20 ? 0.04 : 0)
+          : 0.22 + Math.min(0.24, memoryGuard / 180) - deltaStrength * 0.08
+    ));
     const trustPct = trustScore * 100;
     const freshnessPct = arrowWeight * 100;
     const state = arrowAge === 0 ? 'fresh' : arrowAge === 1 ? 'held' : 'stale';
-    const totalCount = rolls.filter(r => r === v).length;
-    const lastIndex = rolls.lastIndexOf(v);
-    const lastSeenGap = lastIndex >= 0 ? (rolls.length - 1 - lastIndex) : rolls.length;
     const absencePct = Math.max(0, Math.min(100, Math.round((lastSeenGap / Math.max(rolls.length, 1)) * 100)));
     const supportScore = Math.max(0, Math.min(100, Math.round(
-      recentPct * 0.55 +
-      olderPct * 0.15 +
-      trustPct * 0.20 +
-      freshnessPct * 0.10 +
-      (direction === 'rising' ? 4 : direction === 'falling' ? -6 : 0)
+      recentPct * 0.30 +
+      olderPct * 0.10 +
+      recentCarryScore * 0.22 +
+      trustPct * 0.18 +
+      freshnessPct * 0.08 +
+      globalPct * 0.07 +
+      recent8Pct * 0.05 +
+      (direction === 'rising' ? 4 : direction === 'falling' ? -2 : 1)
     )));
     const supportTier =
       supportScore >= 55 ? 'backed'
@@ -1676,6 +1738,7 @@ export function calculateTrends(rolls) {
       trustPct * 0.18 +
       freshnessPct * 0.08 +
       olderPct * 0.16 +
+      recentCarryScore * (recentPct > 0 ? 0.08 : 0.02) +
       (recentPct === 0 ? 14 : recentPct <= 20 ? 5 : 0) +
       (olderCount > 0 && recentCount === 0 ? 8 : 0) +
       (totalCount <= 1 ? 10 : totalCount === 2 ? 4 : 0) +
@@ -1698,17 +1761,68 @@ export function calculateTrends(rolls) {
       state,
       supportScore,
       supportTier,
+      recentCarryScore,
       latentPressure,
       latentTier,
       noisePriorityScore,
       noisePriorityTier,
+      baselinePct: Math.round(olderPct),
       recentCount,
       olderCount,
+      recent8Count,
+      recent8Pct: Math.round(recent8Pct),
       totalCount,
     };
   });
 
   return trends;
+}
+
+export function buildTrendOverallScores({
+  trends = {},
+  commons = [],
+  noise = [],
+  commonDecisionScores = [],
+  noiseDecisionScores = [],
+}) {
+  const commonMap = new Map((commonDecisionScores || []).map((entry) => [entry.value, entry]));
+  const noiseMap = new Map((noiseDecisionScores || []).map((entry) => [entry.value, entry]));
+
+  return VALUES.map((value) => {
+    const trend = trends?.[value] || {};
+    const trustPct = Math.round((trend.trustScore ?? 0) * 100);
+    const freshnessPct = Math.round((trend.arrowWeight ?? 0) * 100);
+    const sharePct = trend.current ?? 0;
+    const supportScore = trend.supportScore ?? 0;
+    const recentCarryScore = trend.recentCarryScore ?? 0;
+    const latentPressure = trend.latentPressure ?? 0;
+    const noisePriorityScore = trend.noisePriorityScore ?? 0;
+    const isCommon = commons.includes(value);
+    const poolScore = isCommon
+      ? (commonMap.get(value)?.commonScore ?? 0)
+      : (noiseMap.get(value)?.noiseScore ?? 0);
+    const trendAnchor = isCommon
+      ? (supportScore * 0.55 + recentCarryScore * 0.45)
+      : (Math.max(noisePriorityScore, latentPressure) * 0.60 + supportScore * 0.18 + recentCarryScore * 0.22);
+    const overallScore = Math.max(0, Math.min(100, Math.round(
+      poolScore * 0.34 +
+      trendAnchor * 0.24 +
+      recentCarryScore * (isCommon ? 0.14 : 0.10) +
+      trustPct * 0.12 +
+      freshnessPct * 0.08 +
+      sharePct * (isCommon ? 0.08 : 0.05) +
+      (!isCommon && sharePct === 0 ? 4 : 0)
+    )));
+
+    return {
+      value,
+      overallScore,
+      poolScore: Math.round(poolScore),
+      trendAnchor: Math.round(trendAnchor),
+      isCommon,
+      isNoise: noise.includes(value),
+    };
+  }).sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0));
 }
 
 
@@ -3283,6 +3397,7 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerDecisionScores: analyzer.decisionScores || [],
     analyzerCommonDecisionScores: analyzer.commonDecisionScores || [],
     analyzerNoiseDecisionScores: analyzer.noiseDecisionScores || [],
+    trendOverallScores: analyzer.trendOverallScores || [],
     analyzerBreakChallenge: analyzer.breakChallenge || null,
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',

@@ -89,6 +89,7 @@ export default function ModernPairPredictorCard({
     analyzerPrediction, analyzerAlt,
     analyzerDecisionScores,
     analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
+    trendOverallScores,
     analyzerBreakChallenge,
     analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
     // 🆕 Noise Trap
@@ -282,6 +283,10 @@ export default function ModernPairPredictorCard({
     const entries = Array.isArray(analyzerNoiseDecisionScores) ? analyzerNoiseDecisionScores : [];
     return new Map(entries.map((entry) => [entry.value, entry]));
   }, [analyzerNoiseDecisionScores]);
+  const trendOverallMap = useMemo(() => {
+    const entries = Array.isArray(trendOverallScores) ? trendOverallScores : [];
+    return new Map(entries.map((entry) => [entry.value, entry]));
+  }, [trendOverallScores]);
   const analyzerPicks = useMemo(() => {
     const picks = [];
     if (analyzerPrediction) picks.push(analyzerPrediction);
@@ -904,6 +909,7 @@ export default function ModernPairPredictorCard({
                 const commonEntry = commonDecisionMap.get(v);
                 const commonDecider = Math.round(commonEntry?.commonScore ?? 0);
                 const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
+                const overallScore = Math.round(trendOverallMap.get(v)?.overallScore ?? 0);
                 const freshnessLabel = t.arrowAge === 0 ? 'fresh'
                   : t.arrowAge === 1 ? 'held'
                   : 'stale';
@@ -950,6 +956,7 @@ export default function ModernPairPredictorCard({
                         </div>
                       );
                     })()}
+                    <div className="text-[10px] font-medium text-fuchsia-300">overall {overallScore}%</div>
                     <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
                     <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
                     <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
@@ -960,6 +967,7 @@ export default function ModernPairPredictorCard({
             <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
               `trend share` = how much this value owns the latest 5-roll window.
               `common / noise` = Svarog's pool-specific tie-break percent inside its own pool. Higher wins inside commons or inside noise.
+              `overall` = the combined read from trend share, memory, trust, freshness, and the common/noise pool score.
               `trust` = internal confidence in the arrow direction.
               `fresh` = how recently that same arrow changed or stayed alive.
             </div>

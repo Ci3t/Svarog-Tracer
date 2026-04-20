@@ -36,8 +36,10 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
     return String(Math.round(value * 100));
   };
 
-  const formatTrendDetail = (trends) => {
+  const formatTrendDetail = (data) => {
+    const trends = data?.trends;
     if (!trends || typeof trends !== 'object') return ['none'];
+    const overallMap = new Map((data?.trendOverallScores || []).map((entry) => [entry.value, entry]));
     return VALUES.map((value) => {
       const trend = trends[value] || {};
       const share = trend.current ?? 0;
@@ -45,13 +47,15 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       const freshness = formatTrendPercent(trend.arrowWeight ?? 0);
       const support = Math.round(trend.supportScore ?? 0);
       const supportTier = trend.supportTier || 'weak';
+      const recentCarry = Math.round(trend.recentCarryScore ?? 0);
       const latent = Math.round(trend.latentPressure ?? 0);
       const latentTier = trend.latentTier || 'quiet';
       const noisePriority = Math.round(trend.noisePriorityScore ?? 0);
       const noisePriorityTier = trend.noisePriorityTier || 'quiet';
+      const overall = Math.round(overallMap.get(value)?.overallScore ?? 0);
       const state = trend.state || 'unknown';
       const direction = trend.direction || 'stable';
-      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | support ${support}% (${supportTier}) | latent ${latent}% (${latentTier}) | noise ${noisePriority}% (${noisePriorityTier}) | ${state} | ${direction}`;
+      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | overall ${overall}% | support ${support}% (${supportTier}) | carry ${recentCarry}% | latent ${latent}% (${latentTier}) | noise ${noisePriority}% (${noisePriorityTier}) | ${state} | ${direction}`;
     });
   };
 
@@ -253,7 +257,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
       content += `         trends:\n`;
-      formatTrendDetail(data.trends).forEach((line) => {
+      formatTrendDetail(data).forEach((line) => {
         content += `           ${line}\n`;
       });
       content += `         dormant_candidates:\n`;
