@@ -71,6 +71,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(', ');
   };
 
+  const formatDecisionScores = (scores) => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry.decisionScore || 0)}(#${entry.decisionRank || '?'})`)
+      .join(', ');
+  };
+
   const formatDormantCandidates = (data) => {
     const trends = data?.trends;
     if (!trends || typeof trends !== 'object') return ['none'];
@@ -227,6 +235,7 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         current_run_len: ${data.currentRunLen ?? data.currentRunLength ?? 0}\n`;
       content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
       content += `         analyzer_noise_scores: ${formatNoiseScores(data.analyzerNoiseScores)}\n`;
+      content += `         analyzer_decider_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
       content += `         trends:\n`;

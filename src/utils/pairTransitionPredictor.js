@@ -763,6 +763,17 @@ function scoreSvarogAnalyzerPicks({
       if (Math.abs(pairDiff) >= 8) return pairDiff;
       return (b.score || 0) - (a.score || 0);
     });
+  const decisionTemperature = 10;
+  const decisionWeightSum = analyzerRanked.reduce(
+    (sum, entry) => sum + Math.exp((entry.exactScore || 0) / decisionTemperature),
+    0
+  ) || 1;
+  const analyzerDecisionScores = analyzerRanked.map((entry, index) => ({
+    value: entry.value,
+    decisionScore: Math.max(1, Math.round((Math.exp((entry.exactScore || 0) / decisionTemperature) / decisionWeightSum) * 100)),
+    decisionRank: index + 1,
+    exactScore: Math.round((entry.exactScore || 0) * 100) / 100,
+  }));
   const analyzerTop1 = analyzerRanked[0] || null;
   let analyzerTop2 = analyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
   const strongestBackedCommon = analyzerRanked.find((entry) =>
@@ -868,6 +879,7 @@ function scoreSvarogAnalyzerPicks({
           alt: promotedAlt,
           scores: scored,
           noiseScores: noiseEntries,
+          decisionScores: analyzerDecisionScores,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -882,6 +894,7 @@ function scoreSvarogAnalyzerPicks({
           alt: bestChallenger.value,
           scores: scored,
           noiseScores: noiseEntries,
+          decisionScores: analyzerDecisionScores,
           mode: 'pair',
           noiseTiming,
           noiseDueRatio,
@@ -895,6 +908,7 @@ function scoreSvarogAnalyzerPicks({
     alt: analyzerTop2?.value || scored.find(entry => entry.value !== (analyzerTop1?.value || scored[0]?.value))?.value || null,
     scores: scored,
     noiseScores: noiseEntries,
+    decisionScores: analyzerDecisionScores,
     mode: analyzerMode,
     noiseTiming: normalizedNoiseTiming,
     noiseDueRatio,
@@ -2948,6 +2962,7 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerAlt: analyzer.alt,
     analyzerScores: analyzer.scores,
     analyzerNoiseScores: analyzer.noiseScores || [],
+    analyzerDecisionScores: analyzer.decisionScores || [],
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
     analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,
