@@ -29,6 +29,59 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(',');
   };
 
+  const VALUES = ['41', '42', '43', '44'];
+
+  const formatTrendPercent = (value) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '0';
+    return String(Math.round(value * 100));
+  };
+
+  const formatTrendDetail = (trends) => {
+    if (!trends || typeof trends !== 'object') return ['none'];
+    return VALUES.map((value) => {
+      const trend = trends[value] || {};
+      const share = trend.current ?? 0;
+      const trust = formatTrendPercent(trend.trustScore ?? 0);
+      const freshness = formatTrendPercent(trend.arrowWeight ?? 0);
+      const state = trend.state || 'unknown';
+      const direction = trend.direction || 'stable';
+      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | ${state} | ${direction}`;
+    });
+  };
+
+  const formatAnalyzerScores = (scores) => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry.score)}`)
+      .join(', ');
+  };
+
+  const formatDormantCandidates = (data) => {
+    const trends = data?.trends;
+    if (!trends || typeof trends !== 'object') return ['none'];
+    const dormant = VALUES
+      .map((value) => ({ value, trend: trends[value] || {} }))
+      .filter(({ trend }) =>
+        (trend.current ?? 0) === 0 &&
+        ((trend.trustScore ?? 0) >= 0.45 || (trend.arrowWeight ?? 0) >= 0.4)
+      )
+      .map(({ value, trend }) =>
+        `${value}: trust ${formatTrendPercent(trend.trustScore ?? 0)}% | fresh ${formatTrendPercent(trend.arrowWeight ?? 0)}% | ${trend.state || 'unknown'} | ${trend.direction || 'stable'}`
+      );
+    return dormant.length > 0 ? dormant : ['none'];
+  };
+
+  const formatFreshOutsider = (freshOutsider) => {
+    if (!freshOutsider?.value) return 'none';
+    return `${freshOutsider.value} | score ${Math.round(freshOutsider.score || 0)} | r2 ${freshOutsider.recent2Hits || 0} | r4 ${freshOutsider.recent4Hits || 0} | ago ${freshOutsider.rollsAgo ?? '-'} | ${freshOutsider.direction || 'stable'}`;
+  };
+
+  const formatLastSeen = (lastSeen) => {
+    if (!lastSeen || typeof lastSeen !== 'object') return 'none';
+    return VALUES.map((value) => `${value}:${lastSeen[value] ?? -1}`).join(', ');
+  };
+
   // =========================================================================
   // 📋 INPUT TIMELINE — raw actuals only, clean reference
   // =========================================================================
@@ -77,6 +130,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       const commons = data.commons || [];
       const noise = data.noise || [];
       const dist = data.distribution || {};
+      const fullCtx = rolls.join(' ');
+      const tail4 = rolls.slice(-4).join(' ');
 
       const isHit = pred === actual;
       const isAltHit = alt === actual;
@@ -98,6 +153,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
 
       content += `[${time}] pred: ${pred} (${conf}%) | alt: ${alt} | method: ${method}\n`;
       content += `         ↳ actual: ${actual} | ${status}\n`;
+      content += `         Full ctx (${rolls.length}): [${fullCtx}]\n`;
+      content += `         Tail-4: [${tail4}]\n`;
       content += `         Commons: [${commons.join(', ')}] | Noise: [${noise.join(', ')}]\n`;
       if (data.trustedPair?.length === 2) {
         content += `         Pair: [${data.trustedPair.join(', ')}] | Safety: ${data.pairSafety || 'unknown'} | Noise risk: ${data.noiseRisk ?? 0}%\n`;
@@ -124,6 +181,46 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       if (data.patternShifted) content += `         🔀 PATTERN SHIFT: ${data.shiftedToValue} is rising\n`;
       if (data.commonsFlipDetected) content += `         🔄 COMMONS FLIP: New commons [${data.newCommons?.join(', ')}] (${data.flipConfidence}%)\n`;
       if (data.regime) content += `         📊 REGIME: ${data.regime}\n`;
+      content += `         --- AI REPLAY BLOCK ---\n`;
+      content += `         actual_next: ${actual}\n`;
+      content += `         ctx_full: ${fullCtx}\n`;
+      content += `         ctx_tail4: ${tail4}\n`;
+      content += `         last_roll: ${data.lastRoll || 'none'}\n`;
+      content += `         last_2_rolls: ${data.last2Rolls || 'none'}\n`;
+      content += `         main_prediction: ${pred || 'none'}\n`;
+      content += `         alt_prediction: ${alt || 'none'}\n`;
+      content += `         analyzer_prediction: ${analyzerPred || 'none'}\n`;
+      content += `         analyzer_alt: ${analyzerAlt || 'none'}\n`;
+      content += `         label: ${data.label || 'none'}\n`;
+      content += `         reason_line: ${data.reasonLine || 'none'}\n`;
+      content += `         confidence_pct: ${conf}\n`;
+      content += `         confidence_gap_pct: ${Math.round((data.confidenceGap || 0) * 100)}\n`;
+      content += `         method: ${method}\n`;
+      content += `         trusted_pair: ${data.trustedPair?.join(' ') || 'none'}\n`;
+      content += `         runner_up_pair: ${data.runnerUpPair?.join(' ') || 'none'}\n`;
+      content += `         pair_safety: ${data.pairSafety || 'unknown'}\n`;
+      content += `         noise_risk_pct: ${data.noiseRisk ?? 0}\n`;
+      content += `         pair_gap: ${data.pairScoreGap ?? 0}\n`;
+      content += `         mixed_window: ${data.mixedWindow ? 'yes' : 'no'}\n`;
+      content += `         regime: ${data.regime || 'unknown'}\n`;
+      content += `         fresh_outsider: ${formatFreshOutsider(data.freshOutsider)}\n`;
+      content += `         noise_watch: ${data.noiseWatch || 'none'}\n`;
+      content += `         commons_since_noise: ${data.commonsSinceNoise ?? 'n/a'}\n`;
+      content += `         avg_noise_gap: ${data.avgNoiseGap ?? 'n/a'}\n`;
+      content += `         current_run_len: ${data.currentRunLen ?? data.currentRunLength ?? 0}\n`;
+      content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
+      content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
+      content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
+      content += `         trends:\n`;
+      formatTrendDetail(data.trends).forEach((line) => {
+        content += `           ${line}\n`;
+      });
+      content += `         dormant_candidates:\n`;
+      formatDormantCandidates(data).forEach((line) => {
+        content += `           ${line}\n`;
+      });
+      content += `         last_seen: ${formatLastSeen(data.lastSeen)}\n`;
+      content += `         --- END AI REPLAY BLOCK ---\n`;
       content += '\n';
     });
 
