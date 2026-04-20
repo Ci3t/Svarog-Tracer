@@ -11,22 +11,19 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { predictWithPairs } from '../../utils/pairTransitionPredictor';
-import { buildPermissionView } from '../../utils/permissionLayer';
 import { withBaseUrl } from '../../utils/assetPaths';
 
 const VALUES = ['41', '42', '43', '44'];
 
 // Badge styles per label prefix
 function getBadgeStyle(label = '') {
-  if (label.startsWith('🔥')) return 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50';
-  if (label.startsWith('🔄')) return 'bg-blue-500/25 text-blue-300 border-blue-500/50';
-  if (label.startsWith('🔀')) return 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50';
-  if (label.startsWith('🔁')) return 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50';
-  if (label.startsWith('🎯')) return 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50';
-  if (label.startsWith('🔔')) return 'bg-amber-500/25 text-amber-300 border-amber-500/50';
-  if (label.startsWith('🌀')) return 'bg-cyan-500/25 text-cyan-300 border-cyan-500/50';
-  if (label.startsWith('⚠️')) return 'bg-orange-500/25 text-orange-300 border-orange-500/50';
-  if (label.startsWith('⏳')) return 'bg-slate-500/25 text-slate-400 border-slate-500/50';
+  if (label.includes('Running')) return 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50';
+  if (label.includes('Alternating')) return 'bg-blue-500/25 text-blue-300 border-blue-500/50';
+  if (label.includes('Shifted') || label.includes('Sequence') || label.includes('Pair')) return 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50';
+  if (label.includes('Overdue')) return 'bg-amber-500/25 text-amber-300 border-amber-500/50';
+  if (label.includes('Recovery')) return 'bg-cyan-500/25 text-cyan-300 border-cyan-500/50';
+  if (label.includes('Chaotic') || label.includes('Trap')) return 'bg-orange-500/25 text-orange-300 border-orange-500/50';
+  if (label.includes('Warming')) return 'bg-slate-500/25 text-slate-400 border-slate-500/50';
   return 'bg-violet-500/25 text-violet-300 border-violet-500/50';
 }
 
@@ -75,7 +72,6 @@ export default function ModernPairPredictorCard({
   }, [entries]);
 
   const data = useMemo(() => predictWithPairs(rolls, { region }), [rolls, region]);
-  const permissionView = useMemo(() => buildPermissionView(data, rolls), [data, rolls]);
 
   const isWarming = !data.prediction;
 
@@ -96,45 +92,12 @@ export default function ModernPairPredictorCard({
     // 🚨 Emergency brake
     isSessionReset
   } = data;
-  const {
-    boardStateLabel,
-    leadingModel,
-    leadingPrediction,
-    altPrediction: actionAltPrediction,
-    altLabel,
-    actionConfidence,
-    permission,
-    primaryReason,
-    recoveryCue,
-  } = permissionView;
 
   // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
 
   const confidencePct = Math.round(confidence * 100);
   const cardStyle = getCardStyle(isChaotic, false);
   const badgeStyle = getBadgeStyle(label);
-  const actionToneClass =
-    permission === 'STAND BY'
-      ? 'border-rose-500/35 bg-rose-500/10 text-rose-100'
-      : permission === 'WAIT'
-        ? 'border-amber-500/35 bg-amber-500/10 text-amber-100'
-        : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-100';
-  const actionChipClass =
-    permission === 'STAND BY'
-      ? 'border-rose-400/40 bg-rose-500/15 text-rose-200'
-      : permission === 'WAIT'
-        ? 'border-amber-400/40 bg-amber-500/15 text-amber-200'
-        : 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200';
-  const stateChipClass =
-    boardStateLabel === 'Stable'
-      ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-200'
-      : boardStateLabel === 'Degraded Stable'
-        ? 'border-amber-500/30 bg-amber-500/12 text-amber-200'
-        : boardStateLabel === 'Transition Watch'
-          ? 'border-orange-500/30 bg-orange-500/12 text-orange-200'
-          : boardStateLabel === 'Transition'
-            ? 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-200'
-            : 'border-slate-500/30 bg-slate-500/12 text-slate-200';
   const trendGlossary = {
     share: {
       label: 'Trend share',
@@ -197,35 +160,27 @@ export default function ModernPairPredictorCard({
       const d = pairMatrix?.[from]?.[to];
       return typeof d === 'object' ? d.pct : (d || 0);
     };
-
-    const descs = {
-      '🔥 Running':    `${prediction} is dominant — keep picking it.`,
-      '🔄 Alternating': 'Two values are flip-flopping.',
-      '🔀 Shifted':     'A value is rising — pattern shifting.',
-      '🔁 Sequence':    'A 2-roll pattern repeats this session.',
-      '🎯 Pair':        'Based on what follows the last roll.',
-      '🔔 Overdue':     `${prediction} hasn't appeared in a while — due.`,
-      '🌀 Recovery':    'After noise, a common tends to return.',
-      '⚠️ Chaotic':    'No clear pattern — session is randomised.',
-      '⏳ Warming Up':  'Too few rolls to detect patterns yet.',
-    };
-
     // Build a live example per mode
+    let desc = '';
     let ex = '';
-    if (label.startsWith('🔥')) {
+    if (label.includes('Running')) {
+      desc = prediction + ' is dominant - keep picking it.';
       const run = currentRunLen >= 2 ? currentRunLen : 2;
       const streak = Array(run).fill(prediction).join(' ');
-      ex = `${streak} → keep picking ${prediction}`;
-    } else if (label.startsWith('🔄')) {
+      ex = `${streak} -> keep picking ${prediction}`;
+    } else if (label.includes('Alternating')) {
+      desc = 'Two values are flip-flopping.';
       const p = isAlternating && alternatingPair?.length === 2 ? alternatingPair : commons;
-      ex = `${p[0]} ${p[1]} ${p[0]} ${p[1]} → next: ${prediction}`;
-    } else if (label.startsWith('🔀')) {
-      ex = `${shiftedToValue || noise[0]} rising → lean on ${prediction}`;
-    } else if (label.startsWith('🔁')) {
+      ex = `${p[0]} ${p[1]} ${p[0]} ${p[1]} -> next: ${prediction}`;
+    } else if (label.includes('Shifted')) {
+      desc = 'A value is rising and the board may be shifting.';
+      ex = `${shiftedToValue || noise[0]} rising -> lean on ${prediction}`;
+    } else if (label.includes('Sequence')) {
+      desc = 'A 2-roll pattern is repeating this session.';
       const conf = gram2Confidence > 0 ? `${Math.round(gram2Confidence)}%` : '';
-      ex = `after ${last2Rolls || '??'} → ${prediction}${conf ? ` (${conf})` : ''} this session`;
-    } else if (label.startsWith('🎯')) {
-      // Find actual top pair-matrix transition from lastRoll (may be noise)
+      ex = `after ${last2Rolls || '??'} -> ${prediction}${conf ? ` (${conf})` : ""} this session`;
+    } else if (label.includes('Pair')) {
+      desc = 'This read comes from what usually follows the last roll.';
       const allVals = [...(commons || []), ...(noise || [])];
       const topActual = allVals
         .map(v => ({ value: v, pct: pairPctVal(lastRoll, v), cnt: pairCount(lastRoll, v) }))
@@ -234,25 +189,28 @@ export default function ModernPairPredictorCard({
       const predCnt = pairCount(lastRoll, prediction);
 
       if (topActual && topActual.value !== prediction && topActual.pct > 0) {
-        // Top transition is NOT the prediction (noise appears more often) — be honest about it
-        ex = `after ${lastRoll} → ${topActual.value} most (${topActual.pct}%) | commons pick: ${prediction} (${predPct}%)`;
+        ex = `after ${lastRoll} -> ${topActual.value} most (${topActual.pct}%) | commons pick: ${prediction} (${predPct}%)`;
       } else {
         ex = predPct > 0
-          ? `after ${lastRoll} → ${prediction} appeared ${predCnt > 0 ? `${predCnt}× ` : ''}(${predPct}%) this session`
-          : `after ${lastRoll} → ${prediction} most likely`;
+          ? `after ${lastRoll} -> ${prediction} appeared ${predCnt > 0 ? `${predCnt}x ` : ""}(${predPct}%) this session`
+          : `after ${lastRoll} -> ${prediction} most likely`;
       }
-    } else if (label.startsWith('🔔')) {
+    } else if (label.includes('Overdue')) {
+      desc = prediction + ' has been missing long enough to become live again.';
       const ago = mostOverdue && lastSeen?.[mostOverdue] >= 0 ? lastSeen[mostOverdue] : '?';
       ex = `${prediction} missing ${ago} rolls this session`;
-    } else if (label.startsWith('🌀')) {
-      ex = reasonLine; // already has e.g. "43 returns (3×)"
-    } else if (label.startsWith('⚠️')) {
-      ex = `session noise: ${noiseRate ?? '?'}% — no clear winner`;
-    } else if (label.startsWith('⏳')) {
+    } else if (label.includes('Recovery')) {
+      desc = 'After noise, the board often returns to a common value.';
+      ex = reasonLine;
+    } else if (label.includes('Chaotic') || label.includes('Trap')) {
+      desc = 'The board is messy enough that noise pressure is part of the read.';
+      ex = `session noise: ${noiseRate ?? "?"}% - no clear winner`;
+    } else if (label.includes('Warming')) {
+      desc = 'There is not enough session history yet.';
       ex = `${rolls.length} / 6 rolls recorded so far`;
     }
 
-    return { desc: descs[label] || '', ex };
+    return { desc, ex };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [label, prediction, lastRoll, last2Rolls, currentRunLen, noiseRate, rolls.length]);
 
@@ -475,46 +433,6 @@ export default function ModernPairPredictorCard({
 
       {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
       <div className="px-4 pb-3">
-
-        <div className={`mb-4 rounded-xl border px-3 py-3 ${actionToneClass}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${actionChipClass}`}>
-                  {permission}
-                </span>
-                <span className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${stateChipClass}`}>
-                  {boardStateLabel}
-                </span>
-              </div>
-              <p id={tutorialIds.statusMessageId} className="mt-2 text-sm font-semibold leading-snug text-slate-100">
-                {primaryReason}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300">
-                <span className="uppercase tracking-[0.14em] text-slate-500">Leading read</span>
-                <span className="font-semibold text-slate-100">
-                  {leadingModel === 'break-risk' ? 'Break Risk' : 'Lane Memory'}
-                  {leadingPrediction ? ` • ${leadingPrediction}` : ''}
-                </span>
-                {actionAltPrediction && altLabel && (
-                  <span className="text-slate-400">
-                    alt ({altLabel}) • <span className="font-semibold text-slate-200">{actionAltPrediction}</span>
-                  </span>
-                )}
-              </div>
-              {recoveryCue && (
-                <p className="mt-2 text-[11px] text-slate-300">
-                  Recovery cue: <span className="font-medium text-slate-100">{recoveryCue}</span>
-                </p>
-              )}
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Action Confidence</p>
-              <p className="mt-1 text-2xl font-black text-slate-50">{actionConfidence}%</p>
-            </div>
-          </div>
-        </div>
-
         {/* Pair safety strip */}
         <div id={tutorialIds.warningStripId} className={`mb-4 rounded-xl border px-3 py-2 ${
           pairSafety === 'safe'
@@ -535,7 +453,7 @@ export default function ModernPairPredictorCard({
                 {pairSafety === 'safe' ? 'Trusted Pair' : pairSafety === 'caution' ? 'Pair At Risk' : 'Break Danger'}
               </p>
               <p className="text-[11px] text-slate-300">
-                {displayPair?.join(' / ')} • {boardStateLabel.toLowerCase()}
+                {displayPair?.join(' / ')} • {mixedWindow ? 'mixed window' : 'lane holding'}
               </p>
             </div>
             <div className="text-right">

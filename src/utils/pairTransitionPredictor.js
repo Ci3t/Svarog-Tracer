@@ -406,6 +406,12 @@ function scoreSvarogAnalyzerPicks({
   const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
   const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
   const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
+  const staleCommons = commons.filter((value) => {
+    const direction = trends?.[value]?.direction || 'stable';
+    const arrowWeight = trends?.[value]?.arrowWeight ?? 1.0;
+    const trust = trends?.[value]?.trustScore ?? 0.6;
+    return direction === 'falling' || arrowWeight <= 0.4 || trust <= 0.4;
+  }).length;
   const recentRuns = [];
   if (rolls.length >= 4) {
     let runValue = rolls[0];
@@ -474,6 +480,16 @@ function scoreSvarogAnalyzerPicks({
     const momentumSignal = Math.min(momentum, 100);
     const recentSignal = Math.min(recent6 * 2, 100);
     const absenceSignal = Math.min(absenceCredit, 100);
+    const latentNoiseBonus =
+      noise?.includes(value) &&
+      seenAgo < 0 &&
+      recent6 === 0 &&
+      pair1 === 0 &&
+      pair2 === 0 &&
+      direction !== 'falling' &&
+      staleCommons >= 1
+        ? (staleCommons >= 2 ? 18 : 10) + Math.round((trust - 0.5) * 10) + Math.round(arrowWeight * 10)
+        : 0;
 
     let score =
       pairSignal * 0.22 +
@@ -502,6 +518,7 @@ function scoreSvarogAnalyzerPicks({
     if (freshOutsider?.value === value) score += 8;
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
     if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
+    score += latentNoiseBonus;
 
     if (direction === 'rising') score += 7;
     else if (direction === 'stable') score += 2;
@@ -2386,42 +2403,6 @@ export function predictWithPairs(rolls, options = {}) {
   const isNoiseTrap    = noiseTrapProb >= trapThreshold && !!trapCandidate && inRedZone;
   // Note: does NOT override alt — expose as separate ui strip data
 
-  // Label badge and reason line lookup
-  const baseMethod = method.replace(/\+.*/, ''); // strip modifiers for lookup
-  const currentRun = waveSignals?.lastCommonRunLength || currentRunLen || 0;
-  const altCommon = alt || commons.find(c => c !== prediction);
-  const pairPct = Math.round((matrix[lastRoll]?.[prediction]?.pct || 0));
-  const overdueRolls = method.includes('overdue-wave') && lastSeen[prediction] >= 0
-    ? lastSeen[prediction]
-    : -1;
-  const postNoiseCount2 = commonPostNoise[0]?.count || 0;
-
-  const labelMap = {
-    'hot-run':             { label: '🔥 Running',    reason: `${prediction} × ${currentRun} streak — riding it` },
-    'hot-run+run-break':   { label: '🔥 Running',    reason: `${lastRoll} × ${currentRun} — break expected, predict ${prediction}` },
-    'alternating':         { label: '🔄 Alternating', reason: `${alternatingPair?.[0]} ↔ ${alternatingPair?.[1]} ping-pong — next: ${prediction}` },
-    'pattern-shift':       { label: '🔀 Shifted',     reason: (() => {
-      const sv = shiftedToValue || prediction;
-      const svCount = rolls.filter(r => r === sv).length;
-      const svPct = distribution[sv] || 0;
-      // 25% = baseline in a 4-value game — not "taking over"
-      // Needs 4+ appearances AND 30%+ distribution to say "taking over"
-      if (svCount <= 3 || svPct < 30) return `${sv} emerging — watch it`;
-      return `New signal: ${sv} taking over`;
-    })() },
-    '2-gram':              { label: '🔁 Sequence',    reason: `${prediction} follows ${last2Rolls} pattern${gram2Confidence > 0 ? ` (${Math.round(gram2Confidence)}%)` : ''}` },
-    'pair-matrix':         { label: '🎯 Pair',        reason: `${prediction} most likely after ${lastRoll}${pairPct > 0 ? ` (${pairPct}%)` : ''}` },
-    'overdue-wave':        { label: '🔔 Overdue',     reason: `${prediction} not seen in ${overdueRolls} rolls — due` },
-    'overdue-wave+pair':   { label: '🔔 Overdue',     reason: `${prediction} overdue + pair edge — due` },
-    'post-noise-recovery': { label: '🌀 Recovery',    reason: `After noise, ${prediction} returns (${postNoiseCount2}×)` },
-    'noise-trap':          { label: '⚠️ Trap Due',    reason: `🎯 Target ${alt} — noise gap exhausted (${commonsSinceNoise} rolls)` },
-    'chaos-pair':          { label: '⚠️ Chaotic',    reason: `Edge: ${lastRoll}→${prediction} strongest link` },
-    'chaos-freq':          { label: '⚠️ Chaotic',    reason: 'No clear pattern — most frequent' },
-    'insufficient-data':   { label: '⏳ Warming Up',  reason: 'Need more rolls — building picture' },
-  };
-  // Try exact method first, then base method
-  const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: '🎯 Pair', reason: `${prediction} most likely after ${lastRoll}` };
-
   const analyzer = scoreSvarogAnalyzerPicks({
     rolls,
     lastRoll,
@@ -2444,6 +2425,108 @@ export function predictWithPairs(rolls, options = {}) {
     avgObservedRunLen,
     regime,
   });
+
+  // Mixed and transition boards can get stuck on stale lane memory.
+  // Let the analyzer take over only when it clearly beats the current main read.
+  const analyzerTop = analyzer.scores?.[0] || null;
+  const analyzerRunner = analyzer.scores?.find(entry => entry.value !== analyzerTop?.value) || null;
+  const analyzerTopGap = analyzerTop && analyzerRunner ? analyzerTop.score - analyzerRunner.score : 0;
+  const analyzerCurrentMain = analyzer.scores?.find(entry => entry.value === prediction) || null;
+  const analyzerBeatsMainBy = analyzerTop && analyzerCurrentMain ? analyzerTop.score - analyzerCurrentMain.score : 0;
+  const analyzerTopIsTrusted = !!analyzerTop?.value && pairOutlook.trustedPair?.includes(analyzerTop.value);
+  const analyzerTopIsOutsider = analyzerTop?.value && pairOutlook.freshOutsider?.value === analyzerTop.value;
+  const outsiderStrongEnoughForMain = analyzerTopIsOutsider && (
+    (pairOutlook.freshOutsider?.recent2Hits || 0) >= 2 ||
+    (
+      (pairOutlook.freshOutsider?.recent4Hits || 0) >= 2 &&
+      pairOutlook.freshOutsider?.direction === 'rising' &&
+      displayNoiseRisk >= 62
+    )
+  );
+  const analyzerCanOverrideMain =
+    analyzerTop &&
+    analyzerTop.value !== prediction &&
+    !method.startsWith('pattern-shift') &&
+    !method.startsWith('post-noise-recovery') &&
+    (
+      pairOutlook.mixedWindow ||
+      regime !== 'stable' ||
+      displayPairSafety !== 'safe'
+    ) &&
+    analyzerTopGap >= 6 &&
+    analyzerBeatsMainBy >= (analyzerTopIsOutsider ? 14 : 8) &&
+    (analyzerTopIsTrusted || outsiderStrongEnoughForMain);
+
+  if (analyzerCanOverrideMain) {
+    const previousPrediction = prediction;
+    prediction = analyzerTop.value;
+    alt =
+      [previousPrediction, analyzer.alt, alt, freqAlt, ...commons]
+        .find(value => value && value !== prediction) || previousPrediction;
+    method = method + '+analyzer-handoff';
+    confidence = Math.min(
+      Math.max(confidence, analyzerTopIsOutsider ? 0.4 : 0.46) + (analyzerTopGap >= 12 ? 0.05 : 0.03),
+      0.64
+    );
+  } else if (
+    analyzerTop &&
+    analyzerTop.value !== prediction &&
+    analyzerTop.value !== alt &&
+    (
+      pairOutlook.mixedWindow ||
+      displayPairSafety !== 'safe' ||
+      regime !== 'stable'
+    ) &&
+    (
+      analyzerTopIsTrusted ||
+      (
+        analyzerTopIsOutsider &&
+        (
+          (pairOutlook.freshOutsider?.recent2Hits || 0) >= 1 ||
+          (
+            (pairOutlook.freshOutsider?.recent4Hits || 0) >= 2 &&
+            pairOutlook.freshOutsider?.direction === 'rising'
+          )
+        )
+      )
+    )
+  ) {
+    alt = analyzerTop.value;
+    method = method + '+analyzer-alt';
+  }
+
+  // Label badge and reason line lookup
+  const baseMethod = method.replace(/\+.*/, '');
+  const currentRun = waveSignals?.lastCommonRunLength || currentRunLen || 0;
+  const altCommon = alt || commons.find(c => c !== prediction);
+  const pairPct = Math.round((matrix[lastRoll]?.[prediction]?.pct || 0));
+  const overdueRolls = method.includes('overdue-wave') && lastSeen[prediction] >= 0
+    ? lastSeen[prediction]
+    : -1;
+  const postNoiseCount2 = commonPostNoise[0]?.count || 0;
+
+  const labelMap = {
+    'hot-run':             { label: 'Running', reason: prediction + ' x ' + currentRun + ' streak - riding it' },
+    'hot-run+run-break':   { label: 'Running', reason: lastRoll + ' x ' + currentRun + ' - break expected, predict ' + prediction },
+    'alternating':         { label: 'Alternating', reason: (alternatingPair?.[0] || '?') + ' / ' + (alternatingPair?.[1] || '?') + ' ping-pong - next: ' + prediction },
+    'pattern-shift':       { label: 'Shifted', reason: (() => {
+      const sv = shiftedToValue || prediction;
+      const svCount = rolls.filter(r => r === sv).length;
+      const svPct = distribution[sv] || 0;
+      if (svCount <= 3 || svPct < 30) return sv + ' emerging - watch it';
+      return 'New signal: ' + sv + ' taking over';
+    })() },
+    '2-gram':              { label: 'Sequence', reason: prediction + ' follows ' + last2Rolls + ' pattern' + (gram2Confidence > 0 ? ' (' + Math.round(gram2Confidence) + '%)' : '') },
+    'pair-matrix':         { label: 'Pair', reason: prediction + ' most likely after ' + lastRoll + (pairPct > 0 ? ' (' + pairPct + '%)' : '') },
+    'overdue-wave':        { label: 'Overdue', reason: prediction + ' not seen in ' + overdueRolls + ' rolls - due' },
+    'overdue-wave+pair':   { label: 'Overdue', reason: prediction + ' overdue + pair edge - due' },
+    'post-noise-recovery': { label: 'Recovery', reason: 'After noise, ' + prediction + ' returns (' + postNoiseCount2 + 'x)' },
+    'noise-trap':          { label: 'Trap Due', reason: 'Target ' + altCommon + ' - noise gap exhausted (' + commonsSinceNoise + ' rolls)' },
+    'chaos-pair':          { label: 'Chaotic', reason: 'Edge: ' + lastRoll + '->' + prediction + ' strongest link' },
+    'chaos-freq':          { label: 'Chaotic', reason: 'No clear pattern - most frequent' },
+    'insufficient-data':   { label: 'Warming Up', reason: 'Need more rolls - building picture' },
+  };
+  const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: 'Pair', reason: prediction + ' most likely after ' + lastRoll };
 
   return {
     prediction,
