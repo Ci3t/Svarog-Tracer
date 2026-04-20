@@ -822,7 +822,11 @@ function scoreSvarogAnalyzerPicks({
       const recent8Pct = recent8.length ? (recent8Count / recent8.length) * 100 : 0;
       const recentCarrySignal = entry.recentCarryScore || 0;
       const otherCommon = commons.find((value) => value !== entry.value) || null;
+      const otherCommonEntry = otherCommon
+        ? analyzerRanked.find((candidate) => candidate.value === otherCommon) || null
+        : null;
       const otherCommonShare = otherCommon ? (distribution?.[otherCommon] || 0) : 0;
+      const exactLeadDelta = (entry.exactScore || 0) - (otherCommonEntry?.exactScore || 0);
       const fallenCommon = (entry.currentShare || 0) < 25;
       const dominantOtherCommon =
         !!otherCommon &&
@@ -870,9 +874,43 @@ function scoreSvarogAnalyzerPicks({
         (entry.totalCount >= 4 ? 6 : entry.totalCount >= 2 ? 3 : 0) +
         (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -2);
       const recentCarryBoost =
-        fallenCommon || entry.value === lastRoll
+        reboundArmed || entry.value === lastRoll
           ? Math.min(16, Math.max(0, Math.round(recentCommonMemoryRaw * 0.12)))
           : 0;
+      const anchoredCommon =
+        (entry.currentShare || 0) >= 35 &&
+        (entry.supportScore || 0) >= 44 &&
+        trustPct >= 60 &&
+        recentCarrySignal >= 40;
+      const stableAnchorBoost =
+        anchoredCommon
+          ? Math.min(
+              14,
+              Math.max(
+                0,
+                Math.round(
+                  Math.max(0, (entry.currentShare || 0) - 30) * 0.25 +
+                  Math.max(0, (entry.supportScore || 0) - 40) * 0.18 +
+                  Math.max(0, recentCarrySignal - 35) * 0.12 +
+                  Math.max(0, exactLeadDelta) * 0.35
+                )
+              )
+            )
+          : 0;
+      const exactLeadBonus =
+        exactLeadDelta > 0
+          ? Math.min(10, Math.round(exactLeadDelta * 0.45))
+          : exactLeadDelta < -6
+            ? -4
+            : 0;
+      const directionAdjustment =
+        entry.direction === 'rising'
+          ? 5
+          : entry.direction === 'stable'
+            ? 2
+            : anchoredCommon
+              ? -1
+              : -6;
       const raw =
         (entry.supportScore || 0) * 0.26 +
         recentCarrySignal * 0.20 +
@@ -881,10 +919,12 @@ function scoreSvarogAnalyzerPicks({
         freshnessPct * 0.08 +
         (entry.pair1 || 0) * 0.12 +
         (entry.pair2 || 0) * 0.08 +
-        Math.max(entry.exactScore || 0, 0) * 0.10 +
-        (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6) +
+        Math.max(entry.exactScore || 0, 0) * 0.14 +
+        directionAdjustment +
         reboundBoost +
-        recentCarryBoost;
+        recentCarryBoost +
+        stableAnchorBoost +
+        exactLeadBonus;
       return {
         ...entry,
         fallenCommon,
@@ -895,6 +935,10 @@ function scoreSvarogAnalyzerPicks({
         recent8Pct: Math.round(recent8Pct),
         recentCommonMemoryRaw: Math.round(recentCommonMemoryRaw * 100) / 100,
         recentCarryBoost,
+        anchoredCommon,
+        stableAnchorBoost,
+        exactLeadDelta: Math.round(exactLeadDelta * 100) / 100,
+        exactLeadBonus,
         commonDecisionRaw: raw,
       };
     })
@@ -963,12 +1007,22 @@ function scoreSvarogAnalyzerPicks({
     .map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
       const noisePool = noiseDecisionMap.get(entry.value);
+      const exactContextWeak =
+        !(entry.pair1Reliable || entry.pair2Reliable) &&
+        (entry.pair1 || 0) < 20 &&
+        (entry.pair2 || 0) < 20;
+      const commonPoolWeight = exactContextWeak ? 0.24 : 0.12;
+      const noisePoolWeight =
+        normalizedNoiseTiming === 'due' ? (exactContextWeak ? 0.20 : 0.18)
+        : normalizedNoiseTiming === 'approaching' ? (exactContextWeak ? 0.16 : 0.14)
+        : (exactContextWeak ? 0.10 : 0.08);
       const poolBoost = commons.includes(entry.value)
-        ? (((commonPool?.commonScore ?? 50) - 50) * 0.12)
-        : (((noisePool?.noiseScore ?? 50) - 50) * (normalizedNoiseTiming === 'due' ? 0.18 : normalizedNoiseTiming === 'approaching' ? 0.14 : 0.08));
+        ? (((commonPool?.commonScore ?? 50) - 50) * commonPoolWeight)
+        : (((noisePool?.noiseScore ?? 50) - 50) * noisePoolWeight);
       const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
       return {
         ...entry,
+        exactContextWeak,
         refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost) * 100) / 100,
       };
     })
@@ -990,6 +1044,14 @@ function scoreSvarogAnalyzerPicks({
       return (b.exactScore || 0) - (a.exactScore || 0);
     });
   const finalAnalyzerRanked = refinedAnalyzerRanked.length ? refinedAnalyzerRanked : analyzerRanked;
+  const analyzerFinalScores = normalizePoolScores(
+    finalAnalyzerRanked.map((entry) => ({
+      ...entry,
+      finalDecisionRaw: entry.refinedExactScore ?? entry.exactScore ?? entry.score ?? 0,
+    })),
+    'finalDecisionRaw',
+    'pickScore'
+  );
   const analyzerTop1 = finalAnalyzerRanked[0] || null;
   let analyzerTop2 = finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
   const bestCommonDecision = commonDecisionScores[0] || null;
@@ -1174,6 +1236,7 @@ function scoreSvarogAnalyzerPicks({
           scores: scored,
           noiseScores: noiseEntries,
           decisionScores: analyzerDecisionScores,
+          finalScores: analyzerFinalScores,
           commonDecisionScores,
           noiseDecisionScores,
           trendOverallScores,
@@ -1202,6 +1265,7 @@ function scoreSvarogAnalyzerPicks({
           scores: scored,
           noiseScores: noiseEntries,
           decisionScores: analyzerDecisionScores,
+          finalScores: analyzerFinalScores,
           commonDecisionScores,
           noiseDecisionScores,
           breakChallenge: {
@@ -1228,6 +1292,7 @@ function scoreSvarogAnalyzerPicks({
     scores: scored,
     noiseScores: noiseEntries,
     decisionScores: analyzerDecisionScores,
+    finalScores: analyzerFinalScores,
     commonDecisionScores,
     noiseDecisionScores,
     trendOverallScores,
@@ -3397,6 +3462,7 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerScores: analyzer.scores,
     analyzerNoiseScores: analyzer.noiseScores || [],
     analyzerDecisionScores: analyzer.decisionScores || [],
+    analyzerFinalScores: analyzer.finalScores || [],
     analyzerCommonDecisionScores: analyzer.commonDecisionScores || [],
     analyzerNoiseDecisionScores: analyzer.noiseDecisionScores || [],
     trendOverallScores: analyzer.trendOverallScores || [],
