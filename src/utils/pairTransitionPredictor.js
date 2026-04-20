@@ -815,6 +815,9 @@ function scoreSvarogAnalyzerPicks({
     .map((entry) => {
       const trustPct = Math.round((entry.trustScore || 0) * 100);
       const freshnessPct = Math.round((entry.arrowWeight || 0) * 100);
+      const recent8 = rolls.slice(-8);
+      const recent8Count = recent8.filter((roll) => roll === entry.value).length;
+      const recent8Pct = recent8.length ? (recent8Count / recent8.length) * 100 : 0;
       const otherCommon = commons.find((value) => value !== entry.value) || null;
       const otherCommonShare = otherCommon ? (distribution?.[otherCommon] || 0) : 0;
       const fallenCommon = (entry.currentShare || 0) < 25;
@@ -851,6 +854,21 @@ function scoreSvarogAnalyzerPicks({
             )
           : 0;
       const reboundBoost = reboundArmed ? Math.min(18, Math.round(reboundRaw * 0.18)) : 0;
+      const recentCommonMemoryRaw =
+        recent8Pct * 0.32 +
+        (entry.currentShare || 0) * 0.10 +
+        (entry.pair1 || 0) * 0.16 +
+        (entry.pair2 || 0) * 0.08 +
+        trustPct * 0.08 +
+        freshnessPct * 0.06 +
+        (entry.value === lastRoll ? 18 : 0) +
+        (recent8Count >= 3 ? 10 : recent8Count === 2 ? 6 : recent8Count === 1 ? 2 : 0) +
+        (entry.totalCount >= 4 ? 6 : entry.totalCount >= 2 ? 3 : 0) +
+        (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -2);
+      const recentCarryBoost =
+        fallenCommon || entry.value === lastRoll
+          ? Math.min(16, Math.max(0, Math.round(recentCommonMemoryRaw * 0.12)))
+          : 0;
       const raw =
         (entry.supportScore || 0) * 0.34 +
         (entry.currentShare || 0) * 0.22 +
@@ -860,13 +878,18 @@ function scoreSvarogAnalyzerPicks({
         (entry.pair2 || 0) * 0.06 +
         Math.max(entry.exactScore || 0, 0) * 0.12 +
         (entry.direction === 'rising' ? 5 : entry.direction === 'stable' ? 2 : -6) +
-        reboundBoost;
+        reboundBoost +
+        recentCarryBoost;
       return {
         ...entry,
         fallenCommon,
         reboundArmed,
         reboundRaw: Math.round(reboundRaw * 100) / 100,
         reboundBoost,
+        recent8Count,
+        recent8Pct: Math.round(recent8Pct),
+        recentCommonMemoryRaw: Math.round(recentCommonMemoryRaw * 100) / 100,
+        recentCarryBoost,
         commonDecisionRaw: raw,
       };
     })
@@ -979,7 +1002,9 @@ function scoreSvarogAnalyzerPicks({
         (secondCommonDecision.pair2 || 0) * 0.08 +
         (secondCommonDecision.freqSignal || 0) * 0.08 +
         (secondCommonDecision.reboundBoost || 0) * 0.90 +
-        (secondCommonDecision.fallenCommon ? -10 : 0) +
+        (secondCommonDecision.recentCarryBoost || 0) * 1.15 +
+        (secondCommonDecision.value === lastRoll ? 12 : 0) +
+        (secondCommonDecision.fallenCommon && !(secondCommonDecision.reboundArmed || secondCommonDecision.value === lastRoll) ? -10 : 0) +
         (secondCommonDecision.direction === 'rising' ? 4 : secondCommonDecision.direction === 'stable' ? 2 : -4)
       )
     : -Infinity;
@@ -1002,13 +1027,19 @@ function scoreSvarogAnalyzerPicks({
     (bestCommonDecision?.commonScore || 0) >= 52;
   const breakChallengeMargin =
     normalizedNoiseTiming === 'due'
-      ? 2
+      ? 4
       : normalizedNoiseTiming === 'approaching'
-        ? 6
+        ? 8
         : 999;
+  const anchoredCommonMargin =
+    secondCommonDecision?.value === lastRoll
+      ? 6
+      : secondCommonDecision?.reboundArmed
+        ? 4
+        : 0;
   const shouldPromoteNoiseOverSecondCommon =
     allowBreakChallenge &&
-    bestNoiseChallengeScore >= secondCommonHoldScore + breakChallengeMargin &&
+    bestNoiseChallengeScore >= secondCommonHoldScore + breakChallengeMargin + anchoredCommonMargin &&
     bestNoiseDecision?.value !== bestCommonDecision?.value;
   if (shouldPromoteNoiseOverSecondCommon) {
     analyzerTop2 = bestNoiseRanked?.value === analyzerTop1?.value
