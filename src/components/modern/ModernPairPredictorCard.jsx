@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { predictWithPairs } from '../../utils/pairTransitionPredictor';
+import { buildPermissionView } from '../../utils/permissionLayer';
 import { withBaseUrl } from '../../utils/assetPaths';
 
 const VALUES = ['41', '42', '43', '44'];
@@ -74,6 +75,7 @@ export default function ModernPairPredictorCard({
   }, [entries]);
 
   const data = useMemo(() => predictWithPairs(rolls, { region }), [rolls, region]);
+  const permissionView = useMemo(() => buildPermissionView(data, rolls), [data, rolls]);
 
   const isWarming = !data.prediction;
 
@@ -94,12 +96,45 @@ export default function ModernPairPredictorCard({
     // 🚨 Emergency brake
     isSessionReset
   } = data;
+  const {
+    boardStateLabel,
+    leadingModel,
+    leadingPrediction,
+    altPrediction: actionAltPrediction,
+    altLabel,
+    actionConfidence,
+    permission,
+    primaryReason,
+    recoveryCue,
+  } = permissionView;
 
   // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
 
   const confidencePct = Math.round(confidence * 100);
   const cardStyle = getCardStyle(isChaotic, false);
   const badgeStyle = getBadgeStyle(label);
+  const actionToneClass =
+    permission === 'STAND BY'
+      ? 'border-rose-500/35 bg-rose-500/10 text-rose-100'
+      : permission === 'WAIT'
+        ? 'border-amber-500/35 bg-amber-500/10 text-amber-100'
+        : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-100';
+  const actionChipClass =
+    permission === 'STAND BY'
+      ? 'border-rose-400/40 bg-rose-500/15 text-rose-200'
+      : permission === 'WAIT'
+        ? 'border-amber-400/40 bg-amber-500/15 text-amber-200'
+        : 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200';
+  const stateChipClass =
+    boardStateLabel === 'Stable'
+      ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-200'
+      : boardStateLabel === 'Degraded Stable'
+        ? 'border-amber-500/30 bg-amber-500/12 text-amber-200'
+        : boardStateLabel === 'Transition Watch'
+          ? 'border-orange-500/30 bg-orange-500/12 text-orange-200'
+          : boardStateLabel === 'Transition'
+            ? 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-200'
+            : 'border-slate-500/30 bg-slate-500/12 text-slate-200';
   const trendGlossary = {
     share: {
       label: 'Trend share',
@@ -441,8 +476,44 @@ export default function ModernPairPredictorCard({
       {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
       <div className="px-4 pb-3">
 
-        {/* Reason line */}
-        <p className="text-[11px] text-slate-400 italic mb-4 text-center">{reasonLine}</p>
+        <div className={`mb-4 rounded-xl border px-3 py-3 ${actionToneClass}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${actionChipClass}`}>
+                  {permission}
+                </span>
+                <span className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${stateChipClass}`}>
+                  {boardStateLabel}
+                </span>
+              </div>
+              <p id={tutorialIds.statusMessageId} className="mt-2 text-sm font-semibold leading-snug text-slate-100">
+                {primaryReason}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300">
+                <span className="uppercase tracking-[0.14em] text-slate-500">Leading read</span>
+                <span className="font-semibold text-slate-100">
+                  {leadingModel === 'break-risk' ? 'Break Risk' : 'Lane Memory'}
+                  {leadingPrediction ? ` • ${leadingPrediction}` : ''}
+                </span>
+                {actionAltPrediction && altLabel && (
+                  <span className="text-slate-400">
+                    alt ({altLabel}) • <span className="font-semibold text-slate-200">{actionAltPrediction}</span>
+                  </span>
+                )}
+              </div>
+              {recoveryCue && (
+                <p className="mt-2 text-[11px] text-slate-300">
+                  Recovery cue: <span className="font-medium text-slate-100">{recoveryCue}</span>
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Action Confidence</p>
+              <p className="mt-1 text-2xl font-black text-slate-50">{actionConfidence}%</p>
+            </div>
+          </div>
+        </div>
 
         {/* Pair safety strip */}
         <div id={tutorialIds.warningStripId} className={`mb-4 rounded-xl border px-3 py-2 ${
@@ -454,7 +525,7 @@ export default function ModernPairPredictorCard({
         }`}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p id={tutorialIds.statusMessageId} className={`text-[10px] font-black uppercase tracking-widest ${
+              <p className={`text-[10px] font-black uppercase tracking-widest ${
                 pairSafety === 'safe'
                   ? 'text-emerald-300'
                   : pairSafety === 'caution'
@@ -464,7 +535,7 @@ export default function ModernPairPredictorCard({
                 {pairSafety === 'safe' ? 'Trusted Pair' : pairSafety === 'caution' ? 'Pair At Risk' : 'Break Danger'}
               </p>
               <p className="text-[11px] text-slate-300">
-                {displayPair?.join(' / ')} {mixedWindow ? '• mixed window' : '• stable lane'}
+                {displayPair?.join(' / ')} • {boardStateLabel.toLowerCase()}
               </p>
             </div>
             <div className="text-right">
@@ -488,7 +559,7 @@ export default function ModernPairPredictorCard({
         {/* YOUR 2 PICKS */}
         <div id={tutorialIds.mainPredictorId} className="mb-1">
           <div className="text-[9px] text-slate-500 uppercase tracking-widest text-center mb-2">
-            Your 2 Picks This Session
+            Trusted Pair View
           </div>
           <div className="flex gap-3 justify-center">
 
@@ -504,7 +575,7 @@ export default function ModernPairPredictorCard({
                 <span className={`text-xs font-bold mt-0.5 ${isChaotic ? 'text-orange-300' : 'text-violet-300'}`}>{mainPct}%</span>
               </div>
               <span className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
-                ← lean here
+                {leadingModel === 'break-risk' ? 'lane baseline' : 'lane lead'}
               </span>
             </div>
 
@@ -517,7 +588,7 @@ export default function ModernPairPredictorCard({
                 <span className="text-2xl font-bold text-slate-300">{altCommon}</span>
                 <span className="text-xs text-slate-500 mt-0.5">{altPct}%</span>
               </div>
-              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">or this</span>
+              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">lane fallback</span>
             </div>
           </div>
         </div>
