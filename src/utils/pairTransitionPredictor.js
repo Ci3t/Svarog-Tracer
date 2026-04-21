@@ -1007,6 +1007,9 @@ function scoreSvarogAnalyzerPicks({
     .map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
       const noisePool = noiseDecisionMap.get(entry.value);
+      const trustPct = Math.round((entry.trustScore || 0) * 100);
+      const support = entry.supportScore || 0;
+      const carry = entry.recentCarryScore || 0;
       const exactContextWeak =
         !(entry.pair1Reliable || entry.pair2Reliable) &&
         (entry.pair1 || 0) < 20 &&
@@ -1019,11 +1022,60 @@ function scoreSvarogAnalyzerPicks({
       const poolBoost = commons.includes(entry.value)
         ? (((commonPool?.commonScore ?? 50) - 50) * commonPoolWeight)
         : (((noisePool?.noiseScore ?? 50) - 50) * noisePoolWeight);
+      const appearanceRaw = commons.includes(entry.value)
+        ? (
+            (commonPool?.commonScore ?? 50) * 0.40 +
+            support * 0.22 +
+            carry * 0.18 +
+            trustPct * 0.14 +
+            (entry.currentShare || 0) * 0.06
+          )
+        : (
+            (noisePool?.noiseScore ?? 50) * 0.42 +
+            Math.max(entry.latentPressure || 0, entry.noisePriorityScore || 0) * 0.22 +
+            trustPct * 0.16 +
+            support * 0.08 +
+            ((entry.currentShare || 0) === 0 ? 8 : 0) +
+            ((entry.latentPressure || 0) >= 65 ? 5 : 0)
+          );
+      const appearanceWeight = commons.includes(entry.value)
+        ? (exactContextWeak ? 0.08 : 0.06)
+        : normalizedNoiseTiming === 'due'
+          ? 0.12
+          : normalizedNoiseTiming === 'approaching'
+            ? 0.10
+            : 0.07;
+      const appearanceBoost = (appearanceRaw - 50) * appearanceWeight;
+      const armedNoiseConsensusBoost =
+        !commons.includes(entry.value) &&
+        (entry.currentShare || 0) === 0 &&
+        (entry.latentPressure || 0) >= 70 &&
+        (noisePool?.noiseScore ?? 0) >= 70 &&
+        trustPct >= 50
+          ? (normalizedNoiseTiming === 'not_due' ? 4 : normalizedNoiseTiming === 'approaching' ? 6 : 8)
+          : 0;
+      const exactPoolAgreementBonus = commons.includes(entry.value)
+        ? (
+            (commonPool?.commonScore ?? 0) >= 60 &&
+            support >= 45 &&
+            trustPct >= 60
+              ? 2
+              : 0
+          )
+        : (
+            (noisePool?.noiseScore ?? 0) >= 60 &&
+            (entry.latentPressure || 0) >= 45 &&
+            trustPct >= 50
+              ? 2
+              : 0
+          );
       const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
       return {
         ...entry,
         exactContextWeak,
-        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost) * 100) / 100,
+        appearanceRaw: Math.round(appearanceRaw * 100) / 100,
+        appearanceBoost: Math.round(appearanceBoost * 100) / 100,
+        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost + appearanceBoost + armedNoiseConsensusBoost + exactPoolAgreementBonus) * 100) / 100,
       };
     })
     .sort((a, b) => {
@@ -1045,10 +1097,54 @@ function scoreSvarogAnalyzerPicks({
     });
   const finalAnalyzerRanked = refinedAnalyzerRanked.length ? refinedAnalyzerRanked : analyzerRanked;
   const analyzerFinalScores = normalizePoolScores(
-    finalAnalyzerRanked.map((entry) => ({
-      ...entry,
-      finalDecisionRaw: entry.refinedExactScore ?? entry.exactScore ?? entry.score ?? 0,
-    })),
+    finalAnalyzerRanked.map((entry) => {
+      const commonPool = commonDecisionMap.get(entry.value);
+      const noisePool = noiseDecisionMap.get(entry.value);
+      const trustPct = Math.round((entry.trustScore || 0) * 100);
+      const support = entry.supportScore || 0;
+      const carry = entry.recentCarryScore || 0;
+      const appearanceRaw = entry.appearanceRaw || 50;
+      const latent = Math.max(entry.latentPressure || 0, entry.noisePriorityScore || 0);
+      const poolScore = commons.includes(entry.value)
+        ? (commonPool?.commonScore ?? 50)
+        : (noisePool?.noiseScore ?? 50);
+      const deciderPoolBoost =
+        commons.includes(entry.value)
+          ? (poolScore - 50) * 0.16
+          : (poolScore - 50) * (normalizedNoiseTiming === 'due' ? 0.22 : normalizedNoiseTiming === 'approaching' ? 0.18 : 0.14);
+      const deciderTrustBoost = (trustPct - 50) * 0.08;
+      const deciderAppearanceBoost = (appearanceRaw - 50) * 0.10;
+      const deciderStateBoost = commons.includes(entry.value)
+        ? ((support - 40) * 0.06) + ((carry - 35) * 0.04)
+        : ((latent - 40) * 0.05) + (((entry.currentShare || 0) === 0 && latent >= 60 && trustPct >= 55) ? 3 : 0);
+      const thinPairMirage =
+        !(entry.pair1Reliable || entry.pair2Reliable) &&
+        ((entry.pair1 || 0) >= 80 || (entry.pair2 || 0) >= 80) &&
+        (entry.currentShare || 0) <= 25 &&
+        support < 42 &&
+        carry < 40 &&
+        trustPct < 75 &&
+        entry.direction !== 'rising';
+      const thinPairPenalty = thinPairMirage
+        ? (
+            commons.includes(entry.value)
+              ? (((entry.pair1 || 0) >= 80 ? 5 : 0) + ((entry.pair2 || 0) >= 80 ? 4 : 0))
+              : (((entry.pair1 || 0) >= 80 ? 7 : 0) + ((entry.pair2 || 0) >= 80 ? 6 : 0))
+          )
+        : 0;
+      return {
+        ...entry,
+        thinPairMirage,
+        thinPairPenalty,
+        finalDecisionRaw:
+          (entry.refinedExactScore ?? entry.exactScore ?? entry.score ?? 0) +
+          deciderPoolBoost +
+          deciderTrustBoost +
+          deciderAppearanceBoost +
+          deciderStateBoost -
+          thinPairPenalty,
+      };
+    }),
     'finalDecisionRaw',
     'pickScore'
   );
@@ -1241,6 +1337,8 @@ function scoreSvarogAnalyzerPicks({
       if (challengerWinsMain) {
         const promotedMain = bestChallenger.value;
         const promotedAlt =
+          finalAnalyzerRanked.find(entry => entry.value !== promotedMain && entry.value !== lastRoll)?.value ||
+          finalAnalyzerRanked.find(entry => entry.value !== promotedMain)?.value ||
           scored.find(entry => entry.value !== promotedMain && entry.value !== lastRoll)?.value ||
           scored.find(entry => entry.value !== promotedMain)?.value ||
           null;
@@ -1270,8 +1368,12 @@ function scoreSvarogAnalyzerPicks({
         };
       }
 
-      const currentMain = scored[0]?.value || null;
-      const currentAlt = scored.find(entry => entry.value !== currentMain)?.value || null;
+      const currentMain = analyzerTop1?.value || finalAnalyzerRanked[0]?.value || scored[0]?.value || null;
+      const currentAlt =
+        analyzerTop2?.value ||
+        finalAnalyzerRanked.find(entry => entry.value !== currentMain)?.value ||
+        scored.find(entry => entry.value !== currentMain)?.value ||
+        null;
       if (bestChallenger.value !== currentMain && bestChallenger.breakTotal >= (scored.find(entry => entry.value === currentAlt)?.score ?? -999) + 2) {
         return {
           prediction: currentMain,

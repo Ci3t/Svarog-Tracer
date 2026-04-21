@@ -83,6 +83,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(', ');
   };
 
+  const formatFinalScores = (scores) => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry.pickScore || 0)}(#${entry.rank || '?'})`)
+      .join(', ');
+  };
+
   const formatPoolScores = (scores, scoreKey = 'commonScore') => {
     if (!Array.isArray(scores) || scores.length === 0) return 'none';
     return scores
@@ -247,7 +255,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         current_run_len: ${data.currentRunLen ?? data.currentRunLength ?? 0}\n`;
       content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
       content += `         analyzer_noise_scores: ${formatNoiseScores(data.analyzerNoiseScores)}\n`;
-      content += `         analyzer_decider_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
+      content += `         analyzer_exact_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
+      content += `         analyzer_decider_scores: ${formatFinalScores(data.analyzerFinalScores)}\n`;
       content += `         analyzer_common_scores: ${formatPoolScores(data.analyzerCommonDecisionScores, 'commonScore')}\n`;
       content += `         analyzer_noise_pool_scores: ${formatPoolScores(data.analyzerNoiseDecisionScores, 'noiseScore')}\n`;
       if (data.analyzerBreakChallenge) {
