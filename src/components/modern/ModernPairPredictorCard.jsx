@@ -95,7 +95,9 @@ export default function ModernPairPredictorCard({
     // 🆕 Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
     // 🚨 Emergency brake
-    isSessionReset
+    isSessionReset,
+    // Board state
+    boardState, isChaosOverride
   } = data;
 
   // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
@@ -412,9 +414,14 @@ export default function ModernPairPredictorCard({
   const pairSpread = Math.abs(mainPct - altPct);
   const splitPairRead = pairSpread <= 14 || (pairSafety !== 'safe' && pairSpread <= 18);
   const playPairText = displayPair?.join(' / ') || `${mainCommon} / ${altCommon}`;
-  const decisionLine = splitPairRead
-    ? `Play ${playPairText}. No strong side yet — treat both as the live pair.`
-    : `Play ${playPairText}. Lean ${mainCommon} first, but keep ${altCommon} live behind it.`;
+  const topNoise = noiseOrder[0] || freshOutsider?.value || null;
+  const secondNoise = noiseOrder[1] || null;
+  const topSummaryLine = splitPairRead
+    ? `Play ${playPairText}.`
+    : `Play ${playPairText}. Lean ${mainCommon} first.`;
+  const secondarySummaryLine = topNoise
+    ? `If it breaks: ${topNoise}${secondNoise ? `, then ${secondNoise}` : ''}.`
+    : 'If it breaks: stay with the live pair until a real outsider repeats.';
 
   // Noise watch values — in chaos show ALL noise values, not just one
   const noiseWatchValues = (() => {
@@ -427,6 +434,16 @@ export default function ModernPairPredictorCard({
 
   const analyzerMatchesLane = analyzerPicks.some(pick => displayPair?.includes(pick));
   const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
+  const manualReadLine = pairSafety === 'safe'
+    ? 'Pair still holds.'
+    : pairSafety === 'caution'
+    ? 'Pair first. Only switch if the same break keeps confirming.'
+    : 'Fragile board. Use the break fallback sooner.';
+  const svarogSummaryLine = !analyzerPicks.length
+    ? null
+    : analyzerMatchesLane
+      ? `Svarog agrees on ${analyzerPicks.join(' / ')}.`
+      : `Svarog is leaning ${analyzerPicks.join(' / ')} instead.`;
   const followGuide = (() => {
     if (!analyzerPicks.length) return null;
     if (analyzerMode === 'break') {
@@ -455,8 +472,10 @@ export default function ModernPairPredictorCard({
     if (pairSafety === 'danger') {
       return {
         tone: 'analyzer',
-        title: 'Fragile pair',
-        text: 'Stay on the pair unless the same outsider keeps repeating.',
+        title: isChaosOverride ? 'Chaos — Analyzer Active' : 'Fragile pair',
+        text: isChaosOverride
+          ? 'Board is chaotic. MAIN/ALT now shows Svarog Analyzer picks — historically 50-75% top-2 on chaos boards.'
+          : 'Stay on the pair unless the same outsider keeps repeating.',
       };
     }
     return {
@@ -482,59 +501,24 @@ export default function ModernPairPredictorCard({
     return null;
   })();
 
-  const trustGuideLine = (() => {
-    if (!analyzerPicks.length) return null;
-    if (analyzerMode === 'break') {
-      const ratioPct = Math.round((analyzerNoiseDueRatio || 0) * 100);
-      return {
-        tone: 'warn',
-        text: `Svarog is in break mode here. Exact pair is ${analyzerPicks.join(' / ')}. If you expect a noise hit, trust the noise order shown below first.`,
-      };
-    }
-    const analyzerLeadsOutsider = freshOutsider?.value && analyzerPrediction === freshOutsider.value;
-    const analyzerSupport = trends?.[analyzerPrediction]?.supportScore ?? 0;
-    const analyzerSupportTier = trends?.[analyzerPrediction]?.supportTier ?? 'weak';
-    if (pairSafety === 'danger' && analyzerLeadsOutsider) {
-      if (analyzerSupport >= 55) {
-        return {
-          tone: 'danger',
-          text: `Svarog has real backing here: ${freshOutsider.value} is carrying the live break-pressure read on a fragile pair.`,
-        };
-      }
-      return {
-        tone: 'warn',
-        text: `Svarog sees ${freshOutsider.value} pressure, but the support is only ${analyzerSupportTier}. Treat it as a watch signal, not a free click.`,
-      };
-    }
-    if (pairSafety === 'safe') {
-      return {
-        tone: 'good',
-        text: `Svarog exact pair is ${analyzerPicks.join(' / ')}. Use the noise order only if you think the board is breaking.`,
-      };
-    }
-    if (pairSafety === 'caution' && analyzerMatchesLane) {
-      return {
-        tone: 'warn',
-        text: splitPairRead
-          ? 'Board is shaky, but both systems still point to the same pair. Play both commons.'
-          : 'Board is shaky, but both systems still point to the same pair. Lean the lane lead first.',
-      };
-    }
-    if (pairSafety === 'caution' && !analyzerMatchesLane) {
-      return {
-        tone: 'warn',
-        text: 'Mixed pressure. Keep playing the pair unless the outsider repeats and proves the break.',
-      };
-    }
-    return null;
-  })();
-
   return (
     <div className={`astral-bbp-card bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">🎯 BBP Mode</span>
+        {/* Board state indicator */}
+        {boardState && (
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border mr-1 ${
+            boardState === 'stable'
+              ? 'bg-emerald-900/60 border-emerald-500/60 text-emerald-300'
+              : boardState === 'caution'
+              ? 'bg-amber-900/60 border-amber-500/60 text-amber-300'
+              : 'bg-red-900/60 border-red-500/60 text-red-300'
+          }`}>
+            {boardState === 'stable' ? '🟢 STABLE' : boardState === 'caution' ? '🟡 CAUTION' : '🔴 CHAOS'}
+          </span>
+        )}
         {/* Mode badge with tooltip */}
         <div id={tutorialIds.modeBadgeId} className="relative group">
           <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border cursor-default ${badgeStyle}`}>
@@ -561,18 +545,8 @@ export default function ModernPairPredictorCard({
       {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
       <div className="px-4 pb-3">
         <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/40 px-3 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Next 2 picks</p>
-              <p className="mt-1 text-[13px] font-semibold text-slate-100">{decisionLine}</p>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Decision mode</p>
-              <p className={`mt-1 text-[11px] font-semibold ${splitPairRead ? 'text-amber-300' : 'text-violet-300'}`}>
-                {splitPairRead ? 'Split pair' : 'Lead + fallback'}
-              </p>
-            </div>
-          </div>
+          <p className="text-[15px] font-semibold text-slate-100">{topSummaryLine}</p>
+          <p className="mt-1 text-[12px] text-slate-400">{secondarySummaryLine}</p>
         </div>
 
         {/* Pair safety strip */}
@@ -584,28 +558,12 @@ export default function ModernPairPredictorCard({
             : 'border-rose-500/40 bg-rose-500/10'
         }`}>
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${
-                pairSafety === 'safe'
-                  ? 'text-emerald-300'
-                  : pairSafety === 'caution'
-                  ? 'text-amber-300'
-                  : 'text-rose-300'
-              }`}>
-                {pairSafety === 'safe' ? 'Trusted Pair' : pairSafety === 'caution' ? 'Pair At Risk' : 'Break Danger'}
-              </p>
-              <p className="text-[11px] text-slate-300">
-                {displayPair?.join(' / ')} • {mixedWindow ? 'mixed window' : 'lane holding'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Noise Risk</p>
-              <p id={tutorialIds.noiseRiskId} className={`text-sm font-black ${
-                noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
-              }`}>
-                {noiseRisk ?? 0}%
-              </p>
-            </div>
+            <p className="text-[12px] font-medium text-slate-200">{manualReadLine}</p>
+            <p id={tutorialIds.noiseRiskId} className={`shrink-0 text-[12px] font-bold ${
+              noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
+            }`}>
+              Risk {noiseRisk ?? 0}%
+            </p>
           </div>
           {freshOutsider?.value && (
             <p id={tutorialIds.breakPressureId} className="mt-2 text-[10px] text-slate-400">
@@ -664,10 +622,7 @@ export default function ModernPairPredictorCard({
                   className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
                 />
                 <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
-                <p className="text-[11px] text-slate-400 mt-1 pl-8">Svarog Analyzer — Next exact line</p>
-                <p className="text-[10px] text-slate-500 mt-1 pl-8">
-                  Mode: {analyzerMode === 'break' ? 'break pair' : analyzerMode === 'break-watch' ? 'break watch' : 'pair exact'}
-                </p>
+                <p className="text-[11px] text-slate-400 mt-1 pl-8">Exact next pair</p>
               </div>
               <div className="flex items-center gap-2.5">
                 {analyzerPicks.map((pick, idx) => (
@@ -684,6 +639,10 @@ export default function ModernPairPredictorCard({
               </div>
             </div>
             
+            {svarogSummaryLine && (
+              <p className="mb-3 pl-8 text-[12px] text-slate-300">{svarogSummaryLine}</p>
+            )}
+
             {followGuide && (
               <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
                 followGuide.tone === 'good'
@@ -694,21 +653,7 @@ export default function ModernPairPredictorCard({
                   ? 'border-rose-500/30 bg-rose-500/10'
                   : 'border-amber-500/30 bg-amber-500/10'
               }`}>
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`w-2 h-2 rounded-full ${
-                    followGuide.tone === 'good' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 
-                    followGuide.tone === 'lane' ? 'bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]' : 
-                    followGuide.tone === 'analyzer' ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)] animate-pulse' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                  }`} />
-                  <p className={`text-[11px] font-black uppercase tracking-widest ${
-                    followGuide.tone === 'good' ? 'text-emerald-300' : 
-                    followGuide.tone === 'lane' ? 'text-violet-300' : 
-                    followGuide.tone === 'analyzer' ? 'text-rose-300' : 'text-amber-300'
-                  }`}>
-                    {followGuide.title}
-                  </p>
-                </div>
-                <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium pl-4.5">
+                <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium">
                   {followGuide.text}
                 </p>
               </div>
@@ -718,21 +663,14 @@ export default function ModernPairPredictorCard({
 
 
         {primaryWatchLine && (
-          <div id={tutorialIds.watchMessageId} className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 ${
+          <div id={tutorialIds.watchMessageId} className={`mt-3 rounded-lg px-3 py-2 ${
             primaryWatchLine.tone === 'danger'
               ? 'bg-rose-500/12 border border-rose-500/35'
               : primaryWatchLine.tone === 'warn'
               ? 'bg-amber-500/10 border border-amber-500/30'
               : 'bg-slate-700/25 border border-slate-600/30'
           }`}>
-            <span className={`text-xs ${
-              primaryWatchLine.tone === 'danger'
-                ? 'text-rose-300'
-                : primaryWatchLine.tone === 'warn'
-                ? 'text-amber-300'
-                : 'text-slate-400'
-            }`}>⚡</span>
-            <span className={`text-[11px] font-medium ${
+            <p className={`text-[12px] font-medium ${
               primaryWatchLine.tone === 'danger'
                 ? 'text-rose-200'
                 : primaryWatchLine.tone === 'warn'
@@ -740,34 +678,7 @@ export default function ModernPairPredictorCard({
                 : 'text-slate-300'
             }`}>
               {primaryWatchLine.text}
-            </span>
-          </div>
-        )}
-
-        {trustGuideLine && (
-          <div className={`mt-2 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 ${
-            trustGuideLine.tone === 'danger'
-              ? 'bg-fuchsia-500/12 border border-fuchsia-500/35'
-              : trustGuideLine.tone === 'good'
-                ? 'bg-emerald-500/12 border border-emerald-500/35'
-                : 'bg-cyan-500/10 border border-cyan-500/30'
-          }`}>
-            <span className={`text-xs ${
-              trustGuideLine.tone === 'danger'
-                ? 'text-fuchsia-300'
-                : trustGuideLine.tone === 'good'
-                  ? 'text-emerald-300'
-                  : 'text-cyan-300'
-            }`}>◎</span>
-            <span className={`text-[11px] font-medium ${
-              trustGuideLine.tone === 'danger'
-                ? 'text-fuchsia-100'
-                : trustGuideLine.tone === 'good'
-                  ? 'text-emerald-100'
-                  : 'text-cyan-100'
-            }`}>
-              {trustGuideLine.text}
-            </span>
+            </p>
           </div>
         )}
 
