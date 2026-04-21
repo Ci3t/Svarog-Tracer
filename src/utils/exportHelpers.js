@@ -55,7 +55,8 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       const overall = Math.round(overallMap.get(value)?.overallScore ?? 0);
       const state = trend.state || 'unknown';
       const direction = trend.direction || 'stable';
-      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | overall ${overall}% | support ${support}% (${supportTier}) | carry ${recentCarry}% | latent ${latent}% (${latentTier}) | noise ${noisePriority}% (${noisePriorityTier}) | ${state} | ${direction}`;
+      const motif = Math.round(trend.motifScore ?? 0);
+      return `${value}: share ${share}% | trust ${trust}% | fresh ${freshness}% | overall ${overall}% | support ${support}% (${supportTier}) | carry ${recentCarry}% | motif ${motif}% | latent ${latent}% (${latentTier}) | noise ${noisePriority}% (${noisePriorityTier}) | ${state} | ${direction}`;
     });
   };
 

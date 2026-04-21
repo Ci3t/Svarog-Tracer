@@ -404,6 +404,42 @@ function getBreakRiskPercent(currentRunLen, avgObservedRunLen, regime, freshOuts
   return Math.max(0, Math.min(100, Math.round(risk)));
 }
 
+function buildLocalMotifScores(rolls) {
+  const scores = Object.fromEntries(VALUES.map((value) => [value, 0]));
+  if (!Array.isArray(rolls) || rolls.length < 4) return scores;
+
+  const lengths = [
+    { len: 4, weight: 1.7 },
+    { len: 3, weight: 1.25 },
+    { len: 2, weight: 0.9 },
+  ];
+
+  for (const { len, weight } of lengths) {
+    if (rolls.length <= len) continue;
+    const tail = rolls.slice(-len).join(',');
+    for (let i = 0; i <= rolls.length - len - 1; i++) {
+      const window = rolls.slice(i, i + len).join(',');
+      if (window !== tail) continue;
+      const nextValue = rolls[i + len];
+      if (!VALUES.includes(nextValue)) continue;
+      const recencySteps = (rolls.length - len - 1) - i;
+      const recencyBoost =
+        recencySteps <= 1 ? 1.35 :
+        recencySteps <= 3 ? 1.15 :
+        recencySteps <= 6 ? 1.0 :
+        0.82;
+      scores[nextValue] += weight * recencyBoost;
+    }
+  }
+
+  const maxScore = Math.max(...Object.values(scores), 0);
+  if (maxScore <= 0) return scores;
+
+  return Object.fromEntries(
+    Object.entries(scores).map(([value, raw]) => [value, Math.round((raw / maxScore) * 100)])
+  );
+}
+
 function scoreSvarogAnalyzerPicks({
   rolls,
   lastRoll,
@@ -431,6 +467,7 @@ function scoreSvarogAnalyzerPicks({
   const recent6Dist = getDistribution(rolls.slice(-6));
   const recent4 = rolls.slice(-4);
   const recent2 = rolls.slice(-2);
+  const motifScores = buildLocalMotifScores(rolls);
   const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
   const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
   const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
@@ -529,6 +566,7 @@ function scoreSvarogAnalyzerPicks({
         : Math.min((effectiveGap / Math.max(expectedGap, 1)) * 40, 100);
     const pairSignal = Math.min(weightedPair1, 100);
     const pair2Signal = Math.min(weightedPair2, 100);
+    const motifScore = motifScores[value] || 0;
     const freqSignal = Math.min(distribution?.[value] || 0, 100);
     const momentumSignal = Math.min(momentum, 100);
     const recentSignal = Math.min(recent6 * 2, 100);
@@ -621,6 +659,7 @@ function scoreSvarogAnalyzerPicks({
     score += (effectivePressure - 40) * 0.24;
     score += timingBonus;
     score += pressureBonus;
+    score += motifScore >= 60 ? 6 : motifScore >= 40 ? 3 : motifScore >= 25 ? 1 : 0;
 
     if (direction === 'rising') score += effectivePressure >= 55 ? 7 : effectivePressure >= 42 ? 3 : -5;
     else if (direction === 'stable') score += 2;
@@ -637,6 +676,7 @@ function scoreSvarogAnalyzerPicks({
       pair1Reliable,
       pair2,
       pair2Reliable,
+      motifScore,
       freqSignal,
       recentSignal,
       momentumSignal,
@@ -1080,13 +1120,22 @@ function scoreSvarogAnalyzerPicks({
               ? 2
               : 0
           );
+      const motifBoost =
+        (entry.motifScore || 0) >= 65
+          ? (exactContextWeak ? 8 : 6)
+          : (entry.motifScore || 0) >= 45
+            ? (exactContextWeak ? 4 : 3)
+            : (entry.motifScore || 0) >= 25
+              ? 1
+              : 0;
       const reboundBoost = commons.includes(entry.value) ? (commonPool?.reboundBoost || 0) : 0;
       return {
         ...entry,
         exactContextWeak,
         appearanceRaw: Math.round(appearanceRaw * 100) / 100,
         appearanceBoost: Math.round(appearanceBoost * 100) / 100,
-        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost + appearanceBoost + armedNoiseConsensusBoost + exactPoolAgreementBonus) * 100) / 100,
+        motifBoost,
+        refinedExactScore: Math.round(((entry.exactScore || 0) + poolBoost + reboundBoost + appearanceBoost + armedNoiseConsensusBoost + exactPoolAgreementBonus + motifBoost) * 100) / 100,
       };
     })
     .sort((a, b) => {
@@ -1128,6 +1177,14 @@ function scoreSvarogAnalyzerPicks({
       const deciderStateBoost = commons.includes(entry.value)
         ? ((support - 40) * 0.06) + ((carry - 35) * 0.04)
         : ((latent - 40) * 0.05) + (((entry.currentShare || 0) === 0 && latent >= 60 && trustPct >= 55) ? 3 : 0);
+      const deciderMotifBoost =
+        (entry.motifScore || 0) >= 70
+          ? 8
+          : (entry.motifScore || 0) >= 50
+            ? 5
+            : (entry.motifScore || 0) >= 30
+              ? 2
+              : 0;
       const deciderBreakPressureBoost =
         !commons.includes(entry.value) && freshOutsider?.value === entry.value
           ? (
@@ -1161,6 +1218,7 @@ function scoreSvarogAnalyzerPicks({
           deciderTrustBoost +
           deciderAppearanceBoost +
           deciderStateBoost +
+          deciderMotifBoost +
           deciderBreakPressureBoost -
           thinPairPenalty,
       };
