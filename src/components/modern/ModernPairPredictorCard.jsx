@@ -288,9 +288,23 @@ export default function ModernPairPredictorCard({
     return new Map(entries.map((entry) => [entry.value, entry]));
   }, [analyzerFinalScores]);
   const analyzerPicks = useMemo(() => {
+    const finalRanked = Array.isArray(analyzerFinalScores)
+      ? analyzerFinalScores
+          .slice()
+          .sort((a, b) => (b?.pickScore || 0) - (a?.pickScore || 0))
+          .map((entry) => entry?.value)
+          .filter((value, index, array) => value && array.indexOf(value) === index)
+      : [];
     const picks = [];
-    if (analyzerPrediction) picks.push(analyzerPrediction);
-    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
+
+    finalRanked.slice(0, 2).forEach((value) => {
+      if (value && !picks.includes(value)) picks.push(value);
+    });
+
+    if (!picks.length) {
+      if (analyzerPrediction) picks.push(analyzerPrediction);
+      if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
+    }
 
     const breakTopCommon = analyzerBreakChallenge?.topCommon || null;
     const breakTopNoise = analyzerBreakChallenge?.topNoise || null;
@@ -313,6 +327,7 @@ export default function ModernPairPredictorCard({
   }, [
     analyzerAlt,
     analyzerBreakChallenge,
+    analyzerFinalScores,
     analyzerPrediction,
     commonOrder,
     noiseOrder,
