@@ -969,7 +969,16 @@ function scoreSvarogAnalyzerPicks({
                 ? -12
                 : normalizedNoiseTiming === 'approaching'
                   ? -7
-                  : -3
+                : -3
+            )
+          : 0;
+      const breakPressureBoost =
+        freshOutsider?.value === entry.value
+          ? (
+              Math.min(14, Math.max(0, Math.round((freshOutsider.score || 0) * 0.14))) +
+              ((freshOutsider.recent2Hits || 0) >= 1 ? 4 : 0) +
+              ((freshOutsider.recent4Hits || 0) >= 2 ? 3 : 0) +
+              (freshOutsider.direction === 'rising' ? 4 : freshOutsider.direction === 'stable' ? 2 : 0)
             )
           : 0;
       const raw =
@@ -980,12 +989,14 @@ function scoreSvarogAnalyzerPicks({
         (entry.pressureScore || 0) * 0.18 +
         (entry.activationScore || 0) * 0.12 +
         (entry.armedNoiseBoost || 0) * 0.18 +
+        breakPressureBoost +
         timingPoolBonus +
         dormantOverdueBonus +
         recentOutsiderPenalty +
         (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -4);
       return {
         ...entry,
+        breakPressureBoost,
         dormantOverdueBonus,
         recentOutsiderPenalty,
         noiseDecisionRaw: raw,
@@ -1117,6 +1128,14 @@ function scoreSvarogAnalyzerPicks({
       const deciderStateBoost = commons.includes(entry.value)
         ? ((support - 40) * 0.06) + ((carry - 35) * 0.04)
         : ((latent - 40) * 0.05) + (((entry.currentShare || 0) === 0 && latent >= 60 && trustPct >= 55) ? 3 : 0);
+      const deciderBreakPressureBoost =
+        !commons.includes(entry.value) && freshOutsider?.value === entry.value
+          ? (
+              Math.min(8, Math.max(0, Math.round((freshOutsider.score || 0) * 0.08))) +
+              ((freshOutsider.recent2Hits || 0) >= 1 ? 2 : 0) +
+              (freshOutsider.direction === 'rising' ? 2 : 0)
+            )
+          : 0;
       const thinPairMirage =
         !(entry.pair1Reliable || entry.pair2Reliable) &&
         ((entry.pair1 || 0) >= 80 || (entry.pair2 || 0) >= 80) &&
@@ -1141,7 +1160,8 @@ function scoreSvarogAnalyzerPicks({
           deciderPoolBoost +
           deciderTrustBoost +
           deciderAppearanceBoost +
-          deciderStateBoost -
+          deciderStateBoost +
+          deciderBreakPressureBoost -
           thinPairPenalty,
       };
     }),

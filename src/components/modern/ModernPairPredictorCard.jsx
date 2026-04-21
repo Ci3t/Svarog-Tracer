@@ -981,7 +981,7 @@ export default function ModernPairPredictorCard({
             </div>
             <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
               `trend share` = how much this value owns the latest 5-roll window.
-              `decider` = Svarog's final pick strength after all math is blended. Higher is the one to trust.
+              `decider` = Svarog's final pick strength after all math is blended, including trust, pool strength, appearance, and break pressure. Higher is the one to trust.
               `common / noise` = Svarog's pool-specific tie-break percent inside its own pool. Higher wins inside commons or inside noise.
               `trust` = internal confidence in the arrow direction.
               `fresh` = how recently that same arrow changed or stayed alive.
