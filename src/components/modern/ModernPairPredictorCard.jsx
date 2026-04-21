@@ -27,10 +27,11 @@ function getBadgeStyle(label = '') {
   return 'bg-violet-500/25 text-violet-300 border-violet-500/50';
 }
 
-// Card border/glow depends on session state
-function getCardStyle(isChaotic, isWarming) {
+// Card border/glow depends on board state
+function getCardStyle(boardState, isWarming) {
   if (isWarming) return 'border-slate-600/40 shadow-slate-900/60';
-  if (isChaotic) return 'border-orange-500/50 shadow-orange-900/30';
+  if (boardState === 'chaos') return 'border-red-500/60 shadow-red-900/40';
+  if (boardState === 'caution') return 'border-amber-500/45 shadow-amber-900/25';
   return 'border-violet-500/30 shadow-violet-900/20';
 }
 
@@ -103,7 +104,7 @@ export default function ModernPairPredictorCard({
   // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
 
   const confidencePct = Math.round(confidence * 100);
-  const cardStyle = getCardStyle(isChaotic, false);
+  const cardStyle = getCardStyle(boardState, false);
   const badgeStyle = getBadgeStyle(label);
   const trendGlossary = {
     share: {
@@ -290,36 +291,35 @@ export default function ModernPairPredictorCard({
     return new Map(entries.map((entry) => [entry.value, entry]));
   }, [analyzerFinalScores]);
   const analyzerPicks = useMemo(() => {
-    const finalRanked = Array.isArray(analyzerFinalScores)
-      ? analyzerFinalScores
-          .slice()
-          .sort((a, b) => (b?.pickScore || 0) - (a?.pickScore || 0))
-          .map((entry) => entry?.value)
-          .filter((value, index, array) => value && array.indexOf(value) === index)
-      : [];
     const picks = [];
 
-    finalRanked.slice(0, 2).forEach((value) => {
-      if (value && !picks.includes(value)) picks.push(value);
-    });
+    // Primary: use prediction/alt from predictor (commons-priority on stable boards,
+    // noise-priority on chaos/danger boards — both already computed correctly in the predictor)
+    if (analyzerPrediction) picks.push(analyzerPrediction);
+    if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
 
-    if (!picks.length) {
-      if (analyzerPrediction) picks.push(analyzerPrediction);
-      if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
+    // Fill remaining slots from finalScores only if we still need more
+    if (picks.length < 2) {
+      const finalRanked = Array.isArray(analyzerFinalScores)
+        ? analyzerFinalScores
+            .slice()
+            .sort((a, b) => (b?.pickScore || 0) - (a?.pickScore || 0))
+            .map((entry) => entry?.value)
+            .filter((value, index, array) => value && array.indexOf(value) === index)
+        : [];
+      finalRanked.forEach((value) => {
+        if (value && !picks.includes(value)) picks.push(value);
+      });
     }
 
-    const breakTopCommon = analyzerBreakChallenge?.topCommon || null;
-    const breakTopNoise = analyzerBreakChallenge?.topNoise || null;
-    const breakSecondCommon = analyzerBreakChallenge?.secondCommon || null;
-
     if (picks.length < 2 && analyzerBreakChallenge?.promoted) {
-      [breakTopCommon, breakTopNoise].forEach((value) => {
+      [analyzerBreakChallenge?.topCommon, analyzerBreakChallenge?.topNoise].forEach((value) => {
         if (value && !picks.includes(value)) picks.push(value);
       });
     }
 
     if (picks.length < 2) {
-      [commonOrder[0], commonOrder[1], breakSecondCommon, noiseOrder[0], noiseOrder[1]]
+      [commonOrder[0], commonOrder[1], noiseOrder[0], noiseOrder[1]]
         .forEach((value) => {
           if (value && !picks.includes(value)) picks.push(value);
         });
@@ -466,7 +466,7 @@ export default function ModernPairPredictorCard({
       return {
         tone: 'lane',
         title: 'Play the pair',
-        text: 'Use the 2 commons first. Treat Svarog as a tie-break or confirmation layer.',
+        text: 'Play commons pair. Svarog confirms the lean.',
       };
     }
     if (pairSafety === 'danger') {
@@ -474,14 +474,14 @@ export default function ModernPairPredictorCard({
         tone: 'analyzer',
         title: isChaosOverride ? 'Chaos — Analyzer Active' : 'Fragile pair',
         text: isChaosOverride
-          ? 'Board is chaotic. MAIN/ALT now shows Svarog Analyzer picks — historically 50-75% top-2 on chaos boards.'
+          ? 'Chaos — Svarog is driving picks. Follow Svarog Eye.'
           : 'Stay on the pair unless the same outsider keeps repeating.',
       };
     }
     return {
       tone: 'split',
       title: 'Mixed board',
-      text: 'Keep the pair first. Use Svarog only if break pressure keeps confirming.',
+      text: 'Pair first. Switch if the outsider repeats twice.',
     };
   })();
 
@@ -502,23 +502,17 @@ export default function ModernPairPredictorCard({
   })();
 
   return (
-    <div className={`astral-bbp-card bg-gradient-to-br from-violet-900/20 to-slate-900/90 rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
+    <div className={`astral-bbp-card bg-gradient-to-br ${
+      boardState === 'chaos'   ? 'from-red-950/35 to-slate-900/95'
+      : boardState === 'caution' ? 'from-amber-950/20 to-slate-900/90'
+      : 'from-violet-900/20 to-slate-900/90'
+    } rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">🎯 BBP Mode</span>
-        {/* Board state indicator */}
-        {boardState && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border mr-1 ${
-            boardState === 'stable'
-              ? 'bg-emerald-900/60 border-emerald-500/60 text-emerald-300'
-              : boardState === 'caution'
-              ? 'bg-amber-900/60 border-amber-500/60 text-amber-300'
-              : 'bg-red-900/60 border-red-500/60 text-red-300'
-          }`}>
-            {boardState === 'stable' ? '🟢 STABLE' : boardState === 'caution' ? '🟡 CAUTION' : '🔴 CHAOS'}
-          </span>
-        )}
+        <span className={`text-xs font-bold uppercase tracking-wider ${
+          boardState === 'chaos' ? 'text-red-400' : boardState === 'caution' ? 'text-amber-400' : 'text-violet-400'
+        }`}>🎯 BBP Mode</span>
         {/* Mode badge with tooltip */}
         <div id={tutorialIds.modeBadgeId} className="relative group">
           <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border cursor-default ${badgeStyle}`}>
@@ -541,6 +535,30 @@ export default function ModernPairPredictorCard({
           )}
         </div>
       </div>
+
+      {/* ── BOARD STATE BANNER — prominent, full-width for chaos/caution ─── */}
+      {boardState === 'chaos' && (
+        <div className="mx-4 mb-1 flex items-center gap-3 rounded-xl border border-red-500/55 bg-red-900/30 px-3 py-2.5">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-black uppercase tracking-widest text-red-300">CHAOS BOARD</div>
+            <div className="text-[10px] text-red-400/85 leading-snug">
+              {isChaosOverride
+                ? 'Analyzer auto-applied — MAIN/ALT are Svarog picks. Lower certainty.'
+                : 'No dominant pair. All values appearing equally — lower certainty on all picks.'}
+            </div>
+          </div>
+        </div>
+      )}
+      {boardState === 'caution' && (
+        <div className="mx-4 mb-1 flex items-center gap-3 rounded-xl border border-amber-500/45 bg-amber-900/20 px-3 py-2.5">
+          <span className="text-xl shrink-0">⚡</span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-black uppercase tracking-widest text-amber-300">CAUTION</div>
+            <div className="text-[10px] text-amber-400/80 leading-snug">Pair is fragile. Switch to noise break sooner if the same outsider repeats.</div>
+          </div>
+        </div>
+      )}
 
       {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
       <div className="px-4 pb-3">
@@ -705,13 +723,6 @@ export default function ModernPairPredictorCard({
           );
         })()}
 
-        {/* Chaotic session note */}
-        {isChaotic && (
-          <p className="mt-2 text-[10px] text-orange-400/70 text-center italic">
-            Session is chaotic ({noiseRate}% noise) — picks have lower certainty
-          </p>
-        )}
-
         {/* Commons / Noise footer — always visible */}
         <div id={tutorialIds.commonsNoiseId} className="mt-3 pt-2.5 border-t border-slate-800/50 flex justify-center gap-5 text-[10px]">
           <div className="flex items-center gap-1.5">
@@ -758,35 +769,11 @@ export default function ModernPairPredictorCard({
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <div className="text-[9px] text-slate-500 uppercase tracking-wider">Trends</div>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
-                {[
-                  ['share', 'trend share'],
-                  ['trust', 'trust'],
-                  ['freshness', 'freshness'],
-                  ['state', 'fresh/held/stale'],
-                  ['examples', 'examples'],
-                ].map(([key, labelText]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setActiveTrendGlossary((current) => (current === key ? null : key))}
-                    className={`rounded-md border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] transition-colors ${
-                      activeTrendGlossary === key
-                        ? 'border-white/18 bg-white/[0.08] text-white'
-                        : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/18 hover:text-slate-200'
-                    }`}
-                  >
-                    {labelText}
-                  </button>
-                ))}
+                <span className="rounded border border-violet-500/35 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-300">MAIN</span>
+                <span className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">ALT</span>
+                <span className="rounded border border-cyan-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">N1</span>
+                <span className="rounded border border-emerald-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">N2</span>
               </div>
-            </div>
-            <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-              <span className="font-semibold text-slate-400">Svarog rank:</span>
-              <span className="rounded border border-violet-500/35 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-300">MAIN</span>
-              <span className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">ALT</span>
-              <span className="rounded border border-cyan-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">N1</span>
-              <span className="rounded border border-emerald-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">N2</span>
-              <span>These badges show Svarog's exact pair first, then the manual noise order if you think the board is breaking.</span>
             </div>
             {noiseOrder.length > 0 && (
               <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
@@ -798,9 +785,39 @@ export default function ModernPairPredictorCard({
                     <span className="text-emerald-300">{noiseOrder[1]}</span>
                   </>
                 ) : null}
-                <span className="pl-2 text-slate-500">Use this only when you think the next hit leaves the commons pair.</span>
+                <span className="pl-2 text-slate-500">Switch to these if commons break.</span>
               </div>
             )}
+
+            {/* ── NOISE INTERRUPT ETA ─────────────────────────────────────── */}
+            {analyzerNoiseDueRatio != null && noiseOrder.length > 0 && (() => {
+              const ratio = analyzerNoiseDueRatio;
+              const etaPct = Math.min(100, Math.round(ratio * 100));
+              const barFill = Math.min(100, etaPct);
+              const etaLabel = ratio >= 1.0
+                ? 'Due now'
+                : ratio >= 0.7
+                ? `~${Math.round((1 - ratio) / (ratio / (Math.max(1, commonsSinceNoise || 3)))) + 1}–${Math.round((1 - ratio) / (ratio / (Math.max(1, commonsSinceNoise || 3)))) + 3} rolls`
+                : 'Not due';
+              const { bg, border, labelClr, barClr } =
+                ratio >= 1.0
+                  ? { bg: 'bg-rose-900/20', border: 'border-rose-500/35', labelClr: 'text-rose-300', barClr: 'bg-rose-500' }
+                  : ratio >= 0.7
+                  ? { bg: 'bg-amber-900/15', border: 'border-amber-500/25', labelClr: 'text-amber-300', barClr: 'bg-amber-500' }
+                  : { bg: 'bg-slate-800/30', border: 'border-slate-700/30', labelClr: 'text-slate-400', barClr: 'bg-slate-600' };
+              return (
+                <div className={`mb-3 rounded-lg border px-3 py-2 ${bg} ${border}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">🔔 Noise ETA</span>
+                    <span className={`text-[10px] font-bold ${labelClr}`}>{etaLabel} — watch {noiseOrder[0]}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-800/60 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-300 ${barClr}`} style={{ width: `${barFill}%` }} />
+                  </div>
+
+                </div>
+              );
+            })()}
             {commonOrder.length > 0 && (
               <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
                 <span className="font-semibold text-slate-200">Commons order:</span>{' '}
@@ -811,7 +828,7 @@ export default function ModernPairPredictorCard({
                     <span className="text-amber-300">{commonOrder[1]}</span>
                   </>
                 ) : null}
-                <span className="pl-2 text-slate-500">Use this when you think the board stays on the commons pair.</span>
+
               </div>
             )}
             {breakChallengeSummary && (
@@ -822,6 +839,38 @@ export default function ModernPairPredictorCard({
                 </span>
               </div>
             )}
+
+            {/* ── DECISION GUIDE — what to watch/do based on board state ── */}
+            {(() => {
+              // Find the top-rising non-main value by pickScore
+              const topWatchValue = VALUES
+                .filter(v => v !== analyzerMain)
+                .map(v => ({ v, ps: Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0), dir: trends?.[v]?.direction }))
+                .sort((a, b) => b.ps - a.ps)[0];
+              const watchLabel = topWatchValue?.v
+                ? `${topWatchValue.v} (decider ${topWatchValue.ps}%)${topWatchValue.dir === 'rising' ? ' ↑' : ''}`
+                : null;
+              const { bg, border, textClr, icon, msg } =
+                boardState === 'chaos'
+                  ? { bg: 'bg-red-900/20', border: 'border-red-500/30', textClr: 'text-red-300', icon: '🔴',
+                      msg: 'No dominant pair. Follow Svarog Eye picks.' }
+                  : boardState === 'caution'
+                  ? { bg: 'bg-amber-900/15', border: 'border-amber-500/25', textClr: 'text-amber-300', icon: '🟡',
+                      msg: watchLabel
+                        ? `Fragile. Watch ${watchLabel} — repeats 2× = switch.`
+                        : 'Fragile pair. Switch if outsider repeats.' }
+                  : { bg: 'bg-emerald-900/15', border: 'border-emerald-500/25', textClr: 'text-emerald-300', icon: '🟢',
+                      msg: watchLabel
+                        ? `Clean. Stay MAIN. ${watchLabel} = best break candidate.`
+                        : 'Clean board. Stay on MAIN.' };
+              return (
+                <div className={`mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 ${bg} ${border}`}>
+                  <span className="mt-0.5 shrink-0 text-sm">{icon}</span>
+                  <p className={`text-[11px] font-medium leading-snug ${textClr}`}>{msg}</p>
+                </div>
+              );
+            })()}
+
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
                 const t = trends?.[v] || { direction: 'stable', current: 0 };
@@ -848,18 +897,34 @@ export default function ModernPairPredictorCard({
                 const isNoise1 = !isMain && !isAlt && v === noiseOrder[0];
                 const isNoise2 = !isMain && !isAlt && v === noiseOrder[1];
                 const isInPlay = isMain || isAlt || isNoise1 || isNoise2;
+                // WATCH indicator: highest noise threat when noise is approaching/due, OR highest non-main pick
+                const isCommonValue = commons.includes(v);
+                const poolConfidence = isCommonValue ? commonDecider : noiseDecider;
+                const allNoiseScores = VALUES.filter(vv => !commons.includes(vv))
+                  .map(vv => Math.round(noiseDecisionMap.get(vv)?.noiseScore ?? 0));
+                const maxNoiseScore = Math.max(...allNoiseScores, 0);
+                const isWatchValue = !isMain && !isCommonValue && noiseDecider === maxNoiseScore && noiseDecider >= 35;
                 const rankBadge = isMain ? { label: 'MAIN', cls: 'bg-violet-500/25 text-violet-300 border-violet-500/50' }
                   : isAlt         ? { label: 'ALT',  cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' }
                   : isNoise1      ? { label: 'N1', cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' }
                   : isNoise2      ? { label: 'N2', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
                   : null;
                 return (
-                  <div key={v} className={`flex-1 text-center py-1.5 rounded-md bg-slate-800/50
-                    ${isMain ? 'border border-violet-500/40' : isAlt ? 'border border-amber-500/30' : isNoise1 ? 'border border-cyan-500/20' : isNoise2 ? 'border border-emerald-500/20' : ''}`}>
+                  <div key={v} className={`flex-1 text-center py-1.5 rounded-md ${
+                    isWatchValue ? 'bg-sky-900/25 border border-sky-400/40'
+                    : isMain ? 'bg-slate-800/50 border border-violet-500/40'
+                    : isAlt ? 'bg-slate-800/50 border border-amber-500/30'
+                    : isNoise1 ? 'bg-slate-800/50 border border-cyan-500/20'
+                    : isNoise2 ? 'bg-slate-800/50 border border-emerald-500/20'
+                    : 'bg-slate-800/50'
+                  }`}>
                     {rankBadge
                       ? <div className={`mx-auto mb-0.5 w-fit rounded px-1.5 py-px text-[8px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
                       : <div className="mb-0.5 h-[14px]" />}
-                    <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
+                    {isWatchValue && (
+                      <div className="mb-0.5 text-[8px] font-black uppercase tracking-widest text-sky-400">WATCH</div>
+                    )}
+                    <div className={`text-xs font-bold ${isInPlay || isWatchValue ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
                     <div className={`text-[11px] ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
                     {(() => {
@@ -869,56 +934,39 @@ export default function ModernPairPredictorCard({
                       if (isFallenCommon) {
                         return (
                           <>
-                            <div className="mt-1 text-[10px] font-medium text-orange-400">common {commonDecider}%</div>
+                            <div className="mt-1 text-[10px] font-medium text-orange-400">{commonDecider}% play</div>
                             <div className={`text-[8px] font-black uppercase tracking-widest ${isReboundLive ? 'text-emerald-300/90' : 'text-orange-400/80'}`}>
-                              {isReboundLive ? 'REBOUND LIVE' : 'WEAK - check pair row'}
+                              {isReboundLive ? 'REBOUND LIVE' : 'WEAK'}
                             </div>
                           </>
                         );
                       }
+                      if (isCommon) {
+                        return (
+                          <div className={`mt-1 text-[10px] font-black ${
+                            commonDecider >= 65 ? 'text-violet-300'
+                            : commonDecider >= 40 ? 'text-violet-400/80'
+                            : 'text-violet-500/70'
+                          }`}>{commonDecider}% play</div>
+                        );
+                      }
                       return (
-                        <div className="mt-1 text-[10px] font-medium text-violet-300">
-                          {isCommon ? `common ${commonDecider}%` : `noise ${noiseDecider}%`}
-                        </div>
+                        <div className={`mt-1 text-[10px] font-black ${
+                          noiseDecider >= 65 ? 'text-cyan-300'
+                          : noiseDecider >= 40 ? 'text-cyan-400/80'
+                          : 'text-cyan-600/70'
+                        }`}>{noiseDecider}% threat</div>
                       );
                     })()}
-                    <div className="text-[10px] font-semibold text-sky-300">decider {pickScore}%</div>
-                    <div className="mt-1 text-[10px] font-medium text-cyan-300">trust {trustPct}%</div>
-                    <div className="text-[10px] font-medium text-amber-300">fresh {freshnessPct}%</div>
+                    <div className="text-[10px] font-medium text-cyan-300/70">trust {trustPct}%</div>
                     <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              `trend share` = how much this value owns the latest 5-roll window.
-              `decider` = Svarog's final pick strength after all math is blended, including trust, pool strength, appearance, and break pressure. Higher is the one to trust.
-              `common / noise` = Svarog's pool-specific tie-break percent inside its own pool. Higher wins inside commons or inside noise.
-              `trust` = internal confidence in the arrow direction.
-              `fresh` = how recently that same arrow changed or stayed alive.
+            <div className="mt-1.5 text-[10px] text-slate-600">
+              play% = commons lean · threat% = noise danger · trust = trend certainty · ↑ = building
             </div>
-            {activeTrendGlossary && (
-              <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-3">
-                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
-                  <div className="rounded-lg border border-white/6 bg-black/20 p-3">
-                    <div className={`text-[10px] font-black uppercase tracking-[0.16em] ${trendGlossary[activeTrendGlossary].tone}`}>
-                      {trendGlossary[activeTrendGlossary].label}
-                    </div>
-                    <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-                      {trendGlossary[activeTrendGlossary].body}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-white/6 bg-black/20 p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">Examples</div>
-                    <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-slate-400">
-                      {trendGlossary[activeTrendGlossary].examples.map((example) => (
-                        <p key={example}>{example}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Pair matrix row for last roll */}

@@ -1622,6 +1622,31 @@ function scoreSvarogAnalyzerPicks({
     'finalDecisionRaw',
     'pickScore'
   );
+  // Rising commons floor: a commons value with a rising trend should never be 0% pick.
+  // Rising = building momentum. 0% means the normalization completely buried it under noise
+  // timing pressure. Enforce a floor of 10% and re-normalize so the total stays at 100.
+  const risingCommonsFloor = 10;
+  const needsFloor = analyzerFinalScores.some(
+    (e) => commons.includes(e.value) && (trends?.[e.value]?.direction === 'rising') && (e.pickScore || 0) < risingCommonsFloor
+  );
+  if (needsFloor) {
+    let adjusted = analyzerFinalScores.map((e) => {
+      const isRisingCommon = commons.includes(e.value) && (trends?.[e.value]?.direction === 'rising');
+      return isRisingCommon && (e.pickScore || 0) < risingCommonsFloor
+        ? { ...e, pickScore: risingCommonsFloor }
+        : e;
+    });
+    const adjustedTotal = adjusted.reduce((s, e) => s + (e.pickScore || 0), 0);
+    if (adjustedTotal > 0) {
+      const scale = 100 / adjustedTotal;
+      analyzerFinalScores = adjusted.map((e) => ({ ...e, pickScore: Math.round((e.pickScore || 0) * scale) }));
+      // Clamp any floating-point rounding to ensure total = 100
+      const finalTotal = analyzerFinalScores.reduce((s, e) => s + (e.pickScore || 0), 0);
+      if (finalTotal !== 100 && analyzerFinalScores.length > 0) {
+        analyzerFinalScores[0] = { ...analyzerFinalScores[0], pickScore: (analyzerFinalScores[0].pickScore || 0) + (100 - finalTotal) };
+      }
+    }
+  }
   let analyzerFinalRawRanked = [...analyzerFinalScores].sort(
     (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
   );
@@ -4263,19 +4288,38 @@ export function predictWithPairs(rolls, options = {}) {
     method = method + '+analyzer-alt';
   }
 
+  // COMMONS-PRIORITY OVERRIDE: On non-danger boards, the Svarog ML formula is structurally
+  // noise-biased (negative exactScore coefficient punishes dominant values; no commonScore term).
+  // On stable/caution boards actual rolls are almost always commons, so use commonDecisionScores
+  // ranking to drive analyzerPrediction/analyzerAlt instead of the biased finalDecisionRaw ranking.
+  // DANGER boards are excluded — the chaos override copies svarogPrediction/svarogAlt to the pair
+  // predictor's prediction/alt. Keeping noise-biased picks on danger boards preserves chaos accuracy.
+  const sortedByCommon = Array.isArray(analyzer.commonDecisionScores) && analyzer.commonDecisionScores.length >= 2
+    ? [...analyzer.commonDecisionScores].sort((a, b) => (b.commonScore || 0) - (a.commonScore || 0))
+    : [];
+  const topCommonScore = sortedByCommon[0]?.commonScore || 0;
+  let svarogPrediction = analyzer.prediction;
+  let svarogAlt = analyzer.alt;
+  if (
+    displayPairSafety !== 'danger' &&
+    sortedByCommon.length >= 2
+  ) {
+    if (sortedByCommon[0]?.value) {
+      svarogPrediction = sortedByCommon[0].value;
+      svarogAlt = sortedByCommon[1]?.value || analyzer.alt;
+    }
+  }
+
   // CHAOS OVERRIDE: When board is clearly chaotic (danger + high noise risk), the Svarog
   // Analyzer consistently outperforms the pair predictor (75% vs 25% top-2 observed on
-  // sessions with commons lag / stale pair). Skipped on isFlat boards (truly uniform 25%/25%
-  // distribution) where no predictor has a structural edge and the pair predictor may be
-  // better calibrated to local context. Net gain: +11 top-2 hits across 63 entries.
+  // sessions with commons lag / stale pair). Net gain: +11 top-2 hits across 63 entries.
   const isChaosOverride =
-    !isFlat &&
     displayPairSafety === 'danger' &&
     (displayNoiseRisk ?? 0) > 60 &&
-    analyzer.prediction != null;
+    svarogPrediction != null;
   if (isChaosOverride) {
-    prediction = analyzer.prediction;
-    alt = analyzer.alt || alt;
+    prediction = svarogPrediction;
+    alt = svarogAlt || alt;
     method = method + '+chaos-analyzer';
   }
 
@@ -4333,8 +4377,8 @@ export function predictWithPairs(rolls, options = {}) {
     staleTrustedCount: pairOutlook.staleTrustedCount,
     freshOutsiderLead: pairOutlook.freshOutsiderLead,
     freshOutsider: pairOutlook.freshOutsider,
-    analyzerPrediction: analyzer.prediction,
-    analyzerAlt: analyzer.alt,
+    analyzerPrediction: svarogPrediction,
+    analyzerAlt: svarogAlt,
     isChaosOverride,
     boardState: displayPairSafety === 'safe' ? 'stable' : displayPairSafety === 'caution' ? 'caution' : 'chaos',
     analyzerScores: analyzer.scores,
