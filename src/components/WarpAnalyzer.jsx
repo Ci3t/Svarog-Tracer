@@ -15,6 +15,24 @@ const Icons = {
   Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="15" x2="15.01" y1="13" y2="13" /><line x1="18" x2="18.01" y1="11" y2="11" /><rect width="20" height="12" x="2" y="6" rx="2" /></svg>
 };
 
+const LV999_BANNER_NAME = 'Silver Wolf LV.999';
+const LV999_FALLBACK_IMAGE = `${import.meta.env.BASE_URL}999SW.png`;
+const LV999_LC_BANNER_NAME = 'Silver Wolf LV.999 Light Cone';
+const LV999_LC_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23006.png';
+
+function applyLv999ImageFallback(event, bannerName) {
+  if (event.currentTarget.dataset.lv999FallbackApplied === '1') return;
+  if (bannerName === LV999_BANNER_NAME) {
+    event.currentTarget.dataset.lv999FallbackApplied = '1';
+    event.currentTarget.src = LV999_FALLBACK_IMAGE;
+    return;
+  }
+  if (bannerName === LV999_LC_BANNER_NAME) {
+    event.currentTarget.dataset.lv999FallbackApplied = '1';
+    event.currentTarget.src = LV999_LC_FALLBACK_IMAGE;
+  }
+}
+
 export default function WarpAnalyzer({ sessionTheme }) {
   const isThemed = sessionTheme && sessionTheme !== 'modern';
 
@@ -482,6 +500,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                 src={currentBanner.image}
                 alt=""
                 className="absolute top-0 right-0 h-full w-auto object-cover opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
+                onError={(event) => applyLv999ImageFallback(event, currentBanner?.name)}
               />
               <div className="absolute inset-0 bg-gradient-to-l from-slate-950/20 via-slate-950/60 to-slate-950" />
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-transparent to-slate-950" />
@@ -668,6 +687,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                           src={banner.image}
                           alt={banner.name}
                           className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
+                          onError={(event) => applyLv999ImageFallback(event, banner.name)}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-4">

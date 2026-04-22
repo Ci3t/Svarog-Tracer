@@ -132,6 +132,21 @@ export async function handler(req, res) {
 
     console.log(`[HSR Banners API] Found ${dedupedCandidates.length} active banner candidate(s)`);
     
+    const HSR_TEMP_CHARACTER_FALLBACK = {
+      name: 'Silver Wolf LV.999',
+      image: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
+      type: 'character',
+    };
+    const HSR_TEMP_LIGHT_CONE_FALLBACK = {
+      id: '3116_light_cone',
+      bannerId: '3116',
+      name: 'Silver Wolf LV.999 Light Cone',
+      image: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp',
+      type: 'light_cone',
+      characterId: '23006',
+      game: 'hsr',
+    };
+
     // 4. Map banner IDs to character/LC names and images
     const banners = dedupedCandidates.map(banner => {
       const charId = banner.characterId;
@@ -181,6 +196,46 @@ export async function handler(req, res) {
         endTime: banner.endTime
       };
     });
+
+    const knownCharacterNames = new Set(
+      banners.filter((banner) => banner.type === 'character').map((banner) => String(banner.name || '').trim())
+    );
+    const exactLv999Index = banners.findIndex((banner) => String(banner.bannerId) === '2116');
+    if (exactLv999Index !== -1) {
+      banners[exactLv999Index] = {
+        ...banners[exactLv999Index],
+        name: HSR_TEMP_CHARACTER_FALLBACK.name,
+        image: HSR_TEMP_CHARACTER_FALLBACK.image,
+        type: HSR_TEMP_CHARACTER_FALLBACK.type,
+      };
+    } else if (
+      knownCharacterNames.has('Firefly') &&
+      knownCharacterNames.has('Castorice') &&
+      knownCharacterNames.has('Dahlia')
+    ) {
+      const unknownIndex = banners.findIndex((banner) => banner.type === 'unknown');
+      if (unknownIndex !== -1) {
+        banners[unknownIndex] = {
+          ...banners[unknownIndex],
+          name: HSR_TEMP_CHARACTER_FALLBACK.name,
+          image: HSR_TEMP_CHARACTER_FALLBACK.image,
+        type: HSR_TEMP_CHARACTER_FALLBACK.type,
+      };
+    }
+    const exactLv999LcIndex = banners.findIndex((banner) => String(banner.bannerId) === '3116');
+    if (exactLv999LcIndex !== -1) {
+      banners[exactLv999LcIndex] = {
+        ...banners[exactLv999LcIndex],
+        name: HSR_TEMP_LIGHT_CONE_FALLBACK.name,
+        image: HSR_TEMP_LIGHT_CONE_FALLBACK.image,
+        type: HSR_TEMP_LIGHT_CONE_FALLBACK.type,
+      };
+    } else if (exactLv999Index !== -1) {
+      banners.push({
+        ...HSR_TEMP_LIGHT_CONE_FALLBACK,
+      });
+    }
+    }
     
     console.log('[HSR Banners API] Returning banners:', banners.map(b => b.name).join(', '));
     
