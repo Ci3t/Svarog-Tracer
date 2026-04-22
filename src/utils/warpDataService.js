@@ -437,7 +437,13 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
       .map((banner) => String(banner.name || '').trim())
   );
 
-  const exactLv999Index = list.findIndex((banner) => banner?.game === 'hsr' && String(banner?.id || banner?.bannerId || '') === '2116');
+  const hasBannerId = (banner, targetId) =>
+    banner?.game === 'hsr' && (
+      String(banner?.id || '') === String(targetId) ||
+      String(banner?.bannerId || '') === String(targetId)
+    );
+
+  const exactLv999Index = list.findIndex((banner) => hasBannerId(banner, '2116'));
   if (exactLv999Index !== -1) {
     list[exactLv999Index] = {
       ...list[exactLv999Index],
@@ -461,7 +467,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
     }
   }
 
-  const exactLv999LcIndex = list.findIndex((banner) => banner?.game === 'hsr' && String(banner?.id || banner?.bannerId || '') === '3116');
+  const exactLv999LcIndex = list.findIndex((banner) => hasBannerId(banner, '3116'));
   if (exactLv999LcIndex !== -1) {
     list[exactLv999LcIndex] = {
       ...list[exactLv999LcIndex],
