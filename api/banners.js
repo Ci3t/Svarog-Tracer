@@ -256,9 +256,11 @@ async function fetchHSRActiveBanners() {
           ...liveBanners[unknownIndex],
           name: HSR_TEMP_CHARACTER_FALLBACK.name,
           image: HSR_TEMP_CHARACTER_FALLBACK.image,
-        type: HSR_TEMP_CHARACTER_FALLBACK.type,
-      };
+          type: HSR_TEMP_CHARACTER_FALLBACK.type,
+        };
+      }
     }
+
     const exactLv999LcIndex = liveBanners.findIndex((banner) => String(banner.id) === '3116');
     if (exactLv999LcIndex !== -1) {
       liveBanners[exactLv999LcIndex] = {
