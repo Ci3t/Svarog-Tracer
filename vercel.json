@@ -26,6 +26,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/hsr/:slug*",
+      "destination": "/api/hsr"
+    },
+    {
       "source": "/api/wuwa/:slug*",
       "destination": "/api/wuwa"
     },
