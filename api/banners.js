@@ -39,7 +39,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 6, // Increment this to force cache refresh after banner discovery updates
+  CACHE_VERSION: 7, // Increment this to force cache refresh after banner discovery updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
