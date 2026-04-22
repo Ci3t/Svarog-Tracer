@@ -181,6 +181,20 @@ async function fetchHSRActiveBanners() {
 
     if (dedupedCandidates.length === 0) return [];
 
+    const HSR_TEMP_CHARACTER_FALLBACK = {
+      name: 'Silver Wolf LV.999',
+      image: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
+      type: 'character',
+    };
+    const HSR_TEMP_LIGHT_CONE_FALLBACK = {
+      id: '3116',
+      name: 'Silver Wolf LV.999 Light Cone',
+      image: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp',
+      type: 'light_cone',
+      characterId: '23006',
+      game: 'hsr',
+    };
+
     // 4. Map IDs to Names and Images
     const liveBanners = dedupedCandidates.map(b => {
       const charData = charMap[b.charId];
@@ -215,6 +229,50 @@ async function fetchHSRActiveBanners() {
         };
       }
     });
+
+    // Temporary production fallback:
+    // if the current active HSR set clearly matches the Firefly / Castorice / Dahlia patch
+    // and one featured unit is still missing from StarRailRes metadata, surface it as
+    // Silver Wolf LV.999 instead of dropping it as "unknown".
+    const knownCharacterNames = new Set(
+      liveBanners.filter((banner) => banner.type === 'character').map((banner) => String(banner.name || '').trim())
+    );
+    const exactLv999Index = liveBanners.findIndex((banner) => String(banner.id) === '2116');
+    if (exactLv999Index !== -1) {
+      liveBanners[exactLv999Index] = {
+        ...liveBanners[exactLv999Index],
+        name: HSR_TEMP_CHARACTER_FALLBACK.name,
+        image: HSR_TEMP_CHARACTER_FALLBACK.image,
+        type: HSR_TEMP_CHARACTER_FALLBACK.type,
+      };
+    } else if (
+      knownCharacterNames.has('Firefly') &&
+      knownCharacterNames.has('Castorice') &&
+      knownCharacterNames.has('Dahlia')
+    ) {
+      const unknownIndex = liveBanners.findIndex((banner) => banner.type === 'unknown');
+      if (unknownIndex !== -1) {
+        liveBanners[unknownIndex] = {
+          ...liveBanners[unknownIndex],
+          name: HSR_TEMP_CHARACTER_FALLBACK.name,
+          image: HSR_TEMP_CHARACTER_FALLBACK.image,
+        type: HSR_TEMP_CHARACTER_FALLBACK.type,
+      };
+    }
+    const exactLv999LcIndex = liveBanners.findIndex((banner) => String(banner.id) === '3116');
+    if (exactLv999LcIndex !== -1) {
+      liveBanners[exactLv999LcIndex] = {
+        ...liveBanners[exactLv999LcIndex],
+        name: HSR_TEMP_LIGHT_CONE_FALLBACK.name,
+        image: HSR_TEMP_LIGHT_CONE_FALLBACK.image,
+        type: HSR_TEMP_LIGHT_CONE_FALLBACK.type,
+      };
+    } else if (exactLv999Index !== -1) {
+      liveBanners.push({
+        ...HSR_TEMP_LIGHT_CONE_FALLBACK,
+      });
+    }
+    }
 
     console.log('[HSR] Found', liveBanners.length, 'active banners');
     return liveBanners;

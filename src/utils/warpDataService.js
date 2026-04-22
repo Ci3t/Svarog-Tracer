@@ -19,6 +19,13 @@ import bannerHistory from '../data/bannerHistory.json';
 // Import Banner Display Configuration
 import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
 
+const HSR_LV999_NAME = 'Silver Wolf LV.999';
+const HSR_LV999_IMAGE = 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp';
+const HSR_LV999_LC_NAME = 'Silver Wolf LV.999 Light Cone';
+const HSR_LV999_LC_IMAGE = 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp';
+const HSR_LV999_LC_ID = '3116';
+const HSR_LV999_LC_CHARACTER_ID = '23006';
+
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
   // Primary: Most reliable globally
@@ -226,14 +233,14 @@ export async function fetchCentralizedBanners(game = 'all') {
        const filteredBanners = [...otherBanners, ...hsrChars, ...hsrLCs];
        
        // Run standard deduplication (just in case)
-       const cleanBanners = deduplicateBanners(filteredBanners);
+       const cleanBanners = deduplicateBanners(applyHsrTemporaryMetadataFallbacks(filteredBanners));
        
        console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (filtered overlap)');
        return cleanBanners;
     }
     
     // Deduplicate the combined results to handle reruns/duplicates from API
-    const cleanBanners = deduplicateBanners(allBanners);
+    const cleanBanners = deduplicateBanners(applyHsrTemporaryMetadataFallbacks(allBanners));
     
     console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (deduplicated)');
     return cleanBanners;
@@ -420,6 +427,61 @@ function deduplicateBanners(banners) {
   }
   
   return deduplicatedBanners;
+}
+
+function applyHsrTemporaryMetadataFallbacks(banners) {
+  const list = Array.isArray(banners) ? [...banners] : [];
+  const knownCharacterNames = new Set(
+    list
+      .filter((banner) => banner?.game === 'hsr' && banner?.type === 'character')
+      .map((banner) => String(banner.name || '').trim())
+  );
+
+  const exactLv999Index = list.findIndex((banner) => banner?.game === 'hsr' && String(banner?.id || banner?.bannerId || '') === '2116');
+  if (exactLv999Index !== -1) {
+    list[exactLv999Index] = {
+      ...list[exactLv999Index],
+      name: HSR_LV999_NAME,
+      image: HSR_LV999_IMAGE,
+      type: 'character',
+    };
+  } else if (
+    knownCharacterNames.has('Firefly') &&
+    knownCharacterNames.has('Castorice') &&
+    knownCharacterNames.has('Dahlia')
+  ) {
+    const unknownIndex = list.findIndex((banner) => banner?.game === 'hsr' && banner?.type === 'unknown');
+    if (unknownIndex !== -1) {
+      list[unknownIndex] = {
+        ...list[unknownIndex],
+        name: HSR_LV999_NAME,
+        image: HSR_LV999_IMAGE,
+        type: 'character',
+      };
+    }
+  }
+
+  const exactLv999LcIndex = list.findIndex((banner) => banner?.game === 'hsr' && String(banner?.id || banner?.bannerId || '') === '3116');
+  if (exactLv999LcIndex !== -1) {
+    list[exactLv999LcIndex] = {
+      ...list[exactLv999LcIndex],
+      name: HSR_LV999_LC_NAME,
+      image: HSR_LV999_LC_IMAGE,
+      type: 'light_cone',
+    };
+  } else if (exactLv999Index !== -1) {
+    list.push({
+      id: HSR_LV999_LC_ID,
+      bannerId: HSR_LV999_LC_ID,
+      name: HSR_LV999_LC_NAME,
+      image: HSR_LV999_LC_IMAGE,
+      type: 'light_cone',
+      characterId: HSR_LV999_LC_CHARACTER_ID,
+      game: 'hsr',
+    });
+  }
+
+  return list;
 }
 
 function extractHSRFeaturedIds(bannerData, charMap = {}, lcMap = {}) {
@@ -611,14 +673,15 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
                  name: info.name,
                  image: info.icon ? `${IMG_BASE}${info.icon}` : "",
                  type: type,
-                 characterId: b.charId
+                 characterId: b.charId,
+                 game: 'hsr'
              });
         }
     }
 
     // 6.5. DEDUPLICATE: If a character has multiple active banners (e.g., original + rerun),
     // keep only the one with the highest banner ID (most recent)
-    const cleanBanners = deduplicateBanners(finalBanners);
+    const cleanBanners = deduplicateBanners(applyHsrTemporaryMetadataFallbacks(finalBanners));
 
     // 7. Update Cache
     if (cleanBanners.length > 0) {
