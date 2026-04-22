@@ -237,7 +237,6 @@ export async function handler(req, res) {
         ...HSR_TEMP_LIGHT_CONE_FALLBACK,
       });
     }
-    }
     
     console.log('[HSR Banners API] Returning banners:', banners.map(b => b.name).join(', '));
     

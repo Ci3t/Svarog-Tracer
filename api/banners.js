@@ -274,7 +274,6 @@ async function fetchHSRActiveBanners() {
         ...HSR_TEMP_LIGHT_CONE_FALLBACK,
       });
     }
-    }
 
     console.log('[HSR] Found', liveBanners.length, 'active banners');
     return liveBanners;
