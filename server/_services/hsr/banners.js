@@ -219,9 +219,11 @@ export async function handler(req, res) {
           ...banners[unknownIndex],
           name: HSR_TEMP_CHARACTER_FALLBACK.name,
           image: HSR_TEMP_CHARACTER_FALLBACK.image,
-        type: HSR_TEMP_CHARACTER_FALLBACK.type,
-      };
+          type: HSR_TEMP_CHARACTER_FALLBACK.type,
+        };
+      }
     }
+
     const exactLv999LcIndex = banners.findIndex((banner) => String(banner.bannerId) === '3116');
     if (exactLv999LcIndex !== -1) {
       banners[exactLv999LcIndex] = {
