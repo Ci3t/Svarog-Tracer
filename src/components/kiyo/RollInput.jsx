@@ -22,23 +22,23 @@ export default function RollInput({
           type="text"
           value={testInput}
           onChange={(e) => {
-            const value = e.target.value.replace(/[^1-8]/g, "").slice(0, 2);
+            const value = e.target.value.replace(/[^1-4]/g, "").slice(0, 3);
             setTestInput(value);
 
             // Real-time prefix tracking for predictions
             if (value.length >= 2) {
-              const translated = translateTo4(value);
+              const padded = value.length === 3 ? value : value + "1";
+              const translated = translateTo4(padded);
               setActivePrefix(translated.slice(0, 2)); // 2-digit prefix for 3-str
             } else if (value.length === 1) {
-              const translated = translateTo4(value);
-              setActivePrefix(translated[0]); // 1-digit prefix for 2-str
+              setActivePrefix(value); // 1-digit prefix for 2-str (already 1-4)
             } else {
               setActivePrefix(null); // Clear if empty
             }
           }}
           onKeyDown={handleTestRollSubmit}
-          placeholder="e.g. 32  (2-str only)"
-          maxLength={2}
+          placeholder="e.g. 412  (3-str, 1-4)"
+          maxLength={3}
           className="flex-1 theme-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--theme-input-focus)]"
         />
         <button

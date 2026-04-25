@@ -130,32 +130,147 @@ function analyzePrefixGroup(zValues, prefix) {
     };
   }
 
-  // Test all 3 pairings
-  const scored = Z_PAIRINGS.map(p => ({ pairing: p, ...scorePairing(zValues, p) }));
+  // Test all 3 pairings — blend recent (last 6) at 70% + full session at 30%
+  // Matches 火花's "I look at the last ~4-6 data points" approach
+  const RECENT_Z = 6;
+  const recentZ = zValues.slice(-RECENT_Z);
+  const hasEnoughRecent = recentZ.length >= 3 && recentZ.length < zValues.length;
+
+  const scored = Z_PAIRINGS.map(p => {
+    const full   = scorePairing(zValues, p);
+    const recent = hasEnoughRecent ? scorePairing(recentZ, p) : null;
+    const blendedScore      = recent ? recent.score * 0.70      + full.score * 0.30      : full.score;
+    const blendedConfidence = recent ? recent.confidence * 0.70 + full.confidence * 0.30 : full.confidence;
+    // Use recent run data for current run / N (what's happening NOW)
+    const active = recent || full;
+    return {
+      pairing: p,
+      ...full,
+      score:      blendedScore,
+      confidence: blendedConfidence,
+      currentRun: active.currentRun,
+      n:          active.n,
+      completed:  active.completed,
+    };
+  });
   scored.sort((a, b) => b.score !== a.score ? b.score - a.score : b.confidence - a.confidence);
 
   const best = scored[0];
   const isConfident = best.confidence >= 0.5 && n >= 4;
   const isChaotic = best.score < 0.28 && n >= 6;
 
-  // Current run info
+  // Current run info (from best pairing, used for FLIP/HOLD action)
   const currentRun = best.currentRun;
   const currentSide = currentRun?.side ?? null;
   const currentLabel = currentSide === 'A' ? best.pairing.pairALabel : best.pairing.pairBLabel;
   const currentDigits = currentSide === 'A' ? best.pairing.pairA : best.pairing.pairB;
   const runLength = currentRun?.length ?? 0;
 
-  // Flip target
+  // Flip target (from best pairing)
   const flipSide = currentSide === 'A' ? 'B' : 'A';
   const flipLabel = flipSide === 'A' ? best.pairing.pairALabel : best.pairing.pairBLabel;
   const flipDigits = flipSide === 'A' ? best.pairing.pairA : best.pairing.pairB;
 
-  // Determine action
+  // ── Cross-pairing Z-digit vote (火花's actual method) ──────────────────────
+  // Each pairing independently predicts its next pair based on run state.
+  // The Z digit voted by 2+ pairings = highest confidence prediction.
+  const perPairingPred = scored.map(p => {
+    const cr = p.currentRun;
+    if (!cr || p.states.length < 3) return null;
+    // Pairing predicts FLIP if current run >= N, else HOLD (continue)
+    const willFlip = cr.length >= p.n;
+    const nextSide = willFlip ? (cr.side === 'A' ? 'B' : 'A') : cr.side;
+    const nextDigits = nextSide === 'A' ? p.pairing.pairA : p.pairing.pairB;
+    const nextLabel  = nextSide === 'A' ? p.pairing.pairALabel : p.pairing.pairBLabel;
+    return {
+      pairingName: p.pairing.name,
+      score: p.score,
+      willFlip,
+      nextSide,
+      nextLabel,
+      nextDigits,
+    };
+  }).filter(Boolean);
+
+  // ── Pair-then-narrow prediction (火花's actual method) ────────────────────
+  //
+  // The 3 pairings are mathematically constructed so that each of the 4 Z-digits
+  // appears in exactly one "pair" per pairing scheme. A raw 3-way vote ALWAYS
+  // produces 3 digits with 2/3 votes (by construction) — useless.
+  //
+  // Correct approach:
+  //   1. Best pairing = primary → its predicted pair = 2 candidates
+  //   2. Each other pairing contains exactly ONE of those 2 candidates in its
+  //      own prediction → they act as tiebreakers within the primary pair
+  //   3. If both secondaries pick the same candidate → single prediction (3/3)
+  //   4. If they disagree → use secondary scores to tiebreak, else 2 candidates
+  //   Result: always 1 or 2 candidates, never 3+.
+  //
+  const zVotes = { '1': 0, '2': 0, '3': 0, '4': 0 };
+  let topZDigits = [];
+  let topZDigit = null;
+  let zVoteMax = 0;
+  let zPredConfidence = 'low';
+
+  const bestPred = perPairingPred.find(p => p.pairingName === best.pairing.name);
+  if (bestPred && n >= 3) {
+    const primaryDigits = bestPred.nextDigits; // 2 candidates from best pairing
+    primaryDigits.forEach(d => { zVotes[d] += 1; });
+
+    // Each secondary contributes exactly 1 vote to one of the 2 primary candidates
+    const secondaries = perPairingPred.filter(p => p.pairingName !== best.pairing.name);
+    const subVotes = Object.fromEntries(primaryDigits.map(d => [d, 0]));
+    for (const sec of secondaries) {
+      const hit = sec.nextDigits.find(d => d in subVotes);
+      if (hit) { subVotes[hit]++; zVotes[hit]++; }
+    }
+
+    const subMax = Math.max(...Object.values(subVotes));
+
+    if (subMax === 2) {
+      // Both secondaries agree on one digit → single confident prediction
+      topZDigits = Object.entries(subVotes).filter(([, v]) => v === 2).map(([d]) => d).sort();
+      zVoteMax = 3;
+      zPredConfidence = best.score >= 0.7 ? 'high' : 'medium';
+    } else {
+      // Secondaries split → use score gap to tiebreak
+      const [sec1, sec2] = secondaries;
+      const sc1 = scored.find(s => s.pairing.name === sec1?.pairingName)?.score ?? 0;
+      const sc2 = scored.find(s => s.pairing.name === sec2?.pairingName)?.score ?? 0;
+
+      if (sec1 && sec2 && Math.abs(sc1 - sc2) >= 0.25) {
+        // One secondary is clearly more reliable — trust it to tiebreak
+        const betterSec = sc1 >= sc2 ? sec1 : sec2;
+        const betterDigit = betterSec.nextDigits.find(d => d in subVotes) ?? null;
+        topZDigits = betterDigit ? [betterDigit] : primaryDigits.slice().sort();
+        zVoteMax = 2;
+        zPredConfidence = 'medium';
+      } else {
+        // Coinflip — order topZDigits[0]=main, [1]=alt using better secondary
+        let mainD, altD;
+        if (sec1 && sec2 && sc1 !== sc2) {
+          const betterSec = sc1 >= sc2 ? sec1 : sec2;
+          mainD = betterSec.nextDigits.find(d => d in subVotes);
+          altD = primaryDigits.find(d => d !== mainD);
+        } else {
+          [mainD, altD] = primaryDigits.slice().sort();
+        }
+        topZDigits = [mainD, altD].filter(Boolean);
+        zVoteMax = 2;
+        zPredConfidence = best.score >= 0.7 ? 'medium' : 'low';
+      }
+    }
+    topZDigit = topZDigits.length === 1 ? topZDigits[0] : null;
+  }
+
+  // Determine action (driven by best pairing)
   let action, message, confidence;
 
   if (isChaotic) {
     action = 'SKIP'; confidence = 0.3;
     message = '⚠️ No clear pattern yet';
+    // Wipe any prediction — don't bet in chaotic state
+    topZDigits = []; zVoteMax = 0; topZDigit = null;
   } else if (!isConfident) {
     action = 'WAIT'; confidence = 0.4;
     message = `⏳ Building (${n} rolls, ${best.completed?.length ?? 0} runs)`;
@@ -177,12 +292,19 @@ function analyzePrefixGroup(zValues, prefix) {
     pairingName: best.pairing.name,
     pairingScore: best.score,
     pairingConfidence: best.confidence,
-    allPairings: scored,     // all 3 scored pairings (for debug/UI)
+    allPairings: scored,
     dominantN: best.n,
     currentSide, currentLabel, currentDigits, runLength,
     flipSide, flipLabel, flipDigits,
     states: best.states,
     runs: best.runs,
+    // Cross-pairing Z-digit vote output
+    perPairingPred,
+    zVotes,
+    zVoteMax,
+    topZDigits,    // e.g. ['3'] or ['1','3'] for a tie
+    topZDigit,     // e.g. '3' only when unambiguous, else null
+    zPredConfidence, // 'high' | 'medium' | 'low'
   };
 }
 

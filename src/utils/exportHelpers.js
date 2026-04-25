@@ -100,6 +100,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       .join(', ');
   };
 
+  const formatStateScores = (scores) => {
+    if (!Array.isArray(scores) || scores.length === 0) return 'none';
+    return scores
+      .slice(0, 4)
+      .map((entry) => `${entry.value}:${Math.round(entry.stateScore || 0)}(#${entry.rank || '?'})`)
+      .join(', ');
+  };
+
   const formatDormantCandidates = (data) => {
     const trends = data?.trends;
     if (!trends || typeof trends !== 'object') return ['none'];
@@ -118,6 +126,72 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
   const formatFreshOutsider = (freshOutsider) => {
     if (!freshOutsider?.value) return 'none';
     return `${freshOutsider.value} | score ${Math.round(freshOutsider.score || 0)} | r2 ${freshOutsider.recent2Hits || 0} | r4 ${freshOutsider.recent4Hits || 0} | ago ${freshOutsider.rollsAgo ?? '-'} | ${freshOutsider.direction || 'stable'}`;
+  };
+
+  const getRank = (scores, value, scoreKey) => {
+    if (!Array.isArray(scores)) return 'n/a';
+    const entry = scores.find((item) => item.value === value);
+    if (!entry) return 'n/a';
+    return entry.rank || entry.decisionRank || 'n/a';
+  };
+
+  const classifyReplayMiss = (data, actual) => {
+    const commons = Array.isArray(data?.commons) ? data.commons : [];
+    const isActualCommon = commons.includes(actual);
+    const finalRank = getRank(data?.analyzerFinalScores, actual, 'pickScore');
+    const commonRank = getRank(data?.analyzerCommonDecisionScores, actual, 'commonScore');
+    const noiseRank = getRank(data?.analyzerNoiseDecisionScores, actual, 'noiseScore');
+    const sensors = [];
+    if (data?.freshOutsider?.value === actual) sensors.push('fresh_outsider');
+    if (data?.siblingCommonValue === actual && data?.commonReturnArmed) sensors.push('common_return');
+    if (data?.commonReclaimValue === actual && data?.commonReclaimArmed) sensors.push('common_reclaim');
+    if (data?.siblingCommonValue === actual && data?.siblingBounceArmed) sensors.push('sibling_bounce');
+    if (data?.bridgeReturnValue === actual) sensors.push('bridge_return');
+    if (data?.preBlockReturnValue === actual) sensors.push('pre_block_return');
+    if (data?.missingFourthRotationValue === actual) sensors.push('missing_fourth');
+    if (data?.quadGapShockValue === actual) sensors.push('quad_gap_shock');
+    if (data?.cycleRestartValue === actual) sensors.push('cycle_restart');
+    if (data?.doubleBridgeEchoValue === actual) sensors.push('double_bridge_echo');
+    if (data?.doubleBridgeSwapValue === actual) sensors.push('double_bridge_swap');
+    if (data?.tightPairBoard && Array.isArray(data?.tightPairValues) && data.tightPairValues.includes(actual)) sensors.push('tight_pair_member');
+
+    let focus = 'mixed_frame_miss';
+    if (isActualCommon && Number(finalRank) >= 3) focus = 'common_underweighted';
+    if (!isActualCommon && Number(finalRank) >= 3) focus = 'noise_underweighted';
+    if (sensors.length > 0 && Number(finalRank) >= 3) focus = `sensor_ignored:${sensors[0]}`;
+    if (!isActualCommon && Number(noiseRank) > 1) focus = 'wrong_noise_order';
+    if (isActualCommon && Number(commonRank) > 1) focus = 'wrong_common_order';
+    if (data?.analyzerNoiseTiming === 'not_due' && !isActualCommon) focus = `${focus}|late_break_read`;
+    return {
+      role: isActualCommon ? 'common' : 'noise',
+      finalRank,
+      commonRank,
+      noiseRank,
+      sensors,
+      focus,
+    };
+  };
+
+  const formatTuningWatch = (data, actual) => {
+    const miss = classifyReplayMiss(data, actual);
+    const lines = [];
+    if (data?.sessionState) {
+      const playPair = Array.isArray(data.sessionState.playPair) ? data.sessionState.playPair.join('/') : 'none';
+      const fallback = Array.isArray(data.sessionState.fallback) && data.sessionState.fallback.length
+        ? data.sessionState.fallback.join('>')
+        : 'none';
+      lines.push(`session_state: ${data.sessionState.key || 'unknown'} | play_now=${playPair} | break_fallback=${fallback}`);
+    }
+    if (Array.isArray(data?.analyzerSessionStateScores) && data.analyzerSessionStateScores.length) {
+      lines.push(`state_order: ${formatStateScores(data.analyzerSessionStateScores)}`);
+    }
+    lines.push(`actual_role: ${miss.role} | final_rank: ${miss.finalRank} | common_rank: ${miss.commonRank} | noise_rank: ${miss.noiseRank}`);
+    lines.push(`frame_flags: mixed_quad=${data?.mixedQuadActive ? 'yes' : 'no'} | tight_pair=${data?.tightPairBoard ? (data?.tightPairValues || []).join('/') : 'no'} | common_dominant=${data?.commonDominantBoard ? 'yes' : 'no'} | noise_confirmed=${data?.noiseTriggerConfirmed ? 'yes' : 'no'} | noise_probe=${data?.noiseProbeOnly ? 'yes' : 'no'} | dev_pair=${data?.developingCommonsPairTakeover ? 'yes' : 'no'} | noise_phase=${data?.analyzerNoisePhase || 'idle'} | beat=${data?.analyzerNoiseBeatStyle || 'mixed'} | pair_preserve=${data?.pairNotDueCommonsPreserveTakeover ? 'yes' : 'no'} | dominant_preserve=${data?.commonDominantPreserveTakeover ? 'yes' : 'no'} | approach_preserve=${data?.approachingSecondCommonPreserveTakeover ? 'yes' : 'no'} | snapback=${data?.postOutsiderSnapbackTakeover ? 'yes' : 'no'}`);
+    lines.push(`sensor_values: bridge=${data?.bridgeReturnValue || 'none'} | pre_block=${data?.preBlockReturnValue || 'none'} | cycle_restart=${data?.cycleRestartValue || 'none'} | missing_fourth=${data?.missingFourthRotationValue || 'none'} | quad_gap=${data?.quadGapShockValue || 'none'} | dbl_echo=${data?.doubleBridgeEchoValue || 'none'} | dbl_swap=${data?.doubleBridgeSwapValue || 'none'} | profile=${data?.tailProfileMatch ? `${data.tailProfileMatch.target}(${data.tailProfileMatch.confidence}%)` : 'none'} | shape=${data?.shapeProfileMatch ? `${data.shapeProfileMatch.target}(${data.shapeProfileMatch.confidence}%)` : 'none'}`);
+    lines.push(`recovery_flags: common_return=${data?.commonReturnArmed ? `${data?.siblingCommonValue || 'none'}(${Math.round(data?.commonReturnStrength || 0)})` : 'no'} | common_reclaim=${data?.commonReclaimArmed ? `${data?.commonReclaimValue || 'none'}(${Math.round(data?.commonReclaimStrength || 0)})` : 'no'} | sibling_bounce=${data?.siblingBounceArmed ? `${data?.siblingCommonValue || 'none'}(${Math.round(data?.siblingBounceStrength || 0)})` : 'no'}`);
+    lines.push(`matched_signals: ${miss.sensors.length ? miss.sensors.join(', ') : 'none'}`);
+    lines.push(`tuning_focus: ${miss.focus}`);
+    return lines;
   };
 
   const formatLastSeen = (lastSeen) => {
@@ -223,6 +297,11 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       if (data.isAlternating) content += `         🔄 ALTERNATING: ${data.alternatingPair?.join('↔')}\n`;
       if (data.patternShifted) content += `         🔀 PATTERN SHIFT: ${data.shiftedToValue} is rising\n`;
       if (data.commonsFlipDetected) content += `         🔄 COMMONS FLIP: New commons [${data.newCommons?.join(', ')}] (${data.flipConfidence}%)\n`;
+      if (data.commonsSwitch?.detected) {
+        const cs = data.commonsSwitch;
+        const arrow = `[${cs.fullCommons?.join(',')}] → [${cs.recentCommons?.join(',')}]`;
+        content += `         ⚠️  COMMONS SWITCH (${cs.phase}/${cs.duration}): ${arrow} | ${cs.type} | in:[${cs.switchedIn?.join(',')}] out:[${cs.switchedOut?.join(',')}]\n`;
+      }
       if (data.regime) content += `         📊 REGIME: ${data.regime}\n`;
       content += `         --- AI REPLAY BLOCK ---\n`;
       content += `         actual_next: ${actual}\n`;
@@ -254,6 +333,19 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         commons_since_noise: ${data.commonsSinceNoise ?? 'n/a'}\n`;
       content += `         avg_noise_gap: ${data.avgNoiseGap ?? 'n/a'}\n`;
       content += `         current_run_len: ${data.currentRunLen ?? data.currentRunLength ?? 0}\n`;
+      if (data.commonsSwitch?.detected) {
+        const cs = data.commonsSwitch;
+        content += `         commons_switch_detected: yes\n`;
+        content += `         commons_switch_in: ${cs.switchedIn?.join(',') || 'none'}\n`;
+        content += `         commons_switch_out: ${cs.switchedOut?.join(',') || 'none'}\n`;
+        content += `         commons_switch_phase: ${cs.phase || 'unknown'}\n`;
+        content += `         commons_switch_type: ${cs.type || 'unknown'}\n`;
+        content += `         commons_switch_duration: ${cs.duration || 'fresh'}\n`;
+        content += `         commons_switch_full: ${cs.fullCommons?.join(',') || 'none'}\n`;
+        content += `         commons_switch_recent: ${cs.recentCommons?.join(',') || 'none'}\n`;
+      } else {
+        content += `         commons_switch_detected: no\n`;
+      }
       content += `         analyzer_scores: ${formatAnalyzerScores(data.analyzerScores)}\n`;
       content += `         analyzer_noise_scores: ${formatNoiseScores(data.analyzerNoiseScores)}\n`;
       content += `         analyzer_exact_scores: ${formatDecisionScores(data.analyzerDecisionScores)}\n`;
@@ -262,10 +354,14 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       content += `         analyzer_noise_pool_scores: ${formatPoolScores(data.analyzerNoiseDecisionScores, 'noiseScore')}\n`;
       if (data.analyzerBreakChallenge) {
         const bc = data.analyzerBreakChallenge;
-        content += `         analyzer_break_challenge: allow=${bc.allowBreakChallenge ? 'yes' : 'no'} | promoted=${bc.promoted ? 'yes' : 'no'} | top_common=${bc.topCommon || 'none'} | second_common=${bc.secondCommon || 'none'} | top_noise=${bc.topNoise || 'none'} | hold=${bc.secondCommonHoldScore ?? 'n/a'} | challenge=${bc.bestNoiseChallengeScore ?? 'n/a'} | margin=${bc.margin ?? 'n/a'}\n`;
+      content += `         analyzer_break_challenge: allow=${bc.allowBreakChallenge ? 'yes' : 'no'} | promoted=${bc.promoted ? 'yes' : 'no'} | top_common=${bc.topCommon || 'none'} | second_common=${bc.secondCommon || 'none'} | top_noise=${bc.topNoise || 'none'} | hold=${bc.secondCommonHoldScore ?? 'n/a'} | challenge=${bc.bestNoiseChallengeScore ?? 'n/a'} | margin=${bc.margin ?? 'n/a'}\n`;
       }
       content += `         pair_row_last: ${formatPairRowForExport(data.pairMatrix, data.lastRoll) || 'none'}\n`;
       content += `         pair_row_last2: ${formatPairRowForExport(data.pairMatrix2gram, data.last2Rolls) || 'none'}\n`;
+      content += `         tuning_watch:\n`;
+      formatTuningWatch(data, actual).forEach((line) => {
+        content += `           ${line}\n`;
+      });
       content += `         trends:\n`;
       formatTrendDetail(data).forEach((line) => {
         content += `           ${line}\n`;
@@ -342,6 +438,42 @@ export function exportDebugLogsToTXT(debugLogs, entries = []) {
       let sinceNoise = 0;
       for (let i = markers.length - 1; i >= 0; i--) { if (markers[i] === 'N') break; sinceNoise++; }
       content += `  Commons since last noise: ${sinceNoise}\n\n`;
+    }
+
+    // =========================================================================
+    // 🔀 COMMONS SWITCH TIMELINE
+    // Shows all entries where the commons pair shifted mid-session.
+    // =========================================================================
+    const switchEvents = [];
+    logs2str.forEach(log => {
+      const ctx = log.ctx;
+      const actual = log.actual;
+      if (!ctx || !Array.isArray(ctx) || ctx.length < 10) return;
+      const rolls = ctx.map(r => String(r));
+      const data = predictWithPairs(rolls);
+      if (data.commonsSwitch?.detected) {
+        const cs = data.commonsSwitch;
+        const time = log.ts ? new Date(log.ts).toLocaleTimeString() : '--:--:--';
+        switchEvents.push({ time, actual, cs, rollCount: rolls.length });
+      }
+    });
+
+    if (switchEvents.length > 0) {
+      content += `--- 🔀 Commons Switch Timeline ---\n`;
+      content += `(Entries where dominant pair shifted. Full commons = full-session, Recent = last 8)\n\n`;
+      let lastArrow = null;
+      switchEvents.forEach(({ time, actual, cs, rollCount }) => {
+        const arrow = `[${cs.fullCommons?.join(',')}]→[${cs.recentCommons?.join(',')}]`;
+        const isNew = arrow !== lastArrow;
+        lastArrow = arrow;
+        const marker = isNew ? '▶' : ' ';
+        content += `${marker} [${time}] actual:${actual} | ${arrow} | ${cs.type} ${cs.phase}/${cs.duration}`;
+        content += ` | in:[${cs.switchedIn?.join(',')}] out:[${cs.switchedOut?.join(',')}]`;
+        content += ` | ctx_len:${rollCount}\n`;
+      });
+      content += `\nTotal switch events: ${switchEvents.length}\n\n`;
+    } else {
+      content += `--- 🔀 Commons Switch Timeline ---\n(No switch events detected this session)\n\n`;
     }
   }
 

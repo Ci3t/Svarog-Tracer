@@ -19,6 +19,84 @@ const VALUE_PAIRS = [
   ['43', '44'],
 ];
 
+const SVAROG_FITTED_CHOOSER_WEIGHTS = {
+  base: 0.2447,
+  seq: 0.5819,
+  refined: 0.2207,
+  exact: -0.0101,
+  common: 0.0611,
+  noise: 0.1832,
+  support: 0.0009,
+  carry: 0.1286,
+  pair2: 0.1324,
+  pair3: 0.3301,
+  follow2: 0.1533,
+  follow3: 0.2287,
+  trust: 0.0040,
+  latent: -0.0325,
+  share: 0.0358,
+  motif: 0.0001,
+  isCommon: 4.5768,
+  isNoise: 4.7467,
+};
+
+const GLOBAL_PAIR2_PRIORS = {
+  '41,41': { '41': 9, '42': 0, '43': 55, '44': 36 },
+  '41,42': { '41': 0, '42': 33, '43': 50, '44': 17 },
+  '41,43': { '41': 30, '42': 35, '43': 13, '44': 22 },
+  '41,44': { '41': 29, '42': 29, '43': 21, '44': 21 },
+  '42,41': { '41': 36, '42': 21, '43': 29, '44': 14 },
+  '42,42': { '41': 20, '42': 35, '43': 10, '44': 35 },
+  '42,43': { '41': 29, '42': 0, '43': 35, '44': 35 },
+  '42,44': { '41': 17, '42': 28, '43': 22, '44': 33 },
+  '43,41': { '41': 7, '42': 33, '43': 40, '44': 20 },
+  '43,42': { '41': 40, '42': 7, '43': 27, '44': 27 },
+  '43,43': { '41': 17, '42': 17, '43': 25, '44': 42 },
+  '43,44': { '41': 24, '42': 43, '43': 19, '44': 14 },
+  '44,41': { '41': 21, '42': 21, '43': 37, '44': 21 },
+  '44,42': { '41': 18, '42': 36, '43': 23, '44': 23 },
+  '44,43': { '41': 8, '42': 42, '43': 8, '44': 42 },
+  '44,44': { '41': 54, '42': 31, '43': 8, '44': 8 },
+};
+const GLOBAL_PAIR3_PRIORS = {
+  '41,41,43': { '41': 13, '42': 63, '43': 25, '44': 0 },
+  '41,42,43': { '41': 50, '42': 0, '43': 0, '44': 50 },
+  '41,43,41': { '41': 0, '42': 75, '43': 25, '44': 0 },
+  '41,43,42': { '41': 25, '42': 25, '43': 0, '44': 50 },
+  '41,43,43': { '41': 67, '42': 0, '43': 33, '44': 0 },
+  '41,44,43': { '41': 0, '42': 50, '43': 0, '44': 50 },
+  '42,41,43': { '41': 75, '42': 25, '43': 0, '44': 0 },
+  '42,43,42': { '41': 0, '42': 0, '43': 100, '44': 0 },
+  '42,43,43': { '41': 0, '42': 0, '43': 100, '44': 0 },
+  '42,43,44': { '41': 17, '42': 67, '43': 17, '44': 0 },
+  '42,44,43': { '41': 0, '42': 25, '43': 25, '44': 50 },
+  '43,41,43': { '41': 50, '42': 25, '43': 25, '44': 0 },
+  '43,41,41': { '41': 0, '42': 0, '43': 100, '44': 0 },
+  '43,42,41': { '41': 0, '42': 33, '43': 33, '44': 33 },
+  '43,42,42': { '41': 25, '42': 50, '43': 0, '44': 25 },
+  '43,42,43': { '41': 25, '42': 25, '43': 38, '44': 13 },
+  '43,42,44': { '41': 20, '42': 0, '43': 40, '44': 40 },
+  '43,43,41': { '41': 0, '42': 0, '43': 50, '44': 50 },
+  '43,43,42': { '41': 33, '42': 33, '43': 0, '44': 33 },
+  '43,43,43': { '41': 22, '42': 33, '43': 11, '44': 33 },
+  '43,43,44': { '41': 0, '42': 43, '43': 0, '44': 57 },
+  '43,44,42': { '41': 29, '42': 29, '43': 29, '44': 14 },
+  '43,44,43': { '41': 0, '42': 33, '43': 0, '44': 67 },
+  '43,44,44': { '41': 50, '42': 50, '43': 0, '44': 0 },
+  '44,41,42': { '41': 0, '42': 50, '43': 25, '44': 25 },
+  '44,42,41': { '41': 40, '42': 40, '43': 20, '44': 0 },
+  '44,43,42': { '41': 60, '42': 20, '43': 20, '44': 0 },
+  '44,43,43': { '41': 0, '42': 25, '43': 25, '44': 50 },
+  '44,43,44': { '41': 50, '42': 0, '43': 50, '44': 0 },
+  '44,44,41': { '41': 40, '42': 40, '43': 20, '44': 0 },
+};
+const GLOBAL_PAIR1_PRIORS = {
+  '41': { '41': 18, '42': 20, '43': 38, '44': 23 },
+  '42': { '41': 20, '42': 29, '43': 25, '44': 26 },
+  '43': { '41': 23, '42': 23, '43': 20, '44': 33 },
+  '44': { '41': 29, '42': 33, '43': 18, '44': 20 },
+};
+
 function normalizePredictorRegion(region) {
   const key = String(region || '').trim().toUpperCase();
   if (key === 'EU' || key === 'EUROPE') return 'EU';
@@ -132,6 +210,7 @@ function scoreTrustedPairs({
     const commonsCount = pair.filter(value => commons.includes(value)).length;
     const noiseCount = pair.filter(value => noise.includes(value)).length;
     const outsiderValues = pair.filter(value => noise.includes(value));
+    const outsiderSingletonCount = outsiderValues.filter((value) => rolls.filter((roll) => roll === value).length <= 1).length;
     const outsiderRecentPeak = outsiderValues.reduce((max, value) => Math.max(max, recent6Dist[value] || 0), 0);
     const outsiderRecent4Peak = outsiderValues.reduce((max, value) => {
       const recentHits = recent4.filter(r => r === value).length;
@@ -152,6 +231,16 @@ function scoreTrustedPairs({
     ) {
       score += regime === 'stable' ? 9 : 5;
     }
+    if (
+      rolls.length >= 6 &&
+      regime === 'stable' &&
+      commonsCount === 1 &&
+      noiseCount === 1 &&
+      outsiderSingletonCount > 0 &&
+      outsiderRecent4Peak <= 1
+    ) {
+      score -= 10 * outsiderSingletonCount;
+    }
     if (pair.every(value => (trends[value]?.direction || 'stable') === 'rising')) score += 6;
     if (pair.every(value => (trends[value]?.direction || 'stable') === 'falling')) score -= 10;
 
@@ -161,6 +250,37 @@ function scoreTrustedPairs({
   let trustedPair = pairScores[0]?.pair || commons;
   let noisePair = VALUES.filter(value => !trustedPair.includes(value));
   let runnerUpPair = pairScores[1]?.pair || noisePair;
+  const currentCommonsKey = [...commons].sort().join('/');
+  const currentCommonsPairScore = pairScores.find((entry) => entry.pair.join('/') === currentCommonsKey) || null;
+  const topPairOverlapWithCommons = trustedPair.filter((value) => commons.includes(value)).length;
+  const topPairSingletonNoiseCount = trustedPair.filter(
+    (value) => noise.includes(value) && rolls.filter((roll) => roll === value).length <= 1
+  ).length;
+  const currentCommonsBacked =
+    commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0) >= 40 ||
+    commons.includes(lastRoll);
+  const shouldPreserveAdaptiveCommons =
+    rolls.length >= 6 &&
+    topPairOverlapWithCommons < 2 &&
+    currentCommonsBacked &&
+    !!currentCommonsPairScore &&
+    currentCommonsPairScore.score >= (
+      (pairScores[0]?.score || 0) -
+      (
+        commons.includes(lastRoll) && regime === 'stable'
+          ? 30
+          : 16
+      )
+    ) &&
+    (
+      topPairSingletonNoiseCount > 0 ||
+      !trustedPair.includes(lastRoll)
+    );
+  if (shouldPreserveAdaptiveCommons) {
+    trustedPair = [...commons].sort();
+    noisePair = VALUES.filter(value => !trustedPair.includes(value));
+    runnerUpPair = pairScores.find(entry => entry.pair.join('/') !== trustedPair.join('/'))?.pair || noisePair;
+  }
   const scoreGap = (pairScores[0]?.score || 0) - (pairScores[1]?.score || 0);
   let tailRunLength = 0;
   for (let i = rolls.length - 1; i >= 0; i--) {
@@ -182,6 +302,7 @@ function scoreTrustedPairs({
     const momentum = ((momentumScores[value] || 0) / maxMomentum) * 20;
     const pairPct = matrix[lastRoll]?.[value]?.pct || 0;
     const direction = trends[value]?.direction || 'stable';
+    const totalCount = rolls.filter(r => r === value).length;
     const recencyMultiplier =
       rollsAgo < 0 ? 0.04 :
       rollsAgo <= 1 ? 1.0 :
@@ -197,7 +318,7 @@ function scoreTrustedPairs({
       momentum +
       pairPct * 0.35 +
       (direction === 'rising' ? 10 : direction === 'stable' ? 3 : 0)) * recencyMultiplier;
-    return { value, score, recent2Hits, recent4Hits, rollsAgo, direction };
+    return { value, score, recent2Hits, recent4Hits, rollsAgo, direction, totalCount };
   }).sort((a, b) => b.score - a.score);
   const outsiderPressure = outsiderSignals.reduce((sum, item) => sum + item.score, 0) / Math.max(outsiderSignals.length, 1);
   const freshOutsider = outsiderSignals[0] || null;
@@ -247,8 +368,29 @@ function scoreTrustedPairs({
       freshOutsider.rollsAgo <= 1
     )
   );
+  const outsiderPivotConfirmed =
+    !freshOutsider
+      ? false
+      : rolls.length < 6
+        ? outsiderCanPivot
+        : (
+            freshOutsider.recent2Hits >= 2 ||
+            (
+              freshOutsider.recent4Hits >= 2 &&
+              (
+                freshOutsider.totalCount >= 2 ||
+                freshOutsider.direction === 'rising'
+              )
+            ) ||
+            (
+              freshOutsider.recent2Hits >= 1 &&
+              freshOutsider.direction === 'rising' &&
+              freshOutsider.rollsAgo <= 1 &&
+              freshOutsider.totalCount >= 2
+            )
+          );
   if (
-    outsiderCanPivot &&
+    outsiderPivotConfirmed &&
     strongestTrusted &&
     freshOutsider.value !== strongestTrusted.value &&
     freshOutsider.score >= weakestTrusted.score + 18 &&
@@ -440,6 +582,103 @@ function buildLocalMotifScores(rolls) {
   );
 }
 
+const HIGH_CONFIDENCE_TAIL_PROFILES = {
+  '4|43,42,43,42': { target: '43', confidence: 100, total: 4 },
+  '4|42,44,43,42': { target: '41', confidence: 100, total: 3 },
+  '4|42,43,43,43': { target: '44', confidence: 100, total: 2 },
+  '4|43,43,43,44': { target: '42', confidence: 100, total: 2 },
+  '4|43,43,44,42': { target: '42', confidence: 100, total: 2 },
+  '4|43,44,43,44': { target: '41', confidence: 100, total: 2 },
+  '4|43,42,44,43': { target: '42', confidence: 100, total: 2 },
+  '4|44,43,42,42': { target: '41', confidence: 100, total: 2 },
+  '4|43,42,42,41': { target: '43', confidence: 100, total: 2 },
+  '4|42,41,43,43': { target: '44', confidence: 100, total: 2 },
+  '4|41,43,43,44': { target: '43', confidence: 100, total: 2 },
+  '4|44,43,42,41': { target: '43', confidence: 67, total: 3 },
+  '5|42,43,43,43,44': { target: '42', confidence: 100, total: 2 },
+  '5|42,43,43,44,43': { target: '42', confidence: 67, total: 3 },
+  '5|43,42,44,43,42': { target: '41', confidence: 100, total: 2 },
+  '5|43,44,43,44,43': { target: '44', confidence: 100, total: 2 },
+  '5|44,43,44,43,44': { target: '41', confidence: 100, total: 2 },
+  '5|44,43,42,44,43': { target: '42', confidence: 100, total: 2 },
+  '5|44,43,42,42,41': { target: '43', confidence: 100, total: 2 },
+  '5|42,44,43,42,41': { target: '43', confidence: 67, total: 3 },
+  '5|43,43,44,43,43': { target: '42', confidence: 67, total: 3 },
+};
+
+const HIGH_CONFIDENCE_SHAPE_PROFILES = {
+  '4|A,B,C,B': { target: 'C', confidence: 100, total: 7 },
+  '5|A,B,C,A,C': { target: 'A', confidence: 100, total: 4 },
+  '5|A,B,B,B,A': { target: 'A', confidence: 100, total: 3 },
+  '5|A,B,C,D,A': { target: 'D', confidence: 100, total: 3 },
+  '5|A,B,C,D,C': { target: 'D', confidence: 100, total: 3 },
+  '5|A,B,B,A,C': { target: 'B', confidence: 75, total: 4 },
+  '5|A,B,B,C,A': { target: 'A', confidence: 67, total: 3 },
+  '5|A,A,B,C,A': { target: 'C', confidence: 67, total: 3 },
+  '5|A,B,A,A,C': { target: 'A', confidence: 67, total: 3 },
+  '6|A,B,A,C,B,D': { target: 'A', confidence: 100, total: 3 },
+  '6|A,B,C,A,D,B': { target: 'D', confidence: 100, total: 3 },
+  '6|A,B,C,D,A,D': { target: 'A', confidence: 100, total: 3 },
+  '6|A,B,B,A,C,B': { target: 'C', confidence: 67, total: 3 },
+};
+
+function canonicalizeProfileSequence(seq) {
+  const map = new Map();
+  const symbols = ['A', 'B', 'C', 'D'];
+  let idx = 0;
+  const shape = seq.map((value) => {
+    if (!map.has(value)) map.set(value, symbols[idx++] || `X${idx}`);
+    return map.get(value);
+  });
+  const reverse = Object.fromEntries([...map.entries()].map(([value, symbol]) => [symbol, value]));
+  return { shape, reverse };
+}
+
+function getTailProfileMatch(rolls) {
+  if (!Array.isArray(rolls) || rolls.length < 4) return null;
+
+  for (const len of [5, 4]) {
+    if (rolls.length < len) continue;
+    const key = `${len}|${rolls.slice(-len).join(',')}`;
+    const match = HIGH_CONFIDENCE_TAIL_PROFILES[key];
+    if (!match) continue;
+    return {
+      len,
+      key,
+      target: match.target,
+      confidence: match.confidence,
+      total: match.total,
+    };
+  }
+
+  return null;
+}
+
+function getShapeProfileMatch(rolls) {
+  if (!Array.isArray(rolls) || rolls.length < 4) return null;
+
+  for (const len of [6, 5, 4]) {
+    if (rolls.length < len) continue;
+    const tail = rolls.slice(-len);
+    const { shape, reverse } = canonicalizeProfileSequence(tail);
+    const key = `${len}|${shape.join(',')}`;
+    const match = HIGH_CONFIDENCE_SHAPE_PROFILES[key];
+    if (!match) continue;
+    const targetValue = reverse[match.target];
+    if (!targetValue) continue;
+    return {
+      len,
+      key,
+      shape: shape.join(','),
+      target: targetValue,
+      confidence: match.confidence,
+      total: match.total,
+    };
+  }
+
+  return null;
+}
+
 function normalizeLocalScores(rawScores) {
   const maxScore = Math.max(...Object.values(rawScores), 0);
   if (maxScore <= 0) return Object.fromEntries(VALUES.map((value) => [value, 0]));
@@ -448,9 +687,10 @@ function normalizeLocalScores(rawScores) {
   );
 }
 
-function buildRecentFollowerScores(rolls, lastRoll, last2Rolls) {
+function buildRecentFollowerScores(rolls, lastRoll, last2Rolls, last3Rolls) {
   const directRaw = Object.fromEntries(VALUES.map((value) => [value, 0]));
   const pairRaw = Object.fromEntries(VALUES.map((value) => [value, 0]));
+  const tripletRaw = Object.fromEntries(VALUES.map((value) => [value, 0]));
 
   for (let i = 0; i < rolls.length - 1; i++) {
     if (rolls[i] !== lastRoll) continue;
@@ -468,9 +708,19 @@ function buildRecentFollowerScores(rolls, lastRoll, last2Rolls) {
     }
   }
 
+  if (last3Rolls) {
+    for (let i = 0; i < rolls.length - 3; i++) {
+      if (`${rolls[i]},${rolls[i + 1]},${rolls[i + 2]}` !== last3Rolls) continue;
+      const nextValue = rolls[i + 3];
+      const recencyWeight = 1.7 + ((i + 3) / rolls.length);
+      tripletRaw[nextValue] += recencyWeight;
+    }
+  }
+
   return {
     direct: normalizeLocalScores(directRaw),
     pair: normalizeLocalScores(pairRaw),
+    triplet: normalizeLocalScores(tripletRaw),
   };
 }
 
@@ -502,8 +752,14 @@ function scoreSvarogAnalyzerPicks({
   const recent4 = rolls.slice(-4);
   const recent2 = rolls.slice(-2);
   const recent8 = rolls.slice(-8);
+  const recent8Dist = getDistribution(recent8);
   const motifScores = buildLocalMotifScores(rolls);
-  const recentFollowerScores = buildRecentFollowerScores(rolls, lastRoll, last2Rolls);
+  const tailProfileMatch = getTailProfileMatch(rolls);
+  const shapeProfileMatch = tailProfileMatch ? null : getShapeProfileMatch(rolls);
+  const last3Rolls = rolls.length >= 3
+    ? `${rolls[rolls.length - 3]},${rolls[rolls.length - 2]},${rolls[rolls.length - 1]}`
+    : null;
+  const recentFollowerScores = buildRecentFollowerScores(rolls, lastRoll, last2Rolls, last3Rolls);
   const maxMomentum = Math.max(...VALUES.map(v => momentumScores[v] || 0), 0.01);
   const pair2gramRow = last2Rolls ? matrix2gram?.[last2Rolls] : null;
   const expectedGap = Math.max(3, Math.round((avgObservedRunLen || 2.5) * 1.75));
@@ -519,8 +775,213 @@ function scoreSvarogAnalyzerPicks({
     : noiseDueRatio >= 0.95
       ? 'due'
       : noiseDueRatio >= 0.55
-        ? 'approaching'
+      ? 'approaching'
         : 'not_due';
+  const lastNoiseAgo = (() => {
+    for (let i = rolls.length - 1; i >= 0; i -= 1) {
+      if (noise.includes(rolls[i])) return rolls.length - 1 - i;
+    }
+    return -1;
+  })();
+  const recentNoiseHits4 = recent4.filter((value) => noise.includes(value)).length;
+  const recentNoiseHits6 = rolls.slice(-6).filter((value) => noise.includes(value)).length;
+  const repeatedRecentNoise = noise.find((value) => recent4.filter((r) => r === value).length >= 2) || null;
+  const noiseRuns = [];
+  if (rolls.length > 0) {
+    let runValue = rolls[0];
+    let runLen = 1;
+    let runStart = 0;
+    for (let i = 1; i <= rolls.length; i++) {
+      const current = i < rolls.length ? rolls[i] : null;
+      if (current === runValue) {
+        runLen += 1;
+      } else {
+        if (noise.includes(runValue)) {
+          noiseRuns.push({
+            value: runValue,
+            len: runLen,
+            startIndex: runStart,
+            endIndex: i - 1,
+          });
+        }
+        runValue = current;
+        runLen = 1;
+        runStart = i;
+      }
+    }
+  }
+  const closedNoiseRuns = noiseRuns.filter((run) => run.endIndex < rolls.length - 1);
+  const avgNoiseStreakLen = closedNoiseRuns.length
+    ? closedNoiseRuns.reduce((sum, run) => sum + run.len, 0) / closedNoiseRuns.length
+    : 1;
+  const singleNoiseRate = closedNoiseRuns.length
+    ? closedNoiseRuns.filter((run) => run.len === 1).length / closedNoiseRuns.length
+    : 1;
+  const multiNoiseRate = closedNoiseRuns.length
+    ? closedNoiseRuns.filter((run) => run.len >= 2).length / closedNoiseRuns.length
+    : 0;
+  const noiseBeatStyle =
+    singleNoiseRate >= 0.68 && avgNoiseStreakLen <= 1.35
+      ? 'flash'
+      : multiNoiseRate >= 0.4 || avgNoiseStreakLen >= 1.75
+        ? 'sticky'
+        : 'mixed';
+  const flashNoiseSession = noiseBeatStyle === 'flash';
+  const stickyNoiseSession = noiseBeatStyle === 'sticky';
+  const commonRecoveryActive =
+    avgNoiseGap != null &&
+    commonsSinceNoise >= 1 &&
+    commonsSinceNoise <= Math.max(avgNoiseGap + 3, 5) &&
+    recentTop2Share >= 75 &&
+    recentNoiseHits4 <= 1 &&
+    !repeatedRecentNoise;
+  const noiseBurstActive =
+    recentNoiseHits4 >= 2 ||
+    (!!freshOutsider?.value &&
+      freshOutsider.value === lastRoll &&
+      (
+        (freshOutsider.recent2Hits || 0) >= 1 ||
+        (freshOutsider.recent4Hits || 0) >= 2
+      ));
+  const noiseChargeActive =
+    !commonRecoveryActive &&
+    !noiseBurstActive &&
+    avgNoiseGap != null &&
+    noiseDueRatio >= 0.7;
+  const siblingCommonValue = commons.includes(lastRoll)
+    ? commons.find((value) => value !== lastRoll) || null
+    : null;
+  const siblingCommonTrend = siblingCommonValue ? (trends?.[siblingCommonValue] || null) : null;
+  const siblingCommonSeenAgo = siblingCommonValue ? (lastSeen?.[siblingCommonValue] ?? -1) : -1;
+  const siblingCommonShare = siblingCommonValue ? (recent6Dist?.[siblingCommonValue] || 0) : 0;
+  const siblingCommonSupport = siblingCommonTrend?.supportScore ?? 0;
+  const siblingCommonCarry = siblingCommonTrend?.recentCarryScore ?? 0;
+  const siblingCommonPair1 = siblingCommonValue ? (matrix?.[lastRoll]?.[siblingCommonValue]?.pct || 0) : 0;
+  const siblingCommonPair2 = siblingCommonValue ? (pair2gramRow?.[siblingCommonValue]?.pct || 0) : 0;
+  const noiseAftermath = closedNoiseRuns.reduce((acc, run) => {
+    const nextValue = rolls[run.endIndex + 1];
+    if (nextValue == null) return acc;
+    if (commons.includes(nextValue)) acc.common += 1;
+    if (nextValue === siblingCommonValue) acc.sibling += 1;
+    if (nextValue === run.value) acc.same += 1;
+    return acc;
+  }, { common: 0, sibling: 0, same: 0 });
+  const postNoiseCommonRate = closedNoiseRuns.length ? noiseAftermath.common / closedNoiseRuns.length : 0;
+  const postNoiseSiblingRate = closedNoiseRuns.length ? noiseAftermath.sibling / closedNoiseRuns.length : 0;
+  const commonReturnArmed =
+    !!siblingCommonValue &&
+    currentRunLen >= (flashNoiseSession ? 2 : 3) &&
+    recentTop2Share >= 70 &&
+    recentNoiseHits4 <= 1 &&
+    !repeatedRecentNoise &&
+    (freshOutsider?.recent2Hits || 0) === 0 &&
+    siblingCommonSeenAgo >= 1 &&
+    siblingCommonSeenAgo <= Math.max(5, Math.round((avgNoiseGap || 2) + 3)) &&
+    (
+      siblingCommonShare >= 20 ||
+      siblingCommonSupport >= 28 ||
+      siblingCommonCarry >= 34 ||
+      siblingCommonPair1 >= 20 ||
+      siblingCommonPair2 >= 18
+    );
+  const commonReturnStrength = commonReturnArmed
+    ? (
+        12 +
+        Math.max(0, Math.round((siblingCommonCarry - 30) * 0.10)) +
+        Math.max(0, Math.round((siblingCommonSupport - 24) * 0.08)) +
+        Math.max(0, Math.round((siblingCommonPair1 - 15) * 0.06)) +
+        Math.max(0, Math.round((siblingCommonPair2 - 12) * 0.05)) +
+        Math.max(0, Math.round((siblingCommonShare - 18) * 0.05))
+      )
+    : 0;
+  const commonHoldActive =
+    commonRecoveryActive &&
+    commons.includes(lastRoll) &&
+    currentRunLen >= 2 &&
+    recentTop2Share >= 75 &&
+    recentNoiseHits4 <= 1 &&
+    !repeatedRecentNoise &&
+    (freshOutsider?.recent2Hits || 0) === 0;
+  const siblingBounceArmed =
+    !!siblingCommonValue &&
+    commons.includes(lastRoll) &&
+    currentRunLen >= 2 &&
+    recentTop2Share >= 66 &&
+    recentNoiseHits4 <= 1 &&
+    !repeatedRecentNoise &&
+    (freshOutsider?.recent2Hits || 0) === 0 &&
+    siblingCommonSeenAgo >= 1 &&
+    siblingCommonSeenAgo <= Math.max(4, Math.round((avgNoiseGap || 2) + 2)) &&
+    (
+      siblingCommonShare >= 18 ||
+      siblingCommonSupport >= 24 ||
+      siblingCommonCarry >= 30 ||
+      siblingCommonPair1 >= 16 ||
+      siblingCommonPair2 >= 16
+    );
+  const siblingBounceStrength = siblingBounceArmed
+    ? (
+        8 +
+        Math.max(0, Math.round((siblingCommonCarry - 28) * 0.10)) +
+        Math.max(0, Math.round((siblingCommonSupport - 22) * 0.08)) +
+        Math.max(0, Math.round((siblingCommonShare - 16) * 0.06)) +
+        (flashNoiseSession ? 6 : 0) +
+        (postNoiseSiblingRate >= 0.4 ? 6 : postNoiseSiblingRate >= 0.2 ? 3 : 0)
+      )
+    : 0;
+  const noisePhase = commonRecoveryActive
+    ? 'recovery'
+    : noiseBurstActive
+      ? 'burst'
+      : noiseChargeActive
+        ? 'charge'
+        : 'idle';
+  const commonDominantBoard =
+    recentTop2Share >= 70 &&
+    recentNoiseHits4 <= 1 &&
+    !repeatedRecentNoise &&
+    (
+      flashNoiseSession ||
+      commonRecoveryActive ||
+      commonHoldActive ||
+      postNoiseCommonRate >= 0.6
+    );
+  const noiseTriggerConfirmed =
+    !!repeatedRecentNoise ||
+    (
+      !!freshOutsider?.value &&
+      (
+        (freshOutsider.recent2Hits || 0) >= 2 ||
+        (freshOutsider.recent4Hits || 0) >= 2
+      ) &&
+      (freshOutsider.score || 0) >= 70
+    ) ||
+    (stickyNoiseSession && recentNoiseHits6 >= 3);
+  const developingSession = rolls.length <= 8;
+  const earlyCommonsBoard =
+    developingSession &&
+    recentTop2Share >= 60 &&
+    commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0) >= 60;
+  const earlyNoiseGateOpen =
+    !!repeatedRecentNoise ||
+    (
+      !!freshOutsider?.value &&
+      (
+        (freshOutsider.recent2Hits || 0) >= 2 ||
+        (freshOutsider.recent4Hits || 0) >= 2
+      ) &&
+      (freshOutsider.score || 0) >= 74
+    );
+  const effectiveCommonDominantBoard =
+    commonDominantBoard ||
+    (earlyCommonsBoard && !earlyNoiseGateOpen);
+  const noiseProbeOnly =
+    !noiseTriggerConfirmed &&
+    (
+      !!freshOutsider?.value ||
+      noiseTiming === 'due' ||
+      noiseTiming === 'approaching'
+    );
   const staleCommons = commons.filter((value) => {
     const direction = trends?.[value]?.direction || 'stable';
     const arrowWeight = trends?.[value]?.arrowWeight ?? 1.0;
@@ -555,19 +1016,58 @@ function scoreSvarogAnalyzerPicks({
   const recent6Ranked = VALUES
     .map((value) => ({ value, pct: recent6Dist[value] || 0 }))
     .sort((a, b) => b.pct - a.pct);
+  const recent6Window = rolls.slice(-6);
+  const recent8Ranked = VALUES
+    .map((value) => ({ value, pct: recent8Dist[value] || 0 }))
+    .sort((a, b) => b.pct - a.pct);
   const activeTrio = (() => {
-    if (recent6Ranked.length < 4) return null;
-    const top3 = recent6Ranked.slice(0, 3);
-    const fourth = recent6Ranked[3];
+    if (recent8Ranked.length < 4) return null;
+    const top3 = recent8Ranked.slice(0, 3);
+    const fourth = recent8Ranked[3];
     const top3Share = top3.reduce((sum, entry) => sum + (entry.pct || 0), 0);
     const thirdPct = top3[2]?.pct || 0;
     const fourthPct = fourth?.pct || 0;
     const uniqueRecent8 = new Set(recent8).size;
-    if (top3Share >= 84 && thirdPct >= 20 && fourthPct <= 16 && uniqueRecent8 <= 3) {
+    const recent8Transitions = recent8.slice(1).reduce((sum, value, index) => {
+      const prev = recent8[index];
+      if (!top3.some((entry) => entry.value === prev) || !top3.some((entry) => entry.value === value)) return sum;
+      return prev !== value ? sum + 1 : sum;
+    }, 0);
+    if (top3Share >= 80 && thirdPct >= 18 && fourthPct <= 18 && uniqueRecent8 <= 3 && recent8Transitions >= 3) {
       return top3.map((entry) => entry.value);
     }
     return null;
   })();
+  const mixedQuadActive = (() => {
+    if (recent8Ranked.length < 4) return false;
+    const top2Share = (recent8Ranked[0]?.pct || 0) + (recent8Ranked[1]?.pct || 0);
+    const firstPct = recent8Ranked[0]?.pct || 0;
+    const secondPct = recent8Ranked[1]?.pct || 0;
+    const thirdPct = recent8Ranked[2]?.pct || 0;
+    const fourthPct = recent8Ranked[3]?.pct || 0;
+    return top2Share <= 70 && firstPct <= 38 && secondPct >= 18 && thirdPct >= 15 && fourthPct >= 8;
+  })();
+  const sequenceBoardActive =
+    recent8.length >= 6 &&
+    new Set(recent8).size <= 3;
+  const tightPairValues = (() => {
+    if (recent8Ranked.length < 2) return [];
+    const top2Share = (recent8Ranked[0]?.pct || 0) + (recent8Ranked[1]?.pct || 0);
+    const thirdPct = recent8Ranked[2]?.pct || 0;
+    const uniqueRecent8 = new Set(recent8).size;
+    if (top2Share >= 78 && thirdPct <= 20 && uniqueRecent8 <= 3) {
+      return [recent8Ranked[0]?.value, recent8Ranked[1]?.value].filter(Boolean);
+    }
+    return [];
+  })();
+  const tightPairBoard = tightPairValues.length === 2;
+  const mixedCycleBoard =
+    !effectiveCommonDominantBoard &&
+    !noiseTriggerConfirmed &&
+    (
+      (!!activeTrio && activeTrio.length === 3) ||
+      (sequenceBoardActive && !tightPairBoard && !mixedQuadActive && recentTop2Share <= 75)
+    );
   const recentBlocks = [];
   if (recent8.length > 0) {
     let blockValue = recent8[0];
@@ -594,6 +1094,100 @@ function scoreSvarogAnalyzerPicks({
     }
     return null;
   })();
+  const preBlockReturnValue = (() => {
+    if (recentBlocks.length < 3) return null;
+    const a = recentBlocks[recentBlocks.length - 3];
+    const b = recentBlocks[recentBlocks.length - 2];
+    const c = recentBlocks[recentBlocks.length - 1];
+    if (!a || !b || !c) return null;
+    if (b.len >= 2 && c.len >= 2 && b.value !== c.value && a.value !== b.value && a.value !== c.value) {
+      return a.value;
+    }
+    return null;
+  })();
+  const bridgeReturnValue = (() => {
+    if (recentBlocks.length < 3) return null;
+    const a = recentBlocks[recentBlocks.length - 3];
+    const b = recentBlocks[recentBlocks.length - 2];
+    const c = recentBlocks[recentBlocks.length - 1];
+    if (!a || !b || !c) return null;
+    if (a.len >= 2 && b.len === 1 && c.len >= 2 && a.value !== b.value && b.value !== c.value && a.value !== c.value) {
+      return a.value;
+    }
+    return null;
+  })();
+  const missingFourthRotationValue = (() => {
+    const uniqueRecent8 = [...new Set(recent8)];
+    if (uniqueRecent8.length !== 3 || recentBlocks.length < 2) return null;
+    const b = recentBlocks[recentBlocks.length - 2];
+    const c = recentBlocks[recentBlocks.length - 1];
+    if (!b || !c) return null;
+    if (b.len < 2 || c.len < 2 || b.value === c.value) return null;
+    return VALUES.find((value) => !uniqueRecent8.includes(value)) || null;
+  })();
+  const quadGapShockValue = (() => {
+    const uniqueRecent8 = [...new Set(recent8)];
+    if (uniqueRecent8.length !== 3 || recentBlocks.length < 4) return null;
+    const a = recentBlocks[recentBlocks.length - 4];
+    const b = recentBlocks[recentBlocks.length - 3];
+    const c = recentBlocks[recentBlocks.length - 2];
+    const d = recentBlocks[recentBlocks.length - 1];
+    if (!a || !b || !c || !d) return null;
+    if (
+      a.len === 1 &&
+      b.len === 1 &&
+      c.len >= 2 &&
+      d.len >= 2 &&
+      a.value !== b.value &&
+      c.value !== d.value &&
+      new Set([a.value, b.value, c.value, d.value]).size === 3
+    ) {
+      return VALUES.find((value) => !uniqueRecent8.includes(value)) || null;
+    }
+    return null;
+  })();
+  const cycleRestartValue = (() => {
+    if (recent6Window.length < 6) return null;
+    const uniqueRecent6 = [...new Set(recent6Window)];
+    if (uniqueRecent6.length !== 3) return null;
+    if (
+      recent6Window[0] === recent6Window[4] &&
+      recent6Window[1] === recent6Window[5] &&
+      recent6Window[2] === recent6Window[3] &&
+      recent6Window[0] !== recent6Window[1] &&
+      recent6Window[1] !== recent6Window[2]
+    ) {
+      return recent6Window[0];
+    }
+    return null;
+  })();
+  const doubleBridgeEchoValue = (() => {
+    if (recentBlocks.length < 5) return null;
+    const a = recentBlocks[recentBlocks.length - 5];
+    const b = recentBlocks[recentBlocks.length - 4];
+    const c = recentBlocks[recentBlocks.length - 3];
+    const d = recentBlocks[recentBlocks.length - 2];
+    const e = recentBlocks[recentBlocks.length - 1];
+    if (!a || !b || !c || !d || !e) return null;
+    if (a.len >= 2 && b.len === 1 && c.len >= 2 && d.len === 1 && e.len === 1 && b.value === d.value && a.value !== c.value) {
+      return a.value;
+    }
+    return null;
+  })();
+  const doubleBridgeSwapValue = (() => {
+    if (recentBlocks.length < 6) return null;
+    const a = recentBlocks[recentBlocks.length - 6];
+    const b = recentBlocks[recentBlocks.length - 5];
+    const c = recentBlocks[recentBlocks.length - 4];
+    const d = recentBlocks[recentBlocks.length - 3];
+    const e = recentBlocks[recentBlocks.length - 2];
+    const f = recentBlocks[recentBlocks.length - 1];
+    if (!a || !b || !c || !d || !e || !f) return null;
+    if (a.len >= 2 && b.len === 1 && c.len >= 2 && d.len === 1 && e.len === 1 && f.len >= 2 && b.value === d.value && a.value === f.value && a.value !== c.value) {
+      return c.value;
+    }
+    return null;
+  })();
   const recentRuns = [];
   if (rolls.length >= 4) {
     let runValue = rolls[0];
@@ -611,6 +1205,35 @@ function scoreSvarogAnalyzerPicks({
       }
     }
   }
+  const lastRecentBlock = recentBlocks[recentBlocks.length - 1] || null;
+  const prevRecentBlock = recentBlocks[recentBlocks.length - 2] || null;
+  const commonReclaimArmed =
+    !!lastRecentBlock &&
+    !!prevRecentBlock &&
+    commons.includes(lastRecentBlock.value) &&
+    commons.includes(prevRecentBlock.value) &&
+    lastRecentBlock.value !== prevRecentBlock.value &&
+    prevRecentBlock.len >= 3 &&
+    lastRecentBlock.len <= 2 &&
+    recentNoiseHits4 <= 1 &&
+    (freshOutsider?.recent2Hits || 0) === 0;
+  const commonReclaimValue = commonReclaimArmed ? lastRecentBlock.value : null;
+  const commonReclaimStrength = commonReclaimArmed
+    ? (
+        16 +
+        Math.max(0, Math.round((recent6Dist?.[commonReclaimValue] || 0) * 0.10)) +
+        (lastRecentBlock?.len === 2 ? 6 : 0)
+      )
+    : 0;
+  const globalPair1Map = lastRoll ? (GLOBAL_PAIR1_PRIORS[lastRoll] || null) : null;
+  const globalPair2Map = last2Rolls ? (GLOBAL_PAIR2_PRIORS[last2Rolls] || null) : null;
+  const globalPair3Map = last3Rolls ? (GLOBAL_PAIR3_PRIORS[last3Rolls] || null) : null;
+  const globalPair2TopValue = globalPair2Map
+    ? Object.entries(globalPair2Map).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+    : null;
+  const globalPair3TopValue = globalPair3Map
+    ? Object.entries(globalPair3Map).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+    : null;
 
   const getPostRunCooldown = (value) => {
     const heavyRecentRun = recentRuns
@@ -669,9 +1292,41 @@ function scoreSvarogAnalyzerPicks({
         : Math.min((effectiveGap / Math.max(expectedGap, 1)) * 40, 100);
     const pairSignal = Math.min(weightedPair1, 100);
     const pair2Signal = Math.min(weightedPair2, 100);
+    const globalPair1Pct = globalPair1Map?.[value] || 0;
+    const globalPair2Pct = globalPair2Map?.[value] || 0;
+    const globalPair3Pct = globalPair3Map?.[value] || 0;
+    const globalPair2Top = globalPair2TopValue === value;
+    const globalPair3Top = globalPair3TopValue === value;
+    const globalPair1Boost =
+      globalPair1Map &&
+      (!pair1Reliable || pair1 < 45)
+        ? (
+            globalPair1Pct * 0.22 +
+            (pair1 === 0 ? 4 : 0)
+          )
+        : 0;
     const motifScore = motifScores[value] || 0;
     const recentFollow1 = recentFollowerScores.direct[value] || 0;
     const recentFollow2 = recentFollowerScores.pair[value] || 0;
+    const recentFollow3 = recentFollowerScores.triplet[value] || 0;
+    const globalPair2Boost =
+      globalPair2Map &&
+      ((!pair2Reliable && pair2 < 45) || recentFollow2 < 35)
+        ? (
+            globalPair2Pct * 0.28 +
+            (globalPair2Top ? 8 : 0) +
+            (pair2 === 0 ? 4 : 0)
+          )
+        : 0;
+    const globalPair3Boost =
+      globalPair3Map &&
+      (recentFollow3 < 35 || ((!pair2Reliable && pair2 < 50) && recentFollow2 < 45))
+        ? (
+            globalPair3Pct * 0.34 +
+            (globalPair3Top ? 10 : 0) +
+            (recentFollow3 === 0 ? 6 : 0)
+          )
+        : 0;
     const freqSignal = Math.min(distribution?.[value] || 0, 100);
     const momentumSignal = Math.min(momentum, 100);
     const recentSignal = Math.min(recent6 * 2, 100);
@@ -734,7 +1389,10 @@ function scoreSvarogAnalyzerPicks({
 
     let score =
       pairSignal * 0.22 +
+      globalPair1Boost * 0.16 +
       pair2Signal * 0.12 +
+      globalPair2Boost * 0.18 +
+      globalPair3Boost * 0.22 +
       freqSignal * 0.2 +
       momentumSignal * 0.2 +
       recentSignal * 0.16 +
@@ -758,7 +1416,11 @@ function scoreSvarogAnalyzerPicks({
     if (patternShifted && shiftedToValue === value) score += 12;
     if (freshOutsider?.value === value) score += 8;
     if (isAlternating && alternatingPair?.includes(value)) score += 10;
+    if (!pair1Reliable && globalPair1Boost > 0) score += Math.min(globalPair1Boost * 0.14, 9);
     if (pair2Reliable) score += Math.min(pair2Signal * 0.08, 8);
+    else if (globalPair2Boost > 0) score += Math.min(globalPair2Boost * 0.16, 10);
+    if (recentFollow3 > 0) score += Math.min(recentFollow3 * 0.16, 12);
+    if (globalPair3Boost > 0) score += Math.min(globalPair3Boost * 0.18, 12);
     score += latentNoiseBonus;
     score += armedNoiseBoost;
     score += (effectivePressure - 40) * 0.24;
@@ -779,11 +1441,18 @@ function scoreSvarogAnalyzerPicks({
       score: Math.round(score * 100) / 100,
       pair1,
       pair1Reliable,
+      globalPair1Pct,
+      globalPair1Boost,
       pair2,
       pair2Reliable,
+      globalPair2Pct,
+      globalPair2Boost,
+      globalPair3Pct,
+      globalPair3Boost,
       motifScore,
       recentFollow1,
       recentFollow2,
+      recentFollow3,
       freqSignal,
       recentSignal,
       momentumSignal,
@@ -980,7 +1649,15 @@ function scoreSvarogAnalyzerPicks({
         rank: index + 1,
         raw: Math.round((entry[rawKey] || 0) * 100) / 100,
       }))
-      .sort((a, b) => (b[scoreKey] || 0) - (a[scoreKey] || 0));
+      .sort((a, b) => {
+        const scoreDiff = (b[scoreKey] || 0) - (a[scoreKey] || 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return (b[rawKey] || 0) - (a[rawKey] || 0);
+      })
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
   };
   const commonDecisionRaw = analyzerRanked
     .filter((entry) => commons.includes(entry.value))
@@ -1077,6 +1754,93 @@ function scoreSvarogAnalyzerPicks({
         sandwichReturnValue === entry.value
           ? 12 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 3 : 0)
           : 0;
+      const bridgeReturnBoost =
+        bridgeReturnValue === entry.value
+          ? 28 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 6 : 0)
+          : 0;
+      const preBlockReturnBoost =
+        preBlockReturnValue === entry.value
+          ? 10 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 2 : 0)
+          : 0;
+      const missingFourthRotationBoost =
+        missingFourthRotationValue === entry.value
+          ? (
+              12 +
+              ((entry.currentShare || 0) === 0 ? 6 : 0) +
+              ((entry.latentPressure || 0) >= 45 ? 4 : 0)
+            )
+          : 0;
+      const quadGapShockBoost =
+        quadGapShockValue === entry.value
+          ? (
+              32 +
+              ((entry.currentShare || 0) === 0 ? 10 : 0) +
+              ((entry.latentPressure || 0) >= 45 ? 8 : 0)
+            )
+          : 0;
+      const cycleRestartBoost =
+        cycleRestartValue === entry.value
+          ? 28 + ((entry.supportScore || 0) >= 40 ? 6 : 0)
+          : 0;
+      const doubleBridgeEchoBoost =
+        doubleBridgeEchoValue === entry.value
+          ? 24 + ((entry.currentShare || 0) === 0 ? 6 : 0)
+          : 0;
+      const doubleBridgeSwapBoost =
+        doubleBridgeSwapValue === entry.value
+          ? 28 + ((entry.currentShare || 0) === 0 ? 8 : 0)
+          : 0;
+      const tightPairBoost =
+        tightPairBoard && tightPairValues.includes(entry.value)
+          ? 16 + (commons.includes(entry.value) ? 6 : 0)
+          : 0;
+      const tightPairOutsiderPenalty =
+        tightPairBoard &&
+        !tightPairValues.includes(entry.value) &&
+        (entry.currentShare || 0) <= 20 &&
+        (entry.recent2Hits || 0) === 0
+          ? 24 + ((entry.currentShare || 0) === 0 ? 6 : 0)
+          : 0;
+      const sequenceEchoBoost =
+        !tightPairBoard &&
+        !mixedQuadActive &&
+        recent8.length >= 8 &&
+        (entry.currentShare || 0) === 0 &&
+        (entry.pair1 || 0) === 0 &&
+        (entry.pair2 || 0) === 0 &&
+        (entry.globalPair3Pct || 0) >= 50
+          ? 22 + ((entry.latentPressure || 0) >= 50 ? 6 : 0)
+          : 0;
+      const commonReturnBoost =
+        commonReturnArmed && entry.value === siblingCommonValue
+          ? Math.min(28, commonReturnStrength + 8)
+          : 0;
+      const commonHoldBoost =
+        commonHoldActive && entry.value === lastRoll
+          ? 16 + Math.max(0, Math.round(((entry.currentShare || 0) - 30) * 0.08))
+          : commonHoldActive && commons.includes(entry.value)
+            ? 4
+            : 0;
+      const commonReclaimBoost =
+        commonReclaimArmed && entry.value === commonReclaimValue
+          ? commonReclaimStrength
+          : 0;
+      const siblingBounceBoost =
+        siblingBounceArmed && entry.value === siblingCommonValue
+          ? siblingBounceStrength
+          : 0;
+      const flashNoiseRecoveryBoost =
+        flashNoiseSession && commons.includes(entry.value)
+          ? (
+              (entry.value === lastRoll ? 3 : 0) +
+              (entry.value === siblingCommonValue ? 5 : 0) +
+              (postNoiseCommonRate >= 0.6 ? 4 : postNoiseCommonRate >= 0.4 ? 2 : 0)
+            )
+          : 0;
+      const overextendedRunPenalty =
+        commonReturnArmed && entry.value === lastRoll
+          ? Math.min(22, 10 + (currentRunLen >= 4 ? 5 : 0) + Math.max(0, Math.round(((entry.currentShare || 0) - 35) * 0.12)))
+          : 0;
       const directionAdjustment =
         entry.direction === 'rising'
           ? 5
@@ -1099,7 +1863,23 @@ function scoreSvarogAnalyzerPicks({
         recentCarryBoost +
         stableAnchorBoost +
         exactLeadBonus +
-        sandwichReturnBoost;
+        sandwichReturnBoost +
+        bridgeReturnBoost +
+        preBlockReturnBoost +
+        missingFourthRotationBoost +
+        quadGapShockBoost +
+        cycleRestartBoost +
+        doubleBridgeEchoBoost +
+        doubleBridgeSwapBoost +
+        tightPairBoost +
+        sequenceEchoBoost +
+        commonReturnBoost +
+        commonReclaimBoost +
+        siblingBounceBoost +
+        flashNoiseRecoveryBoost +
+        commonHoldBoost -
+        tightPairOutsiderPenalty -
+        overextendedRunPenalty;
       return {
         ...entry,
         fallenCommon,
@@ -1115,6 +1895,22 @@ function scoreSvarogAnalyzerPicks({
         exactLeadDelta: Math.round(exactLeadDelta * 100) / 100,
         exactLeadBonus,
         sandwichReturnBoost,
+        bridgeReturnBoost,
+        preBlockReturnBoost,
+        missingFourthRotationBoost,
+        quadGapShockBoost,
+        cycleRestartBoost,
+        doubleBridgeEchoBoost,
+        doubleBridgeSwapBoost,
+        tightPairBoost,
+        sequenceEchoBoost,
+        commonReturnBoost,
+        commonReclaimBoost,
+        siblingBounceBoost,
+        flashNoiseRecoveryBoost,
+        commonHoldBoost,
+        tightPairOutsiderPenalty,
+        overextendedRunPenalty,
         commonDecisionRaw: raw,
       };
     })
@@ -1173,6 +1969,46 @@ function scoreSvarogAnalyzerPicks({
               (freshOutsider.direction === 'rising' ? 4 : freshOutsider.direction === 'stable' ? 2 : 0)
             )
           : 0;
+      const commonReturnSuppression =
+        commonReturnArmed &&
+        (entry.currentShare || 0) <= 20 &&
+        (entry.recent2Hits || 0) === 0 &&
+        (entry.recent4Hits || 0) <= 1 &&
+        freshOutsider?.value !== entry.value
+          ? (normalizedNoiseTiming === 'due' ? 20 : normalizedNoiseTiming === 'approaching' ? 12 : 7)
+          : 0;
+      const flashNoiseSuppression =
+        flashNoiseSession &&
+        normalizedNoiseTiming !== 'not_due' &&
+        (entry.recent2Hits || 0) === 0 &&
+        freshOutsider?.value !== entry.value
+          ? (normalizedNoiseTiming === 'due' ? 14 : 8)
+          : 0;
+      const stickyNoiseBoost =
+        stickyNoiseSession &&
+        normalizedNoiseTiming !== 'not_due' &&
+        (
+          (entry.recent2Hits || 0) >= 1 ||
+          (entry.recent4Hits || 0) >= 2 ||
+          freshOutsider?.value === entry.value
+        )
+          ? (normalizedNoiseTiming === 'due' ? 8 : 4)
+          : 0;
+      const singleHitFlashPenalty =
+        entry.seenAgo === 0 &&
+        (entry.currentShare || 0) <= 20 &&
+        (entry.recent2Hits || 0) <= 1 &&
+        (entry.recent4Hits || 0) <= 1 &&
+        (entry.pair1 || 0) === 0 &&
+        (entry.pair2 || 0) === 0
+          ? (
+              normalizedNoiseTiming === 'due'
+                ? 18
+                : normalizedNoiseTiming === 'approaching'
+                  ? 12
+                  : 8
+            )
+          : 0;
       const raw =
         (entry.noisePriorityScore || 0) * 0.28 +
         (entry.latentPressure || 0) * 0.20 +
@@ -1181,12 +2017,16 @@ function scoreSvarogAnalyzerPicks({
         (entry.pressureScore || 0) * 0.18 +
         (entry.activationScore || 0) * 0.12 +
         (entry.armedNoiseBoost || 0) * 0.18 +
-        breakPressureBoost +
         dormantFourthBoost +
         timingPoolBonus +
         dormantOverdueBonus +
         recentOutsiderPenalty +
         phantomNoisePenalty +
+        stickyNoiseBoost +
+        breakPressureBoost -
+        singleHitFlashPenalty -
+        commonReturnSuppression -
+        flashNoiseSuppression +
         (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -4);
       return {
         ...entry,
@@ -1195,6 +2035,10 @@ function scoreSvarogAnalyzerPicks({
         dormantOverdueBonus,
         recentOutsiderPenalty,
         phantomNoisePenalty,
+        commonReturnSuppression,
+        flashNoiseSuppression,
+        stickyNoiseBoost,
+        singleHitFlashPenalty,
         noiseDecisionRaw: raw,
       };
     })
@@ -1203,6 +2047,59 @@ function scoreSvarogAnalyzerPicks({
   const noiseDecisionScores = normalizePoolScores(noiseDecisionRaw, 'noiseDecisionRaw', 'noiseScore');
   const commonDecisionMap = new Map(commonDecisionScores.map((entry) => [entry.value, entry]));
   const noiseDecisionMap = new Map(noiseDecisionScores.map((entry) => [entry.value, entry]));
+  const previewBestCommon = commonDecisionScores[0] || null;
+  const previewSecondCommon = commonDecisionScores[1] || null;
+  const previewBestNoise = noiseDecisionScores[0] || null;
+  const previewTopCommonAvg = ((previewBestCommon?.commonScore || 0) + (previewSecondCommon?.commonScore || 0)) / 2;
+  const reentrySignalCount = [
+    commonReturnArmed,
+    commonReclaimArmed,
+    siblingBounceArmed,
+  ].filter(Boolean).length;
+  const boardStateStrengths = {
+    pair: Math.max(0, Math.min(100, Math.round(
+      previewTopCommonAvg * 0.60 +
+      (effectiveCommonDominantBoard ? 16 : 0) +
+      (developingSession ? 6 : 0) +
+      (noiseTriggerConfirmed ? -16 : 0) +
+      (noiseProbeOnly ? -6 : 0)
+    ))),
+    probe: Math.max(0, Math.min(100, Math.round(
+      (previewBestNoise?.noiseScore || 0) * 0.54 +
+      (freshOutsider?.score || 0) * 0.16 +
+      (noiseProbeOnly ? 14 : 0) +
+      (noiseTriggerConfirmed ? -8 : 0) +
+      (effectiveCommonDominantBoard ? -4 : 6)
+    ))),
+    break: Math.max(0, Math.min(100, Math.round(
+      (previewBestNoise?.noiseScore || 0) * 0.64 +
+      (freshOutsider?.score || 0) * 0.14 +
+      (noiseTriggerConfirmed ? 18 : 0) +
+      (normalizedNoiseTiming === 'due' ? 10 : normalizedNoiseTiming === 'approaching' ? 6 : 0) +
+      (effectiveCommonDominantBoard ? -10 : 4)
+    ))),
+    reentry: Math.max(0, Math.min(100, Math.round(
+      Math.max(commonReturnStrength || 0, commonReclaimStrength || 0, siblingBounceStrength || 0) * 0.58 +
+      (commonRecoveryActive ? 10 : 0) +
+      (commonReturnArmed ? 10 : 0) +
+      (commonReclaimArmed ? 10 : 0) +
+      (siblingBounceArmed ? 8 : 0) +
+      ((commonReturnArmed || commonReclaimArmed || siblingBounceArmed) ? (postNoiseCommonRate || 0) * 4 : 0) +
+      ((commonReturnArmed || siblingBounceArmed) ? (postNoiseSiblingRate || 0) * 3 : 0) +
+      (reentrySignalCount >= 2 ? 8 : reentrySignalCount === 1 ? 2 : -12) +
+      ((previewBestNoise?.noiseScore || 0) >= 70 ? -18 : 0) +
+      (noiseTriggerConfirmed ? -18 : noiseProbeOnly ? -6 : 0) +
+      ((freshOutsider?.score || 0) >= 65 ? -6 : 0)
+    ))),
+  };
+  const sessionStatePreviewKey =
+    boardStateStrengths.break >= Math.max(boardStateStrengths.pair + 12, 58) && noiseTriggerConfirmed
+      ? 'break'
+      : boardStateStrengths.reentry >= Math.max(boardStateStrengths.pair + 6, boardStateStrengths.probe + 10, 52)
+        ? 'reentry'
+        : boardStateStrengths.probe >= Math.max(boardStateStrengths.pair - 6, 44)
+          ? 'probe'
+          : 'pair';
   const triadDecisionRaw = activeTrio
     ? analyzerRanked
         .filter((entry) => activeTrio.includes(entry.value))
@@ -1218,6 +2115,7 @@ function scoreSvarogAnalyzerPicks({
             (entry.pair2 || 0) * 0.16 +
             (entry.recentFollow1 || 0) * 0.12 +
             (entry.recentFollow2 || 0) * 0.16 +
+            (entry.recentFollow3 || 0) * 0.22 +
             (entry.motifScore || 0) * 0.06 +
             (entry.recentCarryScore || 0) * 0.10 +
             (entry.value === lastRoll ? 5 : 0) +
@@ -1239,6 +2137,22 @@ function scoreSvarogAnalyzerPicks({
     commonDecisionScores,
     noiseDecisionScores,
   });
+  const sessionStateScores = buildSessionStateScores({
+    scoredEntries: analyzerRanked,
+    trends,
+    commons,
+    noise,
+    commonDecisionScores,
+    noiseDecisionScores,
+    stateKey: sessionStatePreviewKey,
+    freshOutsider,
+    siblingCommonValue,
+    commonReturnArmed,
+    commonReclaimArmed,
+    commonReclaimValue,
+    siblingBounceArmed,
+  });
+  const sessionStateMap = new Map(sessionStateScores.map((entry) => [entry.value, entry]));
   const refinedAnalyzerRanked = analyzerRanked
     .map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
@@ -1269,7 +2183,8 @@ function scoreSvarogAnalyzerPicks({
             trustPct * 0.14 +
             (entry.currentShare || 0) * 0.08 +
             (entry.recentFollow1 || 0) * 0.08 +
-            (entry.recentFollow2 || 0) * 0.10
+            (entry.recentFollow2 || 0) * 0.10 +
+            (entry.recentFollow3 || 0) * 0.12
           )
         : commons.includes(entry.value)
         ? (
@@ -1328,7 +2243,8 @@ function scoreSvarogAnalyzerPicks({
               : 0;
       const recentFollowBoost =
         ((entry.recentFollow1 || 0) * 0.10) +
-        ((entry.recentFollow2 || 0) * 0.14);
+        ((entry.recentFollow2 || 0) * 0.14) +
+        ((entry.recentFollow3 || 0) * 0.20);
       const runBreakSiblingBoost =
         currentRunLen >= 2 &&
         !!activeTrio &&
@@ -1434,9 +2350,11 @@ function scoreSvarogAnalyzerPicks({
   const lastBlock = recentBlocks[recentBlocks.length - 1] || null;
   const prevBlock = recentBlocks[recentBlocks.length - 2] || null;
   const thirdBlock = recentBlocks[recentBlocks.length - 3] || null;
-  const sequenceBoardActive =
+  const preLoopLikeMixedBoard =
     recent8.length >= 6 &&
-    new Set(recent8).size <= 3;
+    new Set(recent8).size <= 3 &&
+    Math.max(...VALUES.map((value) => (recent8Dist?.[value] || 0)), 0) <= 50 &&
+    commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0) >= 60;
   let analyzerFinalScores = normalizePoolScores(
     finalAnalyzerRanked.map((entry) => {
       const commonPool = commonDecisionMap.get(entry.value);
@@ -1473,7 +2391,8 @@ function scoreSvarogAnalyzerPicks({
               : 0;
       const deciderRecentFollowBoost =
         ((entry.recentFollow1 || 0) * 0.05) +
-        ((entry.recentFollow2 || 0) * 0.07);
+        ((entry.recentFollow2 || 0) * 0.07) +
+        ((entry.recentFollow3 || 0) * 0.11);
       const deciderRunBreakSiblingBoost =
         currentRunLen >= 2 &&
         !!activeTrio &&
@@ -1516,23 +2435,133 @@ function scoreSvarogAnalyzerPicks({
           : 0;
       const deciderTrioBoost =
         !!activeTrio && activeTrio.includes(entry.value)
-          ? ((entry.currentShare || 0) >= 30 ? 8 : 5)
+          ? (
+              ((entry.currentShare || 0) >= 30 ? 12 : 8) +
+              ((entry.recentFollow2 || 0) >= 45 ? 4 : 0) +
+              ((entry.pair2 || 0) >= 45 ? 3 : 0)
+            )
           : 0;
       const deciderSandwichBoost =
         sandwichReturnValue === entry.value
           ? 8 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 2 : 0)
           : 0;
+      const deciderBridgeReturnBoost =
+        bridgeReturnValue === entry.value
+          ? 38 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 6 : 0)
+          : 0;
+      const deciderPreBlockBoost =
+        preBlockReturnValue === entry.value
+          ? 12 + ((entry.direction === 'rising' || entry.direction === 'stable') ? 2 : 0)
+          : 0;
+      const deciderMissingFourthRotationBoost =
+        missingFourthRotationValue === entry.value
+          ? (
+              14 +
+              ((entry.currentShare || 0) === 0 ? 6 : 0) +
+              ((entry.latentPressure || 0) >= 45 ? 4 : 0)
+            )
+          : 0;
+      const deciderQuadGapShockBoost =
+        quadGapShockValue === entry.value
+          ? (
+              normalizedNoiseTiming === 'due'
+                ? 44 + ((entry.currentShare || 0) === 0 ? 12 : 0) + ((entry.latentPressure || 0) >= 45 ? 10 : 0)
+                : 28 + ((entry.currentShare || 0) === 0 ? 8 : 0)
+            )
+          : 0;
+      const deciderCycleRestartBoost =
+        cycleRestartValue === entry.value
+          ? (
+              34 +
+              ((entry.supportScore || 0) >= 40 ? 6 : 0) +
+              ((entry.currentShare || 0) >= 20 ? 4 : 0)
+            )
+          : 0;
+      const deciderDoubleBridgeEchoBoost =
+        doubleBridgeEchoValue === entry.value
+          ? (
+              normalizedNoiseTiming === 'not_due'
+                ? 30 + ((entry.currentShare || 0) === 0 ? 8 : 0)
+                : 18 + ((entry.currentShare || 0) === 0 ? 6 : 0)
+            )
+          : 0;
+      const deciderDoubleBridgeSwapBoost =
+        doubleBridgeSwapValue === entry.value
+          ? (
+              normalizedNoiseTiming === 'due'
+                ? 36 + ((entry.currentShare || 0) === 0 ? 10 : 0)
+                : 24 + ((entry.currentShare || 0) === 0 ? 8 : 0)
+            )
+          : 0;
+      const deciderTightPairBoost =
+        tightPairBoard && tightPairValues.includes(entry.value)
+          ? 24 + (commons.includes(entry.value) ? 8 : 0)
+          : 0;
+      const deciderTightPairOutsiderPenalty =
+        tightPairBoard &&
+        !tightPairValues.includes(entry.value) &&
+        (entry.currentShare || 0) <= 20 &&
+        (entry.recent2Hits || 0) === 0
+          ? (
+              normalizedNoiseTiming === 'not_due'
+                ? 34 + ((entry.currentShare || 0) === 0 ? 8 : 0)
+                : 20 + ((entry.currentShare || 0) === 0 ? 6 : 0)
+            )
+          : 0;
+      const deciderSequenceEchoBoost =
+        !tightPairBoard &&
+        !mixedQuadActive &&
+        recent8.length >= 8 &&
+        (entry.currentShare || 0) === 0 &&
+        (entry.pair1 || 0) === 0 &&
+        (entry.pair2 || 0) === 0 &&
+        (entry.globalPair3Pct || 0) >= 50
+          ? (
+              normalizedNoiseTiming === 'not_due'
+                ? 28 + ((entry.latentPressure || 0) >= 50 ? 8 : 0)
+                : 18 + ((entry.latentPressure || 0) >= 50 ? 6 : 0)
+            )
+          : 0;
       const deciderDormantFourthBoost =
         dormantMissingFourth === entry.value
           ? (normalizedNoiseTiming === 'due' ? 9 : 4)
           : 0;
+      const deciderCommonReturnBoost =
+        commonReturnArmed && entry.value === siblingCommonValue
+          ? Math.min(34, commonReturnStrength + 16)
+          : 0;
+      const deciderCommonHoldBoost =
+        commonHoldActive && entry.value === lastRoll
+          ? 18 + Math.max(0, ((entry.currentShare || 0) - 30) * 0.12)
+          : commonHoldActive && commons.includes(entry.value)
+            ? 6
+            : 0;
+      const deciderCommonReclaimBoost =
+        commonReclaimArmed && entry.value === commonReclaimValue
+          ? Math.min(28, commonReclaimStrength + 8)
+          : 0;
+      const deciderCommonReturnPenalty =
+        commonReturnArmed && entry.value === lastRoll
+          ? Math.min(24, 12 + (currentRunLen >= 4 ? 6 : 0))
+          : 0;
+      const deciderCommonReturnNoisePenalty =
+        commonReturnArmed &&
+        !commons.includes(entry.value) &&
+        (entry.currentShare || 0) <= 20 &&
+        freshOutsider?.value !== entry.value
+          ? (normalizedNoiseTiming === 'due' ? 26 : normalizedNoiseTiming === 'approaching' ? 16 : 9)
+          : 0;
       const deciderTrioPenalty =
         !!activeTrio &&
         !activeTrio.includes(entry.value) &&
-        (entry.currentShare || 0) <= 20 &&
-        (entry.pair1 || 0) < 35 &&
-        (entry.pair2 || 0) < 35
-          ? 16
+        (entry.currentShare || 0) <= 20
+          ? (
+              18 +
+              ((entry.recent4Hits || 0) === 0 ? 6 : 0) +
+              ((entry.recent2Hits || 0) === 0 ? 4 : 0) +
+              ((entry.pair1 || 0) < 35 ? 4 : 0) +
+              ((entry.pair2 || 0) < 35 ? 6 : 0)
+            )
           : 0;
       const deciderBreakPressureBoost =
         !commons.includes(entry.value) && freshOutsider?.value === entry.value
@@ -1583,22 +2612,41 @@ function scoreSvarogAnalyzerPicks({
         deciderLoopBoost +
         deciderTrioBoost +
         deciderSandwichBoost +
+        deciderBridgeReturnBoost +
+        deciderPreBlockBoost +
+        deciderMissingFourthRotationBoost +
+        deciderQuadGapShockBoost +
+        deciderCycleRestartBoost +
+        deciderDoubleBridgeEchoBoost +
+        deciderDoubleBridgeSwapBoost +
+        deciderTightPairBoost +
+        deciderSequenceEchoBoost +
         deciderDormantFourthBoost +
+        deciderCommonReturnBoost +
+        deciderCommonReclaimBoost +
+        deciderCommonHoldBoost +
         deciderBreakPressureBoost -
         deciderSelfRunPenalty -
         deciderLoopPenalty -
         deciderTrioPenalty -
+        deciderTightPairOutsiderPenalty -
+        deciderCommonReturnPenalty -
+        deciderCommonReturnNoisePenalty -
         deciderPhantomPenalty -
         thinPairPenalty;
       const sequenceDecisionRaw =
         (entry.exactScore || 0) * -0.4119 +
         (entry.pair1 || 0) * 0.1808 +
+        (entry.globalPair1Pct || 0) * 0.3200 +
         (entry.pair2 || 0) * 0.8750 +
+        (entry.globalPair2Pct || 0) * 0.5200 +
+        (entry.globalPair3Pct || 0) * 0.7400 +
         trustPct * 0.0314 +
         support * 0.2051 +
         carry * 0.0821 +
         (noisePool?.noiseScore || 0) * 0.3345 +
         Math.max(entry.latentPressure || 0, 0) * -0.0327 +
+        (entry.recentFollow3 || 0) * 0.4200 +
         (lastBlock?.value === entry.value ? -0.1524 : 0) +
         (prevBlock?.value === entry.value ? -10.9597 : 0) +
         (thirdBlock?.value === entry.value ? -14.2926 : 0) +
@@ -1610,12 +2658,347 @@ function scoreSvarogAnalyzerPicks({
         (activeTrio?.includes(entry.value) ? -8.9227 : 0) +
         (lastBlock?.value === entry.value && (lastBlock?.len || 0) >= 2 ? -16.5408 : 0) +
         (prevBlock?.value === entry.value && (prevBlock?.len || 0) === 1 ? -12.3651 : 0);
-      const finalDecisionRaw = sequenceDecisionRaw;
+      const commonPoolLead =
+        commons.includes(entry.value)
+          ? Math.max(0, (commonPool?.commonScore || 0) - ((commonDecisionScores[1]?.commonScore || 0)))
+          : 0;
+      const noisePoolLead =
+        noise.includes(entry.value)
+          ? Math.max(0, (noisePool?.noiseScore || 0) - ((noiseDecisionScores[1]?.noiseScore || 0)))
+          : 0;
+      const statePool = sessionStateMap.get(entry.value);
+      const breakAligned =
+        !commons.includes(entry.value) &&
+        freshOutsider?.value === entry.value &&
+        (freshOutsider.score || 0) >= 55;
+      const sequenceWeight =
+        sequenceBoardActive
+          ? (normalizedNoiseTiming === 'not_due' ? 0.24 : 0.34)
+          : mixedQuadActive
+            ? (normalizedNoiseTiming === 'not_due' ? 0.38 : 0.44)
+          : preLoopLikeMixedBoard
+            ? (normalizedNoiseTiming === 'not_due' ? 0.20 : 0.30)
+            : normalizedNoiseTiming === 'due'
+              ? 0.36
+              : normalizedNoiseTiming === 'approaching'
+                ? 0.28
+                : 0.18;
+      const baseWeight = 1 - sequenceWeight;
+      const consensusBoost =
+        commons.includes(entry.value)
+          ? commonPoolLead * (normalizedNoiseTiming === 'not_due' ? 0.24 : 0.14)
+          : noisePoolLead * (normalizedNoiseTiming === 'due' ? 0.24 : normalizedNoiseTiming === 'approaching' ? 0.18 : 0.10);
+      const emergingCommonBoost =
+        commons.includes(entry.value) &&
+        (entry.currentShare || 0) >= 35 &&
+        (entry.supportScore || 0) >= 45 &&
+        (entry.recentCarryScore || 0) >= 38 &&
+        (entry.direction === 'rising' || entry.direction === 'stable')
+          ? 8 + Math.max(0, Math.round(((entry.currentShare || 0) - 35) * 0.10))
+          : 0;
+      const overdueNoiseBoost =
+        !commons.includes(entry.value) &&
+        normalizedNoiseTiming !== 'not_due' &&
+        (entry.latentPressure || 0) >= 55 &&
+        (entry.noisePriorityScore || 0) >= 55
+          ? 6 + Math.max(0, Math.round(((entry.noisePriorityScore || 0) - 55) * 0.10))
+          : 0;
+      const breakAlignmentBoost = breakAligned
+        ? (normalizedNoiseTiming === 'due' ? 12 : normalizedNoiseTiming === 'approaching' ? 8 : 4)
+        : 0;
+      const mixedQuadSequenceBoost =
+        mixedQuadActive
+          ? (
+              (entry.globalPair3Pct || 0) * 0.30 +
+              (entry.recentFollow3 || 0) * 0.26 +
+              (entry.globalPair2Pct || 0) * 0.10 +
+              (entry.recentFollow2 || 0) * 0.08 +
+              ((entry.currentShare || 0) >= 20 && (entry.currentShare || 0) <= 40 ? 4 : 0)
+            )
+          : 0;
+      const mixedQuadPoolPenalty =
+        mixedQuadActive
+          ? (
+              commons.includes(entry.value)
+                ? Math.max(0, Math.abs((commonPool?.commonScore || 50) - 50) - 8) * 0.18
+                : Math.max(0, Math.abs((noisePool?.noiseScore || 50) - 50) - 8) * 0.16
+            )
+          : 0;
+      const poolMismatchPenalty =
+        commons.includes(entry.value) && normalizedNoiseTiming === 'due' && commonPoolLead <= 0 && (entry.currentShare || 0) <= 20
+          ? 6
+          : (!commons.includes(entry.value) && normalizedNoiseTiming === 'not_due' && noisePoolLead <= 0 && !breakAligned ? 8 : 0);
+      const sessionStateBoost =
+        (((statePool?.stateScore || 50) - 50) *
+          (sessionStatePreviewKey === 'break'
+            ? 0.34
+            : sessionStatePreviewKey === 'probe'
+              ? 0.26
+              : sessionStatePreviewKey === 'reentry'
+                ? 0.30
+                : 0.28)) +
+        (sessionStatePreviewKey === 'pair' && commons.includes(entry.value) ? (statePool?.backboneScore || 0) * 0.05 : 0) +
+        (sessionStatePreviewKey === 'probe' && commons.includes(entry.value) ? (statePool?.backboneScore || 0) * 0.04 : 0) +
+        (sessionStatePreviewKey === 'break' && noise.includes(entry.value) ? (statePool?.breakScore || 0) * 0.05 : 0) +
+        (sessionStatePreviewKey === 'reentry' && commons.includes(entry.value) ? (statePool?.reentryScore || 0) * 0.05 : 0) -
+        (sessionStatePreviewKey === 'pair' && noise.includes(entry.value) && !breakAligned ? 8 : 0);
+      const noisePhaseBoost =
+        noisePhase === 'recovery'
+          ? (
+              commons.includes(entry.value)
+                ? (
+                    8 +
+                    (entry.value !== lastRoll ? 4 : 0) +
+                    Math.max(0, ((commonPool?.commonScore || 50) - 50) * 0.12) +
+                    Math.max(0, ((entry.pair2 || 0) - 35) * 0.05)
+                  )
+                : -(
+                    10 +
+                    ((entry.currentShare || 0) <= 20 ? 4 : 0) +
+                    ((entry.value === freshOutsider?.value && (freshOutsider?.recent2Hits || 0) === 0) ? 4 : 0)
+                  )
+            )
+          : noisePhase === 'burst'
+            ? (
+                commons.includes(entry.value)
+                  ? -2
+                  : (
+                      4 +
+                      (entry.value === freshOutsider?.value ? 3 : 0) +
+                      ((entry.recent2Hits || 0) >= 1 ? 2 : 0)
+                    )
+              )
+            : noisePhase === 'charge'
+              ? (
+                  commons.includes(entry.value)
+                    ? -2
+                    : (
+                        3 +
+                        Math.max(0, ((noisePool?.noiseScore || 50) - 50) * 0.08)
+                      )
+                )
+              : 0;
+      const matureSession = rolls.length >= 8;
+      const matureCommonLead =
+        matureSession && commons.includes(entry.value)
+          ? Math.max(0, ((commonPool?.commonScore || 50) - 50) * 0.16) +
+            Math.max(0, ((entry.supportScore || 0) - 40) * 0.08) +
+            Math.max(0, ((entry.recentCarryScore || 0) - 32) * 0.06) +
+            ((entry.currentShare || 0) >= 35 ? 4 : 0)
+          : 0;
+      const matureNoiseBrake =
+        matureSession && noise.includes(entry.value) && !mixedQuadActive
+          ? (
+              (normalizedNoiseTiming === 'not_due' ? 10 : normalizedNoiseTiming === 'approaching' ? 6 : 2) +
+              ((entry.currentShare || 0) <= 20 ? 4 : 0) +
+              ((entry.recent2Hits || 0) === 0 ? 3 : 0) +
+              (!breakAligned ? 4 : 0) +
+              (freshOutsider?.value === entry.value && (freshOutsider?.recent2Hits || 0) === 0 ? 3 : 0)
+            )
+          : 0;
+      const pairNotDueDiscipline =
+        normalizedNoiseTiming === 'not_due' && !activeTrio && !mixedQuadActive
+          ? (
+              commons.includes(entry.value)
+                ? (
+                    7 +
+                    Math.max(0, ((commonPool?.commonScore || 50) - 50) * 0.18) +
+                    Math.max(0, ((entry.pair2 || 0) - 40) * 0.05) +
+                    Math.max(0, ((entry.recentCarryScore || 0) - 35) * 0.05) +
+                    (entry.pair2Reliable ? 4 : 0) +
+                    (entry.direction === 'stable' ? 2 : 0)
+                  )
+                : -(
+                    7 +
+                    Math.max(0, ((noisePool?.noiseScore || 50) - 50) * 0.14) +
+                    ((entry.currentShare || 0) <= 20 ? 4 : 0) +
+                    ((entry.pair2 || 0) < 35 ? 3 : 0) +
+                    ((entry.recent2Hits || 0) === 0 ? 2 : 0) +
+                    (!breakAligned ? 3 : 0)
+                  )
+            )
+          : 0;
+      const sessionNoiseBeatDiscipline =
+        flashNoiseSession
+          ? (
+              commons.includes(entry.value)
+                ? (
+                    4 +
+                    (entry.value === siblingCommonValue ? 6 : 0) +
+                    (postNoiseSiblingRate >= 0.4 ? 4 : postNoiseSiblingRate >= 0.2 ? 2 : 0)
+                  )
+                : -(
+                    (
+                      sessionStatePreviewKey === 'probe' &&
+                      entry.value === noiseDecisionScores[0]?.value &&
+                      (noisePool?.noiseScore || 0) >= 72
+                        ? 2
+                        : 5
+                    ) +
+                    ((entry.recent2Hits || 0) === 0 ? (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 1 : 4) : 0) +
+                    (freshOutsider?.value === entry.value ? 0 : (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 0 : 2))
+                  )
+            )
+          : stickyNoiseSession
+            ? (
+                commons.includes(entry.value)
+                  ? -2
+                  : (
+                      ((entry.recent2Hits || 0) >= 1 || freshOutsider?.value === entry.value) ? 5 : 0
+                    )
+              )
+            : 0;
+      const breakDueDiscipline =
+        normalizedNoiseTiming === 'due' && !activeTrio && !mixedQuadActive
+          ? (
+              commons.includes(entry.value)
+                ? -(
+                    ((commonPool?.commonScore || 50) < 45 ? 4 : 0) +
+                    ((entry.currentShare || 0) <= 20 ? 5 : 0)
+                  )
+                : (
+                    4 +
+                    Math.max(0, ((noisePool?.noiseScore || 50) - 50) * 0.12) +
+                    (breakAligned ? 3 : 0) +
+                    ((entry.recent2Hits || 0) >= 1 ? 2 : 0)
+                  )
+            )
+          : 0;
+      const commonDominantDiscipline =
+        effectiveCommonDominantBoard && !noiseTriggerConfirmed
+          ? (
+              commons.includes(entry.value)
+                ? (
+                    18 +
+                    Math.max(0, ((commonPool?.commonScore || 50) - 50) * 0.18) +
+                    Math.max(0, ((entry.supportScore || 0) - 40) * 0.08) +
+                    Math.max(0, ((entry.recentCarryScore || 0) - 34) * 0.05) +
+                    (entry.value === lastRoll ? 3 : 0)
+                  )
+                : -(
+                    (
+                      sessionStatePreviewKey === 'probe' &&
+                      entry.value === noiseDecisionScores[0]?.value &&
+                      (noisePool?.noiseScore || 0) >= 72
+                        ? 7
+                        : 16
+                    ) +
+                    Math.max(0, ((noisePool?.noiseScore || 50) - 50) * (
+                      sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 0.06 : 0.14
+                    )) +
+                    ((entry.currentShare || 0) <= 20 ? (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 1 : 4) : 0) +
+                    ((entry.recent2Hits || 0) === 0 ? (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 1 : 3) : 0) +
+                    (!breakAligned ? (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 2 : 6) : 0)
+                  )
+            )
+          : 0;
+      const noiseProbeBrake =
+        noiseProbeOnly && !noiseTriggerConfirmed
+          ? (
+              commons.includes(entry.value)
+                ? 5
+                : -(
+                    (
+                      sessionStatePreviewKey === 'probe' &&
+                      entry.value === noiseDecisionScores[0]?.value &&
+                      (noisePool?.noiseScore || 0) >= 72
+                        ? 1
+                        : 5
+                    ) +
+                    (freshOutsider?.value === entry.value && (freshOutsider?.recent2Hits || 0) === 0
+                      ? (sessionStatePreviewKey === 'probe' && entry.value === noiseDecisionScores[0]?.value ? 1 : 4)
+                      : 0)
+                  )
+            )
+          : 0;
+      const mixedCycleDiscipline =
+        mixedCycleBoard
+          ? (
+              (
+                ((entry.globalPair2Pct || 0) * 0.10) +
+                ((entry.globalPair3Pct || 0) * 0.16) +
+                ((entry.recentFollow2 || 0) * 0.12) +
+                ((entry.recentFollow3 || 0) * 0.18) +
+                ((entry.pair2 || 0) * 0.06)
+              ) -
+              (
+                commons.includes(entry.value)
+                  ? Math.max(0, Math.abs((commonPool?.commonScore || 50) - 50) - 10) * 0.10
+                  : Math.max(0, Math.abs((noisePool?.noiseScore || 50) - 50) - 10) * 0.12
+              )
+            )
+          : 0;
+      const breakConfirmedBoost =
+        noiseTriggerConfirmed && !effectiveCommonDominantBoard
+          ? (
+              commons.includes(entry.value)
+                ? -3
+                : (
+                    8 +
+                    (breakAligned ? 4 : 0) +
+                    ((entry.recent2Hits || 0) >= 1 ? 3 : 0)
+                  )
+            )
+          : 0;
+      const fittedDecisionRaw =
+        baseFinalDecisionRaw * SVAROG_FITTED_CHOOSER_WEIGHTS.base +
+        sequenceDecisionRaw * SVAROG_FITTED_CHOOSER_WEIGHTS.seq +
+        (entry.refinedExactScore || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.refined +
+        (entry.exactScore || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.exact +
+        (commonPool?.commonScore || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.common +
+        (noisePool?.noiseScore || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.noise +
+        support * SVAROG_FITTED_CHOOSER_WEIGHTS.support +
+        carry * SVAROG_FITTED_CHOOSER_WEIGHTS.carry +
+        (entry.globalPair1Pct || 0) * 0.06 +
+        (entry.pair2 || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.pair2 +
+        (entry.globalPair3Pct || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.pair3 +
+        (entry.globalPair2Pct || 0) * 0.11 +
+        (entry.recentFollow2 || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.follow2 +
+        (entry.recentFollow3 || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.follow3 +
+        trustPct * SVAROG_FITTED_CHOOSER_WEIGHTS.trust +
+        latent * SVAROG_FITTED_CHOOSER_WEIGHTS.latent +
+        (entry.currentShare || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.share +
+        (entry.motifScore || 0) * SVAROG_FITTED_CHOOSER_WEIGHTS.motif +
+        consensusBoost +
+        emergingCommonBoost +
+        overdueNoiseBoost +
+        breakAlignmentBoost +
+        mixedQuadSequenceBoost -
+        mixedQuadPoolPenalty -
+        poolMismatchPenalty +
+        noisePhaseBoost +
+        matureCommonLead -
+        matureNoiseBrake +
+        pairNotDueDiscipline +
+        sessionNoiseBeatDiscipline +
+        breakDueDiscipline +
+        commonDominantDiscipline +
+        noiseProbeBrake +
+        mixedCycleDiscipline +
+        breakConfirmedBoost +
+        sessionStateBoost +
+        (commons.includes(entry.value) ? SVAROG_FITTED_CHOOSER_WEIGHTS.isCommon : 0) +
+        (noise.includes(entry.value) ? SVAROG_FITTED_CHOOSER_WEIGHTS.isNoise : 0);
+      const finalDecisionRaw = fittedDecisionRaw;
       return {
         ...entry,
         thinPairMirage,
         thinPairPenalty,
         sequenceDecisionRaw,
+        baseFinalDecisionRaw,
+        fittedDecisionRaw,
+        consensusBoost,
+        emergingCommonBoost,
+        overdueNoiseBoost,
+        breakAlignmentBoost,
+        noisePhaseBoost,
+        pairNotDueDiscipline,
+        sessionNoiseBeatDiscipline,
+        breakDueDiscipline,
+        commonDominantDiscipline,
+        noiseProbeBrake,
+        mixedCycleDiscipline,
+        breakConfirmedBoost,
         finalDecisionRaw,
       };
     }),
@@ -1650,17 +3033,14 @@ function scoreSvarogAnalyzerPicks({
   let analyzerFinalRawRanked = [...analyzerFinalScores].sort(
     (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
   );
-  let analyzerTop1 = finalAnalyzerRanked[0] || null;
-  let analyzerTop2 = finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null;
-  if (sequenceBoardActive && analyzerFinalScores.length > 0) {
-    const top1Value = analyzerFinalScores[0]?.value || null;
-    const top2Value = analyzerFinalScores.find((entry) => entry.value !== top1Value)?.value || null;
-    analyzerTop1 = finalAnalyzerRanked.find((entry) => entry.value === top1Value) || analyzerTop1;
-    analyzerTop2 =
-      finalAnalyzerRanked.find((entry) => entry.value === top2Value) ||
-      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
-      analyzerTop2;
-  }
+  let analyzerTop1 =
+    finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+    finalAnalyzerRanked[0] ||
+    null;
+  let analyzerTop2 =
+    finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked.find((entry) => entry.value !== analyzerTop1?.value)?.value) ||
+    finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+    null;
   const bestCommonDecision = commonDecisionScores[0] || null;
   const secondCommonDecision = commonDecisionScores[1] || null;
   const bestNoiseDecision = noiseDecisionScores[0] || null;
@@ -1675,7 +3055,6 @@ function scoreSvarogAnalyzerPicks({
     ? finalAnalyzerRanked.find((entry) => entry.value === bestNoiseDecision.value) || null
     : null;
   const recent8Unique = new Set(recent8).size;
-  const recent8Dist = getDistribution(recent8);
   const maxRecent8Share = Math.max(...VALUES.map((value) => recent8Dist[value] || 0), 0);
   const dormantOutsider = VALUES
     .filter((value) => !activeTrio?.includes(value))
@@ -1688,10 +3067,9 @@ function scoreSvarogAnalyzerPicks({
     (dormantOutsider.recent4Hits || 0) === 0 &&
     (dormantOutsider.recent2Hits || 0) === 0;
   const loopLikeMixedBoard =
-    recent8.length >= 6 &&
+    preLoopLikeMixedBoard &&
     recent8Unique <= 3 &&
-    maxRecent8Share <= 50 &&
-    commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0) >= 60;
+    maxRecent8Share <= 50;
 
   const secondCommonHoldScore = secondCommonDecision
     ? (
@@ -1765,6 +3143,19 @@ function scoreSvarogAnalyzerPicks({
     (bestNoiseDecision.currentShare || 0) <= 20 &&
     (bestNoiseDecision.pair1 || 0) < 35 &&
     (bestNoiseDecision.pair2 || 0) < 35;
+  const commonReturnGuard =
+    commonReturnArmed &&
+    !!bestNoiseDecision &&
+    (bestNoiseDecision.currentShare || 0) <= 20 &&
+    (bestNoiseDecision.recent2Hits || 0) === 0 &&
+    (bestNoiseDecision.recent4Hits || 0) <= 1 &&
+    freshOutsider?.value !== bestNoiseDecision.value;
+  const flashNoiseGuard =
+    flashNoiseSession &&
+    !!bestNoiseDecision &&
+    (bestNoiseDecision.recent2Hits || 0) === 0 &&
+    (bestNoiseDecision.recent4Hits || 0) <= 1 &&
+    freshOutsider?.value !== bestNoiseDecision.value;
   const allowBreakChallenge =
     !!bestCommonRanked &&
     !!secondCommonRanked &&
@@ -1772,10 +3163,15 @@ function scoreSvarogAnalyzerPicks({
     (normalizedNoiseTiming !== 'not_due' || hiddenNoiseException) &&
     (bestCommonDecision?.commonScore || 0) >= 52 &&
     !stableLoopGuard &&
-    !trioOutsiderGuard;
+    !trioOutsiderGuard &&
+    !mixedQuadActive &&
+    !commonReturnGuard &&
+    !flashNoiseGuard;
   const breakChallengeMargin =
     hiddenNoiseException
       ? 10
+      : flashNoiseSession
+        ? (normalizedNoiseTiming === 'due' ? 9 : normalizedNoiseTiming === 'approaching' ? 12 : 999)
       : normalizedNoiseTiming === 'due'
       ? 4
       : normalizedNoiseTiming === 'approaching'
@@ -1792,48 +3188,98 @@ function scoreSvarogAnalyzerPicks({
     allowBreakChallenge &&
     bestNoiseChallengeScore >= secondCommonHoldScore + breakChallengeMargin + anchoredCommonMargin + loopLikeMargin &&
     bestNoiseDecision?.value !== bestCommonDecision?.value;
-  if (shouldPromoteNoiseOverSecondCommon) {
-    analyzerTop2 = bestNoiseRanked?.value === analyzerTop1?.value
-      ? (secondCommonRanked?.value !== analyzerTop1?.value ? secondCommonRanked : finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) || null)
-      : bestNoiseRanked;
-  }
-  if (triadModeActive) {
-    const triadRanked = finalAnalyzerRanked
-      .filter((entry) => activeTrio.includes(entry.value))
-      .map((entry) => {
-        const trustPct = Math.round((entry.trustScore || 0) * 100);
-        const trioRaw =
-          (entry.currentShare || 0) * 0.18 +
-          (entry.supportScore || 0) * 0.16 +
-          (entry.recentCarryScore || 0) * 0.14 +
-          trustPct * 0.08 +
-          (entry.pair1 || 0) * 0.18 +
-          (entry.pair2 || 0) * 0.20 +
-          (entry.recentFollow1 || 0) * 0.12 +
-          (entry.recentFollow2 || 0) * 0.18 +
-          (entry.value === lastRoll ? 8 : 0) +
-          (commons.includes(entry.value) ? 4 : 0) +
-          (entry.direction === 'rising' ? 4 : entry.direction === 'stable' ? 2 : -2);
-        return {
-          ...entry,
-          trioRaw,
-        };
-      })
-      .sort((a, b) => (b.trioRaw || 0) - (a.trioRaw || 0));
-    const bestTriad = triadRanked[0] || null;
-    const secondTriad = triadRanked.find((entry) => entry.value !== bestTriad?.value) || null;
-    const missingTriad = triadRanked.find(
-      (entry) => entry.value !== analyzerTop1?.value && entry.value !== analyzerTop2?.value
-    ) || null;
-    if (bestTriad && analyzerTop1 && !activeTrio.includes(analyzerTop1.value)) {
-      analyzerTop1 = bestTriad;
-      analyzerTop2 = secondTriad && secondTriad.value !== analyzerTop1?.value
-        ? secondTriad
-        : analyzerTop2;
-    } else if (missingTriad && analyzerTop2 && !activeTrio.includes(analyzerTop2.value)) {
-      analyzerTop2 = missingTriad;
-    }
-  }
+  const breakChallengeThreshold =
+    breakChallengeMargin + anchoredCommonMargin + loopLikeMargin;
+  const breakChallengeEdge =
+    (bestNoiseChallengeScore || 0) - (secondCommonHoldScore || 0);
+  const sessionDeveloped = rolls.length >= 6;
+  const sessionMature = rolls.length >= 8;
+  const commonAnchorNoiseQuiet =
+    !bestNoiseDecision ||
+    (
+      (bestNoiseDecision.currentShare || 0) <= 20 &&
+      (bestNoiseDecision.recent2Hits || 0) === 0 &&
+      (bestNoiseDecision.recent4Hits || 0) <= 1
+    );
+  const pairNotDueCommonsLock =
+    !triadModeActive &&
+    normalizedNoiseTiming === 'not_due' &&
+    !!bestCommonRanked &&
+    !!secondCommonRanked;
+  const bestNoiseBreakAligned =
+    !!bestNoiseDecision &&
+    (
+      freshOutsider?.value === bestNoiseDecision.value ||
+      (bestNoiseDecision.activationScore || 0) >= 28
+    );
+  const pairNotDueNoiseBreakReady =
+    !!bestNoiseDecision &&
+    (
+      hiddenNoiseException ||
+      (
+        bestNoiseBreakAligned &&
+        (
+          (bestNoiseDecision.currentShare || 0) >= 35 ||
+          (bestNoiseDecision.recent2Hits || 0) >= 2 ||
+          (bestNoiseDecision.recent4Hits || 0) >= 2 ||
+          (freshOutsider?.value === bestNoiseDecision.value &&
+            (
+              (
+                (freshOutsider.recent2Hits || 0) >= 1 &&
+                (freshOutsider.recent4Hits || 0) >= 2
+              ) ||
+              (freshOutsider.recent4Hits || 0) >= 2
+            ))
+        )
+      )
+    );
+  const hardPairHoldTakeover =
+    pairNotDueCommonsLock &&
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !pairNotDueNoiseBreakReady &&
+    !mixedQuadActive &&
+    !triadModeActive &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    (bestCommonDecision.commonScore || 0) >= 55 &&
+    (secondCommonDecision.commonScore || 0) >= 12;
+  const developingCommonsAnchorTakeover =
+    sessionDeveloped &&
+    !sessionMature &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    normalizedNoiseTiming === 'not_due' &&
+    !pairNotDueNoiseBreakReady &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    recent8Unique <= 3 &&
+    (bestCommonDecision.commonScore || 0) >= 68 &&
+    (secondCommonDecision.commonScore || 0) >= 18 &&
+    commonAnchorNoiseQuiet;
+  const matureCommonsAnchorTakeover =
+    sessionMature &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    recent8Unique <= 3 &&
+    (bestCommonDecision.commonScore || 0) >= 58 &&
+    (secondCommonDecision.commonScore || 0) >= 14 &&
+    (
+      normalizedNoiseTiming === 'not_due' ||
+      (
+        normalizedNoiseTiming === 'approaching' &&
+        breakChallengeEdge < Math.max(6, breakChallengeThreshold - 2)
+      )
+    ) &&
+    (postNoiseCommonRate >= 0.55 || commonRecoveryActive || flashNoiseSession) &&
+    (
+      (bestNoiseDecision?.currentShare || 0) <= 20 ||
+      !bestNoiseBreakAligned ||
+      (bestNoiseDecision?.recent2Hits || 0) === 0
+    );
   const strongestBackedCommon = finalAnalyzerRanked.find((entry) =>
     commons.includes(entry.value) &&
     (
@@ -1843,143 +3289,732 @@ function scoreSvarogAnalyzerPicks({
     )
   ) || null;
   const topPairValues = [analyzerTop1?.value, analyzerTop2?.value].filter(Boolean);
-  if (
-    strongestBackedCommon &&
-    !topPairValues.includes(strongestBackedCommon.value) &&
-    analyzerTop2 &&
-    strongestBackedCommon.refinedExactScore >= ((analyzerTop2.refinedExactScore ?? analyzerTop2.exactScore) - 8)
-  ) {
-    analyzerTop2 = strongestBackedCommon;
-  }
   const topNoiseCount = [analyzerTop1, analyzerTop2].filter((entry) => entry && noise.includes(entry.value)).length;
-  let analyzerMode = 'pair';
-  if (triadModeActive) analyzerMode = 'pair';
-  if (normalizedNoiseTiming !== 'not_due') {
-    if (topNoiseCount === 2 || (analyzerTop1 && noise.includes(analyzerTop1.value))) analyzerMode = 'break';
-    else if (topNoiseCount === 1) analyzerMode = 'break-watch';
-  }
-  if (triadModeActive) analyzerMode = 'pair';
-  if (shouldPromoteNoiseOverSecondCommon) {
-    analyzerMode = normalizedNoiseTiming === 'due' ? 'break' : 'break-watch';
+
+  if (false && (
+    (sessionStatePreviewKey === 'break' || sessionStatePreviewKey === 'probe') &&
+    bestCommonDecision?.value &&
+    secondCommonDecision?.value &&
+    bestNoiseDecision?.value
+  )) {
+    const strongBreakWin = shouldPromoteNoiseOverSecondCommon;
+    const softBreakWin =
+      !strongBreakWin &&
+      (
+        (sessionStatePreviewKey === 'break' &&
+          normalizedNoiseTiming !== 'not_due' &&
+          breakChallengeEdge >= Math.max(2, breakChallengeThreshold - 4)) ||
+        (sessionStatePreviewKey === 'probe' &&
+          (bestNoiseDecision.noiseScore || 0) >= 72 &&
+          breakChallengeEdge >= -2 &&
+          (
+            normalizedNoiseTiming !== 'not_due' ||
+            (bestNoiseDecision.currentShare || 0) >= 20 ||
+            (bestNoiseDecision.recent4Hits || 0) >= 2
+          ))
+      );
+
+    if (strongBreakWin || softBreakWin) {
+      const topCommonValue = bestCommonDecision.value;
+      const secondCommonValue = secondCommonDecision.value;
+      const topNoiseValue = bestNoiseDecision.value;
+      const surplus = Math.max(0, breakChallengeEdge - breakChallengeThreshold);
+      const topNoiseBoost = strongBreakWin
+        ? 12 + Math.min(8, Math.round(surplus * 0.8))
+        : sessionStatePreviewKey === 'probe'
+          ? 10
+          : 6;
+      const topCommonBoost = strongBreakWin ? 4 : sessionStatePreviewKey === 'probe' ? 3 : 2;
+      const secondCommonPenalty = strongBreakWin
+        ? 10 + Math.min(6, Math.round(surplus * 0.5))
+        : sessionStatePreviewKey === 'probe'
+          ? 8
+          : 4;
+
+      analyzerFinalScores = normalizePoolScores(
+        analyzerFinalScores.map((entry) => {
+          let breakBlendRaw = 0;
+          if (entry.value === topNoiseValue) breakBlendRaw += topNoiseBoost;
+          if (entry.value === topCommonValue) breakBlendRaw += topCommonBoost;
+          if (entry.value === secondCommonValue) breakBlendRaw -= secondCommonPenalty;
+          return {
+            ...entry,
+            breakBlendRaw,
+            finalDecisionRaw: (entry.finalDecisionRaw || 0) + breakBlendRaw,
+          };
+        }),
+        'finalDecisionRaw',
+        'pickScore'
+      );
+
+      analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+        (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+      );
+      analyzerTop1 =
+        finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+        analyzerTop1;
+      analyzerTop2 =
+        finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked.find((entry) => entry.value !== analyzerTop1?.value)?.value) ||
+        finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+        analyzerTop2;
+    }
   }
 
-  const regimeWeights =
-    analyzerMode === 'pair' && normalizedNoiseTiming === 'not_due'
-      ? SVAROG_REGIME_DECIDER_WEIGHTS.pairNotDue
-      : analyzerMode === 'break' && normalizedNoiseTiming === 'due'
-        ? SVAROG_REGIME_DECIDER_WEIGHTS.breakDue
-        : null;
-
-  if (regimeWeights) {
-    const commonScoreMap = new Map(commonDecisionScores.map((entry) => [entry.value, entry.commonScore || 0]));
-    const noiseScoreMap = new Map(noiseDecisionScores.map((entry) => [entry.value, entry.noiseScore || 0]));
+  if (hardPairHoldTakeover) {
+    const takeoverMain = bestCommonDecision.value;
+    const takeoverAlt = secondCommonDecision.value;
     analyzerFinalScores = normalizePoolScores(
       analyzerFinalScores.map((entry) => {
-        const featureMap = {
-          exact: entry.exactScore || 0,
-          refined: entry.refinedExactScore || 0,
-          trust: Math.round((entry.trustScore || 0) * 100),
-          support: entry.supportScore || 0,
-          carry: entry.recentCarryScore || 0,
-          latent: entry.latentPressure || 0,
-          currentShare: entry.currentShare || 0,
-          pair1: entry.pair1 || 0,
-          pair2: entry.pair2 || 0,
-          pair1Reliable: entry.pair1Reliable ? 1 : 0,
-          pair2Reliable: entry.pair2Reliable ? 1 : 0,
-          freq: entry.freqSignal || 0,
-          recent: entry.recentSignal || 0,
-          momentum: entry.momentumSignal || 0,
-          absence: entry.absenceSignal || 0,
-          seenAgo: entry.seenAgo || 0,
-          recent2: entry.recent2Hits || 0,
-          recent4: entry.recent4Hits || 0,
-          commonScore: commonScoreMap.get(entry.value) || 0,
-          noiseScore: noiseScoreMap.get(entry.value) || 0,
-          isCommon: commons.includes(entry.value) ? 1 : 0,
-          isNoise: noise.includes(entry.value) ? 1 : 0,
-          directionRising: entry.direction === 'rising' ? 1 : 0,
-          directionStable: entry.direction === 'stable' ? 1 : 0,
-          directionFalling: entry.direction === 'falling' ? 1 : 0,
-          armed: entry.armedNoiseBoost || 0,
-          phantom: entry.phantomNoisePenalty || 0,
-          loopCommon: entry.loopCommonBoost || 0,
-          loopNoisePenalty: entry.loopNoisePenalty || 0,
-          emerg: entry.emergingOutsiderBoost || 0,
-          sandwich: entry.sandwichReturnBoost || 0,
-          dormant4: entry.dormantFourthBoost || 0,
-          thinPenalty: entry.thinPairPenalty || 0,
-        };
-        const regimeDecisionRaw = Object.entries(regimeWeights).reduce(
-          (sum, [key, weight]) => sum + (featureMap[key] || 0) * weight,
-          0
-        );
+        let pairHoldTakeoverRaw = 0;
+        if (entry.value === takeoverMain) pairHoldTakeoverRaw += 38;
+        else if (entry.value === takeoverAlt) pairHoldTakeoverRaw += 30;
+        else if (noise.includes(entry.value)) pairHoldTakeoverRaw -= 24;
+        else pairHoldTakeoverRaw -= 12;
         return {
           ...entry,
-          finalDecisionRaw: regimeDecisionRaw,
+          pairHoldTakeoverRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + pairHoldTakeoverRaw,
         };
       }),
       'finalDecisionRaw',
       'pickScore'
     );
+
     analyzerFinalRawRanked = [...analyzerFinalScores].sort(
       (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
     );
     analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
       finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
       analyzerTop1;
     analyzerTop2 =
-      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked.find((entry) => entry.value !== analyzerTop1?.value)?.value) ||
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
       finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
       analyzerTop2;
   }
 
-  // Dominant run guard: when one value clearly dominates (70%+ share, 3+ run),
-  // don't let gap pressure on absent noise push it out of the top-2.
-  const dominantValue = VALUES.find(v =>
-    (distribution[v] || 0) >= 70 && v === lastRoll && currentRunLen >= 3
-  );
-  if (dominantValue) {
-    const dominantInTop2 = analyzerTop1?.value === dominantValue || analyzerTop2?.value === dominantValue;
-    if (!dominantInTop2) {
-      const dominantEntry = finalAnalyzerRanked.find(entry => entry.value === dominantValue);
-      if (dominantEntry) {
-        // Replace the weaker pick, preferring to replace noise over commons
-        if (analyzerTop2 && noise.includes(analyzerTop2.value)) {
-          analyzerTop2 = dominantEntry;
-        } else if (analyzerTop1 && noise.includes(analyzerTop1.value)) {
-          analyzerTop2 = dominantEntry;
+  if (developingCommonsAnchorTakeover || matureCommonsAnchorTakeover) {
+    const takeoverMain = bestCommonDecision.value;
+    const takeoverAlt = secondCommonDecision.value;
+    const anchorStrength = matureCommonsAnchorTakeover ? 1 : 0;
+    const takeoverAltRecoveryBoost =
+      takeoverAlt === commonReclaimValue
+        ? 10
+        : takeoverAlt === siblingCommonValue
+          ? 8
+          : 0;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let commonsAnchorRaw = 0;
+        if (entry.value === takeoverMain) {
+          commonsAnchorRaw += anchorStrength ? 32 : 22;
+          if (commonRecoveryActive) commonsAnchorRaw += 6;
+        } else if (entry.value === takeoverAlt) {
+          commonsAnchorRaw += (anchorStrength ? 22 : 14) + takeoverAltRecoveryBoost;
+          if (entry.value === lastRoll) commonsAnchorRaw += 4;
+        } else if (noise.includes(entry.value)) {
+          commonsAnchorRaw -= anchorStrength ? 18 : 12;
+          if ((entry.currentShare || 0) <= 20) commonsAnchorRaw -= 4;
+          if ((entry.recent2Hits || 0) === 0) commonsAnchorRaw -= 4;
+        } else {
+          commonsAnchorRaw -= anchorStrength ? 10 : 6;
         }
-      }
-    }
-    // Both picks are noise during a dominant run → force dominant into alt
-    if (
-      analyzerTop1 && noise.includes(analyzerTop1.value) &&
-      analyzerTop2 && noise.includes(analyzerTop2.value)
-    ) {
-      const dominantEntry = finalAnalyzerRanked.find(entry => entry.value === dominantValue);
-      if (dominantEntry) analyzerTop2 = dominantEntry;
-    }
-  }
+        return {
+          ...entry,
+          commonsAnchorRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + commonsAnchorRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
 
-  if (analyzerTop2?.value === analyzerTop1?.value) {
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
     analyzerTop2 =
-      finalAnalyzerRanked.find((entry) => entry.value && entry.value !== analyzerTop1?.value) ||
-      (bestCommonRanked && bestCommonRanked.value !== analyzerTop1?.value ? bestCommonRanked : null) ||
-      (secondCommonRanked && secondCommonRanked.value !== analyzerTop1?.value ? secondCommonRanked : null) ||
-      (bestNoiseRanked && bestNoiseRanked.value !== analyzerTop1?.value ? bestNoiseRanked : null) ||
-      null;
-  }
-
-  if (sequenceBoardActive && analyzerFinalScores.length > 0) {
-    const top1Value = analyzerFinalScores[0]?.value || null;
-    const top2Value = analyzerFinalScores.find((entry) => entry.value !== top1Value)?.value || null;
-    analyzerTop1 = finalAnalyzerRanked.find((entry) => entry.value === top1Value) || analyzerTop1;
-    analyzerTop2 =
-      finalAnalyzerRanked.find((entry) => entry.value === top2Value) ||
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
       finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
       analyzerTop2;
   }
+
+  const pairNotDueCommonsPreserveTakeover =
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    normalizedNoiseTiming === 'not_due' &&
+    (bestCommonDecision.commonScore || 0) >= 56 &&
+    (secondCommonDecision.commonScore || 0) >= 12 &&
+    !pairNotDueNoiseBreakReady;
+  const approachingSecondCommonPreserveTakeover =
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !!bestNoiseDecision &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    normalizedNoiseTiming === 'approaching' &&
+    commons.includes(analyzerFinalRawRanked[0]?.value) &&
+    noise.includes(analyzerFinalRawRanked.find((entry) => entry.value !== analyzerFinalRawRanked[0]?.value)?.value) &&
+    (bestCommonDecision.commonScore || 0) >= 60 &&
+    (secondCommonDecision.commonScore || 0) >= 16 &&
+    breakChallengeEdge < Math.max(4, breakChallengeThreshold - 1) &&
+    (
+      (bestNoiseDecision.currentShare || 0) <= 20 ||
+      ((bestNoiseDecision.recent2Hits || 0) === 0 && (bestNoiseDecision.recent4Hits || 0) <= 1)
+    );
+  const commonDominantPreserveTakeover =
+    effectiveCommonDominantBoard &&
+    !noiseTriggerConfirmed &&
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    (bestCommonDecision.commonScore || 0) >= 54 &&
+    (secondCommonDecision.commonScore || 0) >= 10;
+  const developingCommonsPairTakeover =
+    developingSession &&
+    effectiveCommonDominantBoard &&
+    !!bestCommonDecision &&
+    !!secondCommonDecision &&
+    !triadModeActive &&
+    !mixedQuadActive;
+  const preLastWindow = rolls.slice(-6, -1);
+  const preLastCounts = VALUES.reduce((acc, value) => {
+    acc[value] = preLastWindow.filter((roll) => roll === value).length;
+    return acc;
+  }, {});
+  const preLastPair = [...VALUES]
+    .sort((a, b) => (preLastCounts[b] || 0) - (preLastCounts[a] || 0))
+    .slice(0, 2);
+  const preLastPairShare =
+    preLastWindow.length > 0
+      ? ((preLastCounts[preLastPair[0]] || 0) + (preLastCounts[preLastPair[1]] || 0)) / preLastWindow.length
+      : 0;
+  const postOutsiderSnapbackTakeover =
+    preLastWindow.length >= 4 &&
+    preLastPair.length === 2 &&
+    preLastPairShare >= 0.8 &&
+    !preLastPair.includes(lastRoll) &&
+    preLastPair.some((value) => commons.includes(value)) &&
+    (
+      flashNoiseSession ||
+      postNoiseCommonRate >= 0.5 ||
+      normalizedNoiseTiming === 'not_due' ||
+      (
+        normalizedNoiseTiming === 'due' &&
+        (distribution?.[lastRoll] || 0) <= 20
+      )
+    ) &&
+    (freshOutsider?.value === lastRoll || noise.includes(lastRoll)) &&
+    ((freshOutsider?.recent2Hits || 0) <= 1) &&
+    !shouldPromoteNoiseOverSecondCommon &&
+    !mixedQuadActive &&
+    !triadModeActive;
+
+  if (pairNotDueCommonsPreserveTakeover || approachingSecondCommonPreserveTakeover || commonDominantPreserveTakeover || developingCommonsPairTakeover) {
+    const takeoverMain = bestCommonDecision.value;
+    const takeoverAlt = secondCommonDecision.value;
+    const preserveStrength = pairNotDueCommonsPreserveTakeover || commonDominantPreserveTakeover || developingCommonsPairTakeover ? 1 : 0;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let commonsPreserveRaw = 0;
+        if (entry.value === takeoverMain) {
+          commonsPreserveRaw += preserveStrength ? 34 : 16;
+          if (commonDominantPreserveTakeover) commonsPreserveRaw += 8;
+          if (developingCommonsPairTakeover) commonsPreserveRaw += 10;
+        } else if (entry.value === takeoverAlt) {
+          commonsPreserveRaw += preserveStrength ? 28 : 22;
+          if (commonDominantPreserveTakeover) commonsPreserveRaw += 6;
+          if (developingCommonsPairTakeover) commonsPreserveRaw += 10;
+          if (entry.value === lastRoll) commonsPreserveRaw += 4;
+        } else if (noise.includes(entry.value)) {
+          commonsPreserveRaw -= preserveStrength ? 20 : 12;
+          if (commonDominantPreserveTakeover) commonsPreserveRaw -= 6;
+          if (developingCommonsPairTakeover) commonsPreserveRaw -= 8;
+          if ((entry.currentShare || 0) <= 20) commonsPreserveRaw -= 4;
+          if ((entry.recent2Hits || 0) === 0) commonsPreserveRaw -= 4;
+        } else {
+          commonsPreserveRaw -= preserveStrength ? 12 : 6;
+        }
+        return {
+          ...entry,
+          commonsPreserveRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + commonsPreserveRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
+      analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
+      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+      analyzerTop2;
+  }
+
+  if (postOutsiderSnapbackTakeover) {
+    const takeoverMain =
+      preLastPair.find((value) => value === lastRoll) ||
+      preLastPair.find((value) => commons.includes(value)) ||
+      preLastPair[0];
+    const takeoverAlt =
+      preLastPair.find((value) => value !== takeoverMain) ||
+      commons.find((value) => value !== takeoverMain) ||
+      takeoverMain;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let snapbackRaw = 0;
+        if (entry.value === takeoverMain) snapbackRaw += 28;
+        else if (entry.value === takeoverAlt) snapbackRaw += 22;
+        else if (entry.value === lastRoll) snapbackRaw -= 18;
+        else if (noise.includes(entry.value)) snapbackRaw -= 12;
+        else snapbackRaw -= 6;
+        return {
+          ...entry,
+          snapbackRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + snapbackRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
+    analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
+      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+      analyzerTop2;
+  }
+
+  const hardCommonReturnTakeover =
+    commonReturnArmed &&
+    commonRecoveryActive &&
+    !!siblingCommonValue &&
+    commons.includes(lastRoll) &&
+    (freshOutsider?.recent2Hits || 0) === 0 &&
+    (freshOutsider?.recent4Hits || 0) <= 1;
+  const hardCommonReclaimTakeover =
+    commonReclaimArmed &&
+    commonRecoveryActive &&
+    !!commonReclaimValue &&
+    (freshOutsider?.recent2Hits || 0) === 0 &&
+    (freshOutsider?.recent4Hits || 0) <= 1;
+  const hardSiblingBounceTakeover =
+    siblingBounceArmed &&
+    (flashNoiseSession || postNoiseSiblingRate >= 0.6) &&
+    !!siblingCommonValue &&
+    (freshOutsider?.recent2Hits || 0) === 0 &&
+    (freshOutsider?.recent4Hits || 0) <= 1 &&
+    postNoiseCommonRate >= 0.5;
+
+  if (false && hardCommonReturnTakeover) {
+    const takeoverMain = siblingCommonValue;
+    const takeoverAlt = commons.find((value) => value !== takeoverMain) || lastRoll;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let commonReturnTakeoverRaw = 0;
+        if (entry.value === takeoverMain) commonReturnTakeoverRaw += 90;
+        else if (entry.value === takeoverAlt) commonReturnTakeoverRaw += 20;
+        else commonReturnTakeoverRaw -= 40;
+        return {
+          ...entry,
+          commonReturnTakeoverRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + commonReturnTakeoverRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
+    analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
+      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+      analyzerTop2;
+  }
+
+  if (false && hardCommonReclaimTakeover) {
+    const takeoverMain = commonReclaimValue;
+    const takeoverAlt = commons.find((value) => value !== takeoverMain) || lastRoll;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let commonReclaimTakeoverRaw = 0;
+        if (entry.value === takeoverMain) commonReclaimTakeoverRaw += 70;
+        else if (entry.value === takeoverAlt) commonReclaimTakeoverRaw += 18;
+        else commonReclaimTakeoverRaw -= 34;
+        return {
+          ...entry,
+          commonReclaimTakeoverRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + commonReclaimTakeoverRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
+    analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
+      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+      analyzerTop2;
+  }
+
+  if (false && hardSiblingBounceTakeover) {
+    const takeoverMain = siblingCommonValue;
+    const takeoverAlt = commons.find((value) => value !== takeoverMain) || lastRoll;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let siblingBounceTakeoverRaw = 0;
+        if (entry.value === takeoverMain) siblingBounceTakeoverRaw += 56;
+        else if (entry.value === takeoverAlt) siblingBounceTakeoverRaw += 16;
+        else siblingBounceTakeoverRaw -= 28;
+        return {
+          ...entry,
+          siblingBounceTakeoverRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + siblingBounceTakeoverRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+    analyzerTop1 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverMain) ||
+      finalAnalyzerRanked.find((entry) => entry.value === analyzerFinalRawRanked[0]?.value) ||
+      analyzerTop1;
+    analyzerTop2 =
+      finalAnalyzerRanked.find((entry) => entry.value === takeoverAlt) ||
+      finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
+      analyzerTop2;
+  }
+
+  const profileFallbackActive =
+    !!tailProfileMatch &&
+    (
+      tailProfileMatch.confidence >= 100 ||
+      tailProfileMatch.total >= 3 ||
+      preLoopLikeMixedBoard ||
+      sequenceBoardActive ||
+      localLoopActive ||
+      mixedQuadActive ||
+      !!activeTrio ||
+      Math.abs(((analyzerFinalRawRanked[0]?.finalDecisionRaw || 0) - (analyzerFinalRawRanked[1]?.finalDecisionRaw || 0))) <= 12
+    );
+  if (profileFallbackActive) {
+    const profileTarget = tailProfileMatch.target;
+    const currentSecondFinal = analyzerFinalRawRanked.find((entry) => entry.value !== analyzerFinalRawRanked[0]?.value) || null;
+    const profileTargetIsBestCommon = bestCommonDecision?.value === profileTarget || secondCommonDecision?.value === profileTarget;
+    const profileTargetIsBestNoise = bestNoiseDecision?.value === profileTarget;
+    const profileSecondIsWeakCommon =
+      !!currentSecondFinal &&
+      commons.includes(currentSecondFinal.value) &&
+      ((commonDecisionMap.get(currentSecondFinal.value)?.commonScore || 0) <= 20);
+    const profileSecondIsWrongNoise =
+      !!currentSecondFinal &&
+      noise.includes(currentSecondFinal.value) &&
+      profileTargetIsBestNoise &&
+      currentSecondFinal.value !== profileTarget;
+    const profileBoost =
+      tailProfileMatch.confidence >= 100 ? 30 :
+      tailProfileMatch.confidence >= 80 ? 22 :
+      16;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let tailProfileRaw = 0;
+        if (entry.value === profileTarget) {
+          tailProfileRaw += profileBoost;
+          if (profileTargetIsBestCommon) tailProfileRaw += 6;
+          if (profileTargetIsBestNoise) tailProfileRaw += 6;
+          if (profileSecondIsWeakCommon || profileSecondIsWrongNoise) tailProfileRaw += 8;
+          if (commons.includes(entry.value)) tailProfileRaw += 2;
+          if (noise.includes(entry.value) && normalizedNoiseTiming !== 'not_due') tailProfileRaw += 2;
+        } else if (
+          currentSecondFinal &&
+          entry.value === currentSecondFinal.value &&
+          entry.value !== profileTarget &&
+          (profileSecondIsWeakCommon || profileSecondIsWrongNoise)
+        ) {
+          tailProfileRaw -= 12;
+        } else if (
+          currentRunLen >= 2 &&
+          entry.value === lastRoll &&
+          entry.value !== profileTarget &&
+          noise.includes(entry.value) &&
+          !tailProfileMatch.key.endsWith(entry.value)
+        ) {
+          tailProfileRaw -= 8;
+        }
+        return {
+          ...entry,
+          tailProfileRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + tailProfileRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+  }
+
+  const shapeProfileFallbackActive =
+    !tailProfileMatch &&
+    !!shapeProfileMatch &&
+    (
+      preLoopLikeMixedBoard ||
+      sequenceBoardActive ||
+      localLoopActive ||
+      mixedQuadActive ||
+      !!activeTrio ||
+      Math.abs(((analyzerFinalRawRanked[0]?.finalDecisionRaw || 0) - (analyzerFinalRawRanked[1]?.finalDecisionRaw || 0))) <= 14
+    );
+  if (shapeProfileFallbackActive) {
+    const profileTarget = shapeProfileMatch.target;
+    const profileBoost =
+      shapeProfileMatch.confidence >= 100 ? 18 :
+      shapeProfileMatch.confidence >= 80 ? 14 :
+      10;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let shapeProfileRaw = 0;
+        if (entry.value === profileTarget) {
+          shapeProfileRaw += profileBoost;
+          if (commons.includes(entry.value)) shapeProfileRaw += 2;
+          if (noise.includes(entry.value) && normalizedNoiseTiming !== 'not_due') shapeProfileRaw += 2;
+        }
+        return {
+          ...entry,
+          shapeProfileRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + shapeProfileRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+  }
+
+  const activeProfileMatch = tailProfileMatch || shapeProfileMatch;
+  const activeProfileTarget = activeProfileMatch?.target || null;
+  const activeProfileConfidence = activeProfileMatch?.confidence || 0;
+  const profileTargetCommon = activeProfileTarget ? commonDecisionMap.get(activeProfileTarget) : null;
+  const profileTargetNoise = activeProfileTarget ? noiseDecisionMap.get(activeProfileTarget) : null;
+  const currentFinalMain = analyzerFinalRawRanked[0] || null;
+  const currentFinalAlt = analyzerFinalRawRanked.find((entry) => entry.value !== currentFinalMain?.value) || null;
+  const currentAltWeakCommon =
+    !!currentFinalAlt &&
+    commons.includes(currentFinalAlt.value) &&
+    ((commonDecisionMap.get(currentFinalAlt.value)?.commonScore || 0) <= 24);
+  const currentAltWeakNoise =
+    !!currentFinalAlt &&
+    noise.includes(currentFinalAlt.value) &&
+    ((noiseDecisionMap.get(currentFinalAlt.value)?.noiseScore || 0) <= 28);
+  const profileCanReplaceAlt =
+    !!activeProfileTarget &&
+    !!currentFinalMain &&
+    currentFinalAlt?.value !== activeProfileTarget &&
+    activeProfileConfidence >= 67 &&
+    (
+      preLoopLikeMixedBoard ||
+      sequenceBoardActive ||
+      localLoopActive ||
+      mixedQuadActive ||
+      !!activeTrio ||
+      Math.abs(((currentFinalMain.finalDecisionRaw || 0) - (currentFinalAlt?.finalDecisionRaw || 0))) <= 18
+    );
+  const profileNoiseAltSwap =
+    profileCanReplaceAlt &&
+    commons.includes(currentFinalMain.value) &&
+    noise.includes(activeProfileTarget) &&
+    (
+      normalizedNoiseTiming !== 'not_due' ||
+      !!tailProfileMatch
+    ) &&
+    ((profileTargetNoise?.noiseScore || 0) >= 60) &&
+    (currentAltWeakCommon || currentAltWeakNoise);
+  const profileCommonAltSwap =
+    profileCanReplaceAlt &&
+    commons.includes(activeProfileTarget) &&
+    commons.includes(currentFinalMain.value) &&
+    ((profileTargetCommon?.commonScore || 0) >= 16) &&
+    (
+      noise.includes(currentFinalAlt?.value) ||
+      currentAltWeakCommon
+    );
+
+  if (profileNoiseAltSwap || profileCommonAltSwap) {
+    const takeoverMain = currentFinalMain.value;
+    const takeoverAlt = activeProfileTarget;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let profileHandoffRaw = 0;
+        if (entry.value === takeoverMain) profileHandoffRaw += 10;
+        else if (entry.value === takeoverAlt) profileHandoffRaw += 22;
+        else if (entry.value === currentFinalAlt?.value) profileHandoffRaw -= 18;
+        else profileHandoffRaw -= 2;
+        return {
+          ...entry,
+          profileHandoffRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + profileHandoffRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+  }
+
+  const topCommonFinalEntry = bestCommonDecision
+    ? analyzerFinalScores.find((entry) => entry.value === bestCommonDecision.value) || null
+    : null;
+  const currentFinalLeader = analyzerFinalRawRanked[0] || null;
+  const currentFinalSecond = analyzerFinalRawRanked.find((entry) => entry.value !== currentFinalLeader?.value) || null;
+  const pairNotDueTopCommonAnchor =
+    normalizedNoiseTiming === 'not_due' &&
+    !triadModeActive &&
+    !mixedQuadActive &&
+    !!bestCommonDecision &&
+    !!topCommonFinalEntry &&
+    (bestCommonDecision.commonScore || 0) >= 78 &&
+    (
+      (
+        currentFinalLeader?.value !== bestCommonDecision.value &&
+        (topCommonFinalEntry.finalDecisionRaw || 0) >= ((currentFinalLeader?.finalDecisionRaw || 0) - 22)
+      ) ||
+      (
+        currentFinalSecond?.value !== bestCommonDecision.value &&
+        (topCommonFinalEntry.finalDecisionRaw || 0) >= ((currentFinalSecond?.finalDecisionRaw || 0) - 18)
+      )
+    );
+
+  if (pairNotDueTopCommonAnchor) {
+    const takeoverMain = bestCommonDecision.value;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let topCommonAnchorRaw = 0;
+        if (entry.value === takeoverMain) {
+          topCommonAnchorRaw += 24;
+        } else if (
+          entry.value === currentFinalSecond?.value &&
+          entry.value !== takeoverMain &&
+          (
+            noise.includes(entry.value) ||
+            (commonDecisionMap.get(entry.value)?.commonScore || 0) <= 30
+          )
+        ) {
+          topCommonAnchorRaw -= 18;
+        } else if (
+          entry.value === currentFinalLeader?.value &&
+          entry.value !== takeoverMain &&
+          (commonDecisionMap.get(entry.value)?.commonScore || 0) < (bestCommonDecision.commonScore || 0) - 40
+        ) {
+          topCommonAnchorRaw -= 8;
+        }
+        return {
+          ...entry,
+          topCommonAnchorRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + topCommonAnchorRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+  }
+
+  const refreshedTopCommonEntry = bestCommonDecision
+    ? analyzerFinalScores.find((entry) => entry.value === bestCommonDecision.value) || null
+    : null;
+  const refreshedLeader = analyzerFinalRawRanked[0] || null;
+  const refreshedSecond = analyzerFinalRawRanked.find((entry) => entry.value !== refreshedLeader?.value) || null;
+  const strongTopCommonAltKeep =
+    !!bestCommonDecision &&
+    !!refreshedTopCommonEntry &&
+    !!refreshedLeader &&
+    !!refreshedSecond &&
+    refreshedSecond.value !== bestCommonDecision.value &&
+    (bestCommonDecision.commonScore || 0) >= 78 &&
+    commons.includes(refreshedLeader.value) &&
+    noise.includes(refreshedSecond.value) &&
+    (refreshedTopCommonEntry.finalDecisionRaw || 0) >= ((refreshedSecond.finalDecisionRaw || 0) - 6);
+
+  if (strongTopCommonAltKeep) {
+    const takeoverCommon = bestCommonDecision.value;
+    const pushedNoise = refreshedSecond.value;
+    analyzerFinalScores = normalizePoolScores(
+      analyzerFinalScores.map((entry) => {
+        let strongTopCommonKeepRaw = 0;
+        if (entry.value === takeoverCommon) strongTopCommonKeepRaw += 14;
+        else if (entry.value === pushedNoise) strongTopCommonKeepRaw -= 12;
+        return {
+          ...entry,
+          strongTopCommonKeepRaw,
+          finalDecisionRaw: (entry.finalDecisionRaw || 0) + strongTopCommonKeepRaw,
+        };
+      }),
+      'finalDecisionRaw',
+      'pickScore'
+    );
+
+    analyzerFinalRawRanked = [...analyzerFinalScores].sort(
+      (a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0)
+    );
+  }
+
+  let analyzerMode = 'pair';
+  if (triadModeActive || mixedQuadActive || hardCommonReturnTakeover || hardCommonReclaimTakeover || hardSiblingBounceTakeover || developingCommonsAnchorTakeover || matureCommonsAnchorTakeover) analyzerMode = 'pair';
+  if (!hardCommonReturnTakeover && !hardCommonReclaimTakeover && !hardSiblingBounceTakeover && normalizedNoiseTiming !== 'not_due') {
+    if (topNoiseCount === 2 || (analyzerTop1 && noise.includes(analyzerTop1.value))) analyzerMode = 'break';
+    else if (topNoiseCount === 1) analyzerMode = 'break-watch';
+  }
+  if (effectiveCommonDominantBoard && !noiseTriggerConfirmed) analyzerMode = 'pair';
+  if (triadModeActive || mixedQuadActive || hardCommonReturnTakeover || hardCommonReclaimTakeover || hardSiblingBounceTakeover || developingCommonsAnchorTakeover || matureCommonsAnchorTakeover) analyzerMode = 'pair';
 
   // Legacy run-break promotion was repeatedly overriding the stronger
   // replay-tested chooser on short mixed boards. We keep the computed
@@ -2107,6 +4142,7 @@ function scoreSvarogAnalyzerPicks({
     finalScores: analyzerFinalScores,
     commonDecisionScores,
     noiseDecisionScores,
+    sessionStateScores,
     trendOverallScores,
     breakChallenge: {
       allowBreakChallenge,
@@ -2121,6 +4157,46 @@ function scoreSvarogAnalyzerPicks({
     mode: analyzerMode,
     noiseTiming: normalizedNoiseTiming,
     noiseDueRatio,
+    sessionStateKey: sessionStatePreviewKey,
+    boardStateStrengths,
+    noisePhase,
+    noiseBeatStyle,
+    avgNoiseStreakLen,
+    tailProfileMatch,
+    shapeProfileMatch,
+    singleNoiseRate,
+    postNoiseCommonRate,
+    postNoiseSiblingRate,
+    commonReturnArmed,
+    siblingCommonValue,
+    commonReturnStrength,
+    commonRecoveryActive,
+    commonDominantBoard: effectiveCommonDominantBoard,
+    noiseTriggerConfirmed,
+    noiseProbeOnly,
+    developingCommonsPairTakeover,
+    hardCommonReturnTakeover,
+    siblingBounceArmed,
+    siblingBounceStrength,
+    hardSiblingBounceTakeover,
+    commonReclaimArmed,
+    commonReclaimValue,
+    commonReclaimStrength,
+    hardCommonReclaimTakeover,
+    mixedQuadActive,
+    tightPairBoard,
+    tightPairValues,
+    bridgeReturnValue,
+    preBlockReturnValue,
+    missingFourthRotationValue,
+    quadGapShockValue,
+    cycleRestartValue,
+    doubleBridgeEchoValue,
+    doubleBridgeSwapValue,
+    pairNotDueCommonsPreserveTakeover,
+    approachingSecondCommonPreserveTakeover,
+    commonDominantPreserveTakeover,
+    postOutsiderSnapbackTakeover,
   };
 }
 
@@ -2631,7 +4707,7 @@ export function calculateTrends(rolls) {
       recencyBonus +
       (recentCount > 0 ? 6 : 0) +
       (totalCount >= 4 ? 8 : totalCount >= 2 ? 4 : 0) +
-      (direction === 'rising' ? 4 : direction === 'stable' ? 2 : -2)
+      (direction === 'rising' ? 4 : direction === 'stable' ? 3 : 0)
     )));
     const deltaStrength = Math.min(1, Math.abs(delta) / 38);
     const memoryGuard =
@@ -2640,17 +4716,22 @@ export function calculateTrends(rolls) {
       (lastSeenGap === 0 ? 18 : lastSeenGap === 1 ? 10 : lastSeenGap === 2 ? 5 : 0) +
       (recent8Count >= 3 ? 8 : recent8Count === 2 ? 4 : 0) +
       (olderCount >= 2 ? 6 : olderCount === 1 ? 3 : 0);
-    const trustScore = Math.max(0.2, Math.min(1,
+    const localPatternCarry =
+      (recent8Count >= 3 ? 0.08 : recent8Count === 2 ? 0.04 : 0) +
+      (recentCarryScore >= 55 ? 0.07 : recentCarryScore >= 40 ? 0.04 : recentCarryScore >= 28 ? 0.02 : 0) +
+      (recentPct >= 35 ? 0.04 : recentPct >= 20 ? 0.02 : 0);
+    const trustScore = Math.max(0.28, Math.min(1,
       direction === 'rising'
-        ? 0.82 + Math.min(0.12, deltaStrength * 0.12) + Math.min(0.08, memoryGuard / 360)
+        ? 0.80 + Math.min(0.12, deltaStrength * 0.12) + Math.min(0.10, memoryGuard / 340) + localPatternCarry * 0.55
         : direction === 'stable'
-          ? 0.56 + Math.min(0.12, memoryGuard / 260) + (recentPct >= 40 ? 0.06 : recentPct >= 20 ? 0.03 : 0)
-          : 0.25 +
-            Math.min(0.16, memoryGuard / 240) +
+          ? 0.54 + Math.min(0.15, memoryGuard / 235) + (recentPct >= 40 ? 0.06 : recentPct >= 20 ? 0.03 : 0) + localPatternCarry * 0.70
+          : 0.31 +
+            Math.min(0.18, memoryGuard / 215) +
             (lastSeenGap === 0 ? 0.14 : lastSeenGap === 1 ? 0.08 : lastSeenGap === 2 ? 0.04 : 0) +
             (recentPct >= 20 ? 0.06 : 0) +
             (olderCount >= 2 ? 0.04 : olderCount === 1 ? 0.02 : 0) -
-            deltaStrength * 0.03
+            deltaStrength * 0.02 +
+            localPatternCarry * 0.85
     ));
     const trustPct = trustScore * 100;
     const freshnessPct = arrowWeight * 100;
@@ -2664,7 +4745,7 @@ export function calculateTrends(rolls) {
       freshnessPct * 0.08 +
       globalPct * 0.07 +
       recent8Pct * 0.05 +
-      (direction === 'rising' ? 4 : direction === 'falling' ? -2 : 1)
+      (direction === 'rising' ? 4 : direction === 'stable' ? 2 : 0)
     )));
     const supportTier =
       supportScore >= 55 ? 'backed'
@@ -2695,7 +4776,7 @@ export function calculateTrends(rolls) {
       (olderCount > 0 && recentCount === 0 ? 8 : 0) +
       (totalCount <= 1 ? 10 : totalCount === 2 ? 4 : 0) +
       (totalCount === 0 ? 10 : 0) +
-      (direction === 'rising' ? 6 : direction === 'stable' ? 3 : -8)
+      (direction === 'rising' ? 6 : direction === 'stable' ? 4 : -3)
     )));
     const noisePriorityTier =
       noisePriorityScore >= 62 ? 'primed'
@@ -2775,6 +4856,144 @@ export function buildTrendOverallScores({
       isNoise: noise.includes(value),
     };
   }).sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0));
+}
+
+export function buildSessionStateScores({
+  scoredEntries = [],
+  trends = {},
+  commons = [],
+  noise = [],
+  commonDecisionScores = [],
+  noiseDecisionScores = [],
+  stateKey = 'pair',
+  freshOutsider = null,
+  siblingCommonValue = null,
+  commonReturnArmed = false,
+  commonReclaimArmed = false,
+  commonReclaimValue = null,
+  siblingBounceArmed = false,
+}) {
+  const commonMap = new Map((commonDecisionScores || []).map((entry) => [entry.value, entry]));
+  const noiseMap = new Map((noiseDecisionScores || []).map((entry) => [entry.value, entry]));
+  const normalizeStateScores = (entries) => {
+    const sorted = [...entries].sort((a, b) => (b.stateDecisionRaw || 0) - (a.stateDecisionRaw || 0));
+    const topRaw = sorted[0]?.stateDecisionRaw ?? 0;
+    const totalRaw = sorted.reduce((sum, entry) => sum + Math.max(0, entry.stateDecisionRaw || 0), 0);
+    return sorted.map((entry, index) => {
+      let stateScore = totalRaw > 0
+        ? ((Math.max(0, entry.stateDecisionRaw || 0) / totalRaw) * 100)
+        : (index === 0 ? 100 : 0);
+      if (index === 0 && topRaw > 0 && stateScore < 34) stateScore = 34;
+      return {
+        ...entry,
+        stateScore: Math.round(Math.max(0, Math.min(100, stateScore))),
+        rank: index + 1,
+      };
+    });
+  };
+
+  const scored = VALUES.map((value) => {
+    const entry = scoredEntries.find((item) => item.value === value) || {};
+    const trend = trends?.[value] || {};
+    const trustPct = Math.round((trend.trustScore ?? entry.trustScore ?? 0) * 100);
+    const freshnessPct = Math.round((trend.arrowWeight ?? entry.arrowWeight ?? 0) * 100);
+    const sharePct = trend.current ?? entry.currentShare ?? 0;
+    const support = trend.supportScore ?? entry.supportScore ?? 0;
+    const carry = trend.recentCarryScore ?? entry.recentCarryScore ?? 0;
+    const latent = Math.max(trend.latentPressure ?? entry.latentPressure ?? 0, trend.noisePriorityScore ?? entry.noisePriorityScore ?? 0);
+    const commonScore = commonMap.get(value)?.commonScore ?? 0;
+    const noiseScore = noiseMap.get(value)?.noiseScore ?? 0;
+    const pair2 = entry.pair2 || 0;
+    const follow2 = entry.recentFollow2 || 0;
+    const follow3 = entry.recentFollow3 || 0;
+    const isCommon = commons.includes(value);
+    const isNoise = noise.includes(value);
+    const freshBreak = freshOutsider?.value === value;
+
+    const backboneRaw = Math.max(0, Math.min(100, Math.round(
+      (isCommon ? commonScore * 0.44 : commonScore * 0.14) +
+      support * 0.18 +
+      carry * 0.16 +
+      trustPct * 0.08 +
+      sharePct * 0.07 +
+      pair2 * 0.05 +
+      follow2 * 0.04 +
+      follow3 * 0.04 +
+      (isCommon ? 8 : 0) +
+      (!isCommon && sharePct <= 20 ? -8 : 0)
+    )));
+
+    const breakRaw = Math.max(0, Math.min(100, Math.round(
+      (isNoise ? noiseScore * 0.46 : noiseScore * 0.16) +
+      latent * 0.22 +
+      trustPct * 0.08 +
+      freshnessPct * 0.06 +
+      (entry.pressureScore || 0) * 0.10 +
+      (entry.activationScore || 0) * 0.08 +
+      (freshBreak ? 10 : 0) +
+      (isNoise ? 8 : -4) +
+      (sharePct === 0 && isNoise ? 4 : 0)
+    )));
+
+    const reentryTarget =
+      (commonReturnArmed && siblingCommonValue === value) ||
+      (commonReclaimArmed && commonReclaimValue === value) ||
+      (siblingBounceArmed && siblingCommonValue === value);
+    const reentryRaw = Math.max(0, Math.min(100, Math.round(
+      (isCommon ? commonScore * 0.28 : commonScore * 0.10) +
+      support * 0.24 +
+      carry * 0.22 +
+      trustPct * 0.08 +
+      pair2 * 0.08 +
+      follow2 * 0.06 +
+      follow3 * 0.06 +
+      (reentryTarget ? 14 : 0) +
+      (freshBreak ? -6 : 0)
+    )));
+
+    let stateRaw = 0;
+    if (stateKey === 'break') {
+      stateRaw =
+        breakRaw * 0.70 +
+        backboneRaw * 0.10 +
+        reentryRaw * 0.08 +
+        (freshBreak ? 8 : 0) +
+        (isNoise ? 6 : -4);
+    } else if (stateKey === 'probe') {
+      stateRaw =
+        backboneRaw * 0.54 +
+        breakRaw * 0.28 +
+        reentryRaw * 0.10 +
+        (isCommon ? 6 : 0) +
+        (freshBreak ? 4 : 0);
+    } else if (stateKey === 'reentry') {
+      stateRaw =
+        reentryRaw * 0.62 +
+        backboneRaw * 0.24 +
+        breakRaw * 0.06 +
+        (reentryTarget ? 10 : 0) +
+        (freshBreak ? -6 : 0);
+    } else {
+      stateRaw =
+        backboneRaw * 0.68 +
+        reentryRaw * 0.16 +
+        breakRaw * 0.06 +
+        (isCommon ? 6 : -4) +
+        (freshBreak ? -4 : 0);
+    }
+
+    return {
+      value,
+      backboneScore: Math.round(backboneRaw),
+      breakScore: Math.round(breakRaw),
+      reentryScore: Math.round(reentryRaw),
+      stateDecisionRaw: stateRaw,
+      isCommon,
+      isNoise,
+    };
+  }).sort((a, b) => (b.stateDecisionRaw || 0) - (a.stateDecisionRaw || 0));
+
+  return normalizeStateScores(scored);
 }
 
 
@@ -2859,8 +5078,38 @@ export function identifyCommonsNoise(rolls, options = {}) {
   // This prevents the constant flip-flopping in chaotic near-flat sessions.
   // =========================================================================
   const fullDistribution = getDistribution(rolls);
+  const recent4 = rolls.slice(-4);
+  const recent6 = rolls.slice(-6);
+  const recent8 = rolls.slice(-8);
+  const prev6 = rolls.slice(-12, -6);
+  const recent4Dist = getDistribution(recent4);
+  const recent6Dist = getDistribution(recent6);
+  const recent8Dist = getDistribution(recent8);
+  const prev6Dist = getDistribution(prev6);
+  const currentLastRoll = rolls[rolls.length - 1];
+  const last2Rolls = rolls.length >= 2
+    ? `${rolls[rolls.length - 2]},${rolls[rolls.length - 1]}`
+    : null;
+  const last3Rolls = rolls.length >= 3
+    ? `${rolls[rolls.length - 3]},${rolls[rolls.length - 2]},${rolls[rolls.length - 1]}`
+    : null;
+  const recentFollowerScores = buildRecentFollowerScores(rolls, currentLastRoll, last2Rolls);
+  const globalPair2Map = last2Rolls ? (GLOBAL_PAIR2_PRIORS[last2Rolls] || null) : null;
+  const globalPair3Map = last3Rolls ? (GLOBAL_PAIR3_PRIORS[last3Rolls] || null) : null;
+  const globalPair2TopValue = globalPair2Map
+    ? Object.entries(globalPair2Map).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+    : null;
+  const globalPair3TopValue = globalPair3Map
+    ? Object.entries(globalPair3Map).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+    : null;
+  const snapbackOutsiderValue = (() => {
+    if (recent4.length < 4) return null;
+    const [a, b, c, d] = recent4;
+    if (a === b && a === d && c !== a) return c;
+    return null;
+  })();
 
-  const windowSizes = [4, 8, 12].map(w => Math.min(w, n));
+  const windowSizes = [...new Set([4, 8, 12].map(w => Math.min(w, n)))];
   const windowVotes = {};
   VALUES.forEach(v => { windowVotes[v] = 0; });
 
@@ -2869,7 +5118,23 @@ export function identifyCommonsNoise(rolls, options = {}) {
     const wRolls = rolls.slice(-wSize);
     const wDist = getDistribution(wRolls);
     if (i === 1) primaryDistribution = wDist; // 8-roll window as display dist
-    const wSorted = VALUES.map(v => ({ value: v, pct: wDist[v] })).sort((a, b) => b.pct - a.pct);
+    const wSorted = VALUES
+      .map(v => ({
+        value: v,
+        pct: wDist[v],
+        totalCount: rolls.filter((roll) => roll === v).length,
+        lastRollSingletonPenalty:
+          v === currentLastRoll && rolls.filter((roll) => roll === v).length <= 1
+            ? 1
+            : 0,
+      }))
+      .sort((a, b) =>
+        b.pct - a.pct ||
+        b.totalCount - a.totalCount ||
+        a.lastRollSingletonPenalty - b.lastRollSingletonPenalty ||
+        (recent6Dist[b.value] || 0) - (recent6Dist[a.value] || 0) ||
+        (fullDistribution[b.value] || 0) - (fullDistribution[a.value] || 0)
+      );
     wSorted.slice(0, 2).forEach(({ value }) => { windowVotes[value]++; });
   });
 
@@ -2878,9 +5143,168 @@ export function identifyCommonsNoise(rolls, options = {}) {
     .map(v => ({ value: v, votes: windowVotes[v], fullPct: fullDistribution[v] }))
     .sort((a, b) => b.votes - a.votes || b.fullPct - a.fullPct);
 
-  let commons = ranked.slice(0, 2).map(x => x.value);
-  let noise   = ranked.slice(2).map(x => x.value);
+  const voteCommons = ranked.slice(0, 2).map(x => x.value);
+  const voteCommonShare = voteCommons.reduce((sum, value) => sum + (primaryDistribution[value] || 0), 0);
+  const commonAffinityRanked = VALUES
+    .map((value) => {
+      const totalCount = rolls.filter((roll) => roll === value).length;
+      const recent2Hits = rolls.slice(-2).filter((roll) => roll === value).length;
+      const recent4Hits = recent4.filter((roll) => roll === value).length;
+      const directFollow = recentFollowerScores.direct[value] || 0;
+      const pairFollow = recentFollowerScores.pair[value] || 0;
+      const globalPair2Pct = globalPair2Map?.[value] || 0;
+      const globalPair3Pct = globalPair3Map?.[value] || 0;
+      const emergence = Math.max(0, (recent6Dist[value] || 0) - (prev6Dist[value] || 0));
+      const cooling = Math.max(0, (prev6Dist[value] || 0) - (recent6Dist[value] || 0));
+      const earlySequenceBoost =
+        n <= 8
+          ? (
+              globalPair2Pct * 1.45 +
+              globalPair3Pct * 1.75 +
+              (globalPair2TopValue === value ? 16 : 0) +
+              (globalPair3TopValue === value ? 22 : 0)
+            )
+          : (
+              globalPair2Pct * 0.55 +
+              globalPair3Pct * 0.75 +
+              (globalPair2TopValue === value ? 6 : 0) +
+              (globalPair3TopValue === value ? 10 : 0)
+            );
+      const snapbackPenalty =
+        n >= 6 &&
+        snapbackOutsiderValue === value
+          ? 34
+          : 0;
+      const singletonOutsiderPenalty =
+        n >= 8 &&
+        value === currentLastRoll &&
+        totalCount <= 1 &&
+        !voteCommons.includes(value) &&
+        voteCommonShare >= 66
+          ? 44
+          : 0;
+      const affinityRaw =
+        windowVotes[value] * 22 +
+        (primaryDistribution[value] || 0) * 0.62 +
+        (recent6Dist[value] || 0) * 0.74 +
+        (recent4Dist[value] || 0) * 0.42 +
+        (recent8Dist[value] || 0) * 0.18 +
+        (fullDistribution[value] || 0) * 0.20 +
+        directFollow * 0.14 +
+        pairFollow * 0.22 +
+        earlySequenceBoost +
+        recent2Hits * 10 +
+        recent4Hits * 4 +
+        emergence * 0.70 -
+        cooling * 0.28 -
+        snapbackPenalty -
+        singletonOutsiderPenalty +
+        (value === currentLastRoll ? 6 : 0);
+      return {
+        value,
+        votes: windowVotes[value],
+        affinityRaw,
+        directFollow,
+        pairFollow,
+        emergence,
+        totalCount,
+        recent2Hits,
+        recent4Hits,
+      };
+    })
+    .sort((a, b) => (b.affinityRaw || 0) - (a.affinityRaw || 0))
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+      raw: entry.affinityRaw || 0,
+    }));
+
+  const currentLastTotalCount = rolls.filter((roll) => roll === currentLastRoll).length;
+  const affinityGap = (commonAffinityRanked[1]?.affinityRaw || 0) - (commonAffinityRanked[2]?.affinityRaw || 0);
+  const adaptiveTop2 = commonAffinityRanked.slice(0, 2).map((entry) => entry.value);
+  const singletonAdaptiveOutsiderBlocked =
+    n >= 8 &&
+    currentLastRoll &&
+    adaptiveTop2.includes(currentLastRoll) &&
+    !voteCommons.includes(currentLastRoll) &&
+    currentLastRoll === rolls[rolls.length - 1] &&
+    currentLastTotalCount <= 1 &&
+    voteCommonShare >= 66;
+  const strongerAdaptiveCandidate =
+    commonAffinityRanked[0] &&
+    commonAffinityRanked[1] &&
+    !singletonAdaptiveOutsiderBlocked &&
+    (
+      affinityGap >= 8 ||
+      (commonAffinityRanked[1].pairFollow || 0) >= 55 ||
+      (commonAffinityRanked[1].directFollow || 0) >= 60 ||
+      (commonAffinityRanked[1].emergence || 0) >= 18
+    );
+
+  let commons = strongerAdaptiveCandidate
+    ? commonAffinityRanked.slice(0, 2).map((entry) => entry.value)
+    : voteCommons;
+  let noise   = VALUES.filter((value) => !commons.includes(value));
   const distribution = primaryDistribution;
+  const bestAffinityValue = commonAffinityRanked[0]?.value || commons[0];
+  const secondAffinityValue = commonAffinityRanked[1]?.value || commons[1];
+  const currentLastAffinity = commonAffinityRanked.find((entry) => entry.value === currentLastRoll) || null;
+  const currentSecondCommonAffinity = commonAffinityRanked.find((entry) => entry.value === commons[1]) || null;
+  const matureLastRollPromotionBlocked =
+    n >= 8 &&
+    currentLastRoll &&
+    !voteCommons.includes(currentLastRoll) &&
+    voteCommonShare >= 60 &&
+    currentLastTotalCount <= 2 &&
+    (currentLastAffinity?.recent2Hits || 0) < 2 &&
+    (currentLastAffinity?.directFollow || 0) < 45 &&
+    (currentLastAffinity?.pairFollow || 0) < 40 &&
+    (currentLastAffinity?.emergence || 0) < 12;
+
+  if (n >= 6 && snapbackOutsiderValue && commons.includes(snapbackOutsiderValue)) {
+    const replacement = commonAffinityRanked.find((entry) =>
+      entry.value !== bestAffinityValue &&
+      entry.value !== snapbackOutsiderValue
+    )?.value;
+    if (replacement) {
+      commons = [bestAffinityValue, replacement];
+      noise = VALUES.filter((value) => !commons.includes(value));
+    }
+  }
+
+  const singletonLastRollGuard =
+    n >= 8 &&
+    currentLastRoll &&
+    commons.includes(currentLastRoll) &&
+    currentLastTotalCount <= 1 &&
+    !voteCommons.includes(currentLastRoll) &&
+    voteCommonShare >= 66;
+  if (singletonLastRollGuard) {
+    commons = [...voteCommons];
+    noise = VALUES.filter((value) => !commons.includes(value));
+  }
+
+  if (
+    n >= 6 &&
+    currentLastRoll &&
+    !commons.includes(currentLastRoll) &&
+    currentLastAffinity &&
+    !matureLastRollPromotionBlocked &&
+    !(
+      n >= 8 &&
+      currentLastTotalCount <= 1 &&
+      !voteCommons.includes(currentLastRoll) &&
+      voteCommonShare >= 66
+    ) &&
+    (recent4Dist[currentLastRoll] || 0) >= 20 &&
+    (
+      currentLastAffinity.rank <= 3 ||
+      (currentLastAffinity.raw || 0) >= ((currentSecondCommonAffinity?.raw || 0) - 28)
+    )
+  ) {
+    commons = [bestAffinityValue, currentLastRoll];
+    noise = VALUES.filter((value) => !commons.includes(value));
+  }
 
   // =========================================================================
   // NOISE RISING DETECTION
@@ -2934,6 +5358,13 @@ export function identifyCommonsNoise(rolls, options = {}) {
     noise,
     distribution,
     fullDistribution,
+    commonAffinity: Object.fromEntries(commonAffinityRanked.map((entry, index) => [
+      entry.value,
+      {
+        rank: index + 1,
+        raw: Math.round((entry.affinityRaw || 0) * 100) / 100,
+      },
+    ])),
     noiseRising,
     currentRunLength,
     runBreakLikely: currentRunLength >= runBreakThreshold
@@ -3259,7 +5690,68 @@ export function predictWithPairs(rolls, options = {}) {
   }
 
   // =========================================================================
-  // 🔥 BEAST MODE 4.0: PAIR MOMENTUM & MIRROR-STEP
+  // � COMMONS SWITCH DETECTOR: Track when the dominant pair shifts mid-session
+  // Compares full-session commons vs recent-8 window commons using identifyCommonsNoise.
+  // Classifies the switch by type and phase (early/mid/late/sustained).
+  // =========================================================================
+  const commonsSwitch = (() => {
+    const n = rolls.length;
+    if (n < 10) return { detected: false };
+
+    const recentC = identifyCommonsNoise(rolls.slice(-8)).commons;
+    const fullC = commons; // Already computed for full session
+
+    const recentSorted8 = [...recentC].sort();
+    const fullSorted = [...fullC].sort();
+
+    if (recentSorted8.join() === fullSorted.join()) {
+      return { detected: false, fullCommons: fullC, recentCommons: recentC };
+    }
+
+    const switchedIn  = recentC.filter(c => !fullC.includes(c));
+    const switchedOut = fullC.filter(c => !recentC.includes(c));
+
+    // Find approximate switch position by scanning backward in steps of 4
+    let switchPos = n; // default: very recent
+    for (let i = Math.max(8, Math.floor(n * 0.25)); i <= n - 8; i += 4) {
+      const earlyC = identifyCommonsNoise(rolls.slice(0, i)).commons;
+      const lateC  = identifyCommonsNoise(rolls.slice(i)).commons;
+      if ([...earlyC].sort().join() !== [...lateC].sort().join()) {
+        switchPos = i;
+        break;
+      }
+    }
+
+    // Phase: where in the session the switch happened
+    const switchFrac = switchPos / n;
+    const phase = switchFrac < 0.33 ? 'early' : switchFrac < 0.67 ? 'mid' : 'late';
+
+    // Type: partial (1 replaced) vs rebase (both replaced)
+    const type = switchedIn.length === 1 ? 'partial' : 'rebase';
+
+    // Is it fresh (only in last 8) or sustained (also present in last 16)?
+    let duration = 'fresh';
+    if (n >= 16) {
+      const midC = identifyCommonsNoise(rolls.slice(-16, -8)).commons;
+      const midSorted = [...midC].sort();
+      if (midSorted.join() !== fullSorted.join()) duration = 'sustained';
+    }
+
+    return {
+      detected: true,
+      fullCommons: fullC,
+      recentCommons: recentC,
+      switchedIn,
+      switchedOut,
+      switchPos,
+      phase,
+      type,
+      duration,
+    };
+  })();
+
+  // =========================================================================
+  // �🔥 BEAST MODE 4.0: PAIR MOMENTUM & MIRROR-STEP
   // =========================================================================
 
   // Decide prediction method
@@ -3487,6 +5979,21 @@ export function predictWithPairs(rolls, options = {}) {
   const shortBurstGuard   = shortBurstSession && currentRunLen === 2;
   const isHotRun = isLastCommon && currentRunLen >= 2 && momentumScores[lastRoll] >= 0.8;
 
+  // Noise-run fast-lock: noise value running 3+ in a row AND owns ≥56% of last 8.
+  // This is the "44 burst" pattern from Session D — wait no more than needed to flip.
+  // Threshold is stricter than hot-run (56% vs 50%) to avoid firing on short noise blips.
+  const recent8Dist = (() => {
+    const r8 = rolls.slice(-8);
+    const d = {}; VALUES.forEach(v => { d[v] = 0; });
+    r8.forEach(v => { if (VALUES.includes(v)) d[v]++; });
+    const n8 = Math.min(8, rolls.length);
+    VALUES.forEach(v => { d[v] = n8 > 0 ? Math.round((d[v] / n8) * 100) : 0; });
+    return d;
+  })();
+  const noiseRunDominant = !isLastCommon &&
+    currentRunLen >= 3 &&
+    (recent8Dist[lastRoll] || 0) >= 56;
+
   if (isHotRun && !isChaotic && !shortBurstGuard) {
     // Riding the run — predict the running value to continue
     prediction = lastRoll;
@@ -3503,6 +6010,20 @@ export function predictWithPairs(rolls, options = {}) {
     alt = lastRoll;
     method = 'hot-run-break';
     confidence = Math.min(runContinueConfBase, 0.55);
+  } else if (noiseRunDominant && !isChaotic) {
+    // Noise value has taken over the recent window — treat it like a hot run.
+    // This is the "44 burst" fast-lock: don't wait for commons to rebase,
+    // predict the dominant noise value immediately (reduces 2–3 roll detection lag).
+    // IMPORTANT: preserve the pair-calibrated return common as alt (from post-noise-recovery).
+    // Don't discard postNoiseMain — it's the most likely common to return when the run ends.
+    const noiseRunBreakCommon = (prediction && commons.includes(prediction) ? prediction : null) ||
+      (alt && commons.includes(alt) ? alt : null) ||
+      commons.find(c => c !== lastRoll) ||
+      freqSorted.find(f => commons.includes(f.value))?.value;
+    prediction = lastRoll;
+    alt = noiseRunBreakCommon;
+    method = 'noise-run-dominant';
+    confidence = Math.min(0.45 + (currentRunLen - 3) * 0.06, 0.65);
   }
   // 🆕 A: CHAOS MODE — Full-session pair matrix + commons-only prediction
   // In chaos, we use ALL session rolls (not just recent window) for the pair matrix
@@ -3538,8 +6059,13 @@ export function predictWithPairs(rolls, options = {}) {
     // Main prediction: strongest COMMON using freq/pair blend (respects data sparsity)
     const topCommonByBlend = blendedCommons[0];
     if (topCommonByBlend && topCommonByBlend.blended > 0) {
-      prediction = topCommonByBlend.value;
-      alt = blendedCommons[1]?.value || commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || commons[1];
+      // Reorder commons by recent-4 momentum so chaos uses the freshest signal
+      // (Full-session frequency lags behind momentum shifts — key Kimi finding)
+      const chaosCommonsRanked = [...commons].sort((a, b) =>
+        (momentumScores[b] || 0) - (momentumScores[a] || 0)
+      );
+      prediction = chaosCommonsRanked[0] || topCommonByBlend.value;
+      alt = chaosCommonsRanked[1] || blendedCommons[1]?.value || commons.find(c => c !== prediction) || freqSorted.find(f => commons.includes(f.value) && f.value !== prediction)?.value || commons[1];
       method = pairSamplesForLastRoll < 3 ? 'chaos-freq' : 'chaos-pair';
       confidence = Math.min(topCommonByBlend.blended / 100 + 0.05, 0.52);
     } else {
@@ -4288,25 +6814,28 @@ export function predictWithPairs(rolls, options = {}) {
     method = method + '+analyzer-alt';
   }
 
-  // COMMONS-PRIORITY OVERRIDE: On non-danger boards, the Svarog ML formula is structurally
-  // noise-biased (negative exactScore coefficient punishes dominant values; no commonScore term).
-  // On stable/caution boards actual rolls are almost always commons, so use commonDecisionScores
-  // ranking to drive analyzerPrediction/analyzerAlt instead of the biased finalDecisionRaw ranking.
-  // DANGER boards are excluded — the chaos override copies svarogPrediction/svarogAlt to the pair
-  // predictor's prediction/alt. Keeping noise-biased picks on danger boards preserves chaos accuracy.
-  const sortedByCommon = Array.isArray(analyzer.commonDecisionScores) && analyzer.commonDecisionScores.length >= 2
-    ? [...analyzer.commonDecisionScores].sort((a, b) => (b.commonScore || 0) - (a.commonScore || 0))
-    : [];
-  const topCommonScore = sortedByCommon[0]?.commonScore || 0;
   let svarogPrediction = analyzer.prediction;
   let svarogAlt = analyzer.alt;
-  if (
-    displayPairSafety !== 'danger' &&
-    sortedByCommon.length >= 2
-  ) {
-    if (sortedByCommon[0]?.value) {
-      svarogPrediction = sortedByCommon[0].value;
-      svarogAlt = sortedByCommon[1]?.value || analyzer.alt;
+
+  // Narrow Svarog realignment: when the board is in pair/probe mode, no hard break-lead is
+  // active, and the analyzer's top weighted pick (finalScores[0]) is a strong noise value
+  // that Svarog somehow excluded from its top-2 — reinsert it as the main pick.
+  // This corrects drift where Svarog sticks to a stale commons pair despite the decider
+  // ranking a clear noise signal at the top.
+  {
+    const finalTopDecider = analyzer.finalScores?.[0] ?? null;
+    const analyzerModeIsPairOrProbe =
+      !analyzer.mode || analyzer.mode === 'pair' || analyzer.mode === 'probe';
+    const svarogMissedFinalTop =
+      finalTopDecider != null &&
+      finalTopDecider.value !== svarogPrediction &&
+      finalTopDecider.value !== svarogAlt &&
+      noise.includes(finalTopDecider.value) &&
+      (finalTopDecider.pickScore ?? 0) >= 35;
+
+    if (analyzerModeIsPairOrProbe && !strongBreakLead && svarogMissedFinalTop) {
+      svarogAlt = svarogPrediction;
+      svarogPrediction = finalTopDecider.value;
     }
   }
 
@@ -4323,6 +6852,67 @@ export function predictWithPairs(rolls, options = {}) {
     method = method + '+chaos-analyzer';
   }
 
+  // =========================================================================
+  // 🚨 PREEMPTIVE NOISE ALT: Overdue noise injection
+  // When a noise value is session-calibrated-overdue (overdueNoise[0]) AND
+  // displayNoiseRisk > 60 AND the main prediction's trend is falling,
+  // inject the overdue noise value into alt. This addresses the "only 1 preemptive
+  // noise prediction across all sessions" finding in the Kimi analysis.
+  // =========================================================================
+  const preemptiveNoiseCand = overdueNoise[0] ?? null;
+  const mainTrendFalling = prediction && trends?.[prediction]?.direction === 'falling';
+  const altTrendFalling  = alt && (trends?.[alt]?.direction === 'falling' || !commons.includes(alt));
+  // Require noise value to be significantly overdue (1.5x session threshold), not just at it
+  const noiseSignificantlyOverdue = preemptiveNoiseCand != null &&
+    lastSeen[preemptiveNoiseCand] >= Math.round(noiseOverdueThreshold * 1.5);
+
+  const shouldInjectNoiseAlt = (
+    preemptiveNoiseCand != null &&
+    noiseSignificantlyOverdue &&
+    preemptiveNoiseCand !== prediction &&
+    preemptiveNoiseCand !== alt &&
+    displayNoiseRisk > 68 &&
+    mainTrendFalling &&
+    altTrendFalling &&
+    !isChaosOverride &&
+    !method.startsWith('post-noise-recovery')
+  );
+
+  if (shouldInjectNoiseAlt) {
+    alt = preemptiveNoiseCand;
+    method = method + '+noise-alt';
+  }
+
+  // =========================================================================
+  // 🔗 SVAROG ALT SYNC: Adopt svarog's best new value as main's alt
+  // The Svarog analyzer consistently picks a better alt in degraded/caution boards.
+  // Main's alt often sticks to the stale other-common while svarog correctly
+  // picks a rising noise value (e.g., main: 41/43, svarog: 41/42, actual: 42).
+  //
+  // Priority: svarogAlt first (if it's a new value not already covered).
+  // Fallback: svarogPrediction when svarogAlt is already in main's picks —
+  //   this covers the flipped case: main: 41/43, svarog: 42/41, actual: 42
+  //   where svarogAlt(41)=main.prediction but svarogPrediction(42) is uncovered.
+  // =========================================================================
+  const svarogAltIsNew = svarogAlt &&
+    svarogAlt !== prediction &&
+    svarogAlt !== alt;
+  const svarogPredictionIsNew = svarogPrediction &&
+    svarogPrediction !== prediction &&
+    svarogPrediction !== alt;
+  const boardNeedsAltHelp = displayPairSafety !== 'safe' && !isChaosOverride;
+
+  if (boardNeedsAltHelp) {
+    if (svarogAltIsNew) {
+      alt = svarogAlt;
+      method = method + '+svarog-alt-sync';
+    } else if (svarogPredictionIsNew) {
+      // svarogAlt was already covered; try svarog's main pick as our alt
+      alt = svarogPrediction;
+      method = method + '+svarog-pred-sync';
+    }
+  }
+
   // Label badge and reason line lookup
   const baseMethod = method.replace(/\+.*/, '');
   const currentRun = waveSignals?.lastCommonRunLength || currentRunLen || 0;
@@ -4336,6 +6926,7 @@ export function predictWithPairs(rolls, options = {}) {
   const labelMap = {
     'hot-run':             { label: 'Running', reason: prediction + ' x ' + currentRun + ' streak - riding it' },
     'hot-run+run-break':   { label: 'Running', reason: lastRoll + ' x ' + currentRun + ' - break expected, predict ' + prediction },
+    'noise-run-dominant':  { label: 'Noise Burst', reason: lastRoll + ' x ' + currentRun + ' consecutive - dominant noise burst' },
     'alternating':         { label: 'Alternating', reason: (alternatingPair?.[0] || '?') + ' / ' + (alternatingPair?.[1] || '?') + ' ping-pong - next: ' + prediction },
     'pattern-shift':       { label: 'Shifted', reason: (() => {
       const sv = shiftedToValue || prediction;
@@ -4355,6 +6946,108 @@ export function predictWithPairs(rolls, options = {}) {
     'insufficient-data':   { label: 'Warming Up', reason: 'Need more rolls - building picture' },
   };
   const labelEntry = labelMap[method] || labelMap[baseMethod] || { label: 'Pair', reason: prediction + ' most likely after ' + lastRoll };
+
+  const sessionBackbonePair =
+    pairOutlook.trustedPair?.length === 2 ? [...pairOutlook.trustedPair] : [...commons];
+  const sessionExactPair = [svarogPrediction, svarogAlt]
+    .filter((value, index, array) => value && array.indexOf(value) === index)
+    .slice(0, 2);
+  const sessionBreakFallback = (analyzer.noiseDecisionScores || [])
+    .map((entry) => entry?.value)
+    .filter((value, index, array) => value && array.indexOf(value) === index)
+    .slice(0, 2);
+  const sessionStateKey =
+    analyzer.sessionStateKey ||
+    (analyzer.noiseTriggerConfirmed && !analyzer.commonDominantBoard
+      ? 'break'
+      : analyzer.noiseProbeOnly || displayPairSafety !== 'safe'
+        ? 'probe'
+        : 'pair');
+  const sessionPlayPair =
+    sessionStateKey === 'break' && sessionExactPair.length === 2
+      ? [...sessionExactPair]
+      : [...sessionBackbonePair];
+  const sessionPlayLead =
+    sessionPlayPair.includes(prediction) ? prediction : sessionPlayPair[0] || prediction;
+  const sessionBreakLead =
+    sessionBreakFallback[0] ||
+    freshOutsider?.value ||
+    overdueNoise?.[0] ||
+    null;
+  const sessionBreakTrail =
+    sessionBreakFallback.find((value) => value !== sessionBreakLead) || null;
+  const sessionStateModel = (() => {
+    if (sessionStateKey === 'break') {
+      return {
+        key: 'break',
+        label: 'Break Live',
+        tone: 'danger',
+        summary: 'Noise has enough proof. Use the break order first for the next roll.',
+        playPair: sessionPlayPair,
+        playLead: sessionPlayLead,
+        fallback: sessionBreakFallback,
+        backbonePair: sessionBackbonePair,
+        exactPair: sessionExactPair,
+        displayPair: sessionExactPair.length === 2 ? sessionExactPair : sessionPlayPair,
+        strengths: analyzer.boardStateStrengths || null,
+        supportLine: sessionBreakLead
+          ? `Noise tracker: ${sessionBreakLead}${sessionBreakTrail ? `, then ${sessionBreakTrail}` : ''}.`
+          : 'Noise tracker is active.',
+      };
+    }
+    if (sessionStateKey === 'reentry') {
+      return {
+        key: 'reentry',
+        label: 'Back To Pair',
+        tone: 'good',
+        summary: 'Noise already hit. The board is pulling back into the pair for the next roll.',
+        playPair: sessionPlayPair,
+        playLead: sessionPlayLead,
+        fallback: sessionBreakFallback,
+        backbonePair: sessionBackbonePair,
+        exactPair: sessionExactPair,
+        displayPair: sessionBackbonePair,
+        strengths: analyzer.boardStateStrengths || null,
+        supportLine: sessionBreakLead
+          ? `If noise returns, tracker stays ${sessionBreakLead}${sessionBreakTrail ? `, then ${sessionBreakTrail}` : ''}.`
+          : 'Noise tracker is secondary here.',
+      };
+    }
+    if (sessionStateKey === 'probe') {
+      return {
+        key: 'probe',
+        label: 'Noise Watch',
+        tone: 'warn',
+        summary: 'Pair is still first. Watch the noise tracker and switch only if the same break repeats.',
+        playPair: sessionPlayPair,
+        playLead: sessionPlayLead,
+        fallback: sessionBreakFallback,
+        backbonePair: sessionBackbonePair,
+        exactPair: sessionExactPair,
+        displayPair: sessionBackbonePair,
+        strengths: analyzer.boardStateStrengths || null,
+        supportLine: sessionBreakLead
+          ? `Noise tracker: ${sessionBreakLead}${sessionBreakTrail ? `, then ${sessionBreakTrail}` : ''}.`
+          : 'Noise tracker is live.',
+      };
+    }
+    return {
+      key: 'pair',
+      label: 'Pair First',
+      tone: 'lane',
+      summary: 'Pair still owns the next roll. Keep noise only as a backup read.',
+      playPair: sessionPlayPair,
+      playLead: sessionPlayLead,
+      fallback: sessionBreakFallback,
+      backbonePair: sessionBackbonePair,
+      exactPair: sessionExactPair,
+      displayPair: sessionBackbonePair,
+      strengths: analyzer.boardStateStrengths || null,
+      supportLine: sessionBreakLead
+        ? `Noise tracker: ${sessionBreakLead}${sessionBreakTrail ? `, then ${sessionBreakTrail}` : ''}.`
+        : 'No live noise tracker yet.',
+    };
+  })();
 
   return {
     prediction,
@@ -4387,11 +7080,48 @@ export function predictWithPairs(rolls, options = {}) {
     analyzerFinalScores: analyzer.finalScores || [],
     analyzerCommonDecisionScores: analyzer.commonDecisionScores || [],
     analyzerNoiseDecisionScores: analyzer.noiseDecisionScores || [],
+    analyzerSessionStateScores: analyzer.sessionStateScores || [],
     trendOverallScores: analyzer.trendOverallScores || [],
     analyzerBreakChallenge: analyzer.breakChallenge || null,
     analyzerMode: analyzer.mode || 'pair',
     analyzerNoiseTiming: analyzer.noiseTiming || 'unknown',
     analyzerNoiseDueRatio: analyzer.noiseDueRatio || 0,
+    analyzerNoisePhase: analyzer.noisePhase || 'idle',
+    analyzerNoiseBeatStyle: analyzer.noiseBeatStyle || 'mixed',
+    analyzerAvgNoiseStreakLen: analyzer.avgNoiseStreakLen || 1,
+    analyzerSingleNoiseRate: analyzer.singleNoiseRate || 0,
+    analyzerPostNoiseCommonRate: analyzer.postNoiseCommonRate || 0,
+    analyzerPostNoiseSiblingRate: analyzer.postNoiseSiblingRate || 0,
+    tailProfileMatch: analyzer.tailProfileMatch || null,
+    shapeProfileMatch: analyzer.shapeProfileMatch || null,
+    commonReturnArmed: analyzer.commonReturnArmed || false,
+    siblingCommonValue: analyzer.siblingCommonValue || null,
+    commonReturnStrength: analyzer.commonReturnStrength || 0,
+    commonRecoveryActive: analyzer.commonRecoveryActive || false,
+    commonDominantBoard: analyzer.commonDominantBoard || false,
+    noiseTriggerConfirmed: analyzer.noiseTriggerConfirmed || false,
+    noiseProbeOnly: analyzer.noiseProbeOnly || false,
+    developingCommonsPairTakeover: analyzer.developingCommonsPairTakeover || false,
+    hardCommonReturnTakeover: analyzer.hardCommonReturnTakeover || false,
+    siblingBounceArmed: analyzer.siblingBounceArmed || false,
+    siblingBounceStrength: analyzer.siblingBounceStrength || 0,
+    hardSiblingBounceTakeover: analyzer.hardSiblingBounceTakeover || false,
+    commonReclaimArmed: analyzer.commonReclaimArmed || false,
+    commonReclaimValue: analyzer.commonReclaimValue || null,
+    commonReclaimStrength: analyzer.commonReclaimStrength || 0,
+    hardCommonReclaimTakeover: analyzer.hardCommonReclaimTakeover || false,
+    mixedQuadActive: analyzer.mixedQuadActive || false,
+    tightPairBoard: analyzer.tightPairBoard || false,
+    tightPairValues: analyzer.tightPairValues || [],
+    bridgeReturnValue: analyzer.bridgeReturnValue || null,
+    preBlockReturnValue: analyzer.preBlockReturnValue || null,
+    missingFourthRotationValue: analyzer.missingFourthRotationValue || null,
+    quadGapShockValue: analyzer.quadGapShockValue || null,
+    cycleRestartValue: analyzer.cycleRestartValue || null,
+    doubleBridgeEchoValue: analyzer.doubleBridgeEchoValue || null,
+    doubleBridgeSwapValue: analyzer.doubleBridgeSwapValue || null,
+    commonDominantPreserveTakeover: analyzer.commonDominantPreserveTakeover || false,
+    sessionState: sessionStateModel,
     noiseWatch: noiseWatchValue,
     overdueNoise,         // noise values that have been absent unusually long (comeback watch)
     isChaotic,
@@ -4442,6 +7172,8 @@ export function predictWithPairs(rolls, options = {}) {
     commonsFlipDetected,
     newCommons,
     flipConfidence,
+    // 🔀 COMMONS SWITCH data (phase-aware mid-session pair shift detector)
+    commonsSwitch,
     // Chaos data
     noiseRate: Math.round(noiseRate * 100),
     isFlat,

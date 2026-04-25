@@ -4,7 +4,7 @@
  * 5s Glance (always visible):
  *   - Mode badge + reason line
  *   - YOUR 2 PICKS: commons displayed prominently, leaning indicator on prediction
- *   - ⚡ Watch if noise is likely
+ *   - Watch if noise is likely
  *
  * 30s Explore (expandable):
  *   - Trends, Pair matrix, Noise gap analysis, Run/Flip data
@@ -37,15 +37,15 @@ function getCardStyle(boardState, isWarming) {
 
 // Tooltip content per badge label
 const BADGE_TOOLTIPS = {
-  '🔥 Running':    { desc: 'One value is dominant — keep picking it.',      ex: 'e.g. 42 42 42 → keep picking 42' },
-  '🔄 Alternating': { desc: 'Two values are flip-flopping.',               ex: 'e.g. 41 42 41 42 → next: 41' },
-  '🔀 Shifted':     { desc: 'A noise value is taking over.',               ex: 'e.g. 43 stealing 41’s spot' },
-  '🔁 Sequence':    { desc: 'A 2-roll pattern repeats.',                  ex: 'e.g. after 42→43, seen 60%' },
-  '🎯 Pair':        { desc: 'Based on what follows the last roll.',       ex: 'e.g. after 42, 41 came most' },
-  '🔔 Overdue':     { desc: 'A value hasn’t appeared in a while — due.',  ex: 'e.g. 44 missing 7 rolls' },
-  '🌀 Recovery':    { desc: 'After noise, a common tends to return.',    ex: 'e.g. 43 comes back after noise 3×' },
-  '⚠️ Chaotic':    { desc: 'No clear pattern — session is random.',     ex: 'e.g. all values ~25% each' },
-  '⏳ Warming Up':  { desc: 'Too few rolls to detect patterns yet.',     ex: 'Need 6+ rolls to start' },
+  'Running':    { desc: 'One value is dominant — keep picking it.',      ex: 'e.g. 42 42 42 -> keep picking 42' },
+  'Alternating': { desc: 'Two values are flip-flopping.',               ex: 'e.g. 41 42 41 42 -> next: 41' },
+  'Shifted':     { desc: 'A noise value is taking over.',               ex: 'e.g. 43 stealing 41’s spot' },
+  'Sequence':    { desc: 'A 2-roll pattern repeats.',                  ex: 'e.g. after 42→43, seen 60%' },
+  'Pair':        { desc: 'Based on what follows the last roll.',       ex: 'e.g. after 42, 41 came most' },
+  'Overdue':     { desc: 'A value hasn’t appeared in a while — due.',  ex: 'e.g. 44 missing 7 rolls' },
+  'Recovery':    { desc: 'After noise, a common tends to return.',    ex: 'e.g. 43 comes back after noise 3x' },
+  'Chaotic':    { desc: 'No clear pattern — session is random.',     ex: 'e.g. all values ~25% each' },
+  'Warming Up':  { desc: 'Too few rolls to detect patterns yet.',     ex: 'Need 6+ rolls to start' },
 };
 
 export default function ModernPairPredictorCard({
@@ -91,21 +91,23 @@ export default function ModernPairPredictorCard({
     analyzerDecisionScores,
     analyzerFinalScores,
     analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
+    analyzerSessionStateScores,
     analyzerBreakChallenge,
+    svarogBreakLeadReason,
     analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
-    // 🆕 Noise Trap
+    // ?? Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
-    // 🚨 Emergency brake
+    // ?? Emergency brake
     isSessionReset,
     // Board state
-    boardState, isChaosOverride
+    boardState, isChaosOverride,
+    sessionState,
   } = data;
 
-  // 🚨 SESSION RESET early return moved to AFTER all hooks (see below)
+  // ?? SESSION RESET early return moved to AFTER all hooks (see below)
 
   const confidencePct = Math.round(confidence * 100);
   const cardStyle = getCardStyle(boardState, false);
-  const badgeStyle = getBadgeStyle(label);
   const trendGlossary = {
     share: {
       label: 'Trend share',
@@ -156,7 +158,7 @@ export default function ModernPairPredictorCard({
     },
   };
 
-  // ── Dynamic tooltip: uses real session data ──────────────────────────────
+  // -- Dynamic tooltip: uses real session data ------------------------------
   const tooltip = useMemo(() => {
     if (!label) return null;
     // Count how many times a value appeared after lastRoll in pairMatrix
@@ -290,27 +292,23 @@ export default function ModernPairPredictorCard({
     const entries = Array.isArray(analyzerFinalScores) ? analyzerFinalScores : [];
     return new Map(entries.map((entry) => [entry.value, entry]));
   }, [analyzerFinalScores]);
+  const sessionStateDecisionMap = useMemo(() => {
+    const entries = Array.isArray(analyzerSessionStateScores) ? analyzerSessionStateScores : [];
+    return new Map(entries.map((entry) => [entry.value, entry]));
+  }, [analyzerSessionStateScores]);
   const analyzerPicks = useMemo(() => {
-    const picks = [];
+    const finalRanked = Array.isArray(analyzerFinalScores)
+      ? analyzerFinalScores
+          .slice()
+          .sort((a, b) => (b?.finalDecisionRaw || 0) - (a?.finalDecisionRaw || 0))
+          .map((entry) => entry?.value)
+          .filter((value, index, array) => value && array.indexOf(value) === index)
+      : [];
+    if (finalRanked.length >= 2) return finalRanked.slice(0, 2);
 
-    // Primary: use prediction/alt from predictor (commons-priority on stable boards,
-    // noise-priority on chaos/danger boards — both already computed correctly in the predictor)
+    const picks = [];
     if (analyzerPrediction) picks.push(analyzerPrediction);
     if (analyzerAlt && analyzerAlt !== analyzerPrediction) picks.push(analyzerAlt);
-
-    // Fill remaining slots from finalScores only if we still need more
-    if (picks.length < 2) {
-      const finalRanked = Array.isArray(analyzerFinalScores)
-        ? analyzerFinalScores
-            .slice()
-            .sort((a, b) => (b?.pickScore || 0) - (a?.pickScore || 0))
-            .map((entry) => entry?.value)
-            .filter((value, index, array) => value && array.indexOf(value) === index)
-        : [];
-      finalRanked.forEach((value) => {
-        if (value && !picks.includes(value)) picks.push(value);
-      });
-    }
 
     if (picks.length < 2 && analyzerBreakChallenge?.promoted) {
       [analyzerBreakChallenge?.topCommon, analyzerBreakChallenge?.topNoise].forEach((value) => {
@@ -319,7 +317,7 @@ export default function ModernPairPredictorCard({
     }
 
     if (picks.length < 2) {
-      [commonOrder[0], commonOrder[1], noiseOrder[0], noiseOrder[1]]
+      [commonOrder[0], commonOrder[1], noiseOrder[0], noiseOrder[1], ...finalRanked]
         .forEach((value) => {
           if (value && !picks.includes(value)) picks.push(value);
         });
@@ -349,17 +347,33 @@ export default function ModernPairPredictorCard({
     return {
       challengerWins,
       text: challengerWins
-        ? `Hybrid read: keep ${topCommon}, but let ${topNoise} replace ${secondCommon} when break pressure wins (${Math.round(challenge)} vs ${Math.round(hold)}).`
-        : `Hybrid read: keep ${topCommon}/${secondCommon}. Noise ${topNoise} is live, but the common hold still wins (${Math.round(hold)} vs ${Math.round(challenge)}).`,
+        ? `${topNoise} has the stronger break edge over ${secondCommon} (${Math.round(challenge)} vs ${Math.round(hold)}).`
+        : `${secondCommon} still holds over ${topNoise} (${Math.round(hold)} vs ${Math.round(challenge)}).`,
     };
   }, [analyzerBreakChallenge]);
+  const noiseTrackerItems = useMemo(() => {
+    if (!Array.isArray(analyzerNoiseDecisionScores) || analyzerNoiseDecisionScores.length === 0) return [];
+    return analyzerNoiseDecisionScores.slice(0, 2).map((entry) => {
+      const pairData = pairMatrix?.[lastRoll]?.[entry.value];
+      const pairPct = typeof pairData === 'object' ? pairData?.pct || 0 : (pairData || 0);
+      const rawGap = typeof lastSeen?.[entry.value] === 'number' ? lastSeen[entry.value] : null;
+      const gap = rawGap != null && rawGap >= 0 ? rawGap : null;
+      return {
+        value: entry.value,
+        score: Math.round(entry.noiseScore || 0),
+        gap,
+        unseen: rawGap != null && rawGap < 0,
+        pairPct,
+      };
+    });
+  }, [analyzerNoiseDecisionScores, lastRoll, lastSeen, pairMatrix]);
 
-  // 🚨 SESSION RESET: all hooks done — safe to return early now
+  // ?? SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
     return (
       <div className="astral-bbp-card rounded-2xl border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-900/30 p-4">
         <div className="flex items-center gap-3 mb-2">
-          <span className="text-red-400 text-lg animate-pulse">🔴</span>
+          <span className="text-red-400 text-lg animate-pulse">??</span>
           <span className="text-red-300 text-sm font-bold uppercase tracking-wide">Session Reset Detected</span>
         </div>
         <p className="text-red-200/80 text-[12px] leading-relaxed">
@@ -378,13 +392,13 @@ export default function ModernPairPredictorCard({
     );
   }
 
-  // ── Warming-up: render after all hooks have run ───────────────────────────
+  // -- Warming-up: render after all hooks have run ---------------------------
   if (isWarming) {
     return (
       <div className={`astral-bbp-card bg-gradient-to-br from-slate-800/60 to-slate-900/90 rounded-2xl p-4 border shadow-xl ${getCardStyle(false, true)}`}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">🎯 BBP Mode</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${getBadgeStyle('⏳')}`}>⏳ Warming Up</span>
+          <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">BBP Mode</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${getBadgeStyle('Warming Up')}`}>Warming Up</span>
         </div>
         <p className="text-center text-slate-500 py-6 text-xs">Need more rolls — building picture</p>
       </div>
@@ -395,16 +409,68 @@ export default function ModernPairPredictorCard({
   const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
   const mainCommon = displayPair?.includes(prediction) ? prediction : (displayPair || [])[0];
   const altCommon  = displayPair?.includes(alt) && alt !== mainCommon ? alt : (displayPair || []).find(c => c !== mainCommon) || alt;
+  const sessionModel = sessionState || {
+    key: pairSafety === 'danger' ? 'break' : pairSafety === 'caution' ? 'probe' : 'pair',
+    label: pairSafety === 'danger' ? 'Break Live' : pairSafety === 'caution' ? 'Noise Watch' : 'Pair First',
+    tone: pairSafety === 'danger' ? 'danger' : pairSafety === 'caution' ? 'warn' : 'lane',
+    summary: pairSafety === 'danger'
+      ? 'Noise has enough proof. Use the break order first for the next roll.'
+      : pairSafety === 'caution'
+        ? 'Pair is still first. Break Sensor warns only when noise timing is close.'
+        : 'Pair still owns the next roll. Keep noise only as a backup read.',
+    playPair: displayPair,
+    playLead: prediction,
+    fallback: [],
+    backbonePair: displayPair,
+    exactPair: analyzerPicks,
+    displayPair: displayPair,
+    supportLine: 'Use the pair first.',
+  };
+  const sessionPlayPair = Array.isArray(sessionModel.playPair) && sessionModel.playPair.length
+    ? sessionModel.playPair
+    : displayPair;
+  const sessionPlayLead = sessionModel.playLead && sessionPlayPair.includes(sessionModel.playLead)
+    ? sessionModel.playLead
+    : sessionPlayPair?.[0] || prediction;
+  const sessionPlayAlt = sessionPlayPair.find((value) => value !== sessionPlayLead) || sessionPlayPair?.[1] || altCommon;
+  const sessionFallback = Array.isArray(sessionModel.fallback) ? sessionModel.fallback.filter(Boolean) : [];
+  const sessionBackbonePair = Array.isArray(sessionModel.backbonePair) && sessionModel.backbonePair.length
+    ? sessionModel.backbonePair
+    : displayPair;
+  const svarogDisplayPicks = Array.isArray(sessionModel.displayPair) && sessionModel.displayPair.length
+    ? sessionModel.displayPair
+    : (sessionModel.key === 'probe' ? sessionBackbonePair : analyzerPicks);
+  const sessionToneClasses = sessionModel.tone === 'danger'
+    ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+    : sessionModel.tone === 'warn'
+      ? 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+      : sessionModel.tone === 'good'
+        ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+        : 'border-violet-500/30 bg-violet-500/10 text-violet-200';
+  const sessionBadgeStyle = sessionModel.tone === 'danger'
+    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+    : sessionModel.tone === 'warn'
+      ? 'bg-amber-500/20 text-amber-300 border-amber-500/35'
+      : sessionModel.tone === 'good'
+        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
+        : 'bg-violet-500/20 text-violet-300 border-violet-500/35';
+  const topBreakSensor = noiseTrackerItems[0] || null;
+  const breakSensorState =
+    (svarogBreakLeadReason || sessionModel.key === 'break')
+      ? { label: 'Now', tone: 'text-rose-300', help: 'Svarog is allowed to lead this noise value.' }
+      : topBreakSensor?.score >= 70 && (pairSafety === 'danger' || noiseRisk >= 55)
+        ? { label: 'Armed', tone: 'text-amber-300', help: 'Noise is close, but Svarog has not switched yet.' }
+        : { label: 'Wait', tone: 'text-slate-500', help: 'Warning only. Do not play this by itself.' };
 
 
-  // Lean % — use pair matrix probability for each common from last roll
+  // Lean % - use pair matrix probability for each common from last roll
   // Falls back to equal split when noise dominates transitions (prevents 0%/100% display)
   const mainRawPct = pairMatrix?.[lastRoll]?.[mainCommon];
   const altRawPct  = pairMatrix?.[lastRoll]?.[altCommon];
   const mainMatrixPct = typeof mainRawPct === 'object' ? mainRawPct.pct : (mainRawPct || 0);
   const altMatrixPct  = typeof altRawPct  === 'object' ? altRawPct.pct  : (altRawPct  || 0);
   const totalMatrixPct = mainMatrixPct + altMatrixPct;
-  // If commons together have < 40% of pair transitions, noise dominates → use equal split
+  // If commons together have < 40% of pair transitions, noise dominates ? use equal split
   const pctCap = isChaotic ? 70 : 85;
   const rawMainPct = totalMatrixPct >= 40
     ? Math.round((mainMatrixPct / totalMatrixPct) * 100)
@@ -413,15 +479,17 @@ export default function ModernPairPredictorCard({
   const altPct  = 100 - mainPct;
   const pairSpread = Math.abs(mainPct - altPct);
   const splitPairRead = pairSpread <= 14 || (pairSafety !== 'safe' && pairSpread <= 18);
-  const playPairText = displayPair?.join(' / ') || `${mainCommon} / ${altCommon}`;
-  const topNoise = noiseOrder[0] || freshOutsider?.value || null;
-  const secondNoise = noiseOrder[1] || null;
-  const topSummaryLine = splitPairRead
-    ? `Play ${playPairText}.`
-    : `Play ${playPairText}. Lean ${mainCommon} first.`;
-  const secondarySummaryLine = topNoise
-    ? `If it breaks: ${topNoise}${secondNoise ? `, then ${secondNoise}` : ''}.`
-    : 'If it breaks: stay with the live pair until a real outsider repeats.';
+  const playPairText = sessionPlayPair?.join(' / ') || `${sessionPlayLead} / ${sessionPlayAlt}`;
+  const topNoise = sessionFallback[0] || noiseOrder[0] || freshOutsider?.value || null;
+  const secondNoise = sessionFallback[1] || noiseOrder[1] || null;
+  const topSummaryLine = sessionPlayAlt
+    ? `Play ${sessionPlayLead} / ${sessionPlayAlt}. Lean ${sessionPlayLead} first.`
+    : `Play ${sessionPlayLead}.`;
+  const secondarySummaryLine = sessionModel.supportLine || (
+    topNoise
+      ? `If it breaks: ${topNoise}${secondNoise ? `, then ${secondNoise}` : ''}.`
+      : 'If it breaks: stay with the live pair until a real outsider repeats.'
+  );
 
   // Noise watch values — in chaos show ALL noise values, not just one
   const noiseWatchValues = (() => {
@@ -434,48 +502,60 @@ export default function ModernPairPredictorCard({
 
   const analyzerMatchesLane = analyzerPicks.some(pick => displayPair?.includes(pick));
   const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
-  const manualReadLine = pairSafety === 'safe'
-    ? 'Pair still holds.'
-    : pairSafety === 'caution'
-    ? 'Pair first. Only switch if the same break keeps confirming.'
-    : 'Fragile board. Use the break fallback sooner.';
+  const manualReadLine = sessionModel.summary;
   const svarogSummaryLine = !analyzerPicks.length
     ? null
-    : analyzerMatchesLane
-      ? `Svarog agrees on ${analyzerPicks.join(' / ')}.`
-      : `Svarog is leaning ${analyzerPicks.join(' / ')} instead.`;
+    : svarogBreakLeadReason
+      ? `Svarog is taking an early noise shot: ${analyzerPicks.join(' / ')}.`
+      : sessionModel.key === 'break'
+      ? `Svarog has switched to ${analyzerPicks.join(' / ')}.`
+      : sessionModel.key === 'probe'
+        ? `Svarog is holding ${svarogDisplayPicks.join(' / ')} and tracking noise separately.`
+        : sessionModel.key === 'reentry'
+          ? `Svarog is moving back to ${svarogDisplayPicks.join(' / ')}.`
+          : `Svarog agrees on ${svarogDisplayPicks.join(' / ')}.`;
   const followGuide = (() => {
     if (!analyzerPicks.length) return null;
-    if (analyzerMode === 'break') {
+    if (sessionModel.key === 'break' || analyzerMode === 'break') {
       return {
         tone: 'analyzer',
-        title: 'Svarog Break Mode',
-        text: `Noise looks ${analyzerNoiseTiming}. Svarog is ranking ${analyzerPicks.join(' / ')} as the exact next-line pair.`,
+        title: 'Break active',
+        text: `Board state is break. Svarog is using ${analyzerPicks.join(' / ')} as the exact next pair.`,
       };
     }
-    if (analyzerMatchesLane && analyzerAgreesOnMain) {
+    if (sessionModel.key === 'reentry') {
       return {
         tone: 'good',
-        title: splitPairRead ? 'Pair confirmed' : 'Main confirmed',
-        text: splitPairRead
-          ? 'Lane and analyzer agree on the same 2 picks. Stay on the pair.'
-          : 'Lane and analyzer point to the same first lean.',
+        title: 'Back to pair',
+        text: `Noise already hit. Keep ${sessionPlayPair.join(' / ')} live and use Break Sensor only as backup.`,
       };
     }
-    if (pairSafety === 'safe') {
+    if (analyzerMatchesLane && analyzerAgreesOnMain && sessionModel.key === 'pair') {
+      return {
+        tone: 'good',
+        title: 'Backbone confirmed',
+        text: `Board is still pair-led. Keep ${sessionPlayPair.join(' / ')} as the play-now pair.`,
+      };
+    }
+    if (sessionModel.key === 'pair') {
       return {
         tone: 'lane',
-        title: 'Play the pair',
-        text: 'Play commons pair. Svarog confirms the lean.',
+        title: 'Backbone first',
+        text: `Keep ${sessionPlayPair.join(' / ')} live first. Only use the break fallback if the same outsider confirms again.`,
       };
     }
-    if (pairSafety === 'danger') {
+    if (sessionModel.key === 'probe') {
+      if (svarogBreakLeadReason) {
+        return {
+          tone: 'analyzer',
+          title: 'Noise entry',
+          text: `Break Sensor fired early. Svarog is using ${analyzerPicks.join(' / ')} as the exact next pair.`,
+        };
+      }
       return {
-        tone: 'analyzer',
-        title: isChaosOverride ? 'Chaos — Analyzer Active' : 'Fragile pair',
-        text: isChaosOverride
-          ? 'Chaos — Svarog is driving picks. Follow Svarog Eye.'
-          : 'Stay on the pair unless the same outsider keeps repeating.',
+        tone: 'split',
+        title: 'Noise watch',
+        text: `Stay on ${sessionPlayPair.join(' / ')}. Break Sensor is only a warning until Svarog switches.`,
       };
     }
     return {
@@ -495,7 +575,7 @@ export default function ModernPairPredictorCard({
     if (noiseWatchValues.length > 0 && pairSafety !== 'safe') {
       return {
         tone: pairSafety === 'danger' ? 'danger' : 'warn',
-        text: `Watch: ${noiseWatchValues.join(', ')} may break the pair`,
+        text: `Break warning: ${noiseWatchValues.join(', ')} may enter`,
       };
     }
     return null;
@@ -508,15 +588,15 @@ export default function ModernPairPredictorCard({
       : 'from-violet-900/20 to-slate-900/90'
     } rounded-2xl border shadow-xl transition-all duration-300 ${cardStyle}`}>
 
-      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      {/* -- HEADER ----------------------------------------------------------- */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className={`text-xs font-bold uppercase tracking-wider ${
           boardState === 'chaos' ? 'text-red-400' : boardState === 'caution' ? 'text-amber-400' : 'text-violet-400'
-        }`}>🎯 BBP Mode</span>
+        }`}>BBP Mode</span>
         {/* Mode badge with tooltip */}
         <div id={tutorialIds.modeBadgeId} className="relative group">
-          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border cursor-default ${badgeStyle}`}>
-            {label}
+          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border cursor-default ${sessionBadgeStyle}`}>
+            {sessionModel.label}
           </span>
           {/* Hover tooltip */}
           {tooltip && (
@@ -536,60 +616,32 @@ export default function ModernPairPredictorCard({
         </div>
       </div>
 
-      {/* ── BOARD STATE BANNER — prominent, full-width for chaos/caution ─── */}
-      {boardState === 'chaos' && (
-        <div className="mx-4 mb-1 flex items-center gap-3 rounded-xl border border-red-500/55 bg-red-900/30 px-3 py-2.5">
-          <span className="text-xl shrink-0">⚠️</span>
+      <div className={`mx-4 mb-2 rounded-xl border px-3 py-3 ${sessionToneClasses}`}>
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-widest text-red-300">CHAOS BOARD</div>
-            <div className="text-[10px] text-red-400/85 leading-snug">
-              {isChaosOverride
-                ? 'Analyzer auto-applied — MAIN/ALT are Svarog picks. Lower certainty.'
-                : 'No dominant pair. All values appearing equally — lower certainty on all picks.'}
-            </div>
+            <div className="text-[11px] font-black uppercase tracking-widest">{sessionModel.label}</div>
+            <div className="mt-1 text-[12px] leading-snug text-slate-200">{manualReadLine}</div>
+          </div>
+          <div className={`shrink-0 text-[12px] font-bold ${
+            noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
+          }`}>
+            Risk {noiseRisk ?? 0}%
           </div>
         </div>
-      )}
-      {boardState === 'caution' && (
-        <div className="mx-4 mb-1 flex items-center gap-3 rounded-xl border border-amber-500/45 bg-amber-900/20 px-3 py-2.5">
-          <span className="text-xl shrink-0">⚡</span>
-          <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-widest text-amber-300">CAUTION</div>
-            <div className="text-[10px] text-amber-400/80 leading-snug">Pair is fragile. Switch to noise break sooner if the same outsider repeats.</div>
+        {freshOutsider?.value && (
+          <div className="mt-2 text-[10px] text-slate-400">
+            Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
+            {' '}({Math.round(freshOutsider.score)} pts)
+            {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ── 5s GLANCE SECTION ──────────────────────────────────────────────── */}
+      {/* -- 5s GLANCE SECTION ------------------------------------------------ */}
       <div className="px-4 pb-3">
         <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/40 px-3 py-3">
           <p className="text-[15px] font-semibold text-slate-100">{topSummaryLine}</p>
           <p className="mt-1 text-[12px] text-slate-400">{secondarySummaryLine}</p>
-        </div>
-
-        {/* Pair safety strip */}
-        <div id={tutorialIds.warningStripId} className={`mb-4 rounded-xl border px-3 py-2 ${
-          pairSafety === 'safe'
-            ? 'border-emerald-500/40 bg-emerald-500/10'
-            : pairSafety === 'caution'
-            ? 'border-amber-500/40 bg-amber-500/10'
-            : 'border-rose-500/40 bg-rose-500/10'
-        }`}>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[12px] font-medium text-slate-200">{manualReadLine}</p>
-            <p id={tutorialIds.noiseRiskId} className={`shrink-0 text-[12px] font-bold ${
-              noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
-            }`}>
-              Risk {noiseRisk ?? 0}%
-            </p>
-          </div>
-          {freshOutsider?.value && (
-            <p id={tutorialIds.breakPressureId} className="mt-2 text-[10px] text-slate-400">
-              Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
-              {' '}({Math.round(freshOutsider.score)} pts)
-              {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
-            </p>
-          )}
         </div>
 
         {/* YOUR 2 PICKS */}
@@ -607,11 +659,11 @@ export default function ModernPairPredictorCard({
                   ? 'bg-orange-500/15 border-orange-400/60 shadow-orange-900/30'
                   : 'bg-violet-500/20 border-violet-400/60 shadow-violet-900/30'
                 }`}>
-                <span className="text-3xl font-black text-white">{mainCommon}</span>
+                <span className="text-3xl font-black text-white">{sessionPlayLead}</span>
                 <span className={`text-xs font-bold mt-0.5 ${isChaotic ? 'text-orange-300' : 'text-violet-300'}`}>{mainPct}%</span>
               </div>
               <span className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
-                {splitPairRead ? 'play pair' : 'first lean'}
+                play now
               </span>
             </div>
 
@@ -621,15 +673,15 @@ export default function ModernPairPredictorCard({
             {/* Alt pick — always a common, never noise */}
             <div className="flex flex-col items-center">
               <div className="astral-pick-secondary w-20 h-20 rounded-2xl flex flex-col items-center justify-center border border-slate-600/50 bg-slate-800/40 shadow-md">
-                <span className="text-2xl font-bold text-slate-300">{altCommon}</span>
+                <span className="text-2xl font-bold text-slate-300">{sessionPlayAlt}</span>
                 <span className="text-xs text-slate-500 mt-0.5">{altPct}%</span>
               </div>
-              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">{splitPairRead ? 'play pair' : 'second lean'}</span>
+              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">play now</span>
             </div>
           </div>
         </div>
 
-        {analyzerPicks.length > 0 && (
+        {svarogDisplayPicks.length > 0 && (
           <div id={tutorialIds.svarogEyeId} className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
             <div className="flex items-center justify-between mb-3.5 relative z-10 pl-6">
               <div className="relative">
@@ -640,10 +692,10 @@ export default function ModernPairPredictorCard({
                   className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
                 />
                 <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
-                <p className="text-[11px] text-slate-400 mt-1 pl-8">Exact next pair</p>
+                  <p className="text-[11px] text-slate-400 mt-1 pl-8">{sessionModel.key === 'probe' ? 'Pair + break sensor' : 'Exact next pair'}</p>
               </div>
               <div className="flex items-center gap-2.5">
-                {analyzerPicks.map((pick, idx) => (
+                {svarogDisplayPicks.map((pick, idx) => (
                   <span
                     key={pick}
                     className={`min-w-[48px] inline-block rounded-[14px] border-2 px-3 py-1.5 text-center text-[16px] font-black tracking-tight transition-colors
@@ -661,6 +713,21 @@ export default function ModernPairPredictorCard({
               <p className="mb-3 pl-8 text-[12px] text-slate-300">{svarogSummaryLine}</p>
             )}
 
+            {topBreakSensor && (
+              <div className={`mb-3 ml-8 flex items-center justify-between rounded-lg border px-3 py-2 ${
+                breakSensorState.label === 'Now'
+                  ? 'border-rose-500/35 bg-rose-500/10'
+                  : breakSensorState.label === 'Armed'
+                    ? 'border-amber-500/35 bg-amber-500/10'
+                    : 'border-slate-700/70 bg-slate-900/30'
+              }`}>
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Break Sensor</span>
+                <span className={`text-[11px] font-black ${breakSensorState.tone}`}>
+                  {breakSensorState.label}: {topBreakSensor.value}
+                </span>
+              </div>
+            )}
+
             {followGuide && (
               <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
                 followGuide.tone === 'good'
@@ -674,6 +741,38 @@ export default function ModernPairPredictorCard({
                 <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium">
                   {followGuide.text}
                 </p>
+              </div>
+            )}
+
+            {noiseTrackerItems.length > 0 && (
+              <div className="mt-3 rounded-[14px] border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Break Sensor</div>
+                  <div className={`text-[10px] font-bold ${breakSensorState.tone}`}>
+                    {breakSensorState.label}
+                  </div>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500">{breakSensorState.help}</div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {noiseTrackerItems.map((item, index) => (
+                    <div key={item.value} className={`rounded-lg border px-3 py-2 ${
+                      index === 0 ? 'border-cyan-500/25 bg-cyan-500/8' : 'border-white/8 bg-white/[0.03]'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className={`text-[13px] font-black ${index === 0 ? 'text-cyan-200' : 'text-slate-200'}`}>
+                          {item.value}
+                        </div>
+                        <div className={`text-[12px] font-black ${item.score >= 70 ? 'text-cyan-300' : item.score >= 45 ? 'text-amber-300' : 'text-slate-400'}`}>
+                          {item.score} edge
+                        </div>
+                      </div>
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        {item.unseen ? 'Not seen yet' : item.gap != null ? `Seen ${item.gap} rolls ago` : 'Gap unknown'}
+                        {typeof item.pairPct === 'number' ? ` • after ${lastRoll}: ${item.pairPct}%` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -700,19 +799,19 @@ export default function ModernPairPredictorCard({
           </div>
         )}
 
-        {/* Commons Flip Alert — confidence-gated wording */}
+        {/* Commons Flip Alert - confidence-gated wording */}
         {commonsFlipDetected && (() => {
           const fc = flipConfidence || 0;
           const newList = newCommons?.join(', ') || '?';
           let icon, color, msg;
           if (fc >= 85) {
-            icon = '🔄'; color = 'bg-purple-500/15 border-purple-500/40 text-purple-300';
+            icon = '?'; color = 'bg-purple-500/15 border-purple-500/40 text-purple-300';
             msg = `Commons shifted! Now: [${newList}] (${fc}%)`;
           } else if (fc >= 80) {
-            icon = '⚠️'; color = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
+            icon = '!'; color = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
             msg = `Shift possible: [${newList}] gaining (${fc}%)`;
           } else {
-            icon = '📈'; color = 'bg-slate-500/10 border-slate-500/30 text-slate-400';
+            icon = '?'; color = 'bg-slate-500/10 border-slate-500/30 text-slate-400';
             msg = `${newList.split(', ')[1] || newList} rising — may not stick (${fc}%)`;
           }
           return (
@@ -723,12 +822,12 @@ export default function ModernPairPredictorCard({
           );
         })()}
 
-        {/* Commons / Noise footer — always visible */}
+        {/* Commons / Noise footer - always visible */}
         <div id={tutorialIds.commonsNoiseId} className="mt-3 pt-2.5 border-t border-slate-800/50 flex justify-center gap-5 text-[10px]">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
-              {displayPair?.map(c => (
+              {sessionBackbonePair?.map(c => (
                 <span key={c} className="px-1.5 py-0.5 rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
               ))}
             </div>
@@ -744,17 +843,17 @@ export default function ModernPairPredictorCard({
         </div>
       </div>
 
-      {/* ── EXPAND BUTTON ──────────────────────────────────────────────────── */}
+      {/* -- EXPAND BUTTON ---------------------------------------------------- */}
       <button
         id={advancedToggleId}
         onClick={() => setExpanded(e => !e)}
         data-expanded={expanded ? 'true' : 'false'}
         className="astral-bbp-toggle w-full px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-pink-300 hover:text-slate-300 border-t border-slate-800/60 transition-colors duration-200 cursor-pointer"
       >
-        <span>{expanded ? '▲ Hide details' : '▼ Show details (Advanced Mode)'}</span>
+        <span>{expanded ? 'Hide signals' : 'Show signals'}</span>
       </button>
 
-      {/* ── 30s EXPLORE SECTION ────────────────────────────────────────────── */}
+      {/* -- 30s EXPLORE SECTION ---------------------------------------------- */}
       {expanded && (
         <div id={advancedPanelId} className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
 
@@ -775,109 +874,130 @@ export default function ModernPairPredictorCard({
                 <span className="rounded border border-emerald-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">N2</span>
               </div>
             </div>
-            {noiseOrder.length > 0 && (
-              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-200">Noise order:</span>{' '}
-                <span className="text-cyan-300">{noiseOrder[0]}</span>
-                {noiseOrder[1] ? (
-                  <>
-                    <span className="px-1 text-slate-500">&gt;</span>
-                    <span className="text-emerald-300">{noiseOrder[1]}</span>
-                  </>
-                ) : null}
-                <span className="pl-2 text-slate-500">Switch to these if commons break.</span>
-              </div>
-            )}
-
-            {/* ── NOISE INTERRUPT ETA ─────────────────────────────────────── */}
-            {analyzerNoiseDueRatio != null && noiseOrder.length > 0 && (() => {
-              const ratio = analyzerNoiseDueRatio;
-              const etaPct = Math.min(100, Math.round(ratio * 100));
-              const barFill = Math.min(100, etaPct);
-              const etaLabel = ratio >= 1.0
-                ? 'Due now'
-                : ratio >= 0.7
-                ? `~${Math.round((1 - ratio) / (ratio / (Math.max(1, commonsSinceNoise || 3)))) + 1}–${Math.round((1 - ratio) / (ratio / (Math.max(1, commonsSinceNoise || 3)))) + 3} rolls`
-                : 'Not due';
-              const { bg, border, labelClr, barClr } =
-                ratio >= 1.0
-                  ? { bg: 'bg-rose-900/20', border: 'border-rose-500/35', labelClr: 'text-rose-300', barClr: 'bg-rose-500' }
-                  : ratio >= 0.7
-                  ? { bg: 'bg-amber-900/15', border: 'border-amber-500/25', labelClr: 'text-amber-300', barClr: 'bg-amber-500' }
-                  : { bg: 'bg-slate-800/30', border: 'border-slate-700/30', labelClr: 'text-slate-400', barClr: 'bg-slate-600' };
-              return (
-                <div className={`mb-3 rounded-lg border px-3 py-2 ${bg} ${border}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">🔔 Noise ETA</span>
-                    <span className={`text-[10px] font-bold ${labelClr}`}>{etaLabel} — watch {noiseOrder[0]}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-800/60 overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-300 ${barClr}`} style={{ width: `${barFill}%` }} />
-                  </div>
-
+            <div className="mb-2 rounded-xl border border-white/8 bg-gradient-to-r from-white/[0.06] to-white/[0.02] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Board</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${
+                    sessionModel.tone === 'danger'
+                      ? 'border-rose-500/35 bg-rose-500/10 text-rose-300'
+                      : sessionModel.tone === 'warn'
+                        ? 'border-amber-500/35 bg-amber-500/10 text-amber-300'
+                        : sessionModel.tone === 'good'
+                          ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-300'
+                          : 'border-violet-500/35 bg-violet-500/10 text-violet-300'
+                  }`}>
+                    {sessionModel.label}
+                  </span>
                 </div>
-              );
-            })()}
-            {commonOrder.length > 0 && (
-              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-200">Commons order:</span>{' '}
-                <span className="text-violet-300">{commonOrder[0]}</span>
-                {commonOrder[1] ? (
-                  <>
-                    <span className="px-1 text-slate-500">&gt;</span>
-                    <span className="text-amber-300">{commonOrder[1]}</span>
-                  </>
+                {sessionModel.strengths ? (
+                  <span className="text-[11px] font-black text-slate-200">
+                    {Math.round(sessionModel.strengths?.[sessionModel.key] || 0)}%
+                  </span>
                 ) : null}
-
+              </div>
+              <div className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{sessionModel.summary}</div>
+            </div>
+            {sessionModel.strengths && (
+              <div className="mb-2 grid grid-cols-4 gap-1.5">
+                {[
+                  { key: 'pair', label: 'Pair', active: 'border-violet-500/45 bg-violet-500/12 text-violet-300', idle: 'text-slate-500' },
+                  { key: 'probe', label: 'Watch', active: 'border-amber-500/45 bg-amber-500/12 text-amber-300', idle: 'text-slate-500' },
+                  { key: 'break', label: 'Break', active: 'border-rose-500/45 bg-rose-500/12 text-rose-300', idle: 'text-slate-500' },
+                  { key: 'reentry', label: 'Back', active: 'border-emerald-500/45 bg-emerald-500/12 text-emerald-300', idle: 'text-slate-500' },
+                ].map((item) => {
+                  const score = Math.round(sessionModel.strengths?.[item.key] || 0);
+                  const active = sessionModel.key === item.key;
+                  return (
+                    <div
+                      key={item.key}
+                      className={`rounded-md border px-2 py-1.5 text-center ${
+                        active
+                          ? item.active.split(' ').slice(0, 2).join(' ')
+                          : 'border-white/8 bg-white/[0.03]'
+                      }`}
+                    >
+                      <div className={`text-[9px] font-bold uppercase tracking-wide ${active ? item.active.split(' ').slice(2).join(' ') : item.idle}`}>
+                        {item.label}
+                      </div>
+                      <div className={`text-[12px] font-black ${active ? 'text-slate-100' : 'text-slate-300'}`}>
+                        {score}%
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            {breakChallengeSummary && (
+            <div className="mb-2 grid gap-2 md:grid-cols-3">
+              {Array.isArray(analyzerSessionStateScores) && analyzerSessionStateScores.length > 0 && (
+                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Board Order</div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {analyzerSessionStateScores.slice(0, 4).map((entry, index) => (
+                      <span
+                        key={entry.value}
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                          index === 0
+                            ? 'border-violet-500/40 bg-violet-500/10 text-violet-300'
+                            : index === 1
+                              ? 'border-amber-500/35 bg-amber-500/10 text-amber-300'
+                              : 'border-white/10 bg-white/[0.04] text-slate-400'
+                        }`}
+                      >
+                        {entry.value} {Math.round(entry.stateScore || 0)}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {commonOrder.length > 0 && (
+                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Backbone</div>
+                  <div className="mt-1.5 text-slate-200">
+                    <span className="text-violet-300">{commonOrder[0]}</span>
+                    {commonOrder[1] ? (
+                      <>
+                        <span className="px-1 text-slate-500">&gt;</span>
+                        <span className="text-amber-300">{commonOrder[1]}</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">The pair the session keeps trying to hold.</div>
+                </div>
+              )}
+              {noiseOrder.length > 0 && (
+                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Break Sensor</div>
+                  <div className="mt-1.5 text-slate-200">
+                    <span className="text-cyan-300">{noiseOrder[0]}</span>
+                    {noiseOrder[1] ? (
+                      <>
+                        <span className="px-1 text-slate-500">&gt;</span>
+                        <span className="text-emerald-300">{noiseOrder[1]}</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">This is not a play by itself; it feeds Svarog when break is confirmed.</div>
+                </div>
+              )}
+            </div>
+            {breakChallengeSummary && breakChallengeSummary.challengerWins && (
               <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-200">Hybrid read:</span>{' '}
-                <span className={breakChallengeSummary.challengerWins ? 'text-cyan-300' : 'text-slate-300'}>
+                <span className="font-semibold text-slate-200">Break edge:</span>{' '}
+                <span className="text-cyan-300">
                   {breakChallengeSummary.text}
                 </span>
               </div>
             )}
 
-            {/* ── DECISION GUIDE — what to watch/do based on board state ── */}
-            {(() => {
-              // Find the top-rising non-main value by pickScore
-              const topWatchValue = VALUES
-                .filter(v => v !== analyzerMain)
-                .map(v => ({ v, ps: Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0), dir: trends?.[v]?.direction }))
-                .sort((a, b) => b.ps - a.ps)[0];
-              const watchLabel = topWatchValue?.v
-                ? `${topWatchValue.v} (decider ${topWatchValue.ps}%)${topWatchValue.dir === 'rising' ? ' ↑' : ''}`
-                : null;
-              const { bg, border, textClr, icon, msg } =
-                boardState === 'chaos'
-                  ? { bg: 'bg-red-900/20', border: 'border-red-500/30', textClr: 'text-red-300', icon: '🔴',
-                      msg: 'No dominant pair. Follow Svarog Eye picks.' }
-                  : boardState === 'caution'
-                  ? { bg: 'bg-amber-900/15', border: 'border-amber-500/25', textClr: 'text-amber-300', icon: '🟡',
-                      msg: watchLabel
-                        ? `Fragile. Watch ${watchLabel} — repeats 2× = switch.`
-                        : 'Fragile pair. Switch if outsider repeats.' }
-                  : { bg: 'bg-emerald-900/15', border: 'border-emerald-500/25', textClr: 'text-emerald-300', icon: '🟢',
-                      msg: watchLabel
-                        ? `Clean. Stay MAIN. ${watchLabel} = best break candidate.`
-                        : 'Clean board. Stay on MAIN.' };
-              return (
-                <div className={`mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 ${bg} ${border}`}>
-                  <span className="mt-0.5 shrink-0 text-sm">{icon}</span>
-                  <p className={`text-[11px] font-medium leading-snug ${textClr}`}>{msg}</p>
-                </div>
-              );
-            })()}
-
+            {/* Decision guide */}
             <div className="flex justify-between gap-1">
               {VALUES.map(v => {
                 const t = trends?.[v] || { direction: 'stable', current: 0 };
-                const arrow = t.direction === 'rising' ? '↑' : t.direction === 'falling' ? '↓' : '→';
+                const arrow = t.direction === 'rising' ? '\u2191' : t.direction === 'falling' ? '\u2193' : '\u2192';
                 const color = t.direction === 'rising' ? 'text-emerald-400'
                             : t.direction === 'falling' ? 'text-red-400'
-                            : 'text-slate-400';
+                            : 'text-yellow-300';
                 const isMain = v === analyzerMain;
                 const trustPct = Math.round((t.trustScore ?? 0) * 100);
                 const freshnessPct = Math.round((t.arrowWeight ?? 0) * 100);
@@ -885,6 +1005,7 @@ export default function ModernPairPredictorCard({
                 const commonDecider = Math.round(commonEntry?.commonScore ?? 0);
                 const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
                 const pickScore = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
+                const boardScore = Math.round(sessionStateDecisionMap.get(v)?.stateScore ?? 0);
                 const freshnessLabel = t.arrowAge === 0 ? 'fresh'
                   : t.arrowAge === 1 ? 'held'
                   : 'stale';
@@ -897,13 +1018,6 @@ export default function ModernPairPredictorCard({
                 const isNoise1 = !isMain && !isAlt && v === noiseOrder[0];
                 const isNoise2 = !isMain && !isAlt && v === noiseOrder[1];
                 const isInPlay = isMain || isAlt || isNoise1 || isNoise2;
-                // WATCH indicator: highest noise threat when noise is approaching/due, OR highest non-main pick
-                const isCommonValue = commons.includes(v);
-                const poolConfidence = isCommonValue ? commonDecider : noiseDecider;
-                const allNoiseScores = VALUES.filter(vv => !commons.includes(vv))
-                  .map(vv => Math.round(noiseDecisionMap.get(vv)?.noiseScore ?? 0));
-                const maxNoiseScore = Math.max(...allNoiseScores, 0);
-                const isWatchValue = !isMain && !isCommonValue && noiseDecider === maxNoiseScore && noiseDecider >= 35;
                 const rankBadge = isMain ? { label: 'MAIN', cls: 'bg-violet-500/25 text-violet-300 border-violet-500/50' }
                   : isAlt         ? { label: 'ALT',  cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' }
                   : isNoise1      ? { label: 'N1', cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' }
@@ -911,8 +1025,7 @@ export default function ModernPairPredictorCard({
                   : null;
                 return (
                   <div key={v} className={`flex-1 text-center py-1.5 rounded-md ${
-                    isWatchValue ? 'bg-sky-900/25 border border-sky-400/40'
-                    : isMain ? 'bg-slate-800/50 border border-violet-500/40'
+                    isMain ? 'bg-slate-800/50 border border-violet-500/40'
                     : isAlt ? 'bg-slate-800/50 border border-amber-500/30'
                     : isNoise1 ? 'bg-slate-800/50 border border-cyan-500/20'
                     : isNoise2 ? 'bg-slate-800/50 border border-emerald-500/20'
@@ -921,10 +1034,8 @@ export default function ModernPairPredictorCard({
                     {rankBadge
                       ? <div className={`mx-auto mb-0.5 w-fit rounded px-1.5 py-px text-[8px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
                       : <div className="mb-0.5 h-[14px]" />}
-                    {isWatchValue && (
-                      <div className="mb-0.5 text-[8px] font-black uppercase tracking-widest text-sky-400">WATCH</div>
-                    )}
-                    <div className={`text-xs font-bold ${isInPlay || isWatchValue ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
+                    
+                    <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
                     <div className={`text-[11px] ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
                     {(() => {
@@ -934,7 +1045,15 @@ export default function ModernPairPredictorCard({
                       if (isFallenCommon) {
                         return (
                           <>
-                            <div className="mt-1 text-[10px] font-medium text-orange-400">{commonDecider}% play</div>
+                            <div className={`mt-1 text-[10px] font-black ${
+                              boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
+                            }`}>{boardScore}% board</div>
+                            <div className={`mt-1 text-[10px] font-medium ${
+                              pickScore >= 60 ? 'text-cyan-300'
+                              : pickScore >= 35 ? 'text-fuchsia-300/90'
+                              : 'text-rose-400/85'
+                            }`}>{pickScore}% next</div>
+                            <div className="text-[9px] font-medium text-orange-400/90">{commonDecider}% common</div>
                             <div className={`text-[8px] font-black uppercase tracking-widest ${isReboundLive ? 'text-emerald-300/90' : 'text-orange-400/80'}`}>
                               {isReboundLive ? 'REBOUND LIVE' : 'WEAK'}
                             </div>
@@ -943,19 +1062,35 @@ export default function ModernPairPredictorCard({
                       }
                       if (isCommon) {
                         return (
-                          <div className={`mt-1 text-[10px] font-black ${
-                            commonDecider >= 65 ? 'text-violet-300'
-                            : commonDecider >= 40 ? 'text-violet-400/80'
-                            : 'text-violet-500/70'
-                          }`}>{commonDecider}% play</div>
+                          <>
+                            <div className={`mt-1 text-[10px] font-black ${
+                              boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
+                            }`}>{boardScore}% board</div>
+                            <div className={`mt-1 text-[10px] font-black ${
+                              pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
+                            }`}>{pickScore}% next</div>
+                            <div className={`text-[9px] font-medium ${
+                              commonDecider >= 65 ? 'text-violet-300'
+                              : commonDecider >= 40 ? 'text-violet-400/80'
+                              : 'text-violet-500/70'
+                            }`}>{commonDecider}% common</div>
+                          </>
                         );
                       }
                       return (
-                        <div className={`mt-1 text-[10px] font-black ${
-                          noiseDecider >= 65 ? 'text-cyan-300'
-                          : noiseDecider >= 40 ? 'text-cyan-400/80'
-                          : 'text-cyan-600/70'
-                        }`}>{noiseDecider}% threat</div>
+                        <>
+                          <div className={`mt-1 text-[10px] font-black ${
+                            boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
+                          }`}>{boardScore}% board</div>
+                          <div className={`mt-1 text-[10px] font-black ${
+                            pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
+                          }`}>{pickScore}% next</div>
+                          <div className={`text-[9px] font-medium ${
+                            noiseDecider >= 65 ? 'text-cyan-300'
+                            : noiseDecider >= 40 ? 'text-cyan-400/80'
+                            : 'text-cyan-600/70'
+                          }`}>{noiseDecider}% noise</div>
+                        </>
                       );
                     })()}
                     <div className="text-[10px] font-medium text-cyan-300/70">trust {trustPct}%</div>
@@ -965,7 +1100,7 @@ export default function ModernPairPredictorCard({
               })}
             </div>
             <div className="mt-1.5 text-[10px] text-slate-600">
-              play% = commons lean · threat% = noise danger · trust = trend certainty · ↑ = building
+              board = current board fit | next = final next-pick strength | common/noise = side strength | trust = trend certainty
             </div>
           </div>
 
@@ -973,7 +1108,7 @@ export default function ModernPairPredictorCard({
           {pairMatrix && lastRoll && (
             <div>
               <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
-                After {lastRoll} → ?
+                After {lastRoll} {'->'}
               </div>
               <div className="flex gap-1">
                 {VALUES.map(v => {
@@ -989,7 +1124,7 @@ export default function ModernPairPredictorCard({
                   });
                   const isHighest = pct === Math.max(...allPcts) && pct > 0;
                   const displayValue = pct > 0 ? `${pct}%`
-                    : rollsAgo >= 0 ? `↻${rollsAgo}` : 'N/A';
+                    : rollsAgo >= 0 ? `?${rollsAgo}` : 'N/A';
                   const momentum = data.momentumScores?.[v] ?? 0;
                   const isNoise = noise?.includes(v);
                   return (
@@ -1040,7 +1175,7 @@ export default function ModernPairPredictorCard({
             </div>
           </div>
 
-          {/* Pattern Analysis — roll sequence + noise gap table */}
+          {/* Pattern Analysis - roll sequence + noise gap table */}
           {rolls.length >= 6 && (() => {
             const markers = rolls.map(r => {
               if (r === commons?.[0]) return { type: 'A', value: r };
@@ -1087,7 +1222,7 @@ export default function ModernPairPredictorCard({
                         <th className="px-2 py-1 text-left">#</th>
                         <th className="px-2 py-1 text-left">Noise</th>
                         <th className="px-2 py-1 text-left">Commons After</th>
-                        <th className="px-2 py-1 text-left">→ Next</th>
+                        <th className="px-2 py-1 text-left">Next noise</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1106,7 +1241,7 @@ export default function ModernPairPredictorCard({
                           </td>
                           <td className="px-2 py-1">
                             {gap.nextNoise === '?' ? (
-                              <span className="text-yellow-400">⏳ waiting</span>
+                              <span className="text-yellow-400">waiting</span>
                             ) : (
                               <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">{gap.nextNoise}</span>
                             )}
@@ -1128,3 +1263,4 @@ export default function ModernPairPredictorCard({
     </div>
   );
 }
+

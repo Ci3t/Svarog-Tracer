@@ -539,13 +539,6 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1504.png"
   },
   {
-    "id": "magimech-daybreak-warriors",
-    "numId": 6035,
-    "name": "MagiMech: Daybreak Warriors",
-    "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/6035.png"
-  },
-  {
     "id": "saber",
     "numId": 1014,
     "name": "Saber",
@@ -614,6 +607,33 @@
     "name": "Trailblazer • Remembrance (F)",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8008.png"
+  },
+  {
+    "id": "evanescia",
+    "numId": 1505,
+    "name": "Evanescia",
+    "rarity": 5,
+    "image": "https://static.nanoka.cc/assets/hsr/avatardrawcard/1505.webp"
+  },
+  {
+    "id": "trailblazer-elation-m",
+    "numId": 8009,
+    "name": "Trailblazer • Elation (M)",
+    "rarity": 5,
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8009.webp"
+  },
+  {
+    "id": "trailblazer-elation-f",
+    "numId": 8010,
+    "name": "Trailblazer • Elation (F)",
+    "rarity": 5,
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8010.webp"
+  },
+  {
+    "id": "silver-wolf-999",
+    "numId": 1506,
+    "name": "Silver Wolf 999",
+    "rarity": 5,
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/1506.webp"
   }
 ]
-
