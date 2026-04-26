@@ -1368,15 +1368,19 @@ function scoreSvarogAnalyzerPicks({
           Math.max(0, Math.round((latentPressure - 50) * 0.25)) +
           (totalCount <= 1 ? 6 : totalCount === 2 ? 3 : 0)
         : 0;
-    const timingBonus = noise?.includes(value) && !isDeadNoise
+    let timingBonus = noise?.includes(value) && !isDeadNoise
       ? (
           noiseTiming === 'due'
-            ? Math.min(18, Math.max(0, Math.round((overdueVsGap - 0.7) * 10)))
+            ? Math.min(36, Math.max(0, Math.round((overdueVsGap - 0.7) * 20)))
             : noiseTiming === 'approaching'
-              ? Math.min(12, Math.max(0, Math.round((overdueVsGap - 0.4) * 6)))
+              ? Math.min(24, Math.max(0, Math.round((overdueVsGap - 0.4) * 12)))
               : -6
         )
       : noise?.includes(value) ? -8 : 0;  // dead noise gets negative timing
+    // Absence multiplier: noise absent 6+ rolls gets 1.5x timing bonus
+    if (timingBonus > 0 && seenAgo >= 6) {
+      timingBonus = Math.round(timingBonus * 1.5);
+    }
     const pressureBonus = noise?.includes(value) && !isDeadNoise
       ? (
           noiseTiming === 'due'
@@ -5307,7 +5311,7 @@ export function identifyCommonsNoise(rolls, options = {}) {
   }
 
   // =========================================================================
-  // NOISE RISING DETECTION
+  // 🔗 SVAROG ALT SYNC: Adopt svarog's best new value as main's alt
   // =========================================================================
   const last6 = rolls.slice(-6);
   const last2 = rolls.slice(-2);
@@ -5755,6 +5759,21 @@ export function predictWithPairs(rolls, options = {}) {
   // =========================================================================
 
   // Decide prediction method
+  // =========================================================================
+  // 🔀 COMMONS SWITCH OVERRIDE: When a mid-session rebase is detected and
+  // sustained, trust the recent commons pair instead of the full-session
+  // commons. Prevents preservation guard locking onto a stale pair.
+  // (Addresses Session B: 0% top-2 rate caused by preservation of old pair)
+  // =========================================================================
+  if (
+    commonsSwitch.detected &&
+    commonsSwitch.recentCommons?.length === 2 &&
+    (commonsSwitch.type === 'rebase' || commonsSwitch.duration === 'sustained')
+  ) {
+    commons = commonsSwitch.recentCommons;
+    noise = VALUES.filter(v => !commons.includes(v));
+  }
+
   let method = 'frequency';
   let prediction = null;
   let alt = null;
@@ -5992,7 +6011,7 @@ export function predictWithPairs(rolls, options = {}) {
   })();
   const noiseRunDominant = !isLastCommon &&
     currentRunLen >= 3 &&
-    (recent8Dist[lastRoll] || 0) >= 56;
+    (recent8Dist[lastRoll] || 0) >= 25;
 
   if (isHotRun && !isChaotic && !shortBurstGuard) {
     // Riding the run — predict the running value to continue
@@ -6691,7 +6710,41 @@ export function predictWithPairs(rolls, options = {}) {
   const noiseTrapProb  = bestNoiseTrapCandidate?.score ?? 0;
   const trapCandidate  = bestNoiseTrapCandidate?.value ?? null;
   const isNoiseTrap    = noiseTrapProb >= trapThreshold && !!trapCandidate && inRedZone;
-  // Note: does NOT override alt — expose as separate ui strip data
+
+  // =========================================================================
+  // 🆕 NOISE TRAP INJECTION: When the trap fires with strong pair-link evidence,
+  // actually use it in prediction instead of just displaying it in the UI strip.
+  // This addresses the core finding that noise was predicted before it appeared
+  // in only 1 of ~20 cases — the system knew but never acted.
+  // =========================================================================
+  if (
+    isNoiseTrap &&
+    trapCandidate &&
+    bestNoiseTrapCandidate?.pairLinkPct >= 20 &&
+    trapCandidate !== prediction &&
+    trapCandidate !== alt
+  ) {
+    // If board is degraded and trap has strong link, promote to main via handoff
+    if (
+      displayPairSafety !== 'safe' &&
+      bestNoiseTrapCandidate?.pairLinkPct >= 35 &&
+      confidence < 0.65
+    ) {
+      alt = prediction;
+      prediction = trapCandidate;
+      method = method + '+noise-trap-main';
+      confidence = Math.min(confidence + 0.08, 0.60);
+    }
+    // Otherwise inject into alt (replaces stale alt or noise-watch)
+    else if (
+      !alt ||
+      noise.includes(alt) ||
+      displayPairSafety !== 'safe'
+    ) {
+      alt = trapCandidate;
+      method = method + '+noise-trap-alt';
+    }
+  }
 
   const analyzer = scoreSvarogAnalyzerPicks({
     rolls,

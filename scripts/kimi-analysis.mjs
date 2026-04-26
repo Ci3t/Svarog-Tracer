@@ -52,8 +52,8 @@ function analyzeSession(session) {
     const last6 = slice.slice(-6).join(' ');
     const pos = i <= 8 ? 'early' : i <= session.rolls.length - 4 ? 'mid' : 'late';
 
-    const pred = result.analyzerPrediction || result.prediction || null;
-    const alt = result.analyzerAlt || result.alt || null;
+    const pred = result.prediction || result.analyzerPrediction || null;
+    const alt = result.alt || result.analyzerAlt || null;
 
     const hit = pred === actual ? 'HIT' : alt === actual ? 'ALT-HIT' : 'MISS';
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ModernPairPredictorCard — Two-Tier Layout
  *
  * 5s Glance (always visible):
@@ -93,7 +93,6 @@ export default function ModernPairPredictorCard({
     analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
     analyzerSessionStateScores,
     analyzerBreakChallenge,
-    svarogBreakLeadReason,
     analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
     // ?? Noise Trap
     isNoiseTrap, trapCandidate, noiseTrapProb, inRedZone, commonsSinceNoise, avgNoiseGap,
@@ -261,10 +260,7 @@ export default function ModernPairPredictorCard({
     trustedPair,
   ]);
 
-  useEffect(() => {
-    if (!onTrustGuideChange) return;
-    onTrustGuideChange(trustGuideAssistText);
-  }, [onTrustGuideChange, trustGuideAssistText]);
+
 
   const noiseOrder = useMemo(() => {
     if (!Array.isArray(analyzerNoiseDecisionScores) || analyzerNoiseDecisionScores.length === 0) return [];
@@ -354,19 +350,25 @@ export default function ModernPairPredictorCard({
   const noiseTrackerItems = useMemo(() => {
     if (!Array.isArray(analyzerNoiseDecisionScores) || analyzerNoiseDecisionScores.length === 0) return [];
     return analyzerNoiseDecisionScores.slice(0, 2).map((entry) => {
-      const pairData = pairMatrix?.[lastRoll]?.[entry.value];
-      const pairPct = typeof pairData === 'object' ? pairData?.pct || 0 : (pairData || 0);
       const rawGap = typeof lastSeen?.[entry.value] === 'number' ? lastSeen[entry.value] : null;
       const gap = rawGap != null && rawGap >= 0 ? rawGap : null;
+      // Use frequency-based signals instead of pair transitions (pair data is unreliable in short sessions)
+      const sessionPct = Math.round(distribution?.[entry.value] ?? 0);  // full session frequency
+      const recentPct = Math.round(trends?.[entry.value]?.current ?? 0); // recent window %
+      const direction = trends?.[entry.value]?.direction ?? 'stable';     // rising/stable/falling
+      const recent4Hits = entry.recent4Hits ?? 0;
       return {
         value: entry.value,
         score: Math.round(entry.noiseScore || 0),
         gap,
         unseen: rawGap != null && rawGap < 0,
-        pairPct,
+        sessionPct,
+        recentPct,
+        direction,
+        recent4Hits,
       };
     });
-  }, [analyzerNoiseDecisionScores, lastRoll, lastSeen, pairMatrix]);
+  }, [analyzerNoiseDecisionScores, distribution, lastSeen, trends]);
 
   // ?? SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
@@ -416,7 +418,7 @@ export default function ModernPairPredictorCard({
     summary: pairSafety === 'danger'
       ? 'Noise has enough proof. Use the break order first for the next roll.'
       : pairSafety === 'caution'
-        ? 'Pair is still first. Break Sensor warns only when noise timing is close.'
+        ? 'Pair is still first. Watch the noise tracker and switch only if the same break repeats.'
         : 'Pair still owns the next roll. Keep noise only as a backup read.',
     playPair: displayPair,
     playLead: prediction,
@@ -454,13 +456,6 @@ export default function ModernPairPredictorCard({
       : sessionModel.tone === 'good'
         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
         : 'bg-violet-500/20 text-violet-300 border-violet-500/35';
-  const topBreakSensor = noiseTrackerItems[0] || null;
-  const breakSensorState =
-    (svarogBreakLeadReason || sessionModel.key === 'break')
-      ? { label: 'Now', tone: 'text-rose-300', help: 'Svarog is allowed to lead this noise value.' }
-      : topBreakSensor?.score >= 70 && (pairSafety === 'danger' || noiseRisk >= 55)
-        ? { label: 'Armed', tone: 'text-amber-300', help: 'Noise is close, but Svarog has not switched yet.' }
-        : { label: 'Wait', tone: 'text-slate-500', help: 'Warning only. Do not play this by itself.' };
 
 
   // Lean % - use pair matrix probability for each common from last roll
@@ -503,17 +498,40 @@ export default function ModernPairPredictorCard({
   const analyzerMatchesLane = analyzerPicks.some(pick => displayPair?.includes(pick));
   const analyzerAgreesOnMain = analyzerPrediction && displayPair?.includes(analyzerPrediction);
   const manualReadLine = sessionModel.summary;
+
+  // -- Noise threat context: enriches Svarog Eye guidance when a break is building --
+  const topNoiseThreat = noiseTrackerItems[0] || null;
+  const noiseThreatActive = topNoiseThreat != null && (
+    topNoiseThreat.score >= 58 ||
+    topNoiseThreat.direction === 'rising' ||
+    (topNoiseThreat.gap != null && topNoiseThreat.gap >= 5) ||
+    topNoiseThreat.unseen ||
+    topNoiseThreat.recent4Hits >= 2
+  );
+  const noiseThreatNote = noiseThreatActive && topNoiseThreat
+    ? (() => {
+        const v = topNoiseThreat.value;
+        if (topNoiseThreat.unseen) return `${v} hasn't appeared yet this session — expect it to show up.`;
+        const rollWord = topNoiseThreat.gap === 1 ? 'roll' : 'rolls';
+        if (topNoiseThreat.gap != null && topNoiseThreat.gap >= 6) return `${v} is overdue — missing ${topNoiseThreat.gap} ${rollWord}, keep it ready.`;
+        if (topNoiseThreat.recent4Hits >= 2) return `${v} hit ${topNoiseThreat.recent4Hits} of the last 4 rolls — break pressure is rising.`;
+        if (topNoiseThreat.direction === 'rising') return `${v} is climbing in the recent window — keep it as your next break pick.`;
+        if (topNoiseThreat.score >= 65) return `${v} has the highest break pressure right now — keep it as backup.`;
+        return `${v} is the most likely break if the pair drops.`;
+      })()
+    : null;
+
   const svarogSummaryLine = !analyzerPicks.length
     ? null
-    : svarogBreakLeadReason
-      ? `Svarog is taking an early noise shot: ${analyzerPicks.join(' / ')}.`
-      : sessionModel.key === 'break'
+    : sessionModel.key === 'break'
       ? `Svarog has switched to ${analyzerPicks.join(' / ')}.`
       : sessionModel.key === 'probe'
-        ? `Svarog is holding ${svarogDisplayPicks.join(' / ')} and tracking noise separately.`
+        ? `Svarog is holding ${svarogDisplayPicks.join(' / ')}${noiseThreatNote ? ` — ${noiseThreatNote}` : ' and tracking noise separately.'}`
         : sessionModel.key === 'reentry'
           ? `Svarog is moving back to ${svarogDisplayPicks.join(' / ')}.`
-          : `Svarog agrees on ${svarogDisplayPicks.join(' / ')}.`;
+          : noiseThreatActive
+            ? `Svarog agrees on ${svarogDisplayPicks.join(' / ')}. ${noiseThreatNote}`
+            : `Svarog agrees on ${svarogDisplayPicks.join(' / ')}.`;
   const followGuide = (() => {
     if (!analyzerPicks.length) return null;
     if (sessionModel.key === 'break' || analyzerMode === 'break') {
@@ -527,41 +545,42 @@ export default function ModernPairPredictorCard({
       return {
         tone: 'good',
         title: 'Back to pair',
-        text: `Noise already hit. Keep ${sessionPlayPair.join(' / ')} live and use Break Sensor only as backup.`,
+        text: `Noise already hit. Keep ${sessionPlayPair.join(' / ')} live — noise tracker is your fallback if it breaks again.`,
       };
     }
     if (analyzerMatchesLane && analyzerAgreesOnMain && sessionModel.key === 'pair') {
       return {
         tone: 'good',
         title: 'Backbone confirmed',
-        text: `Board is still pair-led. Keep ${sessionPlayPair.join(' / ')} as the play-now pair.`,
+        text: noiseThreatNote
+          ? `Board is still pair-led. Keep ${sessionPlayPair.join(' / ')} first. ${noiseThreatNote}`
+          : `Board is still pair-led. Keep ${sessionPlayPair.join(' / ')} as the play-now pair.`,
       };
     }
     if (sessionModel.key === 'pair') {
       return {
         tone: 'lane',
         title: 'Backbone first',
-        text: `Keep ${sessionPlayPair.join(' / ')} live first. Only use the break fallback if the same outsider confirms again.`,
+        text: noiseThreatNote
+          ? `Keep ${sessionPlayPair.join(' / ')} first. ${noiseThreatNote}`
+          : `Keep ${sessionPlayPair.join(' / ')} live first. Only use the break fallback if the same outsider confirms again.`,
       };
     }
     if (sessionModel.key === 'probe') {
-      if (svarogBreakLeadReason) {
-        return {
-          tone: 'analyzer',
-          title: 'Noise entry',
-          text: `Break Sensor fired early. Svarog is using ${analyzerPicks.join(' / ')} as the exact next pair.`,
-        };
-      }
       return {
         tone: 'split',
         title: 'Noise watch',
-        text: `Stay on ${sessionPlayPair.join(' / ')}. Break Sensor is only a warning until Svarog switches.`,
+        text: noiseThreatNote
+          ? `Stay on ${sessionPlayPair.join(' / ')} for now. ${noiseThreatNote}`
+          : `Stay on ${sessionPlayPair.join(' / ')}. Use the noise tracker only if the same break repeats.`,
       };
     }
     return {
       tone: 'split',
       title: 'Mixed board',
-      text: 'Pair first. Switch if the outsider repeats twice.',
+      text: noiseThreatNote
+        ? `Pair first. ${noiseThreatNote}`
+        : 'Pair first. Switch if the outsider repeats twice.',
     };
   })();
 
@@ -575,11 +594,41 @@ export default function ModernPairPredictorCard({
     if (noiseWatchValues.length > 0 && pairSafety !== 'safe') {
       return {
         tone: pairSafety === 'danger' ? 'danger' : 'warn',
-        text: `Break warning: ${noiseWatchValues.join(', ')} may enter`,
+        text: `Watch: ${noiseWatchValues.join(', ')} may break the pair`,
       };
     }
     return null;
   })();
+
+  // -- Clara alert: compute priority message and push to live mode Clara bubble via onTrustGuideChange --
+  const claraAlertText = (() => {
+    if (isNoiseTrap && trapCandidate)
+      return `I'm seeing a noise trap — ${trapCandidate} is about to show up. Keep it as your next click.`;
+    if (sessionModel.key === 'break' && analyzerMain)
+      return `The pair broke. Switch to ${analyzerMain}${analyzerSecond ? ` or ${analyzerSecond}` : ''} right now.`;
+    if (commonsFlipDetected && (flipConfidence ?? 0) >= 85 && newCommons?.length)
+      return `Commons might be shifting — ${newCommons.join(' and ')} is taking over the pair spot.`;
+    const topNoise = noiseTrackerItems[0];
+    if (topNoise) {
+      if (topNoise.recent4Hits >= 2)
+        return `Watch out — ${topNoise.value} has hit ${topNoise.recent4Hits} of the last 4 rolls. Break pressure is real.`;
+      if (topNoise.unseen && rolls.length >= 8)
+        return `${topNoise.value} hasn't appeared at all this session — after ${rolls.length} rolls, it's due.`;
+      if (topNoise.gap != null && topNoise.gap >= 7)
+        return `${topNoise.value} has been missing ${topNoise.gap} rolls. That's getting overdue — keep it ready.`;
+      if (topNoise.direction === 'rising' && topNoise.score >= 58)
+        return `Noise ${topNoise.value} is climbing in the recent window — it could break in soon. Have it ready.`;
+    }
+    return null;
+  })();
+
+  // Push alert text (or fall back to trust guide) to live mode Clara
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!onTrustGuideChange) return;
+    onTrustGuideChange(claraAlertText ?? trustGuideAssistText);
+  // trustGuideAssistText effect above also calls onTrustGuideChange — this one wins when alert is present
+  }, [onTrustGuideChange, claraAlertText, trustGuideAssistText]);
 
   return (
     <div className={`astral-bbp-card bg-gradient-to-br ${
@@ -619,8 +668,7 @@ export default function ModernPairPredictorCard({
       <div className={`mx-4 mb-2 rounded-xl border px-3 py-3 ${sessionToneClasses}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-widest">{sessionModel.label}</div>
-            <div className="mt-1 text-[12px] leading-snug text-slate-200">{manualReadLine}</div>
+            <div className="text-[12px] leading-snug text-slate-200">{manualReadLine}</div>
           </div>
           <div className={`shrink-0 text-[12px] font-bold ${
             noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
@@ -692,7 +740,7 @@ export default function ModernPairPredictorCard({
                   className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
                 />
                 <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
-                  <p className="text-[11px] text-slate-400 mt-1 pl-8">{sessionModel.key === 'probe' ? 'Pair + break sensor' : 'Exact next pair'}</p>
+                <p className="text-[11px] text-slate-400 mt-1 pl-8">{sessionModel.key === 'probe' ? 'Backbone + noise tracker' : 'Exact next pair'}</p>
               </div>
               <div className="flex items-center gap-2.5">
                 {svarogDisplayPicks.map((pick, idx) => (
@@ -713,21 +761,6 @@ export default function ModernPairPredictorCard({
               <p className="mb-3 pl-8 text-[12px] text-slate-300">{svarogSummaryLine}</p>
             )}
 
-            {topBreakSensor && (
-              <div className={`mb-3 ml-8 flex items-center justify-between rounded-lg border px-3 py-2 ${
-                breakSensorState.label === 'Now'
-                  ? 'border-rose-500/35 bg-rose-500/10'
-                  : breakSensorState.label === 'Armed'
-                    ? 'border-amber-500/35 bg-amber-500/10'
-                    : 'border-slate-700/70 bg-slate-900/30'
-              }`}>
-                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Break Sensor</span>
-                <span className={`text-[11px] font-black ${breakSensorState.tone}`}>
-                  {breakSensorState.label}: {topBreakSensor.value}
-                </span>
-              </div>
-            )}
-
             {followGuide && (
               <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
                 followGuide.tone === 'good'
@@ -746,32 +779,71 @@ export default function ModernPairPredictorCard({
 
             {noiseTrackerItems.length > 0 && (
               <div className="mt-3 rounded-[14px] border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Break Sensor</div>
-                  <div className={`text-[10px] font-bold ${breakSensorState.tone}`}>
-                    {breakSensorState.label}
-                  </div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Break Watch</div>
+                  <div className="text-[10px] text-slate-500">Use if the pair drops</div>
                 </div>
-                <div className="mt-1 text-[10px] text-slate-500">{breakSensorState.help}</div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {noiseTrackerItems.map((item, index) => (
-                    <div key={item.value} className={`rounded-lg border px-3 py-2 ${
-                      index === 0 ? 'border-cyan-500/25 bg-cyan-500/8' : 'border-white/8 bg-white/[0.03]'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className={`text-[13px] font-black ${index === 0 ? 'text-cyan-200' : 'text-slate-200'}`}>
-                          {item.value}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {noiseTrackerItems.map((item, index) => {
+                    const dirArrow = item.direction === 'rising' ? '\u2191' : item.direction === 'falling' ? '\u2193' : '\u2192';
+                    const dirColor = item.direction === 'rising' ? 'text-emerald-400' : item.direction === 'falling' ? 'text-red-400' : 'text-yellow-300';
+                    const pressureLabel = item.score >= 70 ? 'HIGH' : item.score >= 50 ? 'BUILDING' : item.score >= 30 ? 'LOW' : 'QUIET';
+                    const pressureColor = item.score >= 70
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      : item.score >= 50
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                        : 'bg-slate-700/30 text-slate-400 border-slate-600/30';
+                    // Status line reconciles the pressure badge with frequency data
+                    // HIGH + infrequent = pressure building because it hasn't peaked yet
+                    const statusText = (() => {
+                      if (item.score >= 60) {
+                        if (item.recent4Hits >= 2) return 'on a run';
+                        if (item.unseen) return 'not appeared yet';
+                        if (item.gap != null && item.gap >= 6) return 'missing too long';
+                        return 'pressure building';
+                      }
+                      if (item.score >= 40) return item.recentPct >= 25 ? 'active' : 'watchable';
+                      return 'quiet';
+                    })();
+                    const statusColor = item.score >= 60
+                      ? (item.recent4Hits >= 2 ? 'text-emerald-400' : 'text-amber-300')
+                      : item.score >= 40 ? 'text-slate-400' : 'text-slate-500';
+                    const rollWord = item.gap === 1 ? 'roll' : 'rolls';
+                    const gapLine = item.unseen
+                      ? 'Not appeared yet this session'
+                      : item.gap === 0
+                        ? 'Just hit last roll'
+                        : item.gap != null
+                          ? `Last seen ${item.gap} ${rollWord} ago`
+                          : 'Gap unknown';
+                    const hitsLine = item.recent4Hits >= 1 ? ` · ${item.recent4Hits} of last 4 rolls` : '';
+                    return (
+                      <div key={item.value} className={`rounded-lg border px-3 py-2.5 ${
+                        index === 0 ? 'border-cyan-500/25 bg-cyan-500/8' : 'border-white/8 bg-white/[0.03]'
+                      }`}>
+                        {/* Header: value + trend arrow + pressure badge */}
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[15px] font-black ${index === 0 ? 'text-cyan-200' : 'text-slate-200'}`}>{item.value}</span>
+                            <span className={`text-[14px] font-bold ${dirColor}`}>{dirArrow}</span>
+                          </div>
+                          <span className={`text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border ${pressureColor}`}>
+                            {pressureLabel}
+                          </span>
                         </div>
-                        <div className={`text-[12px] font-black ${item.score >= 70 ? 'text-cyan-300' : item.score >= 45 ? 'text-amber-300' : 'text-slate-400'}`}>
-                          {item.score} edge
+                        {/* Frequency line: overall share + pressure-context status */}
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="text-slate-300 font-medium">{item.sessionPct}% of rolls</span>
+                          <span className="text-slate-600">·</span>
+                          <span className={`font-medium ${statusColor}`}>{statusText}</span>
+                        </div>
+                        {/* Gap line */}
+                        <div className="mt-0.5 text-[10px] text-slate-500">
+                          {gapLine}{hitsLine}
                         </div>
                       </div>
-                      <div className="mt-1 text-[10px] text-slate-500">
-                        {item.unseen ? 'Not seen yet' : item.gap != null ? `Seen ${item.gap} rolls ago` : 'Gap unknown'}
-                        {typeof item.pairPct === 'number' ? ` • after ${lastRoll}: ${item.pairPct}%` : ''}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -898,89 +970,72 @@ export default function ModernPairPredictorCard({
               </div>
               <div className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{sessionModel.summary}</div>
             </div>
-            {sessionModel.strengths && (
-              <div className="mb-2 grid grid-cols-4 gap-1.5">
-                {[
-                  { key: 'pair', label: 'Pair', active: 'border-violet-500/45 bg-violet-500/12 text-violet-300', idle: 'text-slate-500' },
-                  { key: 'probe', label: 'Watch', active: 'border-amber-500/45 bg-amber-500/12 text-amber-300', idle: 'text-slate-500' },
-                  { key: 'break', label: 'Break', active: 'border-rose-500/45 bg-rose-500/12 text-rose-300', idle: 'text-slate-500' },
-                  { key: 'reentry', label: 'Back', active: 'border-emerald-500/45 bg-emerald-500/12 text-emerald-300', idle: 'text-slate-500' },
-                ].map((item) => {
-                  const score = Math.round(sessionModel.strengths?.[item.key] || 0);
-                  const active = sessionModel.key === item.key;
-                  return (
-                    <div
-                      key={item.key}
-                      className={`rounded-md border px-2 py-1.5 text-center ${
-                        active
-                          ? item.active.split(' ').slice(0, 2).join(' ')
-                          : 'border-white/8 bg-white/[0.03]'
-                      }`}
-                    >
-                      <div className={`text-[9px] font-bold uppercase tracking-wide ${active ? item.active.split(' ').slice(2).join(' ') : item.idle}`}>
-                        {item.label}
+            {/* Manual Read — 4-value decision table */}
+            {[...commons, ...noise].length === 4 && (
+              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                <div className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Read it yourself</div>
+                <div className="space-y-2">
+                  {[...commons, ...noise].map(v => {
+                    const isCommon = commons.includes(v);
+                    const tv = trends?.[v] || { direction: 'stable', current: 0 };
+                    const dir = tv.direction;
+                    const dirArrow = dir === 'rising' ? '\u2191' : dir === 'falling' ? '\u2193' : '\u2192';
+                    const dirColor = dir === 'rising' ? 'text-emerald-400' : dir === 'falling' ? 'text-red-400' : 'text-yellow-300';
+                    const seenAgoV = lastSeen?.[v] ?? -1;
+                    const sessFreq = distribution?.[v] ?? 0;
+                    const noiseEntryV = noiseDecisionMap.get(v);
+                    const noiseScoreV = Math.round(noiseEntryV?.noiseScore ?? 0);
+                    const gapWordV = seenAgoV < 0 ? 'not seen yet'
+                      : seenAgoV === 0 ? 'just hit'
+                      : `${seenAgoV} roll${seenAgoV === 1 ? '' : 's'} ago`;
+                    const gapColorV = seenAgoV < 0 || seenAgoV >= 5 ? 'text-amber-400'
+                      : seenAgoV === 0 ? 'text-emerald-400' : 'text-slate-500';
+                    // Read phrase: actionable one-liner
+                    let readPhrase, readColor;
+                    if (isCommon) {
+                      if (dir === 'rising' && seenAgoV >= 0 && seenAgoV <= 2) { readPhrase = 'Lead — stay on it'; readColor = 'text-emerald-300'; }
+                      else if (seenAgoV > 8 || (seenAgoV < 0 && rolls.length > 10)) { readPhrase = 'Long absence — may have shifted'; readColor = 'text-rose-400'; }
+                      else if (dir === 'falling' && seenAgoV > 3) { readPhrase = 'Fading — watch for a switch'; readColor = 'text-amber-300'; }
+                      else { readPhrase = 'Valid — still your lane'; readColor = 'text-slate-300'; }
+                    } else {
+                      if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40)) { readPhrase = 'Overdue — break pick if pair drops'; readColor = 'text-cyan-300'; }
+                      else if (seenAgoV < 0) { readPhrase = 'Not appeared — could spike'; readColor = 'text-amber-400'; }
+                      else if (dir === 'rising' || noiseScoreV >= 45) { readPhrase = 'Climbing — keep it ready'; readColor = 'text-amber-300'; }
+                      else { readPhrase = 'Quiet for now'; readColor = 'text-slate-500'; }
+                    }
+                    // Noise urgency tag for Read-it-yourself
+                    let urgencyTag = null;
+                    if (!isCommon) {
+                      if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40) || seenAgoV < 0) {
+                        const tagText = seenAgoV < 0 ? 'NOT SEEN' : seenAgoV >= 8 ? 'OVERDUE' : 'DUE SOON';
+                        urgencyTag = { text: tagText, cls: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
+                      } else if (noiseEntryV?.recent4Hits >= 2) {
+                        urgencyTag = { text: 'HOT', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+                      } else if (dir === 'rising' && noiseScoreV >= 45) {
+                        urgencyTag = { text: 'WATCH', cls: 'bg-slate-600/40 text-slate-300 border-slate-500/40' };
+                      }
+                    }
+                    return (
+                      <div key={v} className="flex items-center gap-2">
+                        <span className={`text-[11px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 ${
+                          isCommon ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                        }`}>{isCommon ? 'PAIR' : 'NOISE'}</span>
+                        <span className="text-[12px] font-black text-slate-200 w-[16px] text-center shrink-0">{v}</span>
+                        <span className={`text-[12px] font-bold shrink-0 ${dirColor}`}>{dirArrow}</span>
+                        <span className={`text-[11px] font-medium shrink-0 ${sessFreq >= 28 ? 'text-slate-300' : sessFreq >= 15 ? 'text-slate-400' : 'text-slate-600'}`}>{sessFreq}%</span>
+                        <span className={`text-[11px] shrink-0 ${gapColorV}`}>{gapWordV}</span>
+                        {urgencyTag && (
+                          <span className={`text-[11px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${urgencyTag.cls}`}>
+                            {urgencyTag.text}
+                          </span>
+                        )}
+                        <span className={`ml-auto text-[10px] font-medium text-right ${readColor}`}>{readPhrase}</span>
                       </div>
-                      <div className={`text-[12px] font-black ${active ? 'text-slate-100' : 'text-slate-300'}`}>
-                        {score}%
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
-            <div className="mb-2 grid gap-2 md:grid-cols-3">
-              {Array.isArray(analyzerSessionStateScores) && analyzerSessionStateScores.length > 0 && (
-                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Board Order</div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {analyzerSessionStateScores.slice(0, 4).map((entry, index) => (
-                      <span
-                        key={entry.value}
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                          index === 0
-                            ? 'border-violet-500/40 bg-violet-500/10 text-violet-300'
-                            : index === 1
-                              ? 'border-amber-500/35 bg-amber-500/10 text-amber-300'
-                              : 'border-white/10 bg-white/[0.04] text-slate-400'
-                        }`}
-                      >
-                        {entry.value} {Math.round(entry.stateScore || 0)}%
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {commonOrder.length > 0 && (
-                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Backbone</div>
-                  <div className="mt-1.5 text-slate-200">
-                    <span className="text-violet-300">{commonOrder[0]}</span>
-                    {commonOrder[1] ? (
-                      <>
-                        <span className="px-1 text-slate-500">&gt;</span>
-                        <span className="text-amber-300">{commonOrder[1]}</span>
-                      </>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-500">The pair the session keeps trying to hold.</div>
-                </div>
-              )}
-              {noiseOrder.length > 0 && (
-                <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Break Sensor</div>
-                  <div className="mt-1.5 text-slate-200">
-                    <span className="text-cyan-300">{noiseOrder[0]}</span>
-                    {noiseOrder[1] ? (
-                      <>
-                        <span className="px-1 text-slate-500">&gt;</span>
-                        <span className="text-emerald-300">{noiseOrder[1]}</span>
-                      </>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-500">This is not a play by itself; it feeds Svarog when break is confirmed.</div>
-                </div>
-              )}
-            </div>
             {breakChallengeSummary && breakChallengeSummary.challengerWins && (
               <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
                 <span className="font-semibold text-slate-200">Break edge:</span>{' '}
@@ -1006,9 +1061,17 @@ export default function ModernPairPredictorCard({
                 const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
                 const pickScore = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
                 const boardScore = Math.round(sessionStateDecisionMap.get(v)?.stateScore ?? 0);
-                const freshnessLabel = t.arrowAge === 0 ? 'fresh'
-                  : t.arrowAge === 1 ? 'held'
-                  : 'stale';
+                const freshnessLabel = (() => {
+                  const dir = t.direction;
+                  const age = t.arrowAge ?? 2;
+                  if (dir === 'rising') {
+                    return age === 0 ? 'just turned up' : age === 1 ? 'holding up' : 'cooling off';
+                  }
+                  if (dir === 'falling') {
+                    return age === 0 ? 'just dropped' : age === 1 ? 'holding down' : 'Fading';
+                  }
+                  return 'flat';
+                })();
                 const freshnessStateColor = t.arrowAge === 0
                   ? 'text-emerald-300'
                   : t.arrowAge === 1
@@ -1023,6 +1086,15 @@ export default function ModernPairPredictorCard({
                   : isNoise1      ? { label: 'N1', cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' }
                   : isNoise2      ? { label: 'N2', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
                   : null;
+                // Human-readable gap: how long since this value last appeared
+                const seenAgoRaw = lastSeen?.[v] ?? -1;
+                const gapText = seenAgoRaw < 0 ? 'not seen' : seenAgoRaw === 0 ? 'just hit' : `${seenAgoRaw} ago`;
+                const gapColor = seenAgoRaw < 0 ? 'text-slate-500'
+                  : seenAgoRaw === 0 ? 'text-emerald-400'
+                  : seenAgoRaw >= 5 ? 'text-amber-400'
+                  : 'text-slate-400';
+                // Session overall frequency — tells you if it's genuinely active or rare
+                const sessionFreq = distribution?.[v] ?? 0;
                 return (
                   <div key={v} className={`flex-1 text-center py-1.5 rounded-md ${
                     isMain ? 'bg-slate-800/50 border border-violet-500/40'
@@ -1032,76 +1104,36 @@ export default function ModernPairPredictorCard({
                     : 'bg-slate-800/50'
                   }`}>
                     {rankBadge
-                      ? <div className={`mx-auto mb-0.5 w-fit rounded px-1.5 py-px text-[8px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
+                      ? <div className={`mx-auto mb-0.5 w-fit rounded px-1.5 py-px text-[11px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
                       : <div className="mb-0.5 h-[14px]" />}
                     
                     <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
-                    <div className={`text-[11px] ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
-                    {(() => {
-                      const isCommon = commons.includes(v);
-                      const isFallenCommon = isCommon && (t.current ?? 0) < 25;
-                      const isReboundLive = !!commonEntry?.reboundArmed;
-                      if (isFallenCommon) {
-                        return (
-                          <>
-                            <div className={`mt-1 text-[10px] font-black ${
-                              boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
-                            }`}>{boardScore}% board</div>
-                            <div className={`mt-1 text-[10px] font-medium ${
-                              pickScore >= 60 ? 'text-cyan-300'
-                              : pickScore >= 35 ? 'text-fuchsia-300/90'
-                              : 'text-rose-400/85'
-                            }`}>{pickScore}% next</div>
-                            <div className="text-[9px] font-medium text-orange-400/90">{commonDecider}% common</div>
-                            <div className={`text-[8px] font-black uppercase tracking-widest ${isReboundLive ? 'text-emerald-300/90' : 'text-orange-400/80'}`}>
-                              {isReboundLive ? 'REBOUND LIVE' : 'WEAK'}
-                            </div>
-                          </>
-                        );
-                      }
-                      if (isCommon) {
-                        return (
-                          <>
-                            <div className={`mt-1 text-[10px] font-black ${
-                              boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
-                            }`}>{boardScore}% board</div>
-                            <div className={`mt-1 text-[10px] font-black ${
-                              pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
-                            }`}>{pickScore}% next</div>
-                            <div className={`text-[9px] font-medium ${
-                              commonDecider >= 65 ? 'text-violet-300'
-                              : commonDecider >= 40 ? 'text-violet-400/80'
-                              : 'text-violet-500/70'
-                            }`}>{commonDecider}% common</div>
-                          </>
-                        );
-                      }
-                      return (
-                        <>
-                          <div className={`mt-1 text-[10px] font-black ${
-                            boardScore >= 65 ? 'text-violet-300' : boardScore >= 40 ? 'text-violet-400/80' : 'text-violet-600/70'
-                          }`}>{boardScore}% board</div>
-                          <div className={`mt-1 text-[10px] font-black ${
-                            pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
-                          }`}>{pickScore}% next</div>
-                          <div className={`text-[9px] font-medium ${
-                            noiseDecider >= 65 ? 'text-cyan-300'
-                            : noiseDecider >= 40 ? 'text-cyan-400/80'
-                            : 'text-cyan-600/70'
-                          }`}>{noiseDecider}% noise</div>
-                        </>
-                      );
-                    })()}
-                    <div className="text-[10px] font-medium text-cyan-300/70">trust {trustPct}%</div>
-                    <div className={`text-[9px] uppercase tracking-wide ${freshnessStateColor}`}>{freshnessLabel}</div>
+                    <div className={`text-[11px] leading-none mb-1 ${freshnessStateColor} opacity-80`}>{freshnessLabel}</div>
+                    {/* recent % inline with label */}
+                    <div className="flex items-baseline justify-center gap-0.5 leading-snug">
+                      <span className={`text-[11px] font-bold ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</span>
+                      <span className="text-[11px] text-slate-600">rec</span>
+                    </div>
+                    {/* session % inline */}
+                    <div className="flex items-baseline justify-center gap-0.5 leading-snug mb-0.5">
+                      <span className={`text-[11px] ${sessionFreq >= 30 ? 'text-slate-300' : sessionFreq >= 18 ? 'text-slate-400' : 'text-slate-600'}`}>{sessionFreq}%</span>
+                      <span className="text-[11px] text-slate-600">sess</span>
+                    </div>
+                    {/* gap */}
+                    <div className={`text-[11px] font-bold ${gapColor}`}>{gapText}</div>
+                    {/* pick score inline */}
+                    <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
+                      <span className={`text-[11px] font-black ${
+                        pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
+                      }`}>{pickScore}%</span>
+                      <span className="text-[11px] text-slate-600">score</span>
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-1.5 text-[10px] text-slate-600">
-              board = current board fit | next = final next-pick strength | common/noise = side strength | trust = trend certainty
-            </div>
+
           </div>
 
           {/* Pair matrix row for last roll */}
@@ -1154,7 +1186,7 @@ export default function ModernPairPredictorCard({
           )}
 
           {/* Wave Signals */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div className="bg-slate-800/50 rounded-lg p-2 text-center">
               <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
               <div className={`text-lg font-bold ${waveSignals?.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
@@ -1165,12 +1197,6 @@ export default function ModernPairPredictorCard({
               <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
               <div className={`text-lg font-bold ${waveSignals?.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
                 {waveSignals?.noiseAppearanceCount || 0}
-              </div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Flip %</div>
-              <div className="text-lg font-bold text-slate-300">
-                {waveSignals?.waveFlipProbability || 0}%
               </div>
             </div>
           </div>
