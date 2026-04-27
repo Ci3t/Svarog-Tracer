@@ -130,11 +130,20 @@ function analyzePrefixGroup(zValues, prefix) {
     };
   }
 
-  // Test all 3 pairings — blend recent (last 6) at 70% + full session at 30%
+  // Test all 3 pairings — blend recent (last 8) at 70% + full session at 30%
   // Matches 火花's "I look at the last ~4-6 data points" approach
-  const RECENT_Z = 6;
+  const RECENT_Z = 8;
   const recentZ = zValues.slice(-RECENT_Z);
   const hasEnoughRecent = recentZ.length >= 3 && recentZ.length < zValues.length;
+
+  // Commons-awareness for Z-digits within this prefix
+  const zFreq = {};
+  zValues.forEach(z => { zFreq[z] = (zFreq[z] || 0) + 1; });
+  const commonsZ = Object.entries(zFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([d]) => d);
+  const COMMONS_BOOST = 0.06;
 
   const scored = Z_PAIRINGS.map(p => {
     const full   = scorePairing(zValues, p);
@@ -143,14 +152,21 @@ function analyzePrefixGroup(zValues, prefix) {
     const blendedConfidence = recent ? recent.confidence * 0.70 + full.confidence * 0.30 : full.confidence;
     // Use recent run data for current run / N (what's happening NOW)
     const active = recent || full;
+    // Commons boost: if predicted next side contains commons Z-digits, boost score
+    const nextSide = active.currentRun?.side === 'A' ? 'B' : 'A';
+    const nextDigits = nextSide === 'A' ? p.pairA : p.pairB;
+    const commonsHit = nextDigits.some(d => commonsZ.includes(d));
+    const commonsBoost = commonsHit ? COMMONS_BOOST : 0;
     return {
       pairing: p,
       ...full,
-      score:      blendedScore,
+      score:      blendedScore + commonsBoost,
       confidence: blendedConfidence,
       currentRun: active.currentRun,
       n:          active.n,
       completed:  active.completed,
+      commonsBoost,
+      commonsHit,
     };
   });
   scored.sort((a, b) => b.score !== a.score ? b.score - a.score : b.confidence - a.confidence);
@@ -437,11 +453,23 @@ export function analyze2strWave(sessionRolls, prevPairingName = null, tablePairi
   if (yValues.length < 3) return null;
 
   // ─── Recency-blended scoring ──────────────────────────────────────────────
-  // Weight recent rolls (last 8) at 70%, full session at 30%
+  // Weight recent rolls (last 10) at 70%, full session at 30%
   // This prevents old session data from dragging the ★ to the wrong column
-  const RECENT_WINDOW = 8;
+  const RECENT_WINDOW = 10;
   const recentYValues = yValues.slice(-RECENT_WINDOW);
   const hasEnoughRecent = recentYValues.length >= 3;
+
+  // ─── Commons-awareness boost ──────────────────────────────────────────────
+  // Identify the 2 most frequent Y-digits (commons) and give a small score
+  // boost to pairings whose predicted next side contains commons digits.
+  // This prevents Kiyo from treating rare noise digits the same as commons.
+  const yFreq = {};
+  yValues.forEach(y => { yFreq[y] = (yFreq[y] || 0) + 1; });
+  const commonsY = Object.entries(yFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([d]) => d);
+  const COMMONS_BOOST = 0.06; // modest boost — enough to tip close calls
 
   const scored = Z_PAIRINGS.map(p => {
     const full = scorePairing(yValues, p);
@@ -455,17 +483,24 @@ export function analyze2strWave(sessionRolls, prevPairingName = null, tablePairi
       ? recent.confidence * 0.70 + full.confidence * 0.30
       : full.confidence;
 
-    // Use RECENT run data for currentRun/n (what's happening NOW)
+    // Commons boost: if predicted next side contains commons digits, boost score
     const activeResult = recent || full;
+    const nextSide = activeResult.currentRun?.side === 'A' ? 'B' : 'A';
+    const nextDigits = nextSide === 'A' ? p.pairA : p.pairB;
+    const commonsHit = nextDigits.some(d => commonsY.includes(d));
+    const commonsBoost = commonsHit ? COMMONS_BOOST : 0;
 
+    // Use RECENT run data for currentRun/n (what's happening NOW)
     return {
       pairing: p,
       ...full,                          // base data (full states for Y-sequence display)
-      score: blendedScore,              // blended for ranking
+      score: blendedScore + commonsBoost, // blended + commons awareness
       confidence: blendedConfidence,    // blended for threshold checks
       currentRun: activeResult.currentRun,
       n: activeResult.n,
       completed: activeResult.completed,
+      commonsBoost,
+      commonsHit,
     };
   });
   scored.sort((a, b) => b.score !== a.score ? b.score - a.score : b.confidence - a.confidence);
@@ -489,9 +524,9 @@ export function analyze2strWave(sessionRolls, prevPairingName = null, tablePairi
   }
 
   // ─── Hysteresis lock ─────────────────────────────────────────────────────
-  // Require the leading pairing to beat the locked one by ≥12% before switching.
-  // This prevents single-roll flips like High→Outer→Even.
-  const HYSTERESIS = 0.15;
+  // Require the leading pairing to beat the locked one by ≥8% before switching.
+  // This prevents single-roll flips while allowing faster regime detection.
+  const HYSTERESIS = 0.08;
   if (prevPairingName && scored[0].pairing.name !== prevPairingName) {
     const prevIdx = scored.findIndex(s => s.pairing.name === prevPairingName);
     if (prevIdx > 0) {
@@ -538,20 +573,16 @@ export function analyze2strWave(sessionRolls, prevPairingName = null, tablePairi
   const bCount = yValues.filter(y => best.pairing.pairB.includes(y)).length;
   const dominantSide = aCount >= bCount ? 'A' : 'B';
   const dominantPct = Math.round(Math.max(aCount, bCount) / n * 100);
-  // FIX 1: Lower DOM threshold 65% → 60% to catch moderate biased sessions
-  const isDominant = isConfident && dominantPct >= 60;
+  // FIX 1: Lower DOM threshold 65% → 55% to catch moderate biased sessions
+  const isDominant = isConfident && dominantPct >= 55;
 
   // Dominant side details
   const dominantDigits = dominantSide === 'A' ? best.pairing.pairA : best.pairing.pairB;
   const dominantPrefixes = dominantDigits.map(d => `4${d}`);
   const dominantLabel = dominantSide === 'A' ? best.pairing.pairALabel : best.pairing.pairBLabel;
 
-  // Majority side (even below 60% — used for LEAN)
-  const majoritySide = dominantSide; // same variable, just renamed for clarity
-  const majorityPct = dominantPct;
-
-  // FLIP requires: N≥2 (no N=1 FLIP — N=1 alternation is too noisy), n≥12, score≥0.65
-  const enoughDataForFlip = n >= 12 && best.n >= 2 && best.confidence >= 0.55 && best.score >= 0.65;
+  // FLIP requires: N≥2, enough data (8+ rolls), relaxed score/confidence thresholds
+  const enoughDataForFlip = n >= 8 && best.n >= 2 && best.confidence >= 0.45 && best.score >= 0.50;
 
   // FLIP requires confidence >60%
   const flipConfident = Math.min(best.confidence * 0.9, 0.88) > 0.60;

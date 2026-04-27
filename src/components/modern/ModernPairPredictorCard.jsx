@@ -690,36 +690,32 @@ export default function ModernPairPredictorCard({
         </div>
       </div>
 
-      <div className={`mx-4 mb-2 rounded-xl border px-3 py-3 ${sessionToneClasses}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[12px] leading-snug text-slate-200">{manualReadLine}</div>
-          </div>
-          <div className={`shrink-0 text-[12px] font-bold ${
-            noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
-          }`}>
-            Risk {noiseRisk ?? 0}%
-          </div>
+      <div className={`mx-4 mb-2 rounded-lg border px-3 py-2 flex items-center justify-between gap-3 ${sessionToneClasses}`}>
+        <div className="min-w-0 text-[13px] leading-snug text-slate-200">{manualReadLine}</div>
+        <div className={`shrink-0 text-[13px] font-bold ${
+          noiseRisk >= 65 ? 'text-rose-300' : noiseRisk >= 35 ? 'text-amber-300' : 'text-emerald-300'
+        }`}>
+          Risk {noiseRisk ?? 0}%
         </div>
-        {freshOutsider?.value && (
-          <div className="mt-2 text-[10px] text-slate-400">
-            Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
-            {' '}({Math.round(freshOutsider.score)} pts)
-            {pairScoreGap >= 0 ? ` • pair gap ${pairScoreGap}` : ''}
-          </div>
-        )}
       </div>
+      {freshOutsider?.value && (
+        <div className="mx-4 mb-1 text-[11px] text-slate-400">
+          Break pressure: <span className="font-bold text-slate-200">{freshOutsider.value}</span>
+          {' '}({Math.round(freshOutsider.score)} pts)
+          {pairScoreGap >= 0 ? ` • gap ${pairScoreGap}` : ''}
+        </div>
+      )}
 
       {/* -- 5s GLANCE SECTION ------------------------------------------------ */}
       <div className="px-4 pb-3">
-        <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/40 px-3 py-3">
-          <p className="text-[15px] font-semibold text-slate-100">{topSummaryLine}</p>
-          <p className="mt-1 text-[12px] text-slate-400">{secondarySummaryLine}</p>
+        <div className="mb-3">
+          <p className="text-[16px] font-semibold text-slate-100">{topSummaryLine}</p>
+          <p className="mt-0.5 text-[12px] text-slate-400">{secondarySummaryLine}</p>
         </div>
 
         {/* YOUR 2 PICKS */}
         <div id={tutorialIds.mainPredictorId} className="mb-1">
-          <div className="text-[9px] text-slate-500 uppercase tracking-widest text-center mb-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-widest text-center mb-2">
             Play this pair next
           </div>
           <div className="flex gap-3 justify-center">
@@ -735,7 +731,7 @@ export default function ModernPairPredictorCard({
                 <span className="text-3xl font-black text-white">{displayLead}</span>
                 <span className={`text-xs font-bold mt-0.5 ${isChaotic ? 'text-orange-300' : 'text-violet-300'}`}>{mainPct}%</span>
               </div>
-              <span className={`mt-1.5 text-[10px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
+              <span className={`mt-1.5 text-[11px] font-bold uppercase tracking-wide ${isChaotic ? 'text-orange-400' : 'text-violet-400'}`}>
                 play now
               </span>
             </div>
@@ -749,25 +745,25 @@ export default function ModernPairPredictorCard({
                 <span className="text-2xl font-bold text-slate-300">{displayAlt}</span>
                 <span className="text-xs text-slate-500 mt-0.5">{altPct}%</span>
               </div>
-              <span className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-wide">play now</span>
+              <span className="mt-1.5 text-[11px] text-slate-500 uppercase tracking-wide">play now</span>
             </div>
           </div>
         </div>
 
         {/* Noise Prediction Banner */}
         {noiseRisk >= 35 && noiseTrackerItems.length > 0 && (
-          <div className={`mt-3 rounded-xl border px-4 py-3 ${
+          <div className={`mt-2 rounded-lg border px-3 py-2 ${
             noiseRisk > 60
               ? 'border-red-500/40 bg-red-500/10'
               : 'border-amber-500/30 bg-amber-500/10'
           }`}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <span className={`text-[12px] font-bold ${
                 noiseRisk > 60 ? 'text-red-300' : 'text-amber-300'
               }`}>
-                Noise incoming: {noiseRisk}% chance next roll is noise
+                Noise: {noiseRisk}%
               </span>
-              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${
+              <span className={`text-[10px] font-black uppercase tracking-wider px-1.5 py-px rounded border ${
                 noiseRisk > 60
                   ? 'bg-red-500/20 text-red-300 border-red-500/40'
                   : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
@@ -775,14 +771,14 @@ export default function ModernPairPredictorCard({
                 {noiseRisk > 60 ? 'HIGH' : 'WATCH'}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-2">
               {noiseTrackerItems.map((item) => (
-                <div key={item.value} className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[13px] font-black text-slate-200">{item.value}</span>
-                    <span className="text-[11px] font-bold text-slate-300">{item.score}%</span>
+                <div key={item.value} className="flex-1">
+                  <div className="flex items-center justify-between text-[12px] mb-0.5">
+                    <span className="font-bold text-slate-200">{item.value}</span>
+                    <span className="text-slate-400">{item.score}%</span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-700 overflow-hidden">
+                  <div className="h-1 w-full rounded-full bg-slate-700 overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
                         item.score >= 60 ? 'bg-red-400'
@@ -792,10 +788,8 @@ export default function ModernPairPredictorCard({
                       style={{ width: `${Math.min(item.score, 100)}%` }}
                     />
                   </div>
-                  <div className="mt-1 text-[10px] text-slate-500">
-                    {item.gap != null
-                      ? `Last seen ${item.gap} roll${item.gap === 1 ? '' : 's'} ago`
-                      : 'Not seen yet'}
+                  <div className="mt-0.5 text-[10px] text-slate-500">
+                    {item.gap != null ? `${item.gap} ago` : 'unseen'}
                   </div>
                 </div>
               ))}
@@ -804,129 +798,37 @@ export default function ModernPairPredictorCard({
         )}
 
         {svarogDisplayPicks.length > 0 && (
-          <div id={tutorialIds.svarogEyeId} className="mt-4 rounded-[20px] border border-slate-700/60 bg-slate-800/30 px-5 pt-4 pb-4 relative">
-            <div className="flex items-center justify-between mb-3.5 relative z-10 pl-6">
-              <div className="relative">
-                {/* The Svarog logo breaking out of the top/left corner */}
-                <img 
-                  src={withBaseUrl('svarog.png')} 
-                  alt="Svarog Eye" 
-                  className="absolute -left-14 -top-8 w-[76px] h-[76px] object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] z-20 pointer-events-none"
-                />
-                <p className="text-[12px] font-black uppercase tracking-widest text-slate-100 pl-8">Svarog Eye</p>
-                <p className="text-[11px] text-slate-400 mt-1 pl-8">{sessionModel.key === 'probe' ? 'Backbone + noise tracker' : 'Exact next pair'}</p>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {svarogDisplayPicks.map((pick, idx) => (
-                  <span
-                    key={pick}
-                    className={`min-w-[48px] inline-block rounded-[14px] border-2 px-3 py-1.5 text-center text-[16px] font-black tracking-tight transition-colors
-                      ${idx === 0 
-                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
-                        : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
-                  >
-                    {pick}
-                  </span>
-                ))}
+          <div id={tutorialIds.svarogEyeId} className="mt-3 rounded-xl border border-slate-700/60 bg-slate-800/30 px-4 py-3 relative flex items-center justify-between gap-3">
+            <div className="relative flex items-center gap-3">
+              <img 
+                src={withBaseUrl('svarog.png')} 
+                alt="Svarog Eye" 
+                className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] pointer-events-none"
+              />
+              <div>
+                <p className="text-[12px] font-black uppercase tracking-widest text-slate-100">Svarog Eye</p>
+                <p className="text-[11px] text-slate-400 leading-tight max-w-[180px]">{svarogSummaryLine || (sessionModel.key === 'probe' ? 'Backbone + noise tracker' : 'Exact next pair')}</p>
               </div>
             </div>
-            
-            {svarogSummaryLine && (
-              <p className="mb-3 pl-8 text-[12px] text-slate-300">{svarogSummaryLine}</p>
-            )}
-
-            {followGuide && (
-              <div className={`mt-2 rounded-[14px] border px-4 py-3 relative z-10 ${
-                followGuide.tone === 'good'
-                  ? 'border-emerald-500/30 bg-emerald-500/10'
-                  : followGuide.tone === 'lane'
-                  ? 'border-violet-500/30 bg-violet-500/10'
-                  : followGuide.tone === 'analyzer'
-                  ? 'border-rose-500/30 bg-rose-500/10'
-                  : 'border-amber-500/30 bg-amber-500/10'
-              }`}>
-                <p className="text-[12px] text-slate-300/90 leading-relaxed font-medium">
-                  {followGuide.text}
-                </p>
-              </div>
-            )}
-
-            {noiseTrackerItems.length > 0 && (
-              <div className="mt-3 rounded-[14px] border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Break Watch</div>
-                  <div className="text-[10px] text-slate-500">Use if the pair drops</div>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {noiseTrackerItems.map((item, index) => {
-                    const dirArrow = item.direction === 'rising' ? '\u2191' : item.direction === 'falling' ? '\u2193' : '\u2192';
-                    const dirColor = item.direction === 'rising' ? 'text-emerald-400' : item.direction === 'falling' ? 'text-red-400' : 'text-yellow-300';
-                    const pressureLabel = item.score >= 70 ? 'HIGH' : item.score >= 50 ? 'BUILDING' : item.score >= 30 ? 'LOW' : 'QUIET';
-                    const pressureColor = item.score >= 70
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                      : item.score >= 50
-                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                        : 'bg-slate-700/30 text-slate-400 border-slate-600/30';
-                    // Status line reconciles the pressure badge with frequency data
-                    // HIGH + infrequent = pressure building because it hasn't peaked yet
-                    const statusText = (() => {
-                      if (item.score >= 60) {
-                        if (item.recent4Hits >= 2) return 'on a run';
-                        if (item.unseen) return 'not appeared yet';
-                        if (item.gap != null && item.gap >= 6) return 'missing too long';
-                        return 'pressure building';
-                      }
-                      if (item.score >= 40) return item.recentPct >= 25 ? 'active' : 'watchable';
-                      return 'quiet';
-                    })();
-                    const statusColor = item.score >= 60
-                      ? (item.recent4Hits >= 2 ? 'text-emerald-400' : 'text-amber-300')
-                      : item.score >= 40 ? 'text-slate-400' : 'text-slate-500';
-                    const rollWord = item.gap === 1 ? 'roll' : 'rolls';
-                    const gapLine = item.unseen
-                      ? 'Not appeared yet this session'
-                      : item.gap === 0
-                        ? 'Just hit last roll'
-                        : item.gap != null
-                          ? `Last seen ${item.gap} ${rollWord} ago`
-                          : 'Gap unknown';
-                    const hitsLine = item.recent4Hits >= 1 ? ` · ${item.recent4Hits} of last 4 rolls` : '';
-                    return (
-                      <div key={item.value} className={`rounded-lg border px-3 py-2.5 ${
-                        index === 0 ? 'border-cyan-500/25 bg-cyan-500/8' : 'border-white/8 bg-white/[0.03]'
-                      }`}>
-                        {/* Header: value + trend arrow + pressure badge */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[15px] font-black ${index === 0 ? 'text-cyan-200' : 'text-slate-200'}`}>{item.value}</span>
-                            <span className={`text-[14px] font-bold ${dirColor}`}>{dirArrow}</span>
-                          </div>
-                          <span className={`text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border ${pressureColor}`}>
-                            {pressureLabel}
-                          </span>
-                        </div>
-                        {/* Frequency line: overall share + pressure-context status */}
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="text-slate-300 font-medium">{item.sessionPct}% of rolls</span>
-                          <span className="text-slate-600">·</span>
-                          <span className={`font-medium ${statusColor}`}>{statusText}</span>
-                        </div>
-                        {/* Gap line */}
-                        <div className="mt-0.5 text-[10px] text-slate-500">
-                          {gapLine}{hitsLine}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {svarogDisplayPicks.map((pick, idx) => (
+                <span
+                  key={pick}
+                  className={`min-w-[36px] inline-block rounded-lg border-2 px-2 py-1 text-center text-[14px] font-black tracking-tight transition-colors
+                    ${idx === 0 
+                      ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
+                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
+                >
+                  {pick}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
 
         {primaryWatchLine && (
-          <div id={tutorialIds.watchMessageId} className={`mt-3 rounded-lg px-3 py-2 ${
+          <div id={tutorialIds.watchMessageId} className={`mt-2 rounded-lg px-3 py-1.5 ${
             primaryWatchLine.tone === 'danger'
               ? 'bg-rose-500/12 border border-rose-500/35'
               : primaryWatchLine.tone === 'warn'
@@ -961,7 +863,7 @@ export default function ModernPairPredictorCard({
             msg = `${newList.split(', ')[1] || newList} rising — may not stick (${fc}%)`;
           }
           return (
-            <div className={`mt-2 flex items-center justify-center gap-1.5 border rounded-lg px-3 py-1.5 ${color}`}>
+            <div className={`mt-2 flex items-center justify-center gap-1.5 border rounded-lg px-3 py-1 ${color}`}>
               <span className="text-[11px]">{icon}</span>
               <span className="text-[11px] font-medium">{msg}</span>
             </div>
@@ -969,20 +871,20 @@ export default function ModernPairPredictorCard({
         })()}
 
         {/* Commons / Noise footer - always visible */}
-        <div id={tutorialIds.commonsNoiseId} className="mt-3 pt-2.5 border-t border-slate-800/50 flex justify-center gap-5 text-[10px]">
-          <div className="flex items-center gap-1.5">
+        <div id={tutorialIds.commonsNoiseId} className="mt-2 pt-2 border-t border-slate-800/50 flex justify-center gap-4 text-[11px]">
+          <div className="flex items-center gap-1">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
               {sessionBackbonePair?.map(c => (
-                <span key={c} className="px-1.5 py-0.5 rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
+                <span key={c} className="px-1.5 py-px rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-slate-500 uppercase tracking-wide">Noise</span>
             <div className="flex gap-1">
               {noise?.map(n => (
-                <span key={n} className="px-1.5 py-0.5 rounded bg-red-600/25 text-red-400 font-bold border border-red-600/30">{n}</span>
+                <span key={n} className="px-1.5 py-px rounded bg-red-600/25 text-red-400 font-bold border border-red-600/30">{n}</span>
               ))}
             </div>
           </div>
@@ -1003,292 +905,180 @@ export default function ModernPairPredictorCard({
       {expanded && (
         <div id={advancedPanelId} className="px-4 pb-4 space-y-4 border-t border-slate-800/40">
 
-          {/* Method string (technical) */}
-          <div id={tutorialIds.advancedMethodId} className="flex items-center justify-between pt-3">
-            <span className="text-[9px] text-slate-600 uppercase tracking-wider">Method</span>
-            <span className="text-[10px] text-slate-500 font-mono">{method}</span>
-          </div>
-
-          {/* Trend Indicators */}
+          {/* Trend cards — full data with labels */}
           <div id={tutorialIds.advancedTrendsId}>
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Trends</div>
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <span className="rounded border border-violet-500/35 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-300">MAIN</span>
-                <span className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">ALT</span>
-                <span className="rounded border border-cyan-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">N1</span>
-                <span className="rounded border border-emerald-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">N2</span>
-              </div>
-            </div>
-            <div className="mb-2 rounded-xl border border-white/8 bg-gradient-to-r from-white/[0.06] to-white/[0.02] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Board</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${
-                    sessionModel.tone === 'danger'
-                      ? 'border-rose-500/35 bg-rose-500/10 text-rose-300'
-                      : sessionModel.tone === 'warn'
-                        ? 'border-amber-500/35 bg-amber-500/10 text-amber-300'
-                        : sessionModel.tone === 'good'
-                          ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-300'
-                          : 'border-violet-500/35 bg-violet-500/10 text-violet-300'
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Live Trends</div>
+            <div className="grid grid-cols-4 gap-2">
+              {VALUES.map(v => {
+                const t = trends?.[v] || { direction: 'stable', current: 0 };
+                const arrow = t.direction === 'rising' ? '\u2191' : t.direction === 'falling' ? '\u2193' : '\u2192';
+                const arrowColor = t.direction === 'rising' ? 'text-emerald-400' : t.direction === 'falling' ? 'text-red-400' : 'text-yellow-300';
+                const isMain = v === analyzerMain;
+                const isAlt = v === analyzerSecond && v !== analyzerMain;
+                const isNoise1 = !isMain && !isAlt && v === noiseOrder[0];
+                const isNoise2 = !isMain && !isAlt && v === noiseOrder[1];
+                const rankBadge = isMain ? { label: 'MAIN', cls: 'bg-violet-500/25 text-violet-300 border-violet-500/50' }
+                  : isAlt         ? { label: 'ALT',  cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' }
+                  : isNoise1      ? { label: 'N1', cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' }
+                  : isNoise2      ? { label: 'N2', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
+                  : null;
+                const seenAgoRaw = lastSeen?.[v] ?? -1;
+                const gapText = seenAgoRaw < 0 ? 'unseen' : seenAgoRaw === 0 ? 'just hit' : `${seenAgoRaw} ago`;
+                const gapColor = seenAgoRaw < 0 ? 'text-slate-500'
+                  : seenAgoRaw === 0 ? 'text-emerald-400'
+                  : seenAgoRaw >= 5 ? 'text-amber-400'
+                  : 'text-slate-400';
+                const sessionFreq = distribution?.[v] ?? 0;
+                const pickScore = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
+                const isInPlay = isMain || isAlt || isNoise1 || isNoise2;
+                return (
+                  <div key={v} className={`rounded-lg px-2 py-2 text-center ${
+                    isMain ? 'bg-slate-800/50 border border-violet-500/40'
+                    : isAlt ? 'bg-slate-800/50 border border-amber-500/30'
+                    : isNoise1 ? 'bg-slate-800/50 border border-cyan-500/20'
+                    : isNoise2 ? 'bg-slate-800/50 border border-emerald-500/20'
+                    : 'bg-slate-800/30 border border-white/5'
                   }`}>
-                    {sessionModel.label}
-                  </span>
-                </div>
-                {sessionModel.strengths ? (
-                  <span className="text-[11px] font-black text-slate-200">
-                    {Math.round(sessionModel.strengths?.[sessionModel.key] || 0)}%
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{sessionModel.summary}</div>
+                    {rankBadge
+                      ? <div className={`mx-auto mb-1 w-fit rounded px-1.5 py-px text-[10px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
+                      : <div className="mb-1 h-[16px]" />}
+                    <div className={`text-sm font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
+                    <div className={`text-lg font-bold ${arrowColor}`}>{arrow}</div>
+                    <div className="text-[11px] text-slate-500 leading-none mt-0.5">trend</div>
+
+                    <div className="mt-2">
+                      <div className={`text-sm font-bold ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</div>
+                      <div className="text-[11px] text-slate-500 leading-none">recent</div>
+                    </div>
+
+                    <div className="mt-1.5">
+                      <div className={`text-sm ${sessionFreq >= 30 ? 'text-slate-300' : sessionFreq >= 18 ? 'text-slate-400' : 'text-slate-600'}`}>{sessionFreq}%</div>
+                      <div className="text-[11px] text-slate-500 leading-none">session</div>
+                    </div>
+
+                    <div className="mt-1.5">
+                      <div className={`text-sm font-bold ${gapColor}`}>{gapText}</div>
+                      <div className="text-[11px] text-slate-500 leading-none">gap</div>
+                    </div>
+
+                    <div className="mt-1.5">
+                      <div className={`text-sm font-black ${
+                        pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
+                      }`}>{pickScore}%</div>
+                      <div className="text-[11px] text-slate-500 leading-none">score</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {/* Manual Read — 4-value decision table */}
-            {[...commons, ...noise].length === 4 && (
-              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                <div className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Read it yourself</div>
-                <table className="w-full text-[11px] border-collapse">
-                  <thead>
-                    <tr className="text-[9px] text-slate-500 uppercase tracking-wider border-b border-white/5">
-                      <th className="text-left py-1 pr-2">Value</th>
-                      <th className="text-left py-1 pr-2">Type</th>
-                      <th className="text-left py-1 pr-2">Trend</th>
-                      <th className="text-left py-1 pr-2">Next %</th>
-                      <th className="text-left py-1 pr-2">Gap</th>
-                      <th className="text-left py-1 pr-2">Status</th>
-                      <th className="text-right py-1 pl-2">Read</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...commons, ...noise].map(v => {
-                      const isCommon = commons.includes(v);
-                      const tv = trends?.[v] || { direction: 'stable', current: 0 };
-                      const dir = tv.direction;
-                      const dirArrow = dir === 'rising' ? '\u2191' : dir === 'falling' ? '\u2193' : '\u2192';
-                      const dirColor = dir === 'rising' ? 'text-emerald-400' : dir === 'falling' ? 'text-red-400' : 'text-yellow-300';
-                      const seenAgoV = lastSeen?.[v] ?? -1;
-                      const noiseEntryV = noiseDecisionMap.get(v);
-                      const noiseScoreV = Math.round(noiseEntryV?.noiseScore ?? 0);
-                      const gapWordV = seenAgoV < 0 ? 'not seen yet'
-                        : seenAgoV === 0 ? 'just hit'
-                        : `${seenAgoV} roll${seenAgoV === 1 ? '' : 's'} ago`;
-                      const gapColorV = seenAgoV < 0 || seenAgoV >= 5 ? 'text-amber-400'
-                        : seenAgoV === 0 ? 'text-emerald-400' : 'text-slate-500';
-                      const nextRollProb = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
-                      let readPhrase, readColor;
-                      if (isCommon) {
-                        if (dir === 'rising' && seenAgoV >= 0 && seenAgoV <= 2) { readPhrase = 'Lead — stay on it'; readColor = 'text-emerald-300'; }
-                        else if (seenAgoV > 8 || (seenAgoV < 0 && rolls.length > 10)) { readPhrase = 'Long absence — may have shifted'; readColor = 'text-rose-400'; }
-                        else if (dir === 'falling' && seenAgoV > 3) { readPhrase = 'Fading — watch for a switch'; readColor = 'text-amber-300'; }
-                        else { readPhrase = 'Valid — still your lane'; readColor = 'text-slate-300'; }
-                      } else {
-                        if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40)) { readPhrase = 'Overdue — break pick if pair drops'; readColor = 'text-cyan-300'; }
-                        else if (seenAgoV < 0) { readPhrase = 'Not appeared — could spike'; readColor = 'text-amber-400'; }
-                        else if (dir === 'rising' || noiseScoreV >= 45) { readPhrase = 'Climbing — keep it ready'; readColor = 'text-amber-300'; }
-                        else { readPhrase = 'Quiet for now'; readColor = 'text-slate-500'; }
-                      }
-                      let urgencyTag = null;
-                      if (!isCommon) {
-                        if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40) || seenAgoV < 0) {
-                          const tagText = seenAgoV < 0 ? 'NOT SEEN' : seenAgoV >= 8 ? 'OVERDUE' : 'DUE SOON';
-                          urgencyTag = { text: tagText, cls: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
-                        } else if (noiseEntryV?.recent4Hits >= 2) {
-                          urgencyTag = { text: 'HOT', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
-                        } else if (dir === 'rising' && noiseScoreV >= 45) {
-                          urgencyTag = { text: 'WATCH', cls: 'bg-slate-600/40 text-slate-300 border-slate-500/40' };
-                        }
-                      }
-                      return (
-                        <tr key={v} className="border-b border-white/5 last:border-0">
-                          <td className="py-1.5 pr-2">
-                            <span className="text-[12px] font-black text-slate-200">{v}</span>
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <span className={`text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 ${isCommon ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}`}>
-                              {isCommon ? 'PAIR' : 'NOISE'}
-                            </span>
-                          </td>
-                          <td className={`py-1.5 pr-2 text-[12px] font-bold ${dirColor}`}>{dirArrow}</td>
-                          <td className="py-1.5 pr-2">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-bold text-slate-200">{nextRollProb}%</span>
-                              {!isCommon && (
-                                <div className="mt-0.5 flex items-center gap-1">
-                                  <div className="h-1 w-10 rounded-full bg-slate-700 overflow-hidden">
-                                    <div className={`h-full rounded-full ${noiseScoreV >= 60 ? 'bg-red-400' : noiseScoreV >= 35 ? 'bg-amber-400' : 'bg-slate-500'}`} style={{ width: `${Math.min(noiseScoreV, 100)}%` }} />
-                                  </div>
-                                  <span className="text-[9px] text-slate-500">{noiseScoreV}% break</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className={`py-1.5 pr-2 text-[11px] ${gapColorV}`}>{gapWordV}</td>
-                          <td className="py-1.5 pr-2">
-                            {urgencyTag && (
-                              <span className={`text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${urgencyTag.cls}`}>
-                                {urgencyTag.text}
-                              </span>
-                            )}
-                          </td>
-                          <td className={`py-1.5 pl-2 text-[10px] font-medium text-right ${readColor}`}>{readPhrase}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+
             {breakChallengeSummary && breakChallengeSummary.challengerWins && (
-              <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+              <div className="mt-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
                 <span className="font-semibold text-slate-200">Break edge:</span>{' '}
                 <span className="text-cyan-300">
                   {breakChallengeSummary.text}
                 </span>
               </div>
             )}
-
-            {/* Decision guide */}
-            <div className="flex justify-between gap-1">
-              {VALUES.map(v => {
-                const t = trends?.[v] || { direction: 'stable', current: 0 };
-                const arrow = t.direction === 'rising' ? '\u2191' : t.direction === 'falling' ? '\u2193' : '\u2192';
-                const color = t.direction === 'rising' ? 'text-emerald-400'
-                            : t.direction === 'falling' ? 'text-red-400'
-                            : 'text-yellow-300';
-                const isMain = v === analyzerMain;
-                const trustPct = Math.round((t.trustScore ?? 0) * 100);
-                const freshnessPct = Math.round((t.arrowWeight ?? 0) * 100);
-                const commonEntry = commonDecisionMap.get(v);
-                const commonDecider = Math.round(commonEntry?.commonScore ?? 0);
-                const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
-                const pickScore = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
-                const boardScore = Math.round(sessionStateDecisionMap.get(v)?.stateScore ?? 0);
-                const freshnessLabel = t.direction === 'rising' ? 'rising'
-                  : t.direction === 'falling' ? 'falling'
-                  : 'steady';
-                const freshnessStateColor = t.direction === 'rising' ? 'text-emerald-300'
-                  : t.direction === 'falling' ? 'text-rose-300'
-                  : 'text-yellow-300';
-                const isAlt = v === analyzerSecond && v !== analyzerMain;
-                const isNoise1 = !isMain && !isAlt && v === noiseOrder[0];
-                const isNoise2 = !isMain && !isAlt && v === noiseOrder[1];
-                const isInPlay = isMain || isAlt || isNoise1 || isNoise2;
-                const rankBadge = isMain ? { label: 'MAIN', cls: 'bg-violet-500/25 text-violet-300 border-violet-500/50' }
-                  : isAlt         ? { label: 'ALT',  cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' }
-                  : isNoise1      ? { label: 'N1', cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' }
-                  : isNoise2      ? { label: 'N2', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
-                  : null;
-                // Human-readable gap: how long since this value last appeared
-                const seenAgoRaw = lastSeen?.[v] ?? -1;
-                const gapText = seenAgoRaw < 0 ? 'not seen' : seenAgoRaw === 0 ? 'just hit' : `${seenAgoRaw} ago`;
-                const gapColor = seenAgoRaw < 0 ? 'text-slate-500'
-                  : seenAgoRaw === 0 ? 'text-emerald-400'
-                  : seenAgoRaw >= 5 ? 'text-amber-400'
-                  : 'text-slate-400';
-                // Session overall frequency — tells you if it's genuinely active or rare
-                const sessionFreq = distribution?.[v] ?? 0;
-                return (
-                  <div key={v} className={`flex-1 text-center py-1.5 rounded-md ${
-                    isMain ? 'bg-slate-800/50 border border-violet-500/40'
-                    : isAlt ? 'bg-slate-800/50 border border-amber-500/30'
-                    : isNoise1 ? 'bg-slate-800/50 border border-cyan-500/20'
-                    : isNoise2 ? 'bg-slate-800/50 border border-emerald-500/20'
-                    : 'bg-slate-800/50'
-                  }`}>
-                    {rankBadge
-                      ? <div className={`mx-auto mb-0.5 w-fit rounded px-1.5 py-px text-[11px] font-black uppercase tracking-widest border ${rankBadge.cls}`}>{rankBadge.label}</div>
-                      : <div className="mb-0.5 h-[14px]" />}
-                    
-                    <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
-                    <div className={`text-base font-bold ${color}`}>{arrow}</div>
-                    <div className={`text-[11px] leading-none mb-2 ${freshnessStateColor} opacity-90`}>{freshnessLabel}</div>
-                    {/* recent */}
-                    <div className="text-[10px] text-slate-600 leading-none">recent</div>
-                    <div className={`text-[12px] font-bold ${isInPlay ? 'text-slate-300' : 'text-slate-500'} mb-1`}>{t.current}%</div>
-                    {/* session */}
-                    <div className="text-[10px] text-slate-600 leading-none">session</div>
-                    <div className={`text-[12px] mb-1 ${sessionFreq >= 30 ? 'text-slate-300' : sessionFreq >= 18 ? 'text-slate-400' : 'text-slate-600'}`}>{sessionFreq}%</div>
-                    {/* gap */}
-                    <div className={`text-[11px] font-bold mb-1 ${gapColor}`}>{gapText}</div>
-                    {/* score */}
-                    <div className="text-[10px] text-slate-600 leading-none">score</div>
-                    <div className={`text-[12px] font-black ${
-                      pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
-                    }`}>{pickScore}%</div>
-                  </div>
-                );
-              })}
-            </div>
-
           </div>
 
-          {/* Pair matrix row for last roll */}
-          {pairMatrix && lastRoll && (
-            <div>
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
-                After {lastRoll} {'->'}
-              </div>
-              <div className="flex gap-1">
-                {VALUES.map(v => {
-                  const matrixData = pairMatrix[lastRoll]?.[v] || { pct: 0, samples: 0, reliable: false };
-                  const pct = typeof matrixData === 'object' ? matrixData.pct : matrixData;
-                  const samples = typeof matrixData === 'object' ? matrixData.samples : 0;
-                  const reliable = typeof matrixData === 'object' ? matrixData.reliable : false;
-                  const rollsAgo = data.lastSeen?.[v] ?? -1;
-                  const isOverdue = data.overdueValues?.includes(v);
-                  const allPcts = VALUES.map(other => {
-                    const d = pairMatrix[lastRoll]?.[other];
-                    return typeof d === 'object' ? d.pct : (d || 0);
-                  });
-                  const isHighest = pct === Math.max(...allPcts) && pct > 0;
-                  const displayValue = pct > 0 ? `${pct}%`
-                    : rollsAgo >= 0 ? `?${rollsAgo}` : 'N/A';
-                  const momentum = data.momentumScores?.[v] ?? 0;
-                  const isNoise = noise?.includes(v);
-                  return (
-                    <div key={v} className={`flex-1 text-center py-2 rounded-md
-                      ${isHighest ? 'bg-purple-500/30 border border-purple-500/50'
-                        : isOverdue ? 'bg-orange-500/20 border border-orange-500/40'
-                        : 'bg-slate-800/50'}
-                      ${!reliable && pct > 0 ? 'opacity-60' : ''}
-                      ${isNoise ? 'opacity-50' : ''}
-                    `}>
-                      <div className={`text-xs font-bold ${isNoise ? 'text-red-400/70' : 'text-slate-300'}`}>{v}</div>
-                      <div className={`text-sm font-bold ${
-                        isHighest ? 'text-purple-300'
-                        : isOverdue ? 'text-orange-400'
-                        : pct === 0 ? 'text-slate-500' : 'text-slate-400'
-                      }`}>{displayValue}</div>
-                      <div className={`text-[10px] font-semibold ${
-                        momentum >= 1.0 ? 'text-amber-400'
-                        : momentum >= 0.5 ? 'text-yellow-500'
-                        : momentum >= 0.2 ? 'text-cyan-400' : 'text-slate-500'
-                      }`}>({momentum})</div>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* Read it yourself */}
+          {[...commons, ...noise].length === 4 && (
+            <div className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5">
+              <div className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Read it yourself</div>
+              <table className="w-full text-[12px] border-collapse">
+                <thead>
+                  <tr className="text-[11px] text-slate-500 uppercase tracking-wider border-b border-white/5">
+                    <th className="text-left py-1 pr-2">Value</th>
+                    <th className="text-left py-1 pr-2">Type</th>
+                    <th className="text-left py-1 pr-2">Trend</th>
+                    <th className="text-left py-1 pr-2">Next %</th>
+                    <th className="text-left py-1 pr-2">Gap</th>
+                    <th className="text-left py-1 pr-2">Status</th>
+                    <th className="text-right py-1 pl-2">Read</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...commons, ...noise].map(v => {
+                    const isCommon = commons.includes(v);
+                    const tv = trends?.[v] || { direction: 'stable', current: 0 };
+                    const dir = tv.direction;
+                    const dirArrow = dir === 'rising' ? '\u2191' : dir === 'falling' ? '\u2193' : '\u2192';
+                    const dirColor = dir === 'rising' ? 'text-emerald-400' : dir === 'falling' ? 'text-red-400' : 'text-yellow-300';
+                    const seenAgoV = lastSeen?.[v] ?? -1;
+                    const noiseEntryV = noiseDecisionMap.get(v);
+                    const noiseScoreV = Math.round(noiseEntryV?.noiseScore ?? 0);
+                    const gapWordV = seenAgoV < 0 ? 'not seen yet'
+                      : seenAgoV === 0 ? 'just hit'
+                      : `${seenAgoV} roll${seenAgoV === 1 ? '' : 's'} ago`;
+                    const gapColorV = seenAgoV < 0 || seenAgoV >= 5 ? 'text-amber-400'
+                      : seenAgoV === 0 ? 'text-emerald-400' : 'text-slate-500';
+                    const nextRollProb = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
+                    let readPhrase, readColor;
+                    if (isCommon) {
+                      if (dir === 'rising' && seenAgoV >= 0 && seenAgoV <= 2) { readPhrase = 'Lead — stay on it'; readColor = 'text-emerald-300'; }
+                      else if (seenAgoV > 8 || (seenAgoV < 0 && rolls.length > 10)) { readPhrase = 'Long absence — may have shifted'; readColor = 'text-rose-400'; }
+                      else if (dir === 'falling' && seenAgoV > 3) { readPhrase = 'Fading — watch for a switch'; readColor = 'text-amber-300'; }
+                      else { readPhrase = 'Valid — still your lane'; readColor = 'text-slate-300'; }
+                    } else {
+                      if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40)) { readPhrase = 'Overdue — break pick if pair drops'; readColor = 'text-cyan-300'; }
+                      else if (seenAgoV < 0) { readPhrase = 'Not appeared — could spike'; readColor = 'text-amber-400'; }
+                      else if (dir === 'rising' || noiseScoreV >= 45) { readPhrase = 'Climbing — keep it ready'; readColor = 'text-amber-300'; }
+                      else { readPhrase = 'Quiet for now'; readColor = 'text-slate-500'; }
+                    }
+                    let urgencyTag = null;
+                    if (!isCommon) {
+                      if (noiseScoreV >= 65 || (seenAgoV >= 6 && noiseScoreV >= 40) || seenAgoV < 0) {
+                        const tagText = seenAgoV < 0 ? 'NOT SEEN' : seenAgoV >= 8 ? 'OVERDUE' : 'DUE SOON';
+                        urgencyTag = { text: tagText, cls: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
+                      } else if (noiseEntryV?.recent4Hits >= 2) {
+                        urgencyTag = { text: 'HOT', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+                      } else if (dir === 'rising' && noiseScoreV >= 45) {
+                        urgencyTag = { text: 'WATCH', cls: 'bg-slate-600/40 text-slate-300 border-slate-500/40' };
+                      }
+                    }
+                    return (
+                      <tr key={v} className="border-b border-white/5 last:border-0">
+                        <td className="py-1.5 pr-2">
+                          <span className="text-[13px] font-black text-slate-200">{v}</span>
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <span className={`text-[11px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 ${isCommon ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}`}>
+                            {isCommon ? 'PAIR' : 'NOISE'}
+                          </span>
+                        </td>
+                        <td className={`py-1.5 pr-2 text-[13px] font-bold ${dirColor}`}>{dirArrow}</td>
+                        <td className="py-1.5 pr-2">
+                          <div className="flex flex-col">
+                            <span className="text-[12px] font-bold text-slate-200">{nextRollProb}%</span>
+                            {!isCommon && (
+                              <div className="mt-0.5 flex items-center gap-1">
+                                <div className="h-1 w-10 rounded-full bg-slate-700 overflow-hidden">
+                                  <div className={`h-full rounded-full ${noiseScoreV >= 60 ? 'bg-red-400' : noiseScoreV >= 35 ? 'bg-amber-400' : 'bg-slate-500'}`} style={{ width: `${Math.min(noiseScoreV, 100)}%` }} />
+                                </div>
+                                <span className="text-[11px] text-slate-500">{noiseScoreV}% break</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className={`py-1.5 pr-2 text-[12px] ${gapColorV}`}>{gapWordV}</td>
+                        <td className="py-1.5 pr-2">
+                          {urgencyTag && (
+                            <span className={`text-[11px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${urgencyTag.cls}`}>
+                              {urgencyTag.text}
+                            </span>
+                          )}
+                        </td>
+                        <td className={`py-1.5 pl-2 text-[12px] font-medium text-right ${readColor}`}>{readPhrase}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 
-          {/* Wave Signals */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Run Len</div>
-              <div className={`text-lg font-bold ${waveSignals?.lastCommonRunLength >= 4 ? 'text-orange-400' : 'text-slate-300'}`}>
-                {waveSignals?.lastCommonRunLength || 0}
-              </div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-500 uppercase">Noise Hits</div>
-              <div className={`text-lg font-bold ${waveSignals?.noiseAppearanceCount >= 2 ? 'text-orange-400' : 'text-slate-300'}`}>
-                {waveSignals?.noiseAppearanceCount || 0}
-              </div>
-            </div>
-          </div>
-
-          {/* Pattern Analysis - roll sequence + noise gap table */}
+          {/* Pattern Analysis - roll sequence + noise gap progress bar */}
           {rolls.length >= 6 && (() => {
             const markers = rolls.map(r => {
               if (r === commons?.[0]) return { type: 'A', value: r };
@@ -1312,12 +1102,12 @@ export default function ModernPairPredictorCard({
             return (
               <div id={tutorialIds.advancedSequenceId}>
                 {/* Roll sequence */}
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">
+                <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1">
                   Sequence (last {Math.min(20, rolls.length)})
                 </div>
-                <div className="flex flex-wrap gap-0.5 text-[10px] mb-3">
+                <div className="flex flex-wrap gap-0.5 text-[12px] mb-3">
                   {markers.slice(-20).map((m, i) => (
-                    <span key={i} className={`px-1 py-0.5 rounded font-bold
+                    <span key={i} className={`px-1.5 py-0.5 rounded font-bold
                       ${m.type === 'A' ? 'bg-emerald-600/50 text-emerald-300'
                         : m.type === 'B' ? 'bg-blue-600/50 text-blue-300'
                         : 'bg-red-600/50 text-red-300'}`}>
@@ -1326,11 +1116,10 @@ export default function ModernPairPredictorCard({
                   ))}
                 </div>
 
-                {/* Noise gap table */}
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Noise Gap Analysis</div>
+                {/* Noise gap progress bar */}
                 {typeof avgGap === 'number' && avgGap > 0 && (
                   <div className="mb-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
-                    <div className="flex items-center justify-between text-[10px] mb-1">
+                    <div className="flex items-center justify-between text-[12px] mb-1">
                       <span className="text-slate-400">Gap fullness</span>
                       <span className={`font-bold ${
                         commonsSinceNoise >= avgGap ? 'text-red-400'
@@ -1339,7 +1128,7 @@ export default function ModernPairPredictorCard({
                       }`}>
                         {commonsSinceNoise >= avgGap
                           ? 'Noise is overdue!'
-                          : `Noise due in ~${Math.max(1, Math.round(avgGap - commonsSinceNoise))} roll${Math.round(avgGap - commonsSinceNoise) === 1 ? '' : 's'}`}
+                          : 'Noise due in ~' + Math.max(1, Math.round(avgGap - commonsSinceNoise)) + ' roll' + (Math.round(avgGap - commonsSinceNoise) === 1 ? '' : 's')}
                       </span>
                     </div>
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
@@ -1349,59 +1138,15 @@ export default function ModernPairPredictorCard({
                           : commonsSinceNoise >= avgGap * 0.7 ? 'bg-amber-400'
                           : 'bg-emerald-400'
                         }`}
-                        style={{ width: `${Math.min((commonsSinceNoise / avgGap) * 100, 100)}%` }}
+                        style={{ width: String(Math.min((commonsSinceNoise / avgGap) * 100, 100)) + '%' }}
                       />
                     </div>
-                    <div className="mt-1 flex justify-between text-[9px] text-slate-500">
+                    <div className="mt-1 flex justify-between text-[11px] text-slate-500">
                       <span>{commonsSinceNoise} since last noise</span>
                       <span>avg gap {avgGap}</span>
                     </div>
                   </div>
                 )}
-                <div className="bg-slate-800/50 rounded-lg overflow-hidden">
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="bg-slate-700/50 text-slate-400">
-                        <th className="px-2 py-1 text-left">#</th>
-                        <th className="px-2 py-1 text-left">Noise</th>
-                        <th className="px-2 py-1 text-left">Commons After</th>
-                        <th className="px-2 py-1 text-left">Next noise</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gaps.slice(-5).map((gap, idx) => {
-                        const isAboveAvg = typeof avgGap === 'number' && gap.commonsAfter > avgGap;
-                        const isBelowAvg = typeof avgGap === 'number' && gap.commonsAfter < avgGap;
-                        return (
-                          <tr key={idx} className={isAboveAvg ? 'bg-amber-500/10' : isBelowAvg ? 'bg-emerald-500/10' : (idx % 2 === 0 ? 'bg-slate-800/30' : '')}>
-                            <td className="px-2 py-1 text-slate-500">{gaps.length - 5 + idx + 1}</td>
-                            <td className="px-2 py-1">
-                              <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">{gap.noiseValue}</span>
-                            </td>
-                            <td className="px-2 py-1">
-                              <span className={`font-bold ${
-                                gap.commonsAfter >= 4 ? 'text-amber-400'
-                                : gap.commonsAfter >= 2 ? 'text-emerald-400'
-                                : 'text-slate-400'
-                              }`}>{gap.commonsAfter}</span>
-                            </td>
-                            <td className="px-2 py-1">
-                              {gap.nextNoise === '?' ? (
-                                <span className="text-yellow-400">waiting</span>
-                              ) : (
-                                <span className="px-1.5 py-0.5 rounded bg-red-600/40 text-red-300 font-bold">{gap.nextNoise}</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-between mt-2 text-[10px]">
-                  <div><span className="text-slate-500">Avg commons/noise: </span><span className="text-amber-400 font-bold">{avgGap}</span></div>
-                  <div><span className="text-slate-500">Since last noise: </span><span className="text-emerald-400 font-bold">{commonsCount}</span></div>
-                </div>
               </div>
             );
           })()}
@@ -1410,4 +1155,5 @@ export default function ModernPairPredictorCard({
     </div>
   );
 }
+
 
