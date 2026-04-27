@@ -370,6 +370,33 @@ export default function ModernPairPredictorCard({
     });
   }, [analyzerNoiseDecisionScores, distribution, lastSeen, trends]);
 
+  // Clara alert — must be before early returns (Rules of Hooks)
+  const claraAlertText = useMemo(() => {
+    if (isNoiseTrap && trapCandidate)
+      return `I'm seeing a noise trap — ${trapCandidate} is about to show up. Keep it as your next click.`;
+    if (pairSafety === 'danger' && analyzerMain)
+      return `The pair broke. Switch to ${analyzerMain}${analyzerSecond ? ` or ${analyzerSecond}` : ''} right now.`;
+    if (commonsFlipDetected && (flipConfidence ?? 0) >= 85 && newCommons?.length)
+      return `Commons might be shifting — ${newCommons.join(' and ')} is taking over the pair spot.`;
+    const topNoise = noiseTrackerItems[0];
+    if (topNoise) {
+      if (topNoise.recent4Hits >= 2)
+        return `Watch out — ${topNoise.value} has hit ${topNoise.recent4Hits} of the last 4 rolls. Break pressure is real.`;
+      if (topNoise.unseen && rolls.length >= 8)
+        return `${topNoise.value} hasn't appeared at all this session — after ${rolls.length} rolls, it's due.`;
+      if (topNoise.gap != null && topNoise.gap >= 7)
+        return `${topNoise.value} has been missing ${topNoise.gap} rolls. That's getting overdue — keep it ready.`;
+      if (topNoise.direction === 'rising' && topNoise.score >= 58)
+        return `Noise ${topNoise.value} is climbing in the recent window — it could break in soon. Have it ready.`;
+    }
+    return null;
+  }, [isNoiseTrap, trapCandidate, pairSafety, analyzerMain, analyzerSecond, commonsFlipDetected, flipConfidence, newCommons, noiseTrackerItems, rolls]);
+
+  useEffect(() => {
+    if (!onTrustGuideChange) return;
+    onTrustGuideChange(claraAlertText ?? trustGuideAssistText);
+  }, [onTrustGuideChange, claraAlertText, trustGuideAssistText]);
+
   // ?? SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
     return (
@@ -599,36 +626,6 @@ export default function ModernPairPredictorCard({
     }
     return null;
   })();
-
-  // -- Clara alert: compute priority message and push to live mode Clara bubble via onTrustGuideChange --
-  const claraAlertText = (() => {
-    if (isNoiseTrap && trapCandidate)
-      return `I'm seeing a noise trap — ${trapCandidate} is about to show up. Keep it as your next click.`;
-    if (sessionModel.key === 'break' && analyzerMain)
-      return `The pair broke. Switch to ${analyzerMain}${analyzerSecond ? ` or ${analyzerSecond}` : ''} right now.`;
-    if (commonsFlipDetected && (flipConfidence ?? 0) >= 85 && newCommons?.length)
-      return `Commons might be shifting — ${newCommons.join(' and ')} is taking over the pair spot.`;
-    const topNoise = noiseTrackerItems[0];
-    if (topNoise) {
-      if (topNoise.recent4Hits >= 2)
-        return `Watch out — ${topNoise.value} has hit ${topNoise.recent4Hits} of the last 4 rolls. Break pressure is real.`;
-      if (topNoise.unseen && rolls.length >= 8)
-        return `${topNoise.value} hasn't appeared at all this session — after ${rolls.length} rolls, it's due.`;
-      if (topNoise.gap != null && topNoise.gap >= 7)
-        return `${topNoise.value} has been missing ${topNoise.gap} rolls. That's getting overdue — keep it ready.`;
-      if (topNoise.direction === 'rising' && topNoise.score >= 58)
-        return `Noise ${topNoise.value} is climbing in the recent window — it could break in soon. Have it ready.`;
-    }
-    return null;
-  })();
-
-  // Push alert text (or fall back to trust guide) to live mode Clara
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => {
-    if (!onTrustGuideChange) return;
-    onTrustGuideChange(claraAlertText ?? trustGuideAssistText);
-  // trustGuideAssistText effect above also calls onTrustGuideChange — this one wins when alert is present
-  }, [onTrustGuideChange, claraAlertText, trustGuideAssistText]);
 
   return (
     <div className={`astral-bbp-card bg-gradient-to-br ${
@@ -1061,22 +1058,12 @@ export default function ModernPairPredictorCard({
                 const noiseDecider = Math.round(noiseDecisionMap.get(v)?.noiseScore ?? 0);
                 const pickScore = Math.round(analyzerFinalMap.get(v)?.pickScore ?? 0);
                 const boardScore = Math.round(sessionStateDecisionMap.get(v)?.stateScore ?? 0);
-                const freshnessLabel = (() => {
-                  const dir = t.direction;
-                  const age = t.arrowAge ?? 2;
-                  if (dir === 'rising') {
-                    return age === 0 ? 'just turned up' : age === 1 ? 'holding up' : 'cooling off';
-                  }
-                  if (dir === 'falling') {
-                    return age === 0 ? 'just dropped' : age === 1 ? 'holding down' : 'Fading';
-                  }
-                  return 'flat';
-                })();
-                const freshnessStateColor = t.arrowAge === 0
-                  ? 'text-emerald-300'
-                  : t.arrowAge === 1
-                    ? 'text-amber-300'
-                    : 'text-rose-300';
+                const freshnessLabel = t.direction === 'rising' ? 'rising'
+                  : t.direction === 'falling' ? 'falling'
+                  : 'steady';
+                const freshnessStateColor = t.direction === 'rising' ? 'text-emerald-300'
+                  : t.direction === 'falling' ? 'text-rose-300'
+                  : 'text-yellow-300';
                 const isAlt = v === analyzerSecond && v !== analyzerMain;
                 const isNoise1 = !isMain && !isAlt && v === noiseOrder[0];
                 const isNoise2 = !isMain && !isAlt && v === noiseOrder[1];
@@ -1109,26 +1096,20 @@ export default function ModernPairPredictorCard({
                     
                     <div className={`text-xs font-bold ${isInPlay ? 'text-slate-200' : 'text-slate-400'}`}>{v}</div>
                     <div className={`text-base font-bold ${color}`}>{arrow}</div>
-                    <div className={`text-[11px] leading-none mb-1 ${freshnessStateColor} opacity-80`}>{freshnessLabel}</div>
-                    {/* recent % inline with label */}
-                    <div className="flex items-baseline justify-center gap-0.5 leading-snug">
-                      <span className={`text-[11px] font-bold ${isInPlay ? 'text-slate-300' : 'text-slate-500'}`}>{t.current}%</span>
-                      <span className="text-[11px] text-slate-600">rec</span>
-                    </div>
-                    {/* session % inline */}
-                    <div className="flex items-baseline justify-center gap-0.5 leading-snug mb-0.5">
-                      <span className={`text-[11px] ${sessionFreq >= 30 ? 'text-slate-300' : sessionFreq >= 18 ? 'text-slate-400' : 'text-slate-600'}`}>{sessionFreq}%</span>
-                      <span className="text-[11px] text-slate-600">sess</span>
-                    </div>
+                    <div className={`text-[11px] leading-none mb-2 ${freshnessStateColor} opacity-90`}>{freshnessLabel}</div>
+                    {/* recent */}
+                    <div className="text-[10px] text-slate-600 leading-none">recent</div>
+                    <div className={`text-[12px] font-bold ${isInPlay ? 'text-slate-300' : 'text-slate-500'} mb-1`}>{t.current}%</div>
+                    {/* session */}
+                    <div className="text-[10px] text-slate-600 leading-none">session</div>
+                    <div className={`text-[12px] mb-1 ${sessionFreq >= 30 ? 'text-slate-300' : sessionFreq >= 18 ? 'text-slate-400' : 'text-slate-600'}`}>{sessionFreq}%</div>
                     {/* gap */}
-                    <div className={`text-[11px] font-bold ${gapColor}`}>{gapText}</div>
-                    {/* pick score inline */}
-                    <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
-                      <span className={`text-[11px] font-black ${
-                        pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
-                      }`}>{pickScore}%</span>
-                      <span className="text-[11px] text-slate-600">score</span>
-                    </div>
+                    <div className={`text-[11px] font-bold mb-1 ${gapColor}`}>{gapText}</div>
+                    {/* score */}
+                    <div className="text-[10px] text-slate-600 leading-none">score</div>
+                    <div className={`text-[12px] font-black ${
+                      pickScore >= 60 ? 'text-cyan-300' : pickScore >= 35 ? 'text-fuchsia-300/90' : 'text-rose-400/85'
+                    }`}>{pickScore}%</div>
                   </div>
                 );
               })}
