@@ -1,13 +1,15 @@
 /**
  * Pair Transition Predictor - Experimental Mode
- * 
+ *
  * This module implements an alternative prediction strategy using:
  * 1. Pair transition matrix (what comes after X?)
  * 2. Wave detection signals (run length, noise bursts, flip probability)
  * 3. Trend tracking (rising/falling/stable for each value)
- * 
+ *
  * Designed to be tested alongside the existing BBP predictor for A/B comparison.
  */
+
+import { predictNoiseTiming } from './svarogNoisePredictor.js';
 
 const VALUES = ['41', '42', '43', '44'];
 const VALUE_PAIRS = [
@@ -746,6 +748,7 @@ function scoreSvarogAnalyzerPicks({
   avgObservedRunLen,
   avgNoiseGap,
   commonsSinceNoise,
+  noiseGapLengths,
   regime,
 }) {
   const recent6Dist = getDistribution(rolls.slice(-6));
@@ -769,13 +772,13 @@ function scoreSvarogAnalyzerPicks({
   }, Infinity);
   const allowDormantRescue = rolls.length >= 8 && Number.isFinite(commonPairAge) && commonPairAge >= 3;
   const recentTop2Share = commons.reduce((sum, value) => sum + (recent6Dist[value] || 0), 0);
-  const noiseDueRatio = avgNoiseGap ? commonsSinceNoise / Math.max(avgNoiseGap, 1) : 0;
-  const noiseTiming = !avgNoiseGap
-    ? 'unknown'
-    : noiseDueRatio >= 0.95
+
+  const noiseDueRatio = commonsSinceNoise / avgNoiseGap; // 0-1
+  const noiseTiming =
+    noiseDueRatio >= 0.7
       ? 'due'
-      : noiseDueRatio >= 0.55
-      ? 'approaching'
+      : noiseDueRatio >= 0.45
+        ? 'approaching'
         : 'not_due';
   const lastNoiseAgo = (() => {
     for (let i = rolls.length - 1; i >= 0; i -= 1) {
@@ -1492,7 +1495,9 @@ function scoreSvarogAnalyzerPicks({
       const overdueNorm = Math.min(avgNoiseGap ? rawGap / Math.max(avgNoiseGap, 1) : rawGap / 4, 3.0);
       const overdueScore = Math.min(40, Math.round(overdueNorm * 18));
       const neverSeenBonus = entry.seenAgo < 0
-        ? (noiseTiming === 'due' ? 16 : noiseTiming === 'approaching' ? 12 : 8)
+        ? (rolls.length >= 8
+            ? (noiseTiming === 'due' ? 32 : noiseTiming === 'approaching' ? 24 : 16)
+            : (noiseTiming === 'due' ? 16 : noiseTiming === 'approaching' ? 12 : 8))
         : 0;
       const scarcityBonus = entry.totalCount <= 1 ? 8 : entry.totalCount === 2 ? 3 : 0;
       const outsiderBonus = freshOutsider?.value === entry.value
@@ -4137,6 +4142,143 @@ function scoreSvarogAnalyzerPicks({
     finalAnalyzerRanked.find((entry) => entry.value !== analyzerTop1?.value) ||
     analyzerTop2;
 
+  // 🆕 TRANSITION OVERRIDE: Two-tier system
+  //
+  // Tier 1 — Hardcoded weak transitions: transitions that are globally
+  // noise-heavy based on pattern mining across all sessions.
+  //
+  // Tier 2 — Session-adaptive run-break: when lastRoll has repeated 2+
+  // times, noise is overdue, AND a noise value is either never-seen or
+  // heavily overdue. This catches dormant/cold noise breaks without the
+  // regression risk of a global hardcoded list.
+  //
+  const secondLast = rolls[rolls.length - 2];
+  const transitionKey = `${secondLast}->${lastRoll}`;
+  const WEAK_TRANSITIONS = ['44->43', '43->43'];
+
+  // Compute run length of lastRoll
+  let runLen = 1;
+  for (let i = rolls.length - 2; i >= 0; i--) {
+    if (rolls[i] === lastRoll) runLen++;
+    else break;
+  }
+
+  const noiseIsOverdue = commonsSinceNoise >= avgNoiseGap;
+  const hasNeverSeenNoise = noise.some((n) => lastSeen?.[n] === -1);
+  const hasHeavilyOverdueNoise = noise.some((n) => {
+    const ago = lastSeen?.[n] ?? -1;
+    return ago >= Math.round((avgNoiseGap || 3) * 1.5);
+  });
+
+  let overrideFired = false;
+
+  // Tier 1: Hardcoded weak transitions
+  if (WEAK_TRANSITIONS.includes(transitionKey)) {
+    const filtered = finalAnalyzerRanked.filter((entry) => entry.value !== lastRoll);
+    if (filtered.length >= 2) {
+      analyzerTop1 = filtered[0];
+      analyzerTop2 = filtered[1];
+      overrideFired = true;
+    } else if (filtered.length === 1) {
+      analyzerTop1 = filtered[0];
+      analyzerTop2 = finalAnalyzerRanked.find((entry) => entry.value !== filtered[0].value) || analyzerTop2;
+      overrideFired = true;
+    }
+  }
+
+  // Tier 2: Session-adaptive run-break (only if Tier 1 didn't fire)
+  // DISABLED — caused regressions on sessions where run-based transitions
+  // were actually correct. Needs per-session tracking before enabling.
+  if (false &&
+    !overrideFired &&
+    runLen >= 2 &&
+    noiseIsOverdue &&
+    (hasNeverSeenNoise || hasHeavilyOverdueNoise)
+  ) {
+    const filtered = finalAnalyzerRanked.filter((entry) => entry.value !== lastRoll);
+    if (filtered.length >= 2) {
+      analyzerTop1 = filtered[0];
+      analyzerTop2 = filtered[1];
+    } else if (filtered.length === 1) {
+      analyzerTop1 = filtered[0];
+      analyzerTop2 = finalAnalyzerRanked.find((entry) => entry.value !== filtered[0].value) || analyzerTop2;
+    }
+  }
+
+  // Tier 3: Never-seen noise run-break
+  // DISABLED — too blunt. Fires on every run-break when a noise value is
+  // unseen, but the noise doesn't hit on every such roll. Causes more
+  // false positives than true hits. Needs a smarter timing model.
+  if (false &&
+    !overrideFired &&
+    runLen >= 2 &&
+    rolls.length >= 8 &&
+    hasNeverSeenNoise
+  ) {
+    const unseenNoiseValue = noise.find((n) => lastSeen?.[n] === -1);
+    const filtered = finalAnalyzerRanked.filter((entry) => entry.value !== lastRoll);
+    if (unseenNoiseValue && filtered.length >= 1) {
+      analyzerTop1 = filtered[0];
+      const noiseEntry = finalAnalyzerRanked.find((entry) => entry.value === unseenNoiseValue);
+      analyzerTop2 = noiseEntry || filtered[1] || analyzerTop2;
+    }
+  }
+
+  // 🆕 SMART NOISE PREDICTOR INTEGRATION
+  // When noise is heavily overdue AND the transition-based noise predictor is
+  // confident about WHICH noise value is coming, promote that noise value into
+  // the alt slot. This catches cold-noise hibernation breaks that the internal
+  // scorer misses because noise scores are heavily suppressed.
+  {
+    const currentTop2 = [analyzerTop1?.value, analyzerTop2?.value].filter(Boolean);
+    const altIsNoise = noise.includes(analyzerTop2?.value);
+    if (
+      !altIsNoise &&
+      noiseDueRatio > 2.0 &&
+      rolls.length >= 8
+    ) {
+      const noiseResult = predictNoiseTiming({
+        rolls,
+        commons,
+        noise,
+        lastRoll,
+        secondLast,
+        commonsSinceNoise,
+        avgNoiseGap,
+        sessionLength: rolls.length,
+      });
+      const topNoise = noiseResult.noiseCandidates[0];
+      const hasTransitionSupport = topNoise?.reason?.includes('transition');
+      const isSeverelyOverdue = noiseDueRatio > 2.0 && topNoise?.reason?.includes('overdue');
+      if (
+        noiseResult.noiseLikelihoodNextRoll >= 0.60 &&
+        topNoise &&
+        topNoise.prob >= 0.60 &&
+        (hasTransitionSupport || isSeverelyOverdue) &&
+        noise.includes(topNoise.value) &&
+        !currentTop2.includes(topNoise.value)
+      ) {
+        // Replace alt with predicted noise
+        const noiseEntry = finalAnalyzerRanked.find((entry) => entry.value === topNoise.value);
+        if (noiseEntry) {
+          analyzerTop2 = noiseEntry;
+        }
+      }
+    }
+  }
+
+  // Compute noise predictor output for UI display
+  const noisePredictorOutput = predictNoiseTiming({
+    rolls,
+    commons,
+    noise,
+    lastRoll,
+    secondLast: rolls[rolls.length - 2],
+    commonsSinceNoise,
+    avgNoiseGap,
+    sessionLength: rolls.length,
+  });
+
   return {
     prediction: analyzerTop1?.value || scored[0]?.value || null,
     alt: analyzerTop2?.value || scored.find(entry => entry.value !== (analyzerTop1?.value || scored[0]?.value))?.value || null,
@@ -4173,6 +4315,7 @@ function scoreSvarogAnalyzerPicks({
     postNoiseSiblingRate,
     commonReturnArmed,
     siblingCommonValue,
+    noisePredictor: noisePredictorOutput,
     commonReturnStrength,
     commonRecoveryActive,
     commonDominantBoard: effectiveCommonDominantBoard,
@@ -5774,6 +5917,63 @@ export function predictWithPairs(rolls, options = {}) {
     noise = VALUES.filter(v => !commons.includes(v));
   }
 
+  // =========================================================================
+  // 🆕 FAST 3-4 ROLL COMMONS SWITCH DETECTOR
+  // Catches mid-session shifts faster than the 8-roll commonsSwitch.
+  // Uses last 3-4 rolls to distinguish noise blip from real pair shift.
+  // =========================================================================
+  // 🆕 FAST 3-4 ROLL COMMONS SWITCH DETECTOR
+  // Catches mid-session shifts faster than the 8-roll commonsSwitch.
+  // Uses last 3-4 rolls to distinguish noise blip from real pair shift.
+  // DISABLED: did not improve metrics in testing; risks misclassifying noise.
+  // =========================================================================
+  if (false && rolls.length >= 10) {
+    const fastWindow = rolls.slice(-4);
+    const fastCounts = {};
+    VALUES.forEach(v => { fastCounts[v] = 0; });
+    fastWindow.forEach(r => { if (VALUES.includes(r)) fastCounts[r]++; });
+
+    const fastSorted = VALUES
+      .map(v => ({ value: v, count: fastCounts[v] }))
+      .sort((a, b) => b.count - a.count);
+
+    const fastCommons = fastSorted.slice(0, 2).map(x => x.value);
+    const fastSortedKey = [...fastCommons].sort().join(',');
+    const currentSortedKey = [...commons].sort().join(',');
+
+    if (fastSortedKey !== currentSortedKey) {
+      const overlap = fastCommons.filter(c => commons.includes(c)).length;
+
+      if (overlap === 0) {
+        // Complete rebase in last 4 rolls — both commons changed
+        // Trust fast window if the new pair has strong presence
+        const topFastCount = fastSorted[0].count;
+        const secondFastCount = fastSorted[1].count;
+        if (topFastCount >= 2 && secondFastCount >= 1) {
+          commons = fastCommons;
+          noise = VALUES.filter(v => !commons.includes(v));
+        }
+      } else if (overlap === 1) {
+        // Partial shift — 1 common changed
+        const newCommon = fastCommons.find(c => !commons.includes(c));
+        const newCommonRecentRuns = rolls.slice(-6).filter(r => r === newCommon).length;
+        const oldCommon = commons.find(c => !fastCommons.includes(c));
+        const oldCommonRecentRuns = rolls.slice(-6).filter(r => r === oldCommon).length;
+
+        // Only switch if new common is clearly dominating recent window
+        // AND old common has faded (not a single noise blip)
+        if (
+          newCommonRecentRuns >= 3 &&
+          oldCommonRecentRuns <= 1 &&
+          fastCounts[newCommon] >= 2
+        ) {
+          commons = fastCommons;
+          noise = VALUES.filter(v => !commons.includes(v));
+        }
+      }
+    }
+  }
+
   let method = 'frequency';
   let prediction = null;
   let alt = null;
@@ -6768,6 +6968,7 @@ export function predictWithPairs(rolls, options = {}) {
     avgObservedRunLen,
     avgNoiseGap,
     commonsSinceNoise,
+    noiseGapLengths,
     regime,
   });
 
@@ -7236,7 +7437,9 @@ export function predictWithPairs(rolls, options = {}) {
     noiseTrapProb: Math.round(noiseTrapProb),
     inRedZone,
     commonsSinceNoise,
-    avgNoiseGap
+    avgNoiseGap,
+    // 🆕 NOISE PREDICTOR (for UI alert when noise is likely but not in top-2)
+    noisePredictor: analyzer.noisePredictor || null,
   };
 }
 
