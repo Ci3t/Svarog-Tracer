@@ -1026,8 +1026,8 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300098_character", bannerId: "300098", name: "Linnea / Chasca", type: "character", image: `https://paimon.moe/images/characters/linnea.png`, characterId: "linnea", game: "genshin" },
-  { id: "400097_weapon", bannerId: "400097", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2097.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "300099_character", bannerId: "300099", name: "Character Event Wish", type: "character", image: null, characterId: "character_banner", game: "genshin" },
+  { id: "400098_weapon", bannerId: "400098", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2098.png", characterId: "weapon_banner", game: "genshin" },
 ];
 
 
@@ -1263,6 +1263,9 @@ const GENSHIN_BANNER_OVERRIDES = {
   "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
   "400092": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" }
 };
+
+const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300099';
+const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400098';
 
 /**
  * Fetches live Genshin banners from Paimon.moe

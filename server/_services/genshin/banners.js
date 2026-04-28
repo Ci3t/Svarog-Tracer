@@ -11,6 +11,33 @@ const GENSHIN_WEAPON_IMG_BASE = 'https://paimon.moe/images/weapons/';
 const GENSHIN_BANNER_IMG_BASE = 'https://paimon.moe/images/banners/';
 
 const MINOR_WORDS = new Set(['of', 'the', 'and', 'in', 'a', 'an']);
+const GENSHIN_FEATURED_CHAR_WHITELIST = new Set([
+  'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
+  'baizhu', 'chasca', 'chiori', 'citlali', 'clorinde', 'columbina', 'cyno',
+  'emilie', 'escoffier', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa',
+  'jahoda', 'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lyney',
+  'mavuika', 'mualani', 'nahida', 'navia', 'nefer', 'neuvillette', 'nilou',
+  'raiden_shogun', 'shenhe', 'sigewinne', 'skirk', 'tartaglia', 'traveler',
+  'venti', 'wanderer', 'wriothesley', 'xianyun', 'xiao', 'yae_miko', 'yelan',
+  'yoimiya', 'zhongli', 'zibai'
+]);
+const GENSHIN_FEATURED_WEAPON_WHITELIST = new Set([
+  'absolution', 'aqua_simulacra', 'amos_bow', 'astral_vultures_crimson_plumage',
+  'azurelight', 'beacon_of_the_reed_sea', 'bloodsoaked_ruins',
+  'calamity_queller', 'cashflow_supervision', 'cranes_echoing_call',
+  'crimson_moons_semblance', 'elegy_for_the_end', 'engulfing_lightning',
+  'everlasting_moonglow', 'fang_of_the_mountain_king', 'flower_wreathed_feathers',
+  'fractured_halo', 'freedom_sworn', 'gest_of_the_mighty_wolf',
+  'golden_frostbound_oath', 'haran_geppaku_futsu', 'hunters_path',
+  'kaguras_verity', 'light_of_foliar_incision', 'lightbearing_moonshard',
+  'lost_prayer', 'lumidouce_elegy', 'mistsplitter_reforged',
+  'nightweavers_looking_glass', 'nocturnes_curtain_call', 'polar_star',
+  'primordial_jade_cutter', 'primordial_jade_winged_spear', 'redhorn_stonethresher',
+  'reliquary_of_truth', 'splendor_of_tranquil_waters', 'staff_of_homa',
+  'symphonist_of_scents', 'thundering_pulse', 'tome_of_the_eternal_flow',
+  'tulaytullahs_remembrance', 'uraku_misugiri', 'vortex_vanquisher',
+  'wolfs_gravestone'
+]);
 
 function toTitleCaseFromSlug(slug) {
   return slug
@@ -39,8 +66,17 @@ function extractFeaturedCharacterSlugs(list) {
     'fischl', 'bennett', 'xiangling', 'xingqiu', 'barbara', 'noelle', 'sucrose', 'diona', 'chongyun', 'razor',
     'beidou', 'ningguang', 'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou', 'yun_jin',
     'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla', 'faruzan', 'yaoyao', 'mika', 'kaveh',
-    'kirara', 'lynette', 'freminet', 'charlotte', 'gaming', 'chevreuse', 'sethos', 'kachina', 'aino'
+    'kirara', 'lynette', 'freminet', 'charlotte', 'gaming', 'chevreuse', 'sethos', 'kachina', 'aino',
+    'ifa', 'illuga', 'dahlia', 'shikanoin_heizou', 'lan_yan'
   ];
+
+  const curated = list
+    .filter(item => item.type === 'character' && GENSHIN_FEATURED_CHAR_WHITELIST.has(item.name.toLowerCase()))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(item => item.name);
+
+  if (curated.length > 0) return curated;
 
   return list
     .filter(item => {
@@ -67,8 +103,20 @@ function extractFeaturedWeaponSlugs(list) {
   const weapon4StarBlocklist = [
     'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade',
     'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
-    'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
+    'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell',
+    'sacrificial_sword', 'sacrificial_greatsword', 'sacrificial_bow', 'sacrificial_fragments',
+    'favonius_sword', 'favonius_greatsword', 'favonius_lance', 'favonius_codex',
+    'dragons_bane', 'the_widsith', 'rainslasher', 'lions_roar', 'the_stringless',
+    'the_dockhands_assistant', 'portable_power_saw', 'range_gauge', 'waveriding_whirl'
   ];
+
+  const curated = list
+    .filter(item => item.type === 'weapon' && GENSHIN_FEATURED_WEAPON_WHITELIST.has(item.name.toLowerCase()))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(item => item.name);
+
+  if (curated.length > 0) return curated;
 
   return list
     .filter(item => {
@@ -101,9 +149,7 @@ function buildCharacterBannerPayload(bannerId, slugs, legendaryCount, source = '
 
 function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'auto') {
   const name = slugs.length ? slugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation';
-  const image = slugs.length
-    ? `${GENSHIN_WEAPON_IMG_BASE}${slugs[0]}.png`
-    : `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerId.slice(-2)}.png`;
+  const image = `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerId.slice(-2)}.png`;
 
   return {
     id: `${bannerId}_weapon`,
@@ -240,15 +286,15 @@ export async function handler(req, res) {
     const currentWeaponBase = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-3), 10);
 
     let [characterBanner, weaponBanner] = await Promise.all([
-      discoverBannerNear(currentCharBase, '300', 'character'),
-      discoverBannerNear(currentWeaponBase, '400', 'weapon')
+      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character'),
+      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon')
     ]);
 
     if (!characterBanner) {
-      characterBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character');
+      characterBanner = await discoverBannerNear(currentCharBase, '300', 'character');
     }
     if (!weaponBanner) {
-      weaponBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon');
+      weaponBanner = await discoverBannerNear(currentWeaponBase, '400', 'weapon');
     }
 
     characterBanner = applyManualOverride(characterBanner, 'character');
