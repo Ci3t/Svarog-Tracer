@@ -13,7 +13,8 @@ const GENSHIN_CONFIG = {
     'kokomi', 'lyney', 'mavuika', 'mualani', 'nahida', 'navia', 'neuvillette',
     'nilou', 'raiden_shogun', 'shenhe', 'sigewinne', 'tartaglia', 'traveler',
     'venti', 'wanderer', 'wriothesley', 'xiao', 'xianyun', 'yae_miko', 'yelan',
-    'yoimiya', 'zhongli', 'zibai', 'skirk', 'escoffier', 'linnea'
+    'yoimiya', 'zhongli', 'zibai', 'skirk', 'escoffier', 'linnea', 'lauma', 'nefer',
+    'jahoda', 'citlali', 'mavuika'
   ],
 
   // 3. Weapon Whitelist (Add new 5-star weapons here - LOWERCASE ONLY)
@@ -29,12 +30,12 @@ const GENSHIN_CONFIG = {
     'splendor_of_tranquil_waters', 'staff_of_homa', 'thundering_pulse',
     'tome_of_the_eternal_flow', 'tulaytullahs_remembrance', 'uraku_misugiri',
     'vortex_vanquisher', 'wolfs_gravestone', 'lightbearing_moonshard',
-    'gest_of_the_mighty_wolf', 'bloodsoaked_ruins', 'azurelight', 'symphonist_of_scents', 'golden_frostbound_oath', 'astral_vultures_crimson_plumage'
-
+    'gest_of_the_mighty_wolf', 'bloodsoaked_ruins', 'azurelight', 'symphonist_of_scents', 'golden_frostbound_oath', 'astral_vultures_crimson_plumage',
+    'nightweavers_looking_glass', 'reliquary_of_truth', 'flower_wreathed_feathers', 'astral_vultures_crimson_plumage'
   ],
 
   // Standard characters that should NEVER be the banner name
-  standard: ['tighnari', 'dehya', 'diluc', 'jean', 'keqing', 'mona', 'qiqi', 'ororon', 'lanyan']
+  standard: ['tighnari', 'dehya', 'diluc', 'jean', 'keqing', 'mona', 'qiqi', 'ororon', 'lanyan', 'aino', 'ifa', 'illuga', 'dahlia']
 };
 
 const CONFIG = {
@@ -314,13 +315,18 @@ const GENSHIN_FOUR_STAR_CHARACTER_BLOCKLIST = new Set([
   'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou',
   'yun_jin', 'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla',
   'faruzan', 'yaoyao', 'mika', 'kaveh', 'kirara', 'lynette', 'freminet',
-  'charlotte', 'gaming', 'sethos', 'kachina', 'ororon', 'lan_yan', 'lanyan', 'aino'
+  'charlotte', 'gaming', 'sethos', 'kachina', 'ororon', 'lan_yan', 'lanyan', 'aino',
+  'ifa', 'illuga', 'dahlia', 'shikanoin_heizou', 'yaoyao'
 ]);
 
 const GENSHIN_FOUR_STAR_WEAPON_BLOCKLIST = new Set([
   'mitternachts_waltz', 'mountain-bracing_bolt', 'winters_vigil', 'lithic_blade',
   'lithic_spear', 'wavebreakers_fin', 'akuoumaru', 'mounns_moon', 'rust',
-  'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell'
+  'favonius_warbow', 'eye_of_perception', 'the_flute', 'the_bell',
+  'sacrificial_sword', 'sacrificial_greatsword', 'sacrificial_bow', 'sacrificial_fragments',
+  'favonius_sword', 'favonius_greatsword', 'favonius_lance', 'favonius_codex',
+  'dragons_bane', 'the_widsith', 'rainslasher', 'lions_roar', 'the_stringless',
+  'the_dockhands_assistant', 'portable_power_saw', 'range_gauge', 'waveriding_whirl'
 ]);
 
 const GENSHIN_STANDARD_WEAPONS = new Set([
@@ -411,9 +417,7 @@ async function fetchActiveGenshinBanners() {
 
     const firstSlug = featuredSlugs[0];
     const image = type === 'weapon'
-      ? (firstSlug
-        ? `https://paimon.moe/images/weapons/${firstSlug}.png`
-        : `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`)
+      ? `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerId.slice(-2)}.png`
       : (firstSlug ? `https://paimon.moe/images/characters/${firstSlug}.png` : null);
 
     return { id: bannerId, name, type, image, game: 'genshin', source };
@@ -468,19 +472,19 @@ async function fetchActiveGenshinBanners() {
   const targetCharId = parseInt(GENSHIN_BANNER_CONTROL.characterBannerId?.slice(-3) || '97', 10);
   const targetWpnId = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId?.slice(-3) || '95', 10);
 
-  const [charAuto, wpnAuto] = await Promise.all([
-    findBannerNear(targetCharId, '300', 'character'),
-    findBannerNear(targetWpnId, '400', 'weapon')
+  const [charExact, wpnExact] = await Promise.all([
+    fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character'),
+    fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon')
   ]);
 
-  let characterBanner = charAuto;
-  let weaponBanner = wpnAuto;
+  let characterBanner = charExact;
+  let weaponBanner = wpnExact;
 
   if (!characterBanner) {
-    characterBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character');
+    characterBanner = await findBannerNear(targetCharId, '300', 'character');
   }
   if (!weaponBanner) {
-    weaponBanner = await fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon');
+    weaponBanner = await findBannerNear(targetWpnId, '400', 'weapon');
   }
 
   // 4. Optional emergency manual overrides (lowest priority)
