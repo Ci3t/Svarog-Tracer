@@ -585,11 +585,15 @@ export default function ModernPairPredictorCard({
   // Phase-aware noise directive: when the top noise value just appeared (gap ≤ 2)
   // and noiseRisk is HIGH, replace the generic subtext with a clear call-to-action
   // based on whether we're in burst (noise repeating) or recovery (pressure spent).
-  const noiseJustHit = topNoiseThreat && (topNoiseThreat.gap != null && topNoiseThreat.gap <= 2);
+  // 🆕 Prefer smart noise predictor's top candidate for precision
+  const predictedNoiseValue = noisePredictor?.predictedNoiseValue || topNoiseThreat?.value || null;
+  const predictedNoiseGap = noisePredictor?.noiseCandidates?.[0]?.seenAgo ?? topNoiseThreat?.gap ?? 99;
+  const predictedNoiseHits = noisePredictor?.noiseCandidates?.[0]?.recent4Hits ?? topNoiseThreat?.recent4Hits ?? 0;
+  const noiseJustHit = predictedNoiseValue && predictedNoiseGap <= 2;
   const isBurstNoise =
     noiseJustHit &&
     (noiseRisk ?? 0) >= 55 &&
-    (topNoiseThreat?.recent4Hits ?? 0) >= 2;
+    predictedNoiseHits >= 2;
 
   // Burst swap: when noise is truly bursting, replace Svarog Eye alt with the
   // top noise value so the Eye shows the honest prediction (e.g. 41 | 43)
@@ -597,17 +601,17 @@ export default function ModernPairPredictorCard({
   const svarogFinalPicks = (() => {
     if (
       !isBurstNoise ||
-      !topNoiseThreat?.value ||
+      !predictedNoiseValue ||
       svarogDisplayPicks.length !== 2 ||
       !svarogDisplayPicks.every(p => commons.includes(p))
     ) return svarogDisplayPicks;
     // Keep the main pick (index 0), swap alt to the bursting noise value
-    return [svarogDisplayPicks[0], topNoiseThreat.value];
+    return [svarogDisplayPicks[0], predictedNoiseValue];
   })();
 
   const phaseDirective = (() => {
-    if (!noiseJustHit || !topNoiseThreat || (noiseRisk ?? 0) < 55) return null;
-    const v = topNoiseThreat.value;
+    if (!noiseJustHit || !predictedNoiseValue || (noiseRisk ?? 0) < 55) return null;
+    const v = predictedNoiseValue;
     if (isBurstNoise) {
       return `${v} is repeating — swapped in as alt. Hold ${svarogFinalPicks[0]}, play ${v} if pair drops.`;
     }
@@ -963,12 +967,12 @@ export default function ModernPairPredictorCard({
           );
         })()}
 
-        {/* Commons / Noise footer - always visible */}
+        {/* Commons / Noise footer - always visible, uses model-ranked commons */}
         <div id={tutorialIds.commonsNoiseId} className="mt-2 pt-2 border-t border-slate-800/50 flex justify-center gap-4 text-[11px]">
           <div className="flex items-center gap-1">
             <span className="text-slate-500 uppercase tracking-wide">Commons</span>
             <div className="flex gap-1">
-              {sessionBackbonePair?.map(c => (
+              {commonOrder?.map(c => (
                 <span key={c} className="px-1.5 py-px rounded bg-emerald-600/30 text-emerald-300 font-bold border border-emerald-600/40">{c}</span>
               ))}
             </div>
@@ -976,7 +980,7 @@ export default function ModernPairPredictorCard({
           <div className="flex items-center gap-1">
             <span className="text-slate-500 uppercase tracking-wide">Noise</span>
             <div className="flex gap-1">
-              {noise?.map(n => (
+              {VALUES.filter(v => !commonOrder?.includes(v))?.map(n => (
                 <span key={n} className="px-1.5 py-px rounded bg-red-600/25 text-red-400 font-bold border border-red-600/30">{n}</span>
               ))}
             </div>

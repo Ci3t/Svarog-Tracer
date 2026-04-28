@@ -2994,7 +2994,7 @@ function scoreSvarogAnalyzerPicks({
         : entryDirection === 'stable' ? 5
         : -5;
 
-      const finalDecisionRaw = fittedDecisionRaw + trendBoost;
+      const finalDecisionRaw = Math.max(0, fittedDecisionRaw + trendBoost);
       return {
         ...entry,
         thinPairMirage,
