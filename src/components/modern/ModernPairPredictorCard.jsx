@@ -93,7 +93,7 @@ export default function ModernPairPredictorCard({
     analyzerCommonDecisionScores, analyzerNoiseDecisionScores,
     analyzerSessionStateScores,
     analyzerBreakChallenge,
-    analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio,
+    analyzerMode, analyzerNoiseTiming, analyzerNoiseDueRatio, analyzerNoisePhase,
     // ?? Noise Predictor
     noisePredictor,
     // ?? Noise Trap
@@ -449,10 +449,10 @@ export default function ModernPairPredictorCard({
     );
   }
 
-  // Commons display: main = prediction (lean here), alt = other common
+  // Commons display: main = strongest common by commonScore, alt = second common
   const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
-  const mainCommon = displayPair?.includes(prediction) ? prediction : (displayPair || [])[0];
-  const altCommon  = displayPair?.includes(alt) && alt !== mainCommon ? alt : (displayPair || []).find(c => c !== mainCommon) || alt;
+  const mainCommon = commonOrder[0] || displayPair?.[0] || commons?.[0];
+  const altCommon  = commonOrder[1] || displayPair?.find(c => c !== mainCommon) || commons?.find(c => c !== mainCommon) || alt;
   const sessionModel = sessionState || {
     key: pairSafety === 'danger' ? 'break' : pairSafety === 'caution' ? 'probe' : 'pair',
     label: pairSafety === 'danger' ? 'Break Live' : pairSafety === 'caution' ? 'Noise Watch' : 'Pair First',
@@ -492,6 +492,8 @@ export default function ModernPairPredictorCard({
     : (Array.isArray(sessionModel.displayPair) && sessionModel.displayPair.length
       ? sessionModel.displayPair
       : (sessionModel.key === 'probe' ? sessionBackbonePair : analyzerPicks));
+  // 🆕 Challenge Mode: Svarog Eye switched to include noise
+  const svarogSwitched = svarogDisplayPicks.some(p => !commons.includes(p)) && svarogDisplayPicks.some(p => commons.includes(p));
   const sessionToneClasses = sessionModel.tone === 'danger'
     ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
     : sessionModel.tone === 'warn'
@@ -525,6 +527,12 @@ export default function ModernPairPredictorCard({
   const pairSpread = Math.abs(mainPct - altPct);
   const splitPairRead = pairSpread <= 14 || (pairSafety !== 'safe' && pairSpread <= 18);
   const playPairText = sessionPlayPair?.join(' / ') || `${sessionPlayLead} / ${sessionPlayAlt}`;
+
+  // 🆕 Common lean — use commonDecisionScores to show which common is stronger
+  const mainCommonScore = Math.round(commonDecisionMap.get(mainCommon)?.commonScore ?? 0);
+  const altCommonScore  = Math.round(commonDecisionMap.get(altCommon)?.commonScore ?? 0);
+  const commonScoreTotal = mainCommonScore + altCommonScore || 1;
+  const commonLeanPct = Math.round((mainCommonScore / commonScoreTotal) * 100);
   const topNoise = sessionFallback[0] || noiseOrder[0] || freshOutsider?.value || null;
   const secondNoise = sessionFallback[1] || noiseOrder[1] || null;
   // 🆕 Show exact prediction in summary when noise is likely
@@ -574,19 +582,56 @@ export default function ModernPairPredictorCard({
       })()
     : null;
 
+  // Phase-aware noise directive: when the top noise value just appeared (gap ≤ 2)
+  // and noiseRisk is HIGH, replace the generic subtext with a clear call-to-action
+  // based on whether we're in burst (noise repeating) or recovery (pressure spent).
+  const noiseJustHit = topNoiseThreat && (topNoiseThreat.gap != null && topNoiseThreat.gap <= 2);
+  const isBurstNoise =
+    noiseJustHit &&
+    (noiseRisk ?? 0) >= 55 &&
+    (topNoiseThreat?.recent4Hits ?? 0) >= 2;
+
+  // Burst swap: when noise is truly bursting, replace Svarog Eye alt with the
+  // top noise value so the Eye shows the honest prediction (e.g. 41 | 43)
+  // instead of both commons. Only fires when Eye currently shows two commons.
+  const svarogFinalPicks = (() => {
+    if (
+      !isBurstNoise ||
+      !topNoiseThreat?.value ||
+      svarogDisplayPicks.length !== 2 ||
+      !svarogDisplayPicks.every(p => commons.includes(p))
+    ) return svarogDisplayPicks;
+    // Keep the main pick (index 0), swap alt to the bursting noise value
+    return [svarogDisplayPicks[0], topNoiseThreat.value];
+  })();
+
+  const phaseDirective = (() => {
+    if (!noiseJustHit || !topNoiseThreat || (noiseRisk ?? 0) < 55) return null;
+    const v = topNoiseThreat.value;
+    if (isBurstNoise) {
+      return `${v} is repeating — swapped in as alt. Hold ${svarogFinalPicks[0]}, play ${v} if pair drops.`;
+    }
+    if (analyzerNoisePhase === 'burst') {
+      return `${v} just hit — may repeat soon. Watch it, pair holds for now.`;
+    }
+    return `${v} just spent — pair is safe now. Hold ${svarogDisplayPicks.join(' / ')} this roll.`;
+  })();
+
   const svarogSummaryLine = !analyzerPicks.length
     ? null
-    : sessionModel.key === 'break'
-      ? `Svarog has switched to ${analyzerPicks.join(' / ')}.`
-      : sessionModel.key === 'probe'
-        ? shouldShowExact
-          ? `Svarog is shifting to ${svarogDisplayPicks.join(' / ')} — noise probability is high.`
-          : `Svarog is holding ${svarogDisplayPicks.join(' / ')}${noiseThreatNote ? ` — ${noiseThreatNote}` : ' and tracking noise separately.'}`
-        : sessionModel.key === 'reentry'
-          ? `Svarog is moving back to ${svarogDisplayPicks.join(' / ')}.`
-          : noiseThreatActive
-            ? `Svarog agrees on ${svarogDisplayPicks.join(' / ')}. ${noiseThreatNote}`
-            : `Svarog agrees on ${svarogDisplayPicks.join(' / ')}.`;
+    : phaseDirective
+      ? phaseDirective
+      : sessionModel.key === 'break'
+        ? `Svarog has switched to ${analyzerPicks.join(' / ')}.`
+        : sessionModel.key === 'probe'
+          ? shouldShowExact
+            ? `Svarog is shifting to ${svarogFinalPicks.join(' / ')} — noise probability is high.`
+            : `Svarog is holding ${svarogFinalPicks.join(' / ')}${noiseThreatNote ? ` — ${noiseThreatNote}` : ' and tracking noise separately.'}`
+          : sessionModel.key === 'reentry'
+            ? `Svarog is moving back to ${svarogFinalPicks.join(' / ')}.`
+            : noiseThreatActive
+              ? `Svarog agrees on ${svarogFinalPicks.join(' / ')}. ${noiseThreatNote}`
+              : `Svarog agrees on ${svarogFinalPicks.join(' / ')}.`;
   const followGuide = (() => {
     if (!analyzerPicks.length) return null;
     if (sessionModel.key === 'break' || analyzerMode === 'break') {
@@ -736,8 +781,14 @@ export default function ModernPairPredictorCard({
               </span>
             </div>
 
-            {/* Divider */}
-            <div className="flex flex-col items-center justify-center text-slate-600 text-sm font-bold">/</div>
+            {/* Divider + Common Lean */}
+            <div className="flex flex-col items-center justify-center gap-1">
+              <span className="text-slate-600 text-sm font-bold">/</span>
+              <div className="text-center">
+                <div className="text-[11px] font-bold text-slate-300">{commonLeanPct}%</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wide">lean</div>
+              </div>
+            </div>
 
             {/* Alt pick — always a common, never noise */}
             <div className="flex flex-col items-center">
@@ -798,31 +849,73 @@ export default function ModernPairPredictorCard({
         )}
 
         {svarogDisplayPicks.length > 0 && (
-          <div id={tutorialIds.svarogEyeId} className="mt-3 rounded-xl border border-slate-700/60 bg-slate-800/30 px-4 py-3 relative flex items-center justify-between gap-3">
-            <div className="relative flex items-center gap-3">
-              <img 
-                src={withBaseUrl('svarog.png')} 
-                alt="Svarog Eye" 
-                className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] pointer-events-none"
-              />
-              <div>
-                <p className="text-[12px] font-black uppercase tracking-widest text-slate-100">Svarog Eye</p>
-                <p className="text-[11px] text-slate-400 leading-tight max-w-[180px]">{svarogSummaryLine || (sessionModel.key === 'probe' ? 'Backbone + noise tracker' : 'Exact next pair')}</p>
+          <div id={tutorialIds.svarogEyeId} className="mt-3 rounded-xl border border-slate-700/60 bg-slate-800/30 px-4 py-3 relative">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex items-center gap-3">
+                <img 
+                  src={withBaseUrl('svarog.png')} 
+                  alt="Svarog Eye" 
+                  className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.6)] pointer-events-none"
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                  <p className="text-[12px] font-black uppercase tracking-widest text-slate-100">Svarog Eye</p>
+                  {svarogSwitched && !isBurstNoise && (
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-px rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      ⚡ Switched
+                    </span>
+                  )}
+                  {isBurstNoise && (
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-px rounded bg-red-500/20 text-red-300 border border-red-500/40">
+                      🔥 Burst
+                    </span>
+                  )}
+                </div>
+                  <p className="text-[11px] text-slate-400 leading-tight max-w-[180px]">{svarogSummaryLine || (sessionModel.key === 'probe' ? 'Backbone + noise tracker' : 'Exact next pair')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {svarogFinalPicks.map((pick, idx) => (
+                  <span
+                    key={pick}
+                    className={`min-w-[36px] inline-block rounded-lg border-2 px-2 py-1 text-center text-[14px] font-black tracking-tight transition-colors
+                      ${idx === 0 
+                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
+                        : isBurstNoise && noise.includes(pick)
+                          ? 'border-red-500/50 bg-red-500/10 text-red-200'
+                          : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
+                  >
+                    {pick}
+                  </span>
+                ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {svarogDisplayPicks.map((pick, idx) => (
-                <span
-                  key={pick}
-                  className={`min-w-[36px] inline-block rounded-lg border-2 px-2 py-1 text-center text-[14px] font-black tracking-tight transition-colors
-                    ${idx === 0 
-                      ? 'border-violet-500/50 bg-violet-500/10 text-violet-100 shadow-[inset_0_0_12px_rgba(139,92,246,0.15)]' 
-                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400'}`}
-                >
-                  {pick}
-                </span>
-              ))}
-            </div>
+            {(() => {
+              const predictedNoise = noisePredictor?.predictedNoiseValue;
+              const noiseProb = noisePredictor?.noiseLikelihoodNextRoll ?? 0;
+              if (
+                noiseProb < 0.55 ||
+                !predictedNoise ||
+                svarogFinalPicks.includes(predictedNoise) ||
+                noiseRisk < 35
+              ) return null;
+              const swapTarget = svarogFinalPicks[1] || svarogFinalPicks[0];
+              const topNoiseC = noisePredictor?.noiseCandidates?.[0];
+              const noiseProbPct = topNoiseC?.prob
+                ? Math.round(topNoiseC.prob * 100)
+                : Math.round(noiseProb * 100);
+              return (
+                <div className="mt-2 pt-2 border-t border-slate-700/40 flex items-center gap-2 flex-wrap">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 border border-amber-500/40 bg-amber-500/10 px-1.5 py-px rounded">Noise Suggest</span>
+                  <span className="text-[11px] text-slate-400">
+                    Replace <span className="font-bold text-slate-300">{swapTarget}</span>
+                    {' → '}
+                    <span className="font-bold text-cyan-300">{predictedNoise}</span>
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-amber-400 shrink-0">{noiseProbPct}% likely</span>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1150,6 +1243,70 @@ export default function ModernPairPredictorCard({
               </div>
             );
           })()}
+
+          {/* 4-Way Raw Strength Tracker (Test) */}
+          {Array.isArray(analyzerFinalScores) && analyzerFinalScores.length === 4 && (
+            <div className="rounded-lg border border-slate-700/40 bg-slate-800/20 px-3 py-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] text-slate-500 uppercase tracking-wider">4-Way Raw Strength (Test)</div>
+                <div className="text-[10px] text-slate-600">finalDecisionRaw</div>
+              </div>
+              {(() => {
+                const ranked = [...analyzerFinalScores].sort((a, b) => (b.finalDecisionRaw || 0) - (a.finalDecisionRaw || 0));
+                const raws = ranked.map(e => e.finalDecisionRaw || 0);
+                const minRaw = Math.min(...raws, 0);
+                const maxRaw = Math.max(...raws, 1);
+                const range = maxRaw - minRaw || 1;
+                return ranked.map((entry, idx) => {
+                  const v = entry.value;
+                  const isCommon = commons.includes(v);
+                  const isInSvarog = svarogFinalPicks.includes(v);
+                  const isInMain = v === mainCommon || v === altCommon;
+                  const raw = Math.round(entry.finalDecisionRaw || 0);
+                  const pct = Math.round(((raw - minRaw) / range) * 100);
+                  const direction = trends?.[v]?.direction || 'stable';
+                  const ago = lastSeen?.[v];
+                  const noiseCandidate = !isCommon ? noisePredictor?.noiseCandidates?.find(c => c.value === v) : null;
+                  const noiseProbPct = noiseCandidate ? Math.round(noiseCandidate.prob * 100) : null;
+                  return (
+                    <div key={v} className="flex items-center gap-2 mb-1 last:mb-0">
+                      <span className={`text-[10px] font-black w-5 text-center ${idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-slate-300' : 'text-slate-500'}`}>#{idx + 1}</span>
+                      <span className={`text-[13px] font-bold w-6 ${isCommon ? 'text-emerald-400' : 'text-cyan-400'}`}>{v}</span>
+                      <div className="flex-1 h-2 rounded-full bg-slate-700/50 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${isCommon ? 'bg-emerald-500/60' : 'bg-cyan-500/60'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 w-8 text-right">{raw}</span>
+                      {direction === 'rising' ? (
+                        <span className="text-[9px] font-black text-emerald-400">↑</span>
+                      ) : direction === 'falling' ? (
+                        <span className="text-[9px] font-black text-red-400">↓</span>
+                      ) : (
+                        <span className="w-[9px]" />
+                      )}
+                      {noiseProbPct !== null ? (
+                        <span className="text-[9px] font-mono text-cyan-500 w-9 text-right">{noiseProbPct}%N</span>
+                      ) : ago != null && ago > 0 ? (
+                        <span className="text-[9px] font-mono text-slate-600 w-9 text-right">-{ago}</span>
+                      ) : (
+                        <span className="w-9" />
+                      )}
+                      <div className="flex gap-1">
+                        {isInMain && (
+                          <span className="text-[9px] font-black uppercase px-1 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">PAIR</span>
+                        )}
+                        {isInSvarog && (
+                          <span className="text-[9px] font-black uppercase px-1 rounded bg-violet-500/15 text-violet-400 border border-violet-500/30">EYE</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
         </div>
       )}
     </div>

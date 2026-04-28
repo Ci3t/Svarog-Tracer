@@ -2988,7 +2988,13 @@ function scoreSvarogAnalyzerPicks({
         sessionStateBoost +
         (commons.includes(entry.value) ? SVAROG_FITTED_CHOOSER_WEIGHTS.isCommon : 0) +
         (noise.includes(entry.value) ? SVAROG_FITTED_CHOOSER_WEIGHTS.isNoise : 0);
-      const finalDecisionRaw = fittedDecisionRaw;
+      const entryDirection = trends?.[entry.value]?.direction;
+      const trendBoost =
+        entryDirection === 'rising' ? 10
+        : entryDirection === 'stable' ? 5
+        : -5;
+
+      const finalDecisionRaw = fittedDecisionRaw + trendBoost;
       return {
         ...entry,
         thinPairMirage,
@@ -4232,7 +4238,7 @@ function scoreSvarogAnalyzerPicks({
   {
     const currentTop2 = [analyzerTop1?.value, analyzerTop2?.value].filter(Boolean);
     const altIsNoise = noise.includes(analyzerTop2?.value);
-    if (
+    if (false &&
       !altIsNoise &&
       noiseDueRatio > 2.0 &&
       rolls.length >= 8
@@ -4278,6 +4284,26 @@ function scoreSvarogAnalyzerPicks({
     avgNoiseGap,
     sessionLength: rolls.length,
   });
+
+  // Common seenAgo tie-break: when both analyzerTop1 and analyzerTop2 are commons,
+  // prefer the more-overdue common (higher seenAgo) as main. This corrects
+  // wrong_common_order where a recently-seen common stays as main while the
+  // less-recently-seen common is more likely to return. Only fires when neither
+  // is the lastRoll and the seenAgo gap is at least 2 rolls.
+  if (
+    commons.includes(analyzerTop1?.value) &&
+    commons.includes(analyzerTop2?.value) &&
+    analyzerTop1?.value !== lastRoll &&
+    analyzerTop2?.value !== lastRoll
+  ) {
+    const top1Ago = lastSeen?.[analyzerTop1.value] ?? 0;
+    const top2Ago = lastSeen?.[analyzerTop2.value] ?? 0;
+    if (top2Ago > top1Ago) {
+      const tmp = analyzerTop1;
+      analyzerTop1 = analyzerTop2;
+      analyzerTop2 = tmp;
+    }
+  }
 
   return {
     prediction: analyzerTop1?.value || scored[0]?.value || null,
@@ -6971,6 +6997,28 @@ export function predictWithPairs(rolls, options = {}) {
     noiseGapLengths,
     regime,
   });
+
+  // Commons-shift nudge: when flipConfidence is meaningful AND commonsSwitch also
+  // detects a shift, give the incoming noise value a finalDecisionRaw boost to
+  // help it break the tie against the other noise value.
+  // Gate: flipConfidence >= 55, commonsSwitch.detected, and the shifting value
+  // must be a noise value that appears in newCommons.
+  if (
+    commonsFlipDetected &&
+    flipConfidence >= 55 &&
+    commonsSwitch?.detected &&
+    newCommons?.length
+  ) {
+    const nudgeTarget = newCommons.find((v) => noise.includes(v));
+    if (nudgeTarget) {
+      const nudgeMag = Math.min(12, Math.round((flipConfidence - 55) * 0.3 + 6));
+      analyzer.finalScores = analyzer.finalScores.map((e) =>
+        e.value === nudgeTarget
+          ? { ...e, finalDecisionRaw: (e.finalDecisionRaw || 0) + nudgeMag, commonsShiftNudge: nudgeMag }
+          : e
+      );
+    }
+  }
 
   const mainTrend = trends?.[prediction] || {};
   const mainIsFreshRising = mainTrend.direction === 'rising' && (mainTrend.arrowWeight ?? 0) >= 0.75;
