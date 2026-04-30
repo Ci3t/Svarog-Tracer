@@ -665,12 +665,7 @@ function extractWuWaImageFromHtml(html) {
 async function fetchWuWaStatsImage(bannerId, bannerName, type) {
   try {
     const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
-    const directRes = await fetch(statsUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
+    const directRes = await fetchWithTimeout(statsUrl, CONFIG.TIMEOUT_WUWA);
     if (directRes.ok) {
       const html = await directRes.text();
       const extracted = extractWuWaImageFromHtml(html);
@@ -698,12 +693,7 @@ async function fetchWuWaLiveBanners() {
 
   // 1. Try Direct Fetch (Server-to-Server)
   try {
-    const directRes = await fetch(statsUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
+    const directRes = await fetchWithTimeout(statsUrl, CONFIG.TIMEOUT_WUWA);
     if (directRes.ok) html = await directRes.text();
   } catch (e) { console.warn(`[WuWa] Direct fetch failed: ${e.message}`); }
 
@@ -725,7 +715,26 @@ async function fetchWuWaLiveBanners() {
     }
   }
 
-  if (!html) return [];
+  if (!html) {
+    return [
+      {
+        id: '100036_character',
+        bannerId: '100036',
+        name: 'Hiyuki',
+        type: 'character',
+        image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.webp'),
+        game: 'wuwa'
+      },
+      {
+        id: '200036_weapon',
+        bannerId: '200036',
+        name: 'Frostburn',
+        type: 'weapon',
+        image: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'),
+        game: 'wuwa'
+      }
+    ];
+  }
 
   try {
     const idPattern = /[\\"]+bannerId[\\"]+:\s*(\d{6})/g;
