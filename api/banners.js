@@ -40,7 +40,7 @@ const GENSHIN_CONFIG = {
 
 const CONFIG = {
   CACHE_HOURS: 0.016, // ~1 minute cache
-  CACHE_VERSION: 6, // Increment this to force cache refresh after banner discovery updates
+  CACHE_VERSION: 9, // Increment this to force cache refresh after banner discovery updates
   TIMEOUT_MS: 8000,
   TIMEOUT_GENSHIN: 3000,
   TIMEOUT_WUWA: 5000,
@@ -520,6 +520,18 @@ async function fetchActiveGenshinBanners() {
 // WUWA BANNER FETCHING (HTML Scraping)
 // =========================================================================
 const WUWA_KNOWN_BANNERS = Object.freeze({
+  '100036': {
+    name: 'Hiyuki',
+    type: 'character',
+  },
+  '200036': {
+    name: 'Frostburn',
+    type: 'weapon',
+  },
+  '101036': {
+    name: 'Frostburn',
+    type: 'weapon',
+  },
   '100035': {
     name: 'Lynae',
     type: 'character',
@@ -547,7 +559,13 @@ const WUWA_KNOWN_BANNERS = Object.freeze({
 });
 
 const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
+  hiyuki: 'Frostburn',
   lynae: 'Spectrum Blaster',
+});
+
+const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
+  character: '100036',
+  weapon: '200036',
 });
 
 function compareWuWaBannerIdsDesc(a, b) {
@@ -556,6 +574,14 @@ function compareWuWaBannerIdsDesc(a, b) {
 
 function pickHighestWuWaBanner(banners) {
   return [...(Array.isArray(banners) ? banners : [])].sort(compareWuWaBannerIdsDesc)[0] || null;
+}
+
+function findWuWaBannerById(banners, bannerId) {
+  const normalizedId = String(bannerId || '').trim();
+  if (!normalizedId) return null;
+  return (Array.isArray(banners) ? banners : []).find(
+    (banner) => String(banner?.bannerId || banner?.id || '').trim() === normalizedId
+  ) || null;
 }
 
 function extractWuWaCurrentTitle(html) {
@@ -603,26 +629,79 @@ function findBannerByFirstOccurrence(banners, html) {
 }
 
 function selectWuWaVisibleBanners(banners, html) {
-  const characterBanners = banners.filter((banner) => banner.type === 'character');
-  const weaponBanners = banners.filter((banner) => banner.type === 'weapon');
-  const currentTitle = extractWuWaCurrentTitle(html);
+  try {
+    const characterBanners = banners.filter((banner) => banner.type === 'character');
+    const weaponBanners = banners.filter((banner) => banner.type === 'weapon');
+    const currentTitle = extractWuWaCurrentTitle(html);
 
-  const selectedCharacter =
-    findBannerByTitleMatch(characterBanners, currentTitle) ||
-    findBannerByFirstOccurrence(characterBanners, html) ||
-    characterBanners[0] ||
-    null;
+    const forcedCurrentCharacter = findWuWaBannerById(characterBanners, WUWA_CURRENT_FEATURED_IDS.character);
+    const forcedCurrentWeapon = findWuWaBannerById(weaponBanners, WUWA_CURRENT_FEATURED_IDS.weapon);
 
-  const pairedWeaponName = selectedCharacter
-    ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
-    : '';
-  const selectedWeapon =
-    findBannerByExactName(weaponBanners, pairedWeaponName) ||
-    findBannerByFirstOccurrence(weaponBanners, html) ||
-    weaponBanners[0] ||
-    null;
+    if (forcedCurrentCharacter || forcedCurrentWeapon) {
+      const pairedWeaponName = forcedCurrentCharacter
+        ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(forcedCurrentCharacter.name || '').trim().toLowerCase()]
+        : '';
+      const selectedWeapon =
+        forcedCurrentWeapon ||
+        findBannerByExactName(weaponBanners, pairedWeaponName) ||
+        pickHighestWuWaBanner(weaponBanners) ||
+        findBannerByFirstOccurrence(weaponBanners, html) ||
+        null;
 
-  return [selectedCharacter, selectedWeapon].filter(Boolean);
+      return [forcedCurrentCharacter, selectedWeapon].filter(Boolean);
+    }
+
+    const selectedCharacter =
+      findBannerByTitleMatch(characterBanners, currentTitle) ||
+      pickHighestWuWaBanner(characterBanners) ||
+      findBannerByFirstOccurrence(characterBanners, html) ||
+      null;
+
+    const pairedWeaponName = selectedCharacter
+      ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
+      : '';
+
+    let selectedWeapon =
+      findBannerByExactName(weaponBanners, pairedWeaponName) ||
+      pickHighestWuWaBanner(weaponBanners) ||
+      findBannerByFirstOccurrence(weaponBanners, html) ||
+      null;
+
+    if (selectedCharacter?.name === 'Hiyuki' && selectedWeapon?.name !== 'Frostburn') {
+      const forcedFrostburn = weaponBanners.find((banner) =>
+        banner.name === 'Frostburn' || String(banner.bannerId || banner.id || '') === WUWA_CURRENT_FEATURED_IDS.weapon
+      );
+      if (forcedFrostburn) {
+        selectedWeapon = forcedFrostburn;
+      }
+    }
+
+    return [selectedCharacter, selectedWeapon].filter(Boolean);
+  } catch (error) {
+    console.error('[WuWa] Banner selection failed:', error);
+    return banners.slice(0, 2);
+  }
+}
+
+function buildWuWaCurrentBannerFallback() {
+  return [
+    {
+      id: '100036_character',
+      bannerId: '100036',
+      name: 'Hiyuki',
+      type: 'character',
+      image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.webp'),
+      game: 'wuwa'
+    },
+    {
+      id: '200036_weapon',
+      bannerId: '200036',
+      name: 'Frostburn',
+      type: 'weapon',
+      image: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'),
+      game: 'wuwa'
+    }
+  ];
 }
 
 function slugifyWuWaName(value) {
@@ -665,12 +744,7 @@ function extractWuWaImageFromHtml(html) {
 async function fetchWuWaStatsImage(bannerId, bannerName, type) {
   try {
     const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
-    const directRes = await fetch(statsUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
+    const directRes = await fetchWithTimeout(statsUrl, CONFIG.TIMEOUT_WUWA);
     if (directRes.ok) {
       const html = await directRes.text();
       const extracted = extractWuWaImageFromHtml(html);
@@ -693,44 +767,28 @@ async function fetchWuWaStatsImage(bannerId, bannerName, type) {
 }
 
 async function fetchWuWaLiveBanners() {
-  const statsUrl = `${CONFIG.WUWA_TRACKER}`;
+  const statsUrl = `${CONFIG.WUWA_TRACKER}?t=${Date.now()}`;
   let html = null;
 
-  // 1. Try Direct Fetch (Server-to-Server)
   try {
-    const directRes = await fetch(statsUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
+    const directRes = await fetchWithTimeout(statsUrl, CONFIG.TIMEOUT_WUWA);
     if (directRes.ok) html = await directRes.text();
-  } catch (e) { console.warn(`[WuWa] Direct fetch failed: ${e.message}`); }
-
-  // 2. Proxy Fallbacks
-  if (!html) {
-    const PROXIES = [
-      (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-    ];
-    for (const proxyFormat of PROXIES) {
-      try {
-        const res = await fetchWithTimeout(proxyFormat(statsUrl), 5000);
-        if (res.ok) {
-          html = await res.text();
-          if (html.includes('WuWa Tracker')) break;
-        }
-      } catch (e) { }
-    }
+  } catch (e) {
+    console.warn(`[WuWa] Direct fetch failed: ${e.message}`);
   }
 
-  if (!html) return [];
+  if (!html) {
+    return buildWuWaCurrentBannerFallback();
+  }
 
   try {
-    const idPattern = /[\\"]+bannerId[\\"]+:\s*(\d{6})/g;
-    const banners = [];
-    const seen = new Set();
+    const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
+    const banners = buildWuWaCurrentBannerFallback();
+    const seen = new Set([
+      WUWA_CURRENT_FEATURED_IDS.character,
+      WUWA_CURRENT_FEATURED_IDS.weapon,
+      '101036'
+    ]);
     let match;
 
     while ((match = idPattern.exec(html)) !== null) {
@@ -742,34 +800,28 @@ async function fetchWuWaLiveBanners() {
       const isWeapon = id.startsWith('101') || id.startsWith('200');
       if (!isCharacter && !isWeapon) continue;
 
-      // Extract Name from Context (Matches Bot Logic)
       const pos = match.index;
-      const context = html.substring(pos, pos + 5000);
-      const names = [...context.matchAll(/[\\"]+name[\\"]+:\s*[\\\"']+([^\\\"']+)[\\\"']+/g)];
-      const validName = names.find(m =>
-        m[1].length > 2 &&
-        !m[1].includes("Featured") &&
-        !m[1].includes("next-size-adjust") &&
-        !m[1].includes("Standard") &&
-        !m[1].includes("Convene")
-      );
+      const forward = html.substring(pos, pos + 3000);
+      const typeMatch = forward.match(/\\"cardPoolType\\":\s*\\"([^\\"]+)\\"/);
+      const poolType = typeMatch ? typeMatch[1].toLowerCase() : '';
 
-      // Fallback
-      let name = validName ? validName[1] : `Banner ${id}`;
-      if (name.toLowerCase().includes('standard')) continue;
+      const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
+      const rawName = nameMatch ? nameMatch[1] : `Banner ${id}`;
+      const resolvedName = WUWA_KNOWN_BANNERS[id]?.name || rawName;
+      if (resolvedName.toLowerCase().includes('standard')) continue;
 
-      const type = isCharacter ? 'character' : 'weapon';
-      const resolvedName = WUWA_KNOWN_BANNERS[id]?.name || name;
+      const type = poolType.includes('character')
+        ? 'character'
+        : (poolType.includes('weapon') ? 'weapon' : (isCharacter ? 'character' : 'weapon'));
 
-      // OPTIMIZATION: Use slug-based images instead of fetching sub-pages during discovery
-      const firstName = resolvedName.split('&')[0].trim();
-      const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const slug = slugifyWuWaName(resolvedName.split('&')[0].trim());
       const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const ext = type === 'character' ? 'webp' : 'png';
-      const image = `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${slug}-portrait.${ext}`)}&w=828&q=75`;
+      const image = buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
 
       banners.push({
-        id,
+        id: `${id}_${type}`,
+        bannerId: id,
         name: resolvedName,
         type,
         image,
@@ -777,54 +829,12 @@ async function fetchWuWaLiveBanners() {
       });
     }
 
-    // Emergency fallback for current reruns / active banners
-    if (!banners.some(b => b.id === '100035') && html.includes('Lynae')) {
-      banners.push({
-        id: '100035',
-        name: 'Lynae',
-        type: 'character',
-        image: buildWuWaImageUrl('character-portraits', 'lynae-portrait.webp'),
-        game: 'wuwa'
-      });
-    }
-    if (!banners.some(b => b.name === 'Spectrum Blaster') && html.includes('Spectrum Blaster')) {
-      banners.push({
-        id: '200035',
-        name: 'Spectrum Blaster',
-        type: 'weapon',
-        image: buildWuWaImageUrl('weapon-portraits', 'spectrum-blaster-portrait.png'),
-        game: 'wuwa'
-      });
-    }
-
-    // Legacy emergency fallback for Sigrika
-    if (!banners.some(b => b.id === '100034') && html.includes('Sigrika')) {
-      banners.push({
-        id: '100034',
-        name: 'Sigrika',
-        type: 'character',
-        image: buildWuWaImageUrl('character-portraits', 'sigrika-portrait.webp'),
-        game: 'wuwa'
-      });
-    }
-    // Emergency Fallback for Solsworn Ciphers
-    if (!banners.some(b => b.id === '200034') && (html.includes('Solsworn Ciphers') || html.includes('Emerald Sentence'))) {
-      banners.push({
-        id: '200034',
-        name: 'Solsworn Ciphers',
-        type: 'weapon',
-        image: buildWuWaImageUrl('weapon-portraits', 'solsworn-ciphers-portrait.png'),
-        game: 'wuwa'
-      });
-    }
-
     const results = selectWuWaVisibleBanners(banners, html);
-
     console.log(`[WuWa] Scraped: ${results.map(r => r.name).join(', ')}`);
-    return results;
+    return results.length > 0 ? results : buildWuWaCurrentBannerFallback();
   } catch (error) {
     console.error('[WuWa Discovery] Error:', error);
-    return [];
+    return buildWuWaCurrentBannerFallback();
   }
 }
 
