@@ -177,6 +177,21 @@ export async function fetchCentralizedBanners(game = 'all') {
         : [];
     }
 
+    if (game === 'wuwa') {
+      const wuwaBanners = await wuwaApi.getBanners();
+      return Array.isArray(wuwaBanners)
+        ? wuwaBanners.map((b) => ({
+          id: b.id,
+          bannerId: b.bannerId || extractBannerId(b.id) || b.id,
+          name: b.name,
+          image: b.image,
+          type: b.type,
+          characterId: b.characterId,
+          game: 'wuwa',
+        }))
+        : [];
+    }
+
     const params = new URLSearchParams();
     if (game && game !== 'all') params.set('game', game);
     const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
@@ -1482,6 +1497,23 @@ function extractGenshinWeaponNames(list) {
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners
   { 
+    id: "100036", 
+    name: "Hiyuki", 
+    type: "character", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.webp&w=828&q=75", 
+    characterId: "hiyuki", 
+    game: "wuwa" 
+  },
+  { 
+    id: "200036", 
+    name: "Frostburn", 
+    type: "weapon", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75", 
+    characterId: "frostburn", 
+    game: "wuwa" 
+  },
+  // Previous banners
+  { 
     id: "100035", 
     name: "Lynae", 
     type: "character", 
@@ -1500,7 +1532,13 @@ export const WUWA_PRESET_BANNERS = [
 ];
 
 const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
+  hiyuki: 'Frostburn',
   lynae: 'Spectrum Blaster',
+});
+
+const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
+  character: '100036',
+  weapon: '200036',
 });
 
 function compareWuWaBannerIdsDesc_Client(a, b) {
@@ -1509,6 +1547,14 @@ function compareWuWaBannerIdsDesc_Client(a, b) {
 
 function pickHighestWuWaBanner_Client(banners) {
   return [...(Array.isArray(banners) ? banners : [])].sort(compareWuWaBannerIdsDesc_Client)[0] || null;
+}
+
+function findWuWaBannerById_Client(banners, bannerId) {
+  const normalizedId = String(bannerId || '').trim();
+  if (!normalizedId) return null;
+  return (Array.isArray(banners) ? banners : []).find(
+    (banner) => String(banner?.bannerId || banner?.id || '').trim() === normalizedId
+  ) || null;
 }
 
 function extractWuWaCurrentTitle_Client(html) {
@@ -1560,8 +1606,26 @@ function selectWuWaVisibleBanners_Client(banners, html) {
   const weaponBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'weapon');
   const currentTitle = extractWuWaCurrentTitle_Client(html);
 
+  const forcedCurrentCharacter = findWuWaBannerById_Client(characterBanners, WUWA_CURRENT_FEATURED_IDS.character);
+  const forcedCurrentWeapon = findWuWaBannerById_Client(weaponBanners, WUWA_CURRENT_FEATURED_IDS.weapon);
+
+  if (forcedCurrentCharacter || forcedCurrentWeapon) {
+    const pairedWeaponName = forcedCurrentCharacter
+      ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(forcedCurrentCharacter.name || '').trim().toLowerCase()]
+      : '';
+    const selectedWeapon =
+      forcedCurrentWeapon ||
+      findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
+      pickHighestWuWaBanner_Client(weaponBanners) ||
+      findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
+      null;
+
+    return [forcedCurrentCharacter, selectedWeapon].filter(Boolean);
+  }
+
   const selectedCharacter =
     findWuWaBannerByTitle_Client(characterBanners, currentTitle) ||
+    pickHighestWuWaBanner_Client(characterBanners) ||
     findWuWaBannerByOccurrence_Client(characterBanners, html) ||
     characterBanners[0] ||
     null;
@@ -1570,11 +1634,22 @@ function selectWuWaVisibleBanners_Client(banners, html) {
     : '';
   const selectedWeapon =
     findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
+    pickHighestWuWaBanner_Client(weaponBanners) ||
     findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
     weaponBanners[0] ||
     null;
 
   return [selectedCharacter, selectedWeapon].filter(Boolean);
+}
+
+function buildWuWaBannerIdCandidates_Client(id) {
+  const normalized = String(id || '').trim();
+  if (!/^\d{6}$/.test(normalized)) return [normalized];
+  const suffix = normalized.slice(3);
+  const candidates = [normalized];
+  if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
+  if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
+  return Array.from(new Set(candidates));
 }
 
 
@@ -1590,34 +1665,44 @@ export async function fetchWuWaStats(bannerId, debugMode = true) {
     try {
       console.log('[WuWa] Trying backend API...');
       const data = await wuwaApi.getStats(bannerId);
-      if (data && data.stats) {
+      const backendHistogramSize = Object.keys(data?.stats?.by_rollnum_pulls_5 || {}).length;
+      const backendTotalPulls = Number(data?.stats?.total_pulls_5 || 0);
+      if (data && data.stats && !data.fallback && backendHistogramSize > 0 && backendTotalPulls > 0) {
         console.log('[WuWa] ✓ Backend API succeeded');
         return data;
       }
+      console.warn('[WuWa] Backend API returned fallback or empty stats, continuing to direct scrape');
     } catch (backendError) {
       console.warn('[WuWa] Backend API failed, falling back to Scraping:', backendError.message);
     }
 
-    const statsUrl = `https://wuwatracker.com/tracker/stats/${bannerId}`;
-    console.log('[WuWa] Fetching:', statsUrl);
-    const response = await fetchWithProxyFallback(statsUrl);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    let lastScrapeError = null;
+    for (const candidateId of buildWuWaBannerIdCandidates_Client(bannerId)) {
+      try {
+        const statsUrl = `https://wuwatracker.com/tracker/stats/${candidateId}`;
+        console.log('[WuWa] Fetching:', statsUrl);
+        const response = await fetchWithProxyFallback(statsUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+        console.log('[WuWa] HTML length:', html.length);
+
+        const stats = parseWuWaHTML_Adaptive(html);
+        if (!stats) {
+          throw new Error(`Failed to parse WuWa statistics from HTML for ${candidateId}`);
+        }
+
+        return stats;
+      } catch (candidateError) {
+        lastScrapeError = candidateError;
+        console.warn(`[WuWa] Candidate ${candidateId} failed:`, candidateError.message);
+      }
     }
-    
-    const html = await response.text();
-    
-    console.log('[WuWa] HTML length:', html.length);
-    
-    // Parse the HTML using the ADAPTIVE parser (self-healing)
-    const stats = parseWuWaHTML_Adaptive(html);
-    
-    if (!stats) {
-      throw new Error('Failed to parse WuWa statistics from HTML');
-    }
-    
-    return stats;
+
+    throw lastScrapeError || new Error('Failed to fetch WuWa statistics');
   } catch (error) {
     console.error('[WuWa] Fetch error:', error);
     throw new Error(`FETCH FAILED: ${error.message}`);
@@ -1758,7 +1843,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v3';
+  const CACHE_KEY = 'wuwa_live_banners_cache_v4'; // bumped: Hiyuki/Frostburn override
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -1820,7 +1905,15 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       const poolType = typeMatch ? typeMatch[1].toLowerCase() : '';
       
       const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
-      const bannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
+      const rawBannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
+      
+      // Apply known-banner name overrides (same as server-side WUWA_KNOWN_BANNERS)
+      const WUWA_CLIENT_KNOWN_NAMES = {
+        '100036': 'Hiyuki', '200036': 'Frostburn', '101036': 'Frostburn',
+        '100035': 'Lynae', '200035': 'Spectrum Blaster', '101035': 'Spectrum Blaster',
+        '100034': 'Sigrika', '200034': 'Solsworn Ciphers', '101034': 'Solsworn Ciphers',
+      };
+      const bannerName = WUWA_CLIENT_KNOWN_NAMES[bannerId] || rawBannerName;
       
       // Skip standard banner
       if (bannerName.toLowerCase().includes('standard')) continue;

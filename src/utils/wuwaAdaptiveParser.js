@@ -26,18 +26,48 @@ function validateWuWaData(data) {
   }
   
   const { stats } = data;
+  const pullsByRoll = stats.by_rollnum_pulls_5 || {};
+  const chanceByRoll = stats.by_rollnum_chance_5 || {};
   
   // Check we have histogram data
-  const histogramSize = Object.keys(stats.by_rollnum_pulls_5 || {}).length;
+  const histogramSize = Object.keys(pullsByRoll).length;
   if (histogramSize < 50) {
     console.warn('[WuWa Validator] Histogram too small:', histogramSize, 'rolls');
     return false;
   }
-  
-  // Check that percentages sum to approximately 1.0
-  const totalChance = Object.values(stats.by_rollnum_chance_5 || {}).reduce((sum, c) => sum + c, 0);
-  if (totalChance < 0.5 || totalChance > 1.5) {
-    console.warn('[WuWa Validator] Total chance sum out of range:', totalChance);
+
+  const totalPulls = Number(stats.total_pulls_5 || 0);
+  if (!Number.isFinite(totalPulls) || totalPulls <= 0) {
+    console.warn('[WuWa Validator] Invalid total pulls:', stats.total_pulls_5);
+    return false;
+  }
+
+  const histogramSum = Object.values(pullsByRoll).reduce((sum, value) => sum + Number(value || 0), 0);
+  if (Math.abs(histogramSum - totalPulls) > 1) {
+    console.warn('[WuWa Validator] Histogram sum mismatch:', { histogramSum, totalPulls });
+    return false;
+  }
+
+  const chanceEntries = Object.entries(chanceByRoll);
+  if (chanceEntries.length !== histogramSize) {
+    console.warn('[WuWa Validator] Chance/pull key count mismatch:', {
+      histogramSize,
+      chanceSize: chanceEntries.length,
+    });
+    return false;
+  }
+
+  for (const [roll, chance] of chanceEntries) {
+    const numericChance = Number(chance);
+    if (!Number.isFinite(numericChance) || numericChance < 0 || numericChance > 1) {
+      console.warn('[WuWa Validator] Invalid conditional chance:', { roll, chance });
+      return false;
+    }
+  }
+
+  const pullEntries = Object.entries(pullsByRoll);
+  if (pullEntries.some(([roll, count]) => !Number.isFinite(Number(count)) || Number(count) < 0)) {
+    console.warn('[WuWa Validator] Invalid pull count detected');
     return false;
   }
   
@@ -193,40 +223,45 @@ function parseStrategy_v3(html) {
 }
 
 function buildWuWaStats(histogramData, itemData, imageUrl = null) {
-  const histogramEntries = Object.entries(histogramData);
-  const histogramSum = histogramEntries.reduce((sum, [, c]) => sum + parseInt(c, 10), 0);
-  let total_pulls_5 = histogramSum;
-  
-  if (itemData) {
-    const items = Object.entries(itemData)
-      .map(([name, count]) => ({ name, count: parseInt(count, 10) }))
-      .filter(item => !isNaN(item.count) && item.count > 0)
-      .sort((a, b) => b.count - a.count);
-    
-    if (items.length > 0) {
-      const featuredCount = items[0].count;
-      const isWeapon = items.length <= 4;
-      const estimatedTotal = isWeapon ? Math.floor(featuredCount * 1.5) : featuredCount * 2;
-      
-      // Sanity-check against histogram sum
-      const ratio = estimatedTotal / histogramSum;
-      total_pulls_5 = (ratio >= 0.5 && ratio <= 2.0) ? estimatedTotal : histogramSum;
-    }
-  }
+  const histogramEntries = Object.entries(histogramData)
+    .map(([pity, count]) => ({ roll: parseInt(pity, 10), count: parseInt(count, 10) }))
+    .filter(e => !isNaN(e.roll) && !isNaN(e.count))
+    .sort((a, b) => a.roll - b.roll);
+
+  const histogramSum = histogramEntries.reduce((sum, e) => sum + e.count, 0);
   
   const by_rollnum_pulls_5 = {};
   const by_rollnum_chance_5 = {};
-  for (const [pity, count] of histogramEntries) {
-    const roll = parseInt(pity, 10);
-    const pullCount = parseInt(count, 10);
-    by_rollnum_pulls_5[roll] = pullCount;
-    by_rollnum_chance_5[roll] = total_pulls_5 > 0 ? pullCount / total_pulls_5 : 0;
+  
+  // Calculate Conditional Probability (Rate) for each pity step
+  // This matches the standard used by Svarog/SRS/WuWa Tracker charts
+  let remainingPulls = histogramSum;
+  for (const entry of histogramEntries) {
+    by_rollnum_pulls_5[entry.roll] = entry.count;
+    // P(pull at N | reached N) = Pulls(N) / Sum(Pulls(i) for i >= N)
+    by_rollnum_chance_5[entry.roll] = remainingPulls > 0 ? entry.count / remainingPulls : 0;
+    
+    remainingPulls -= entry.count;
+  }
+  
+  let finalItems = [];
+  if (itemData) {
+    finalItems = Object.entries(itemData)
+      .map(([name, count]) => ({ name, count: parseInt(count, 10) }))
+      .filter(item => !isNaN(item.count) && item.count > 0)
+      .sort((a, b) => b.count - a.count);
   }
   
   return {
-    stats: { by_rollnum_pulls_5, by_rollnum_chance_5, total_pulls_5, count_win_5: 0, count_lose_5: 0 },
+    stats: { 
+      by_rollnum_pulls_5, 
+      by_rollnum_chance_5, 
+      total_pulls_5: histogramSum, 
+      count_win_5: 0, 
+      count_lose_5: 0 
+    },
     image: imageUrl,
-    list: []
+    list: finalItems
   };
 }
 

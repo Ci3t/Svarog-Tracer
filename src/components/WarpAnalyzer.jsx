@@ -265,6 +265,19 @@ export default function WarpAnalyzer({ sessionTheme }) {
     return banners.find(b => b.id === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
   }, [banners, selectedBannerId, activeBanners]);
 
+  // Soft pity varies by game and banner type
+  const softPityStart = selectedGame === 'wuwa'
+    ? (bannerType === 'character' ? 70 : 63)
+    : selectedGame === 'genshin'
+      ? (bannerType === 'character' ? 74 : 63)
+      : (bannerType === 'character' ? 75 : 65);
+  const softPityEnd = selectedGame === 'wuwa'
+    ? 80
+    : selectedGame === 'genshin'
+      ? (bannerType === 'character' ? 90 : 80)
+      : (bannerType === 'character' ? 90 : 80);
+  const hardPity = selectedGame === 'wuwa' ? 80 : 90;
+
   // Calculate 50/50 win rate from API data
   const winRate = useMemo(() => {
     if (!data || !data.stats) return null;
@@ -292,24 +305,26 @@ export default function WarpAnalyzer({ sessionTheme }) {
     console.log('Total 5* Wins:', data.stats.count_win_5);
     console.log('Total 5* Losses:', data.stats.count_lose_5);
 
-    const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5 });
+    const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5, softPityStart, softPityEnd });
     console.log('All Detected Peaks:', peaks.map(p => `Roll ${p.roll} (${(p.chance * 100).toFixed(2)}%)`));
 
     const metrics = calculateWarpMetrics(data.stats);
     console.log('===================================\n');
 
     return { peaks, metrics };
-  }, [data, selectedBannerId]);
+  }, [data, selectedBannerId, softPityStart, softPityEnd]);
 
   // Wins-only analysis (Elite filter for "purer" results)
   const winsOnlyAnalysis = useMemo(() => {
     if (!winsOnlyData) return null;
     const peaks = detectLuckyPeaks(winsOnlyData.winsOnlyPulls5, winsOnlyData.winsOnlyChance5, {
       topN: 2,      // 2 peaks per segment (better balance)
-      minZScore: 0.75 // Moderate lucky threshold
+      minZScore: 0.75, // Moderate lucky threshold
+      softPityStart,
+      softPityEnd
     });
     return { peaks, winRatioPct: winsOnlyData.winRatioPct };
-  }, [winsOnlyData]);
+  }, [winsOnlyData, softPityStart, softPityEnd]);
 
   // Active analysis based on mode (Wins only is restricted to Genshin)
   const isWinsOnlyActive = winsOnlyMode && selectedGame === 'genshin';
@@ -328,12 +343,12 @@ export default function WarpAnalyzer({ sessionTheme }) {
       ? winsOnlyData.winsOnlyChance5
       : data.stats.by_rollnum_chance_5 || {};
 
-    return Array.from({ length: 90 }, (_, i) => ({
+    return Array.from({ length: hardPity }, (_, i) => ({
       roll: i + 1,
       count: pulls5[i + 1] || 0,
       chance: chance5[i + 1] || 0
     }));
-  }, [data, winsOnlyMode, winsOnlyData, selectedGame]);
+  }, [data, winsOnlyMode, winsOnlyData, selectedGame, hardPity]);
 
   const maxCount = useMemo(() => Math.max(...chartData.map(d => d.count), 1), [chartData]);
   const maxChance = useMemo(() => Math.max(...chartData.map(d => d.chance), 0.001), [chartData]);
@@ -397,22 +412,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
       }
     }
     return strategy;
-  }, [activeAnalysis]);
+  }, [activeAnalysis, hardPity]);
 
-  // Soft pity varies by game and banner type
-  // HSR: Characters 75-90, Light Cones 65-80
-  // Genshin: Characters 74-90, Weapons 63-80
-  // WuWa: Characters 70-80, Weapons 63-80
-  const softPityStart = selectedGame === 'wuwa'
-    ? (bannerType === 'character' ? 70 : 63)
-    : selectedGame === 'genshin'
-      ? (bannerType === 'character' ? 74 : 63)
-      : (bannerType === 'character' ? 75 : 65);
-  const softPityEnd = selectedGame === 'wuwa'
-    ? 80
-    : selectedGame === 'genshin'
-      ? (bannerType === 'character' ? 90 : 80)
-      : (bannerType === 'character' ? 90 : 80);
 
   const shortcutString = useMemo(() => {
     const peaks = activeAnalysis?.peaks || [];
@@ -422,10 +423,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
     // This ensures pity rolls are shown in the lucky string
     // Include ALL peaks up to hard pity (90) to match Discord bot behavior
     // This ensures pity rolls are shown in the lucky string
-    const hardPity = selectedGame === 'wuwa'
-      ? 80
-      : 90; // Unified hard pity cap (allows 81-90 for LC outliers)
-
     const allPeaks = peaks.filter(p => p.roll <= hardPity).sort((a, b) => a.roll - b.roll);
     if (allPeaks.length === 0) return { string: "---", pity: [], path: [] };
 
@@ -806,9 +803,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
                           const height = Math.max((val / max) * 100, 2);
                           const peakInfo = activeAnalysis?.peaks?.find(p => p.roll === d.roll);
                           const isPeak = !!peakInfo;
-                          // Soft pity: Characters 75-90, Light Cones 65-80
-                          const softPityStart = bannerType === 'light_cone' ? 65 : 75;
-                          const softPityEnd = bannerType === 'light_cone' ? 80 : 90;
                           const highlighting = d.roll >= softPityStart && d.roll <= softPityEnd;
                           const zScore = peakInfo ? peakInfo.zScore : null;
 
