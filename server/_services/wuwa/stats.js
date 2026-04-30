@@ -5,6 +5,21 @@
 
 import { parseWuWaHTML_Adaptive } from '../../utils/wuwaAdaptiveParser.js';
 
+const WUWA_FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function buildBannerIdCandidates(id) {
   const normalized = String(id || '').trim();
   if (!/^\d{6}$/.test(normalized)) return [normalized];
@@ -46,7 +61,7 @@ export async function handler(req, res) {
       let html = null;
 
       try {
-          const directRes = await fetch(statsUrl, {
+          const directRes = await fetchWithTimeout(statsUrl, {
               headers: {
                   'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0; +https://ci3t.github.io/Svarog-Tracer)',
                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -74,7 +89,7 @@ export async function handler(req, res) {
           for (const proxyFormat of PROXIES) {
               try {
                   const proxyUrl = proxyFormat(statsUrl);
-                  const proxyRes = await fetch(proxyUrl, {
+                  const proxyRes = await fetchWithTimeout(proxyUrl, {
                       headers: {
                           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                       }

@@ -5,21 +5,27 @@
 import { API_BASE_URL } from './apiBase';
 
 const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
+const API_FETCH_TIMEOUT_MS = 12000;
 
 /**
  * Generic fetch wrapper with error handling
  */
 async function apiFetch(endpoint, options = {}) {
   const url = `${BACKEND_API_BASE_URL}${endpoint}`;
+  const controller = new AbortController();
+  const timeoutMs = Number(options.timeoutMs || API_FETCH_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
     const response = await fetch(url, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
     });
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -28,6 +34,10 @@ async function apiFetch(endpoint, options = {}) {
     
     return await response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error?.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
     console.error(`[API Client] Error fetching ${endpoint}:`, error);
     throw error;
   }
