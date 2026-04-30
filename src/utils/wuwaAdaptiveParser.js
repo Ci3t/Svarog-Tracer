@@ -197,6 +197,7 @@ function buildWuWaStats(histogramData, itemData, imageUrl = null) {
   const histogramSum = histogramEntries.reduce((sum, [, c]) => sum + parseInt(c, 10), 0);
   let total_pulls_5 = histogramSum;
   
+  let finalItems = [];
   if (itemData) {
     const items = Object.entries(itemData)
       .map(([name, count]) => ({ name, count: parseInt(count, 10) }))
@@ -204,13 +205,12 @@ function buildWuWaStats(histogramData, itemData, imageUrl = null) {
       .sort((a, b) => b.count - a.count);
     
     if (items.length > 0) {
-      const featuredCount = items[0].count;
-      const isWeapon = items.length <= 4;
-      const estimatedTotal = isWeapon ? Math.floor(featuredCount * 1.5) : featuredCount * 2;
+      finalItems = items;
+      const realTotal = items.reduce((sum, item) => sum + item.count, 0);
       
       // Sanity-check against histogram sum
-      const ratio = estimatedTotal / histogramSum;
-      total_pulls_5 = (ratio >= 0.5 && ratio <= 2.0) ? estimatedTotal : histogramSum;
+      const ratio = realTotal / histogramSum;
+      total_pulls_5 = (ratio >= 0.5 && ratio <= 2.0) ? realTotal : histogramSum;
     }
   }
   
@@ -220,13 +220,14 @@ function buildWuWaStats(histogramData, itemData, imageUrl = null) {
     const roll = parseInt(pity, 10);
     const pullCount = parseInt(count, 10);
     by_rollnum_pulls_5[roll] = pullCount;
+    // Always use exact total_pulls_5 for accurate percentages relative to actual pulls
     by_rollnum_chance_5[roll] = total_pulls_5 > 0 ? pullCount / total_pulls_5 : 0;
   }
   
   return {
     stats: { by_rollnum_pulls_5, by_rollnum_chance_5, total_pulls_5, count_win_5: 0, count_lose_5: 0 },
     image: imageUrl,
-    list: []
+    list: finalItems
   };
 }
 
