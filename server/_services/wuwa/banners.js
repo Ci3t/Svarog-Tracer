@@ -52,6 +52,21 @@ const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
   weapon: '200036',
 });
 
+const WUWA_FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function compareWuWaBannerIdsDesc(a, b) {
   return Number.parseInt(String(b?.bannerId || b?.id || '0'), 10) - Number.parseInt(String(a?.bannerId || a?.id || '0'), 10);
 }
@@ -231,7 +246,7 @@ export async function handler(req, res) {
     console.log('[WuWa Banners API] Fetching live banners...');
     
     // Add cache buster to prevent stale Vercel/Tracker responses
-    const response = await fetch(`https://wuwatracker.com/tracker/stats?t=${Date.now()}`, {
+    const response = await fetchWithTimeout(`https://wuwatracker.com/tracker/stats?t=${Date.now()}`, {
       headers: { 'Cache-Control': 'no-cache' }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
