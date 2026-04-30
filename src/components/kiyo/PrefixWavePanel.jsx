@@ -1,459 +1,426 @@
 ﻿import React, { useMemo } from 'react';
+import { analyzeKiyoExplicitPairs, KIYO_EXACT_ROLLS, KIYO_XY_COLUMNS } from '../../utils/kiyoExplicitPairEngine';
 
 const PREFIXES = ['41', '42', '43', '44'];
-const Z_DIGITS = ['1', '2', '3', '4'];
 
-// Fixed column order — always L/H · O/I · O/E left→right
-const COL_PAIRINGS = [
-  { name: 'Low/High',    short: 'L/H', pairA: ['1','2'], pairALabel: 'Low',   pairB: ['3','4'], pairBLabel: 'High'  },
-  { name: 'Outer/Inner', short: 'O/I', pairA: ['1','4'], pairALabel: 'Outer', pairB: ['2','3'], pairBLabel: 'Inner' },
-  { name: 'Odd/Even',    short: 'O/E', pairA: ['1','3'], pairALabel: 'Odd',   pairB: ['2','4'], pairBLabel: 'Even'  },
-];
+function pct(value) {
+  return `${Math.round((Number(value) || 0) * 100)}%`;
+}
 
-const ACT = {
-  FLIP: { color: '#f59e0b', dim: 'rgba(245,158,11,0.07)', edge: 'rgba(245,158,11,0.22)', label: 'FLIP' },
-  HOLD: { color: '#22c55e', dim: 'rgba(34,197,94,0.06)',  edge: 'rgba(34,197,94,0.20)',  label: 'HOLD' },
-  WAIT: { color: '#475569', dim: 'rgba(71,85,105,0.04)',  edge: 'rgba(71,85,105,0.12)',  label: 'WAIT' },
-  SKIP: { color: '#334155', dim: 'rgba(51,65,85,0.03)',   edge: 'rgba(51,65,85,0.10)',   label: 'SKIP' },
-};
+function scoreTone(score) {
+  if (score >= 0.72) return '#34d399';
+  if (score >= 0.52) return '#fbbf24';
+  if (score >= 0.34) return '#fb7185';
+  return '#64748b';
+}
 
-// ── Frequency rank ────────────────────────────────────────────────────────────
-function FreqRank({ prefix, zDigits }) {
-  const total = zDigits.length;
-  const counts = { '1': 0, '2': 0, '3': 0, '4': 0 };
-  zDigits.forEach(z => { if (counts[z] !== undefined) counts[z]++; });
-  const ranked = [...Z_DIGITS].sort((a, b) => counts[b] - counts[a]);
+function countTone(count, max) {
+  if (!count) return '#475569';
+  if (count === max) return '#34d399';
+  if (count >= Math.max(2, max - 1)) return '#fbbf24';
+  return '#fb923c';
+}
 
-  if (!total) {
-    return <div style={{ padding: '14px 16px', fontSize: '12px', color: '#1e293b', textAlign: 'center' }}>no rolls yet</div>;
+function boxBase(extra = {}) {
+  return {
+    border: '1px solid rgba(148,163,184,0.16)',
+    borderRadius: '8px',
+    background: '#100d12',
+    ...extra,
+  };
+}
+
+function pickPanel(isMain = false) {
+  return {
+    border: `1px solid ${isMain ? 'rgba(251,0,88,0.64)' : 'rgba(148,163,184,0.18)'}`,
+    borderRadius: '7px',
+    padding: '8px',
+    background: isMain ? '#251019' : '#151217',
+  };
+}
+
+function ExactPredictor({ read }) {
+  const picks = [read.activeCandidates?.[0], read.activeCandidates?.[1], read.activeCandidates?.[2]].filter(Boolean);
+  if (!read.valid || !picks.length) {
+    return (
+      <div style={boxBase({ padding: '12px' })}>
+        <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>3 String Predictor</div>
+        <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b' }}>Need 3+ rolls. Best read starts around 6-8 live rolls.</div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '10px 16px 12px' }}>
-      {ranked.map((z, rank) => {
-        const pct = Math.round(counts[z] / total * 100);
-        const isPopular = rank < 2;
-        return (
-          <div key={z} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: rank < 3 ? '5px' : 0 }}>
-            <span style={{ fontSize: '10px', color: '#1e293b', width: '10px', flexShrink: 0 }}>{rank + 1}</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'monospace', width: '30px', flexShrink: 0, color: isPopular ? '#4ade80' : '#fb923c' }}>
-              {prefix}{z}
-            </span>
-            <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', borderRadius: '2px', background: isPopular ? 'rgba(74,222,128,0.45)' : 'rgba(251,146,60,0.35)' }} />
-            </div>
-            <span style={{ fontSize: '11px', color: '#475569', width: '30px', textAlign: 'right', flexShrink: 0 }}>{pct}%</span>
-            <span style={{ fontSize: '10px', width: '62px', flexShrink: 0, color: isPopular ? '#4ade80' : '#fb923c' }}>
-              {isPopular ? 'Popular' : 'Unpopular'}
-            </span>
+    <div style={boxBase({ padding: '12px' })}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
+        <div>
+        <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>3 String Predictor</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+            {read.previewPrefix ? `Reading ${read.previewPrefix}x from live input.` : 'Type a 2-digit prefix like 42 to read that lane.'}
           </div>
-        );
-      })}
+        </div>
+        {read.warmup && <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 900 }}>warm-up read</div>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        {picks.slice(0, 2).map((pick, idx) => (
+          <div key={pick.roll} style={pickPanel(idx === 0)}>
+            <div style={{ fontSize: '9px', color: idx === 0 ? '#ff4f8b' : '#94a3b8', fontWeight: 900, letterSpacing: '0.8px' }}>
+              {idx === 0 ? 'MAIN' : 'ALT'}
+            </div>
+            <div style={{ marginTop: '3px', fontSize: idx === 0 ? '24px' : '19px', color: '#f8fafc', fontWeight: 950, fontFamily: 'monospace' }}>{pick.roll}</div>
+            <div style={{ marginTop: '5px', color: scoreTone(pick.score), fontSize: '13px', fontWeight: 900 }}>{pct(pick.score)}</div>
+            <div style={{ marginTop: '4px', fontSize: '10px', color: '#64748b' }}>
+              seen x{pick.exactCount} · age {pick.age >= 20 ? 'new' : `${pick.age}r`}
+            </div>
+          </div>
+        ))}
+      </div>
+      {picks[2] && (
+        <div style={{ marginTop: '7px', padding: '6px 8px', border: '1px solid rgba(148,163,184,0.12)', borderRadius: '7px', background: '#151217', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+          <span>Watch only</span>
+          <span style={{ fontFamily: 'monospace', color: '#f8fafc', fontWeight: 900 }}>{picks[2].roll} · {pct(picks[2].score)}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Pairing pattern table ─────────────────────────────────────────────────────
-function PairingPatternTable({ analysis, prefixRolls, zDigits }) {
-  if (!prefixRolls.length) return null;
-
-  const hasData   = !!(analysis?.hasData && analysis?.allPairings?.length);
-  const bestName  = analysis?.pairingName ?? null;
-  const runLength = analysis?.runLength ?? 0;
-
-  // Merge COL_PAIRINGS with scored analysis data + per-pairing prediction
-  const colMeta = COL_PAIRINGS.map(cp => {
-    const scored = analysis?.allPairings?.find(p => p.pairing.name === cp.name);
-    const pred   = analysis?.perPairingPred?.find(p => p.pairingName === cp.name);
-    return { ...cp, score: scored?.score ?? 0, n: scored?.n ?? null, pred };
-  });
-
-  // Show last 20 rolls
-  const displayRolls   = prefixRolls.slice(-20);
-  const displayZDigits = zDigits.slice(-20);
-  const totalLen       = zDigits.length;
-  const displayStart   = totalLen - displayRolls.length;
-  const currentRunStart = Math.max(0, totalLen - runLength);
-
-  // Row separators on best-pairing side changes
-  const bestColDef = colMeta.find(c => c.name === bestName);
-  const flipRows   = new Set();
-  if (bestColDef) {
-    let prev = null;
-    displayZDigits.forEach((z, i) => {
-      const side = bestColDef.pairA.includes(z) ? 'A' : 'B';
-      if (prev !== null && side !== prev) flipRows.add(i);
-      prev = side;
-    });
-  }
-
+function XyPairTracker({ read }) {
+  const lead = read.xyRows[0];
+  const second = read.xyRows[1];
+  const patternLead = [...(read.xyRows || [])].sort((a, b) => b.pattern.confidence - a.pattern.confidence)[0];
+  const tableWarns = patternLead && patternLead.pattern.targetSide !== patternLead.side && patternLead.pattern.confidence >= 0.58;
+  const leadState = lead?.action === 'SWITCH' ? 'Break watch' : 'Stay watch';
+  const leadHelp = lead?.action === 'SWITCH'
+    ? `Current pair is ${lead.currentLabel || 'unclear'}. Watch ${lead.targetLabel} as the break pair.`
+    : `Current pair is ${lead.currentLabel || lead.targetLabel}. Stay with it unless the timeline flips.`;
+  const backupText = second
+    ? `Backup: ${second.targetLabel} if this pair fails.`
+    : 'Backup appears after more rolls.';
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '340px' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#0a0e14' }}>
-          <tr>
-            <th style={{
-              padding: '6px 10px', fontSize: '10px', fontWeight: 500, color: '#1e293b',
-              textAlign: 'left', letterSpacing: '0.5px',
-              borderBottom: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap',
-            }}>roll</th>
-            {colMeta.map(col => {
-              const isBest = col.name === bestName;
-              const sc     = Math.round((col.score ?? 0) * 100);
-              // Per-pairing next prediction arrow
-              const pred   = col.pred;
-              const predLabel = pred ? pred.nextLabel : null;
-              const predIsA   = pred ? pred.nextSide === 'A' : null;
-              return (
-                <th key={col.name} style={{
-                  padding: '6px 6px', textAlign: 'center', minWidth: '62px',
-                  borderBottom: `2px solid ${isBest ? 'rgba(251,191,36,0.55)' : 'rgba(255,255,255,0.06)'}`,
-                  background: isBest ? 'rgba(251,191,36,0.03)' : 'transparent',
-                }}>
-                  {isBest && (
-                    <div style={{ fontSize: '7px', color: 'rgba(251,191,36,0.55)', letterSpacing: '0.4px', marginBottom: '1px' }}>FOLLOW</div>
-                  )}
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: isBest ? '#fbbf24' : '#334155', marginBottom: '2px' }}>
-                    {col.short}{isBest ? ' ★' : ''}
-                  </div>
-                  {hasData && (
-                    <div style={{ fontSize: '9px', color: isBest ? 'rgba(251,191,36,0.65)' : '#1e293b' }}>
-                      {sc}%{col.n ? ` N${col.n}` : ''}
-                    </div>
-                  )}
-                  {/* Next-side arrow from per-pairing prediction */}
-                  {predLabel && (
-                    <div style={{
-                      marginTop: '3px', fontSize: '9px', fontWeight: isBest ? 800 : 700,
-                      color: predIsA ? '#4ade80' : '#fb923c',
-                    }}>next: {predLabel}</div>
-                  )}
+    <div style={boxBase({ padding: '12px' })}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>2 String Pair Tracker</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Column read before choosing Z.</div>
+        </div>
+        <div style={{ fontSize: '10px', color: '#64748b' }}>green = pointed side</div>
+      </div>
+      {lead && (
+        <div style={{
+          marginBottom: '8px',
+          padding: '8px 9px',
+          borderRadius: '7px',
+          border: `1px solid ${tableWarns ? 'rgba(251,191,36,0.38)' : 'rgba(52,211,153,0.28)'}`,
+          background: tableWarns ? '#21170d' : '#0f211c',
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '10px',
+          alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: '10px', color: tableWarns ? '#fbbf24' : '#34d399', fontWeight: 900 }}>
+              {tableWarns ? 'Table warning' : 'Main read confirmed'}
+            </div>
+            <div style={{ marginTop: '2px', fontSize: '11px', color: '#cbd5e1' }}>
+              {tableWarns
+                ? `${patternLead.name} rhythm points to ${patternLead.pattern.targetLabel}; keep ${lead.targetLabel} first, but be ready for that break.`
+                : `Predictor and table rhythm both support ${lead.targetLabel}.`}
+            </div>
+          </div>
+          <div style={{ fontSize: '13px', color: tableWarns ? '#fbbf24' : '#34d399', fontWeight: 950, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+            {tableWarns ? patternLead.pattern.targetLabel : lead.targetLabel}
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'grid', gap: '6px' }}>
+        {read.xyRows.map((row, idx) => {
+          const leftLive = row.side === 'left';
+          return (
+            <div key={row.key} style={{
+              display: 'grid', gridTemplateColumns: '64px 1fr 82px', gap: '8px', alignItems: 'center',
+              padding: '7px 9px', borderRadius: '7px',
+              border: `1px solid ${idx === 0 ? 'rgba(251,0,88,0.52)' : 'rgba(148,163,184,0.14)'}`,
+              background: idx === 0 ? '#251019' : '#151217',
+            }}>
+              <div>
+                <div style={{ fontSize: '10px', color: idx === 0 ? '#ff4f8b' : '#94a3b8', fontWeight: 900 }}>{row.name}</div>
+                <div style={{ fontSize: '10px', color: '#64748b' }}>{row.action === 'SWITCH' ? 'break' : 'stay'}</div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 900 }}>
+                  <span style={{ color: leftLive ? '#34d399' : '#fb923c' }}>{row.leftLabel}</span>
+                  <span style={{ color: '#475569', margin: '0 8px' }}>vs</span>
+                  <span style={{ color: !leftLive ? '#34d399' : '#fb923c' }}>{row.rightLabel}</span>
+                </div>
+                <div style={{ marginTop: '5px', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                  <div style={{ width: pct(row.score), height: '100%', background: idx === 0 ? '#fb0058' : '#64748b' }} />
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', color: scoreTone(row.score), fontWeight: 900, fontSize: '11px' }}>
+                {pct(row.score)}
+                <div style={{ color: '#64748b', fontWeight: 800, fontSize: '10px' }}>{row.runLength} roll run</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {lead && (
+        <div style={{
+          marginTop: '8px',
+          padding: '10px',
+          borderRadius: '7px',
+          border: '1px solid rgba(251,0,88,0.48)',
+          background: '#251019',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}>
+          <div>
+            <div style={{ fontSize: '10px', color: '#ff4f8b', fontWeight: 900, letterSpacing: '0.8px' }}>{lead.name} · 2 STRING PREDICTOR</div>
+            <div style={{ marginTop: '4px', fontSize: '16px', color: '#f8fafc', fontWeight: 950 }}>
+              {leadState}: <span style={{ color: '#34d399', fontFamily: 'monospace' }}>{lead.targetLabel}</span>
+            </div>
+            <div style={{ marginTop: '3px', fontSize: '11px', color: '#94a3b8' }}>{leadHelp}</div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '11px', color: '#94a3b8' }}>
+            <span style={{ color: scoreTone(lead.score), fontSize: '16px', fontWeight: 950 }}>{pct(lead.score)}</span>
+            <div style={{ marginTop: '2px', color: '#64748b' }}>{backupText}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TwoStringPatternRecognition({ read }) {
+  const rows = [...(read.xyRows || [])].sort((a, b) => b.pattern.confidence - a.pattern.confidence).slice(0, 3);
+  return (
+    <div style={boxBase({ padding: '10px', marginTop: '8px' })}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>2 String Pattern Recognition</div>
+        <div style={{ fontSize: '10px', color: '#64748b' }}>same = confirms · warning = possible break</div>
+      </div>
+      <div style={{ display: 'grid', gap: '6px' }}>
+        {rows.map((row, idx) => {
+          const matchesMain = row.pattern.targetSide === row.side;
+          const relationLabel = matchesMain ? 'same as pick' : 'table warning';
+          return (
+            <div key={row.key} style={{
+              display: 'grid',
+              gridTemplateColumns: '72px 1fr 62px',
+              gap: '8px',
+              alignItems: 'center',
+              padding: '7px 8px',
+              borderRadius: '7px',
+              border: `1px solid ${idx === 0 ? 'rgba(52,211,153,0.34)' : 'rgba(148,163,184,0.14)'}`,
+              background: idx === 0 ? '#10251f' : '#151217',
+            }}>
+              <div>
+                <div style={{ fontSize: '10px', color: idx === 0 ? '#34d399' : '#94a3b8', fontWeight: 900 }}>{row.name}</div>
+                <div style={{ fontSize: '10px', color: matchesMain ? '#34d399' : '#fbbf24' }}>{relationLabel}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', color: '#f8fafc', fontWeight: 900, fontFamily: 'monospace' }}>{row.pattern.targetLabel}</div>
+                <div style={{ marginTop: '2px', fontSize: '10px', color: '#94a3b8' }}>{row.pattern.note}</div>
+              </div>
+              <div style={{ textAlign: 'right', color: scoreTone(row.pattern.confidence), fontWeight: 950, fontSize: '12px' }}>{pct(row.pattern.confidence)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PairTimeline({ read }) {
+  const recent = read.recent.slice(-10).reverse();
+  return (
+    <div style={boxBase({ overflow: 'hidden' })}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>2 String Lane Timeline</div>
+        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>#1 is newest. Green = roll belongs to the first pair in that column.</div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: '470px', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ width: '34px', padding: '7px', color: '#94a3b8', fontSize: '10px', textAlign: 'left' }}>#</th>
+              {KIYO_XY_COLUMNS.map((column) => {
+                const isLead = read.xyRows[0]?.key === column.key;
+                return (
+                <th key={column.key} style={{ padding: '7px', color: isLead ? '#ff4f8b' : '#cbd5e1', fontSize: '11px', textAlign: 'center', borderLeft: '1px solid rgba(251,146,60,0.14)', background: isLead ? '#251019' : '#151217' }}>
+                  {column.name}<div style={{ color: '#64748b', fontSize: '9px' }}>{column.leftLabel} / {column.rightLabel}</div>
                 </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((roll, idx) => {
+              const prefix = roll.slice(0, 2);
+              return (
+                <tr key={`${roll}-${idx}`}>
+                  <td style={{ padding: '6px 7px', color: '#64748b', fontSize: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>{idx + 1}</td>
+                  {KIYO_XY_COLUMNS.map((column) => {
+                    const hit = column.left.includes(prefix);
+                    const isLead = read.xyRows[0]?.key === column.key;
+                    return (
+                      <td key={column.key} style={{
+                        padding: '6px 7px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 900,
+                        color: hit ? '#34d399' : '#fb923c',
+                        background: isLead
+                          ? (hit ? '#0d3328' : '#2a1b12')
+                          : (hit ? '#10251f' : '#1b1410'),
+                        borderLeft: '1px solid rgba(251,146,60,0.12)',
+                        borderTop: '1px solid rgba(255,255,255,0.05)',
+                      }}>{prefix}</td>
+                    );
+                  })}
+                </tr>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {displayZDigits.map((z, i) => {
-            const absIdx       = displayStart + i;
-            const inCurrentRun = absIdx >= currentRunStart;
-            const hasBoundary  = flipRows.has(i);
-            return (
-              <tr key={i} style={{
-                borderTop: hasBoundary ? '1px solid rgba(255,255,255,0.09)' : undefined,
-                background: inCurrentRun ? 'rgba(255,255,255,0.012)' : 'transparent',
-              }}>
-                <td style={{
-                  padding: '4px 10px', fontSize: '12px', fontFamily: 'monospace', fontWeight: 600,
-                  color: inCurrentRun ? '#64748b' : '#1e293b',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap',
-                }}>{displayRolls[i]}</td>
-                {colMeta.map(col => {
-                  const isBestCol = col.name === bestName;
-                  const side  = col.pairA.includes(z) ? 'A' : 'B';
-                  const label = side === 'A' ? col.pairALabel : col.pairBLabel;
-                  const isA   = side === 'A';
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PrefixSeedAssist({ read }) {
+  return (
+    <div style={boxBase({ padding: '10px 12px' })}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>Seed Assist</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+            Live rolls: {read.liveRollCount}. Seed rolls: {read.seedRollCount}. Seed weight {Math.round(read.seedWeight * 100)}%; disabled after 5 live rolls.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {read.prefixSummary.slice(0, 4).map((row) => (
+            <span key={row.prefix} style={{ fontSize: '11px', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '5px 8px', fontFamily: 'monospace' }}>
+              {row.prefix}x <span style={{ color: countTone(row.count, read.prefixSummary[0]?.count || 1) }}>x{row.count}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function XyzPairTracker({ read }) {
+  const prefix = read.previewPrefix;
+  const rows = prefix
+    ? read.candidates.filter((candidate) => candidate.prefix === prefix).slice(0, 4)
+    : [];
+
+  return (
+    <div style={boxBase({ padding: '12px' })}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>3 String Pair Tracker</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+            {prefix ? `Checks the ${prefix}x table and ranks which Z comes next.` : 'Type 41, 42, 43, or 44 to target a lane.'}
+          </div>
+        </div>
+        {prefix && <div style={{ fontSize: '11px', color: '#ff4f8b', fontWeight: 900, fontFamily: 'monospace' }}>{prefix}x</div>}
+      </div>
+      {rows.length ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+          {rows.map((row, idx) => (
+            <div key={row.roll} style={{
+              ...pickPanel(idx === 0),
+              padding: idx < 2 ? '9px' : '7px',
+            }}>
+              <div style={{ fontSize: '9px', color: idx === 0 ? '#ff4f8b' : idx === 1 ? '#fbbf24' : '#94a3b8', fontWeight: 900 }}>{idx === 0 ? 'MAIN Z' : idx === 1 ? 'ALT Z' : `CHECK ${idx + 1}`}</div>
+              <div style={{ marginTop: '3px', color: '#f8fafc', fontSize: '16px', fontWeight: 950, fontFamily: 'monospace' }}>{row.roll}</div>
+              <div style={{ marginTop: '4px', color: scoreTone(row.score), fontSize: '12px', fontWeight: 900 }}>{pct(row.score)}</div>
+              <div style={{ marginTop: '3px', color: '#64748b', fontSize: '10px' }}>x{row.exactCount} · age {row.age >= 20 ? 'new' : `${row.age}r`}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ color: '#64748b', fontSize: '11px' }}>No lane selected yet.</div>
+      )}
+    </div>
+  );
+}
+
+function XyzBreakdown({ read }) {
+  const maxCount = Math.max(1, ...Object.values(read.exactCounts));
+  const recent = read.recent.slice(-10);
+  return (
+    <div style={boxBase({ overflow: 'hidden' })}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>3 String Breakdown</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Header count color shows which exact rolls are most hit in this session.</div>
+        </div>
+        <div style={{ fontSize: '10px', color: '#64748b' }}>green = row hit · amber = visible reset</div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: '1120px', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ width: '38px', padding: '7px', color: '#94a3b8', fontSize: '10px', textAlign: 'left' }}>#</th>
+              {KIYO_EXACT_ROLLS.map((exact, idx) => {
+                const count = read.exactCounts[exact] || 0;
+                return (
+                  <th key={exact} style={{ padding: '6px 5px', color: '#cbd5e1', fontSize: '11px', fontFamily: 'monospace', textAlign: 'center', borderLeft: idx % 4 === 0 ? '2px solid rgba(251,0,88,0.30)' : '1px solid rgba(255,255,255,0.04)' }}>
+                    {exact}
+                    <div style={{ color: countTone(count, maxCount), fontSize: '10px', marginTop: '2px', fontWeight: 900 }}>x{count}</div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((roll, rowIdx) => (
+              <tr key={`${roll}-${rowIdx}`}>
+                <td style={{ padding: '6px 7px', color: '#64748b', fontSize: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>{rowIdx + 1}</td>
+                {KIYO_EXACT_ROLLS.map((exact, idx) => {
+                  const hit = roll === exact;
                   return (
-                    <td key={col.name} style={{
-                      padding: '4px 6px', textAlign: 'center',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: isBestCol && inCurrentRun ? 'rgba(251,191,36,0.03)' : 'transparent',
-                    }}>
-                      <span style={{
-                        display: 'inline-block', width: '46px', padding: '3px 0',
-                        borderRadius: '2px', fontSize: '11px', fontWeight: 700, textAlign: 'center',
-                        color: isA ? '#4ade80' : '#fb923c',
-                        background: isBestCol
-                          ? (isA ? 'rgba(74,222,128,0.14)' : 'rgba(251,146,60,0.14)')
-                          : (isA ? 'rgba(74,222,128,0.05)' : 'rgba(251,146,60,0.05)'),
-                        border: `1px solid ${isBestCol
-                          ? (isA ? 'rgba(74,222,128,0.28)' : 'rgba(251,146,60,0.28)')
-                          : 'transparent'}`,
-                      }}>{label}</span>
+                    <td key={exact} style={{ padding: '6px 5px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 900, color: hit ? '#34d399' : '#fb923c', background: hit ? '#0d3328' : '#1b1410', borderTop: '1px solid rgba(255,255,255,0.05)', borderLeft: idx % 4 === 0 ? '2px solid rgba(251,0,88,0.26)' : '1px solid rgba(255,255,255,0.035)' }}>
+                      {exact}
                     </td>
                   );
                 })}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-// ── Z-vote prediction badge ───────────────────────────────────────────────────
-// Shows the 1-2 digit prediction produced by the pair-then-narrow algorithm.
-function ZVoteBadge({ prefix, analysis }) {
-  if (!analysis?.hasData || !analysis?.topZDigits?.length || analysis.zVoteMax < 2) return null;
-
-  const { topZDigits, zVoteMax, zPredConfidence } = analysis;
-  const isSingle = topZDigits.length === 1;
-  const confColor = zPredConfidence === 'high' ? '#4ade80' : zPredConfidence === 'medium' ? '#fbbf24' : '#94a3b8';
-  const confBg    = zPredConfidence === 'high' ? 'rgba(74,222,128,0.05)' : 'rgba(251,191,36,0.04)';
-  const confEdge  = zPredConfidence === 'high' ? 'rgba(74,222,128,0.18)' : 'rgba(251,191,36,0.16)';
-  const confLabel = zVoteMax === 3 ? '3/3 agree' : isSingle ? '2/3 tiebreak' : '2/3 coinflip';
-  const mainDigit = topZDigits[0];
-  const altDigit  = topZDigits[1] ?? null;
-
-  return (
-    <div style={{
-      margin: '4px 16px 8px',
-      padding: '8px 12px',
-      background: confBg,
-      border: `1px solid ${confEdge}`,
-      borderRadius: '4px',
-      display: 'flex', alignItems: 'center', gap: '12px',
-    }}>
-      <div>
-        <div style={{ fontSize: '8px', color: '#475569', letterSpacing: '0.8px', marginBottom: '3px' }}>
-          PREDICTED NEXT · {confLabel}
-        </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline' }}>
-          {/* Main prediction — always shown large */}
-          <span style={{
-            fontSize: '22px', fontWeight: 900, fontFamily: 'monospace',
-            color: confColor, letterSpacing: '1px',
-          }}>{prefix}{mainDigit}</span>
-          {/* Alt prediction — shown smaller with ALT tag */}
-          {altDigit && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-              <span style={{ fontSize: '7px', color: '#334155', letterSpacing: '0.5px' }}>ALT</span>
-              <span style={{
-                fontSize: '14px', fontWeight: 700, fontFamily: 'monospace',
-                color: '#475569', letterSpacing: '1px',
-              }}>{prefix}{altDigit}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      {analysis.pairingName && (
-        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{ fontSize: '8px', color: '#334155', marginBottom: '2px' }}>via</div>
-          <div style={{ fontSize: '10px', fontWeight: 600, color: '#fbbf24' }}>
-            {analysis.pairingName}
-          </div>
-        </div>
-      )}
-    </div>
+export default function PrefixWavePanel({ liveRolls, seedRolls, combinedRolls, activePrefix }) {
+  const read = useMemo(
+    () => analyzeKiyoExplicitPairs(liveRolls || combinedRolls || [], { previewPrefix: activePrefix, seedRolls }),
+    [liveRolls, combinedRolls, seedRolls, activePrefix]
   );
-}
-
-// ── One prefix column ─────────────────────────────────────────────────────────
-function PrefixColumn({ prefix, analysis, combinedRolls, activePrefix }) {
-  const isActive  = prefix === activePrefix;
-  const act       = ACT[analysis?.action] ?? ACT.WAIT;
-  const hasData   = !!(analysis?.hasData && analysis?.pairing);
-  const isEmpty   = (analysis?.freq ?? 0) === 0;
-
-  const prefixRolls = useMemo(() =>
-    (combinedRolls ?? []).filter(r => String(r).startsWith(prefix)),
-    [combinedRolls, prefix]
-  );
-  const zDigits = useMemo(() =>
-    prefixRolls.map(r => String(r)[2]).filter(Boolean),
-    [prefixRolls]
-  );
-
-  const targetDigits = analysis?.action === 'FLIP' ? analysis.flipDigits
-    : analysis?.action === 'HOLD' ? analysis.currentDigits : null;
-
-  return (
-    <div style={{
-      border: `1px solid ${isActive ? 'rgba(129,140,248,0.28)' : 'rgba(255,255,255,0.07)'}`,
-      borderRadius: '6px', overflow: 'hidden',
-      opacity: isEmpty ? 0.28 : 1,
-      display: 'flex', flexDirection: 'column',
-    }}>
-
-      {/* Header */}
-      <div style={{
-        padding: '10px 16px',
-        background: isActive ? 'rgba(129,140,248,0.06)' : 'rgba(255,255,255,0.02)',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        display: 'flex', alignItems: 'center', gap: '8px',
-      }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, fontFamily: 'monospace', color: isActive ? '#a5b4fc' : '#64748b' }}>
-          {prefix}x
-        </span>
-        <span style={{ fontSize: '11px', color: '#334155' }}>×{analysis?.freq ?? 0}</span>
-        {isActive && (
-          <span style={{ fontSize: '9px', fontWeight: 700, color: '#818cf8', background: 'rgba(129,140,248,0.12)', padding: '2px 6px', borderRadius: '3px' }}>NOW</span>
-        )}
-        {hasData && targetDigits && (
-          <span style={{
-            marginLeft: 'auto', fontSize: '10px', fontWeight: 700, letterSpacing: '0.8px',
-            color: act.color, padding: '2px 8px',
-            background: act.dim, border: `1px solid ${act.edge}`, borderRadius: '3px',
-          }}>{act.label} {targetDigits.join('')}</span>
-        )}
-        {!hasData && !isEmpty && (
-          <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#1e293b' }}>building…</span>
-        )}
-      </div>
-
-      {/* Frequency rank */}
-      <FreqRank prefix={prefix} zDigits={zDigits} />
-
-      {/* Z-vote prediction */}
-      <ZVoteBadge prefix={prefix} analysis={analysis} />
-
-      {/* Section label */}
-      <div style={{ margin: '0 16px', height: '1px', background: 'rgba(255,255,255,0.06)' }} />
-      <div style={{ padding: '7px 16px 4px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: '#1e293b', letterSpacing: '0.8px' }}>PAIRING ANALYSIS</span>
-          <span style={{ fontSize: '8px', color: '#1e293b' }}>— 3 hypotheses tested</span>
-        </div>
-        <div style={{ fontSize: '8px', color: '#1e293b', marginTop: '2px' }}>
-          ★ = strongest pattern this session · → = next predicted side · focus on ★ column
-        </div>
-      </div>
-
-      {/* Pairing table */}
-      <PairingPatternTable
-        analysis={analysis}
-        prefixRolls={prefixRolls}
-        zDigits={zDigits}
-      />
-
-      {/* Footer */}
-      {hasData && (
-        <div style={{
-          padding: '7px 16px', marginTop: 'auto',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          fontSize: '11px', color: '#334155', display: 'flex', gap: '6px', flexWrap: 'wrap',
-        }}>
-          <span style={{ color: '#fbbf24' }}>★ {analysis.pairingName}</span>
-          <span>N={analysis.dominantN}</span>
-          <span style={{ color: '#475569', marginLeft: 'auto' }}>
-            {Math.round((analysis.confidence ?? 0) * 100)}% conf
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main export ───────────────────────────────────────────────────────────────
-export default function PrefixWavePanel({ prefixWaveData, combinedRolls, activePrefix }) {
-  if (!prefixWaveData) return null;
-
-  const active      = activePrefix ? prefixWaveData.analyses[activePrefix] : null;
-  const activeAct   = active ? (ACT[active.action] ?? ACT.WAIT) : null;
-  const activeTarget = active?.action === 'FLIP' ? active.flipDigits
-    : active?.action === 'HOLD' ? active.currentDigits : null;
-  const activeLabel = active?.action === 'FLIP' ? active.flipLabel
-    : active?.action === 'HOLD' ? active.currentLabel : null;
-  const showBanner  = active?.hasData && activeTarget;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-
-      {/* Active signal banner */}
-      {showBanner && (
-        <div style={{
-          background: activeAct.dim, border: `1px solid ${activeAct.edge}`,
-          borderRadius: '6px', padding: '14px 20px',
-          display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap',
-        }}>
-
-          {/* Block 1: Wave action */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <div style={{ fontSize: '8px', color: '#334155', letterSpacing: '0.8px' }}>WAVE SIGNAL · {activePrefix}x</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{
-                fontSize: '12px', fontWeight: 800, letterSpacing: '1.5px', color: activeAct.color,
-                padding: '3px 8px', border: `1px solid ${activeAct.edge}`, borderRadius: '3px',
-              }}>{activeAct.label}</span>
-              {activeLabel && <span style={{ fontSize: '11px', color: '#475569' }}>→ {activeLabel} pair</span>}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div style={{ width: '1px', height: '36px', background: 'rgba(255,255,255,0.06)' }} />
-
-          {/* Block 2: Full rolls to pick from */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <div style={{ fontSize: '8px', color: '#334155', letterSpacing: '0.8px' }}>PICK FROM THIS PAIR</div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              {activeTarget.map((d, i) => (
-                <React.Fragment key={d}>
-                  {i > 0 && <span style={{ fontSize: '12px', color: '#1e293b' }}>or</span>}
-                  <span style={{ fontSize: '28px', fontWeight: 900, fontFamily: 'monospace', color: '#f1f5f9', letterSpacing: '2px' }}>
-                    {activePrefix}{d}
-                  </span>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-
-          {/* Block 3: Best bet (Z-vote) — pushed right */}
-          {active?.topZDigits?.length > 0 && active.zVoteMax >= 2 && (
-            <>
-              <div style={{ width: '1px', height: '36px', background: 'rgba(255,255,255,0.06)', marginLeft: 'auto' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                <div style={{ fontSize: '8px', color: '#334155', letterSpacing: '0.8px' }}>
-                  BEST BET · {active.zVoteMax === 3 ? '3/3 agree' : active.topZDigits.length === 1 ? '2/3 tiebreak' : '2/3 coinflip'}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-                  <span style={{
-                    fontSize: '26px', fontWeight: 900, fontFamily: 'monospace',
-                    color: active.zVoteMax === 3 ? '#4ade80' : '#fbbf24',
-                  }}>{activePrefix}{active.topZDigits[0]}</span>
-                  {active.topZDigits[1] && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                      <span style={{ fontSize: '7px', color: '#334155' }}>ALT</span>
-                      <span style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'monospace', color: '#475569' }}>
-                        {activePrefix}{active.topZDigits[1]}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-          {!active?.topZDigits?.length && (
-            <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#1e293b' }}>
-              {active.pairingName} · N={active.dominantN} · {Math.round((active.confidence ?? 0) * 100)}%
-            </span>
-          )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)', gap: '10px' }}>
+        <div>
+          <XyPairTracker read={read} />
+          <TwoStringPatternRecognition read={read} />
         </div>
-      )}
-
-      {/* 4-column grid — full width, equal columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-        {PREFIXES.map(px => (
-          <PrefixColumn
-            key={px}
-            prefix={px}
-            analysis={prefixWaveData.analyses[px]}
-            combinedRolls={combinedRolls}
-            activePrefix={activePrefix}
-          />
-        ))}
+        <PairTimeline read={read} />
       </div>
-
-      {/* Commons footer */}
-      {prefixWaveData.commonsPrefix?.length > 0 && (
-        <div style={{
-          display: 'flex', gap: '12px', alignItems: 'center',
-          padding: '7px 12px', flexWrap: 'wrap',
-          border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px',
-        }}>
-          <span style={{ fontSize: '10px', color: '#1e293b', letterSpacing: '0.8px' }}>COMMONS</span>
-          {prefixWaveData.commonsPrefix.map(px => (
-            <span key={px} style={{ fontSize: '11px', fontWeight: 600, color: '#818cf8', fontFamily: 'monospace' }}>
-              {px}x <span style={{ color: '#334155', fontWeight: 400 }}>×{prefixWaveData.prefixFreq[px]}</span>
-            </span>
-          ))}
-          {prefixWaveData.noisePrefix?.filter(px => prefixWaveData.prefixFreq[px] > 0).map(px => (
-            <span key={px} style={{ fontSize: '11px', color: '#1e293b', fontFamily: 'monospace' }}>
-              {px}x ×{prefixWaveData.prefixFreq[px]}
-            </span>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)', gap: '10px' }}>
+        <ExactPredictor read={read} />
+        <XyzPairTracker read={read} />
+      </div>
+      <XyzBreakdown read={read} />
+      <PrefixSeedAssist read={read} />
     </div>
   );
 }
+
+

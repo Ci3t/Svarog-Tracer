@@ -1,12 +1,12 @@
 ﻿// KiyoModeCard.jsx - BBP Mode v2 (Confidence-Aware, No BS)
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { predictNext3EU, predictWithPrefix } from "../utils/predictNext";
+import { predictNext3EU } from "../utils/predictNext";
 import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
 
 import {
   EU_SEQUENTIAL_3STR_RECENT,
   EU_SEQUENTIAL_2STR_RECENT,
-  EU_SEQUENTIAL_3STR_ALL,
+  EU_SEQUENTIAL_3STR,
   EU_PATCH_INFO,
 } from "../utils/euLiveSheetData";
 import {
@@ -30,18 +30,14 @@ import { getWindowTracker } from "../utils/windowPerformanceTracker";
 import { predictWithCascadingPriority } from "../utils/cascadingPredictor";
 import { predictWithPairs } from "../utils/pairTransitionPredictor";
 import { getSmartRecommendation } from "../utils/smartDecisionSystem";
-import { analyzePatternWithWindow } from "../utils/patternRecognition";
 import { 
   WAVE_SCHEMES, 
-  analyzeColumnWave, 
-  getExpectedLabel 
+  analyzeColumnWave 
 } from "../utils/kiyoLogic";
-import { getSessionCommons, getYZCommons } from "../utils/kiyoCommons";
-import { analyzeAllPrefixWaves, getPrefixWavePrediction, analyze2strWave } from "../utils/kiyoPrefixWave";
+import { analyzeAllPrefixWaves } from "../utils/kiyoPrefixWave";
 
 import RollInput from "./kiyo/RollInput";
 import AddedRollsPanel from "./kiyo/AddedRollsPanel";
-import WavePairingTable from "./kiyo/WavePairingTable";
 import { getWaveAndTableSignals } from "../utils/kiyo2strSignals";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
@@ -81,7 +77,6 @@ export default function KiyoModeCard({
   const [showImportStats, setShowImportStats] = useState(false);
   const fileInputRef = useRef(null);
   const [caesarInput, setCaesarInput] = useState(""); // Caesar shift state
-  const [mode, setMode] = useState('3str'); // '3str' | '2str'
 
   const [persistentWaveAccuracy, setPersistentWaveAccuracy] = useState({
     col2: { hits: 0, total: 0 },
@@ -142,12 +137,6 @@ export default function KiyoModeCard({
 
   // ðŸ”¥ Window analysis helpers
   const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 4);
-
-  const [nowTick, setNowTick] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   const liveRollEventsRef = useRef([]);
   const prevLiveRollsRef = useRef(0);
@@ -220,9 +209,19 @@ export default function KiyoModeCard({
     });
   }, [importedRolls]);
 
+  const kiyoLiveRolls = useMemo(() => {
+    return [...translatedTestRolls, ...live3Rolls].filter((roll) => /^[1-4]{3}$/.test(String(roll || "")));
+  }, [translatedTestRolls, live3Rolls]);
+
   const combinedRolls = useMemo(() => {
     return [...translatedImportedRolls, ...translatedTestRolls, ...live3Rolls];
   }, [translatedImportedRolls, translatedTestRolls, live3Rolls]);
+
+  const kiyoPreviewPrefix = useMemo(() => {
+    const value = String(testInput || "").trim();
+    if (/^[1-4]{2,3}$/.test(value)) return value.slice(0, 2);
+    return activePrefix;
+  }, [testInput, activePrefix]);
 
   // ðŸ”„ Window pattern analysis (uses raw rolls for time-tracking and state extraction)
   const windowAnalysis = useWindowPatternAnalysis(rollEvents, windowInfo);
@@ -257,12 +256,20 @@ export default function KiyoModeCard({
   };
 
   const [euSheetLoaded, setEuSheetLoaded] = useState(false);
+  const euPatch36Rolls = useMemo(() => {
+    const patchNumber = (patch) => Number.parseFloat(String(patch || "0"));
+    return EU_SEQUENTIAL_3STR
+      .filter((row) => patchNumber(row.patch) >= 3.6)
+      .map((row) => row["3str"])
+      .filter(Boolean);
+  }, []);
+
   const handleLoadEUSheet = () => {
     if (euSheetLoaded) {
       setImportedRolls([]);
       setEuSheetLoaded(false);
     } else {
-      setImportedRolls(EU_SEQUENTIAL_3STR_ALL);
+      setImportedRolls(euPatch36Rolls);
       setEuSheetLoaded(true);
     }
   };
@@ -616,99 +623,10 @@ export default function KiyoModeCard({
     return analyzeAllPrefixWaves(combinedRolls);
   }, [combinedRolls]);
 
-  const prefixWavePrediction = useMemo(() => {
-    if (!prefixWaveData) return null;
-    return getPrefixWavePrediction(prefixWaveData, testInput, combinedRolls);
-  }, [prefixWaveData, testInput, combinedRolls]);
-
-  // ðŸ“Š 2-STRING WAVE â€” lighter entry point, Y-digit pairing across all rolls
-  const twoStrWave = useMemo(() => {
-    if (!combinedRolls || combinedRolls.length < 3) return null;
-    return analyze2strWave(combinedRolls);
-  }, [combinedRolls]);
   const twoStrSignals = useMemo(() => {
     if (!combinedRolls || combinedRolls.length < 3) return null;
     return getWaveAndTableSignals(combinedRolls);
   }, [combinedRolls]);
-
-  const smartPrefixPrediction = useMemo(() => {
-    if (combinedRolls.length < 3) return null;
-
-    let sourcePrefix = null;
-    let sourceType = null;
-
-    if (testInput.length >= 2) {
-      const paddedInput = testInput.length === 2 ? testInput + "1" : testInput;
-      const translated = translateTo4(paddedInput);
-      if (translated && translated.length >= 2) {
-        sourcePrefix = translated.slice(0, 2);
-        sourceType = "typing";
-      }
-    } else if (activePrefix && activePrefix.length === 2) {
-      sourcePrefix = activePrefix;
-      sourceType = "manual";
-    } else if (combinedRolls.length > 0) {
-      const lastRoll = combinedRolls[combinedRolls.length - 1];
-      sourcePrefix = lastRoll.slice(0, 2);
-      sourceType = "auto";
-    }
-
-    if (!sourcePrefix) return null;
-
-    // ðŸ”¥ IMPROVEMENT: Increase live data lookback from 15 to 30
-    const recentRolls = combinedRolls.slice(-30);
-    const liveTable = {};
-
-    for (let i = 0; i < recentRolls.length - 1; i++) {
-      const prefix = recentRolls[i].slice(0, 2);
-      const nextDigit = recentRolls[i + 1][2];
-
-      if (!liveTable[prefix]) liveTable[prefix] = {};
-      liveTable[prefix][nextDigit] = (liveTable[prefix][nextDigit] || 0) + 1;
-    }
-
-    const liveMatches = liveTable[sourcePrefix];
-
-    if (liveMatches) {
-      const sorted = Object.entries(liveMatches).sort((a, b) => b[1] - a[1]);
-      const total = sorted.reduce((sum, [_, count]) => sum + count, 0);
-      const mainDigit = sorted[0][0];
-      const mainCount = sorted[0][1];
-      const confidence = mainCount / total;
-
-      // ðŸ”¥ IMPROVEMENT: Lower threshold from 0.5 to 0.4, boost confidence
-      if (total >= 2 && confidence >= 0.4) {
-        return {
-          prediction: sourcePrefix + mainDigit,
-          confidence: Math.min(confidence * 1.2, 0.85), // Boost live confidence
-          alt: sorted[1] ? sourcePrefix + sorted[1][0] : null,
-          matchCount: total,
-          sourcePrefix,
-          sourceType: `live-${sourceType}`,
-          mode: "live-priority",
-        };
-      }
-    }
-
-    // Fallback to sheet data with REDUCED confidence
-    const trainingPrediction = predictWithPrefix(
-      EU_SEQUENTIAL_3STR_RECENT,
-      sourcePrefix
-    );
-
-    if (trainingPrediction.prediction) {
-      return {
-        ...trainingPrediction,
-        confidence: Math.min(trainingPrediction.confidence * 0.5, 0.55), // Reduced from 0.7
-        sourcePrefix,
-        sourceType: `training-${sourceType}`,
-        mode: "training-fallback",
-        warning: "Live data weak - using historical with low confidence",
-      };
-    }
-
-    return null;
-  }, [combinedRolls, activePrefix, testInput]);
 
   const prediction = useMemo(() => {
     if (combinedRolls.length < 4) return null;
@@ -1084,35 +1002,15 @@ export default function KiyoModeCard({
   return (
     <div className="space-y-3">
 
-      {/* â”€â”€ TOP BAR: toggle + actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â”€â”€ TOP BAR: actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '10px', fontWeight: 700, color: '#334155', letterSpacing: '1.5px', fontFamily: 'monospace' }}>
             KIYO
           </span>
-          {/* Mode tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            {[['3str', '3-STRING'], ['2str', '2-STRING']].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setMode(key)}
-                style={{
-                  padding: '5px 14px 7px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  letterSpacing: '0.7px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: mode === key ? '2px solid #818cf8' : '2px solid transparent',
-                  color: mode === key ? '#c4b5fd' : '#475569',
-                  cursor: 'pointer',
-                  marginBottom: '-1px',
-                  transition: 'color 150ms',
-                  fontFamily: 'inherit',
-                }}
-              >{label}</button>
-            ))}
-          </div>
+          <span style={{ padding: '5px 0 7px', fontSize: '11px', fontWeight: 800, color: '#c4b5fd', borderBottom: '2px solid #818cf8' }}>
+            3 String
+          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
@@ -1133,14 +1031,14 @@ export default function KiyoModeCard({
           >Import</button>
           <button
             onClick={handleLoadEUSheet}
-            title={euSheetLoaded ? `Clear ${EU_SEQUENTIAL_3STR_ALL.length} EU sheet rolls` : `Load ${EU_SEQUENTIAL_3STR_ALL.length} EU community 3-string rolls`}
+            title={euSheetLoaded ? `Clear ${euPatch36Rolls.length} EU sheet rolls` : `Load ${euPatch36Rolls.length} EU patch 3.6+ community 3-string rolls`}
             className="px-2.5 py-1 text-xs font-semibold rounded transition cursor-pointer"
             style={{
               background: euSheetLoaded ? 'rgba(251,191,36,0.15)' : 'rgba(129,140,248,0.10)',
               border: `1px solid ${euSheetLoaded ? 'rgba(251,191,36,0.35)' : 'rgba(129,140,248,0.25)'}`,
               color: euSheetLoaded ? '#fbbf24' : '#818cf8',
             }}
-          >{euSheetLoaded ? `✕ EU Sheet (${EU_SEQUENTIAL_3STR_ALL.length})` : `EU Sheet`}</button>
+          >{euSheetLoaded ? `✕ EU Sheet (${euPatch36Rolls.length})` : `EU Sheet`}</button>
           <GuideModal show={showGuide} onClose={() => setShowGuide(false)} />
         </div>
       </div>
@@ -1197,65 +1095,37 @@ export default function KiyoModeCard({
         </div>
       </div>
 
-      {/* â”€â”€ 3-STRING VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {mode === '3str' && (
-        <>
-          {prefixWaveData && combinedRolls.length >= 3 ? (
-            <PrefixWavePanel
-              prefixWaveData={prefixWaveData}
-              combinedRolls={combinedRolls}
-              activePrefix={prefixWavePrediction?.activePrefix ?? null}
-            />
-          ) : (
-            <div className="theme-glass-card kiyo-snow-card p-8 text-center">
-              <span className="text-xs text-slate-500 font-mono">Enter 3+ rolls to see per-prefix wave analysis</span>
-            </div>
-          )}
-          <div className="theme-glass-card kiyo-snow-card p-2">
-            <AddedRollsPanel
-              testRolls={testRolls}
-              setTestRolls={setTestRolls}
-              translatedTestRolls={translatedTestRolls}
-              handleDeleteTestRoll={handleDeleteTestRoll}
-              setActivePrefix={setActivePrefix}
-            />
-          </div>
-        </>
-      )}
-
-      {/* â”€â”€ 2-STRING VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {mode === '2str' && (
-        <>
-          <div className="theme-glass-card kiyo-snow-card p-2">
-            {pairingViz && pairingViz.length > 0 ? (
-              <WavePairingTable
-                pairingViz={pairingViz}
-                combinedRolls={combinedRolls}
-              />
-            ) : (
-              <div className="p-8 text-center">
-                <span className="text-xs text-slate-500 font-mono">Enter 4+ rolls to see 2-string wave analysis</span>
-              </div>
-            )}
-          </div>
-          <div className="theme-glass-card kiyo-snow-card p-2">
-            <AddedRollsPanel
-              testRolls={testRolls}
-              setTestRolls={setTestRolls}
-              translatedTestRolls={translatedTestRolls}
-              handleDeleteTestRoll={handleDeleteTestRoll}
-              setActivePrefix={setActivePrefix}
-            />
-          </div>
-        </>
-      )}
-
-      {/* â”€â”€ CAESAR SHIFT â€” always available â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="theme-glass-card kiyo-snow-card p-3">
-        <CompactCaesarShift
-          caesarInput={caesarInput}
-          setCaesarInput={setCaesarInput}
+      {kiyoLiveRolls.length + translatedImportedRolls.length >= 3 ? (
+        <PrefixWavePanel
+          prefixWaveData={prefixWaveData}
+          combinedRolls={combinedRolls}
+          liveRolls={kiyoLiveRolls}
+          seedRolls={translatedImportedRolls}
+          activePrefix={kiyoPreviewPrefix}
         />
+      ) : (
+        <div className="theme-glass-card kiyo-snow-card p-8 text-center">
+          <span className="text-xs text-slate-500 font-mono">Enter 3+ rolls to see 3 String analysis</span>
+        </div>
+      )}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-3">
+        <div className="theme-glass-card kiyo-snow-card p-2">
+          <AddedRollsPanel
+            testRolls={testRolls}
+            setTestRolls={setTestRolls}
+            translatedTestRolls={translatedTestRolls}
+            handleDeleteTestRoll={handleDeleteTestRoll}
+            setActivePrefix={setActivePrefix}
+          />
+        </div>
+
+        {/* â”€â”€ CAESAR SHIFT â€” always available â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        <div className="theme-glass-card kiyo-snow-card p-3">
+          <CompactCaesarShift
+            caesarInput={caesarInput}
+            setCaesarInput={setCaesarInput}
+          />
+        </div>
       </div>
 
     </div>
