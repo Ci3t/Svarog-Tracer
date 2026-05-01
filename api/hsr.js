@@ -2,6 +2,7 @@ import { handler as bannersHandler } from '../server/_services/hsr/banners.js';
 import { handler as statsHandler } from '../server/_services/hsr/stats.js';
 import { handler as cavernHandler } from '../server/_services/hsr/cavern-clears.js';
 import { handler as cronHandler } from '../server/_services/hsr/cron-wipe.js';
+import { handler as kiyoHandler } from '../server/_services/hsr/kiyo.js';
 import { setCorsHeaders } from '../server/_services/zone/shared.js';
 
 function resolvePathPart(req) {
@@ -37,6 +38,7 @@ export default async function handler(req, res) {
 
   console.log(`[HSR Hub] Routing pathPart: "${pathPart}" from URL: "${req.url}"`);
   
+  if (pathPart === 'kiyo') return kiyoHandler(req, res);
   if (pathPart === 'cavern-clears') return cavernHandler(req, res);
   if (pathPart === 'banners') return bannersHandler(req, res);
   if (pathPart === 'stats') return statsHandler(req, res);
