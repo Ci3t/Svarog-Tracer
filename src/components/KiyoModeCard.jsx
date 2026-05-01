@@ -52,9 +52,14 @@ import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
 import RecommendationPanel from "./kiyo/RecommendationPanel";
 import CompactCaesarShift from "./kiyo/CompactCaesarShift";
 import { usePresenceContext } from "../contexts/PresenceContext";
-
+import { useAuth } from "../hooks/useAuth";
+import { useKiyoSession } from "../hooks/useKiyoSession";
+import { getStats } from "../utils/kiyoApi";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PATCH CONFIG
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const CURRENT_PATCH = "4.2"; // Update when new patch drops (~every 42 days)
 // MAIN COMPONENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
@@ -87,6 +92,18 @@ export default function KiyoModeCard({
   
   // Track predictions for live stats
   const { trackPrediction } = usePresenceContext();
+
+  // Auth + Kiyo session sync
+  const { user: authUser } = useAuth();
+  const kiyoSession = useKiyoSession({
+    userId: authUser?.id || null,
+    region: datasetRegion,
+    patch: CURRENT_PATCH,
+  });
+
+  // Patch stats from Turso (shadow mode)
+  const [patchStats, setPatchStats] = useState(null);
+  const [patchStatsLoading, setPatchStatsLoading] = useState(false);
 
   const live3Rolls = useMemo(() => {
     return entries
@@ -178,6 +195,36 @@ export default function KiyoModeCard({
     prevLiveRollsRef.current = rolls.slice();
   }, [live3Rolls]);
 
+  // Fetch patch stats from Turso on mount / region change
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      setPatchStatsLoading(true);
+      try {
+        const stats = await getStats(CURRENT_PATCH, datasetRegion, authUser?.id || null);
+        if (!cancelled) setPatchStats(stats);
+      } catch {
+        // silent fallback
+      } finally {
+        if (!cancelled) setPatchStatsLoading(false);
+      }
+    }
+    loadStats();
+    return () => { cancelled = true; };
+  }, [datasetRegion, authUser?.id]);
+
+  // Warn on refresh/close if unsaved rolls
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (kiyoSession.pendingCount >= 7) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [kiyoSession.pendingCount]);
+
   const translatedTestRolls = useMemo(() => {
     return testRolls.map((rollObj) => {
       const roll = typeof rollObj === 'string' ? rollObj : rollObj.roll;
@@ -244,6 +291,9 @@ export default function KiyoModeCard({
       setImportedRolls(validRolls);
       setShowImportStats(true);
       setTimeout(() => setShowImportStats(false), 3000);
+
+      // Queue imported rolls for Turso sync
+      validRolls.forEach((roll) => kiyoSession.addRoll(roll, 'import_paste'));
     };
 
     reader.readAsText(file);
@@ -915,19 +965,24 @@ export default function KiyoModeCard({
     const value = testInput.trim();
 
     if (value.length === 2 && /^[1-4]{2}$/.test(value)) {
-      // 2-str input â€” translate to 4x format (e.g. "32" â†’ "43")
-      const translated = translateTo4(value + "1").slice(0, 2); // translate Y digit, ignore Z
+      const translated = translateTo4(value + "1").slice(0, 2);
       const ts = windowInfo?.startMs || Date.now();
       setTestRolls((prev) => [...prev, { roll: translated, raw: value, ts, is2str: true }]);
       setTestInput("");
       trackPrediction();
     } else if (value.length === 3 && /^[1-4]{3}$/.test(value)) {
-      // 3-str input â€” translate normally
       const translated = translateTo4(value);
       const ts = windowInfo?.startMs || Date.now();
-      setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
+      const rollObj = { roll: translated || value, raw: value, ts };
+      setTestRolls((prev) => [...prev, rollObj]);
       setTestInput("");
       trackPrediction();
+
+      // Queue for Turso sync (only full 3-str rolls)
+      const roll3str = translated || value;
+      if (/^[1-4]{3}$/.test(roll3str)) {
+        kiyoSession.addRoll(roll3str);
+      }
     } else {
       setTestInput("");
     }
@@ -1065,6 +1120,46 @@ export default function KiyoModeCard({
             <option value="ASIA">ASIA</option>
             <option value="ALL">Global</option>
           </select>
+        </div>
+      </div>
+
+      {/* Save Session + DB Confidence */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          {kiyoSession.pendingCount > 0 && (
+            <button
+              onClick={() => kiyoSession.saveNow()}
+              disabled={kiyoSession.isSaving}
+              className="px-2 py-1 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 text-white rounded text-xs transition-colors"
+            >
+              {kiyoSession.isSaving ? 'Saving...' : `Save Session (${kiyoSession.pendingCount})`}
+            </button>
+          )}
+          {kiyoSession.lastSyncAt && (
+            <span className="text-slate-500">
+              Last saved: {new Date(kiyoSession.lastSyncAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        <div className="text-slate-400">
+          {patchStatsLoading ? (
+            <span>Loading patch stats...</span>
+          ) : patchStats ? (
+            <span>
+              Live {combinedRolls.length} rolls
+              {patchStats.user?.confidence && patchStats.user.confidence !== 'insufficient'
+                ? ` + your prior ${patchStats.user.total_events}`
+                : ''}
+              {patchStats.region?.confidence && ['moderate', 'high'].includes(patchStats.region.confidence)
+                ? ` + ${datasetRegion} prior ${patchStats.region.total_events}`
+                : ''}
+              {patchStats.fallback_needed
+                ? ' + sheet fallback'
+                : ''}
+            </span>
+          ) : (
+            <span>Live {combinedRolls.length} rolls + sheet fallback</span>
+          )}
         </div>
       </div>
 
