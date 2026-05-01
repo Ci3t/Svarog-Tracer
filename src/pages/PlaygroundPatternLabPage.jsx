@@ -1064,9 +1064,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
   return (
     <div className={`pattern-lab-shell min-h-screen px-4 py-10 text-slate-200 md:px-6 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''}`} ref={containerRef}>
       <div className="mx-auto max-w-[1600px]">
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
+        <style>{`
               .pattern-lab-shell {
                 background: transparent !important;
               }
@@ -1101,9 +1099,7 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
               }
-            `,
-          }}
-        />
+        `}</style>
 
         {tourRunning && PATTERN_LAB_TOUR_STEPS.length > 0 ? (
           <PatternLabTourOverlay
@@ -1378,12 +1374,11 @@ export default function PlaygroundPatternLabPage({ sessionTheme = 'modern' }) {
 
             {/* Row 2: Clara's Lab (Primary) & Log Output (Secondary) */}
             <div id="pattern-lab-clara" className={`bento-tile md:col-span-8 theme-glass-card force-overflow-visible rounded-[2.5rem] bg-transparent backdrop-blur-md p-8 group relative overflow-visible shadow-[0_0_50px_rgba(0,0,0,0.35)]`}>
-              <style dangerouslySetInnerHTML={{
-                __html: `
+              <style>{`
                 .force-overflow-visible { overflow: visible !important; }
                 .arctic-theme .theme-glass-card.force-overflow-visible,
                 .crimson-theme .theme-glass-card.force-overflow-visible { overflow: visible !important; }
-              `}} />
+              `}</style>
 
               <div className="flex flex-col relative z-20">
                 <div className={`mb-5 flex items-center gap-6 ${themeColors.textLight} relative`}>

@@ -7,7 +7,10 @@ import { setCorsHeaders } from '../server/_services/zone/shared.js';
 
 function resolvePathPart(req) {
   const slug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
-  if (slug) return slug;
+  if (slug) {
+    // slug may contain nested path like "kiyo/session" — extract first segment
+    return slug.split('/')[0];
+  }
 
   const candidates = [
     req.url,
@@ -19,12 +22,16 @@ function resolvePathPart(req) {
     .filter(Boolean);
 
   for (const candidate of candidates) {
+    // Full path: /api/hsr/kiyo/...
     const match = candidate.match(/\/api\/hsr\/([^/?#]+)/i);
     if (match?.[1]) return match[1];
+
+    // Stripped path (Vercel dev / local proxy): /kiyo/...
+    const strippedMatch = candidate.match(/^\/([^/?#]+)/i);
+    if (strippedMatch?.[1]) return strippedMatch[1];
   }
 
-  const fallback = String(req.url || '').split('/').pop()?.split('?')[0] || '';
-  return fallback;
+  return '';
 }
 
 export default async function handler(req, res) {

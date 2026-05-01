@@ -10,7 +10,8 @@ import React, {
 } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { predictNext2BBPMode } from "./utils/bbp-mode-2str"; // ðŸ”¥ OLD Kiyo
-import { predictWithPairs } from "./utils/pairTransitionPredictor"; // ðŸ”¥ NEW SUGGEST
+import { predictWithPairs } from "./utils/pairTransitionPredictor";
+import { getPatch } from "./utils/kiyoApi"; // ðŸ”¥ NEW SUGGEST
 import {
   WAVE_SCHEMES,
   analyzeColumnWave,
@@ -147,6 +148,27 @@ export default function App() {
   const [rollInput, setRollInput] = useState("");
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("4.0");
+
+  // Auto-sync navbar patch with Kiyo backend
+  useEffect(() => {
+    let cancelled = false;
+    async function syncPatch() {
+      try {
+        const data = await getPatch();
+        if (!cancelled && data?.current_patch) {
+          setPatch(data.current_patch);
+          setIsCustomPatch(false);
+        }
+      } catch {
+        // silent fallback
+      }
+    }
+    syncPatch();
+    // Poll every 5 minutes so auto-advance is picked up
+    const interval = setInterval(syncPatch, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   const [sessionTheme, setSessionTheme] = useState(() => readPersistedTheme()); // Theme state (bootstrapped from localStorage)
   const handleThemeChange = useCallback((nextTheme) => {
     setSessionTheme(normalizeSessionTheme(nextTheme));

@@ -44,13 +44,16 @@ export async function handler(req, res) {
       return await handleStatsQuery(req, res, db);
     }
 
-    if (pathPart === 'health' && req.method === 'GET') {
-      return res.status(200).json({ status: 'ok', db: 'connected' });
+    if (pathPart === 'patch' && req.method === 'GET') {
+      return await handleGetPatch(req, res, db);
     }
 
-    // Legacy roll endpoint — redirect to session for backwards compat
-    if (pathPart === 'roll' && req.method === 'POST') {
-      return res.status(410).json({ error: 'Deprecated', detail: 'Use POST /session instead' });
+    if (pathPart === 'admin' && req.method === 'POST') {
+      return await handleAdminAction(req, res, db);
+    }
+
+    if (pathPart === 'health' && req.method === 'GET') {
+      return res.status(200).json({ status: 'ok', db: 'connected' });
     }
 
     return res.status(404).json({ error: 'Unknown Kiyo endpoint', path: pathPart });
@@ -62,7 +65,9 @@ export async function handler(req, res) {
 
 function resolveKiyoPath(req) {
   const raw = req.url || '';
-  const segments = raw.split('/').filter(Boolean);
+  // Strip query string before splitting
+  const pathOnly = raw.split('?')[0];
+  const segments = pathOnly.split('/').filter(Boolean);
   const kiyoIdx = segments.indexOf('kiyo');
   if (kiyoIdx === -1) return '';
   return segments[kiyoIdx + 1] || '';
@@ -82,49 +87,58 @@ function resolveKiyoPath(req) {
   }
 */
 async function handleSessionSave(req, res, db) {
-  const body = typeof req.body === 'object' ? req.body : {};
+  // Vercel may not auto-parse JSON body; handle both cases
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch { body = {}; }
+  }
+  if (!body || typeof body !== 'object') body = {};
+
   const { session_id, user_id, region, patch, source, rolls } = body;
+
+  console.log('[Kiyo] Session save body:', JSON.stringify({ session_id, user_id, region, patch, source, rollsCount: rolls?.length }));
 
   // Validation
   if (!validateSessionId(session_id)) {
-    return res.status(400).json({ error: 'Missing or invalid session_id', format: 'UUID v4' });
+    return res.status(400).json({ error: 'Missing or invalid session_id', format: 'UUID v4', received: session_id });
   }
   if (!validateUserId(user_id)) {
-    return res.status(400).json({ error: 'Missing or invalid user_id' });
+    return res.status(400).json({ error: 'Missing or invalid user_id', received: user_id });
   }
   if (!validateRegion(region)) {
-    return res.status(400).json({ error: 'Missing or invalid region', valid: ['EU', 'NA', 'ASIA', 'CN', 'GL'] });
+    return res.status(400).json({ error: 'Missing or invalid region', valid: ['EU', 'NA', 'ASIA', 'CN', 'GL'], received: region });
   }
   if (!validatePatch(patch)) {
-    return res.status(400).json({ error: 'Missing or invalid patch', format: 'e.g. "4.3"' });
+    return res.status(400).json({ error: 'Missing or invalid patch', format: 'e.g. "4.3"', received: patch });
   }
 
   const normalizedSource = source || 'live_manual';
   if (!validateSource(normalizedSource)) {
-    return res.status(400).json({ error: 'Invalid source', valid: Array.from(['live_manual', 'import_paste', 'sheet_seed', 'caesar_helper', 'debug_replay']) });
+    return res.status(400).json({ error: 'Invalid source', valid: Array.from(['live_manual', 'import_paste', 'sheet_seed', 'caesar_helper', 'debug_replay']), received: normalizedSource });
   }
 
   if (!Array.isArray(rolls) || rolls.length === 0) {
-    return res.status(400).json({ error: 'Missing or empty rolls array' });
+    return res.status(400).json({ error: 'Missing or empty rolls array', received: rolls });
   }
   if (rolls.length > MAX_ROLLS_PER_SESSION) {
     return res.status(400).json({ error: 'Too many rolls', max: MAX_ROLLS_PER_SESSION, received: rolls.length });
   }
 
+  // Sanitize rolls: ensure each has a valid roll_index and ts
+  const sanitizedRolls = rolls.map((r, i) => ({
+    roll_3str: r?.roll_3str,
+    roll_index: Number.isInteger(r?.roll_index) ? r.roll_index : i,
+    ts: Number.isInteger(r?.ts) && r.ts > 0 ? r.ts : Date.now(),
+  }));
+
   // Validate each roll
-  for (let i = 0; i < rolls.length; i++) {
-    const r = rolls[i];
-    if (!r || typeof r !== 'object') {
-      return res.status(400).json({ error: `Invalid roll at index ${i}` });
-    }
+  for (let i = 0; i < sanitizedRolls.length; i++) {
+    const r = sanitizedRolls[i];
     if (!validateRoll3str(r.roll_3str)) {
-      return res.status(400).json({ error: `Invalid roll_3str at index ${i}`, format: '3 digits 1-4' });
+      return res.status(400).json({ error: `Invalid roll_3str at index ${i}`, format: '3 digits 1-4', received: r.roll_3str });
     }
-    if (!Number.isInteger(r.roll_index) || r.roll_index < 0 || r.roll_index > 999) {
-      return res.status(400).json({ error: `Invalid roll_index at index ${i}`, format: 'integer 0-999' });
-    }
-    if (!Number.isInteger(r.ts) || r.ts <= 0) {
-      return res.status(400).json({ error: `Invalid ts at index ${i}`, format: 'positive integer timestamp' });
+    if (r.roll_index < 0 || r.roll_index > 999) {
+      return res.status(400).json({ error: `Invalid roll_index at index ${i}`, format: 'integer 0-999', received: r.roll_index });
     }
   }
 
@@ -160,7 +174,7 @@ async function handleSessionSave(req, res, db) {
     });
 
     // 2. Insert roll events (with dedupe via ON CONFLICT)
-    for (const r of rolls) {
+    for (const r of sanitizedRolls) {
       const rollCreatedAt = new Date(r.ts).toISOString();
       batchStatements.push({
         sql: `INSERT INTO kiyo_roll_events (anonymous_user_id, user_id, session_id, region, patch, roll_3str, roll_index, source, created_at)
@@ -242,36 +256,73 @@ async function handleStatsQuery(req, res, db) {
   const regionUpper = region.toUpperCase();
   const now = Date.now();
 
+  // Compute previous patch (e.g. 4.3 -> 4.2)
+  const patchParts = patch.split('.');
+  const prevPatch = `${patchParts[0]}.${Math.max(0, Number(patchParts[1]) - 1)}`;
+
   try {
-    // 1. User layer (if user_id provided)
+    // 1. User layer (if user_id provided) — current + previous patch merged
     let userLayer = null;
     if (user_id && validateUserId(user_id)) {
-      const userResult = await db.execute({
-        sql: `SELECT prefix, exact_roll, count_live, count_imported, last_updated
-              FROM kiyo_user_stats
-              WHERE user_id = ? AND patch = ? AND region = ?`,
-        args: [user_id, patch, regionUpper],
-      });
-      userLayer = buildLayer(userResult.rows, patch, regionUpper, 'user', now);
+      const [userCurrent, userPrev] = await Promise.all([
+        db.execute({
+          sql: `SELECT prefix, exact_roll, count_live, count_imported, last_updated
+                FROM kiyo_user_stats
+                WHERE user_id = ? AND patch = ? AND region = ?`,
+          args: [user_id, patch, regionUpper],
+        }),
+        db.execute({
+          sql: `SELECT prefix, exact_roll, count_live, count_imported, last_updated
+                FROM kiyo_user_stats
+                WHERE user_id = ? AND patch = ? AND region = ?`,
+          args: [user_id, prevPatch, regionUpper],
+        }),
+      ]);
+      userLayer = mergeLayers(
+        buildLayer(userCurrent.rows, patch, regionUpper, 'user', now, 1.0),
+        buildLayer(userPrev.rows, prevPatch, regionUpper, 'user', now, 0.5)
+      );
     }
 
-    // 2. Region layer
-    const regionResult = await db.execute({
-      sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
-            FROM kiyo_patch_stats
-            WHERE patch = ? AND region = ?`,
-      args: [patch, regionUpper],
-    });
-    const regionLayer = buildLayer(regionResult.rows, patch, regionUpper, 'region', now);
+    // 2. Region layer — current + previous patch merged
+    const [regionCurrent, regionPrev] = await Promise.all([
+      db.execute({
+        sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
+              FROM kiyo_patch_stats
+              WHERE patch = ? AND region = ?`,
+        args: [patch, regionUpper],
+      }),
+      db.execute({
+        sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
+              FROM kiyo_patch_stats
+              WHERE patch = ? AND region = ?`,
+        args: [prevPatch, regionUpper],
+      }),
+    ]);
+    const regionLayer = mergeLayers(
+      buildLayer(regionCurrent.rows, patch, regionUpper, 'region', now, 1.0),
+      buildLayer(regionPrev.rows, prevPatch, regionUpper, 'region', now, 0.5)
+    );
 
-    // 3. Global layer
-    const globalResult = await db.execute({
-      sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
-            FROM kiyo_patch_stats
-            WHERE patch = ? AND region = 'GL'`,
-      args: [patch],
-    });
-    const globalLayer = buildLayer(globalResult.rows, patch, 'GL', 'global', now);
+    // 3. Global layer — current + previous patch merged
+    const [globalCurrent, globalPrev] = await Promise.all([
+      db.execute({
+        sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
+              FROM kiyo_patch_stats
+              WHERE patch = ? AND region = 'GL'`,
+        args: [patch],
+      }),
+      db.execute({
+        sql: `SELECT prefix, exact_roll, count_live, count_imported, transition_count_live, distinct_sessions, distinct_users, last_live_at, last_updated
+              FROM kiyo_patch_stats
+              WHERE patch = ? AND region = 'GL'`,
+        args: [prevPatch],
+      }),
+    ]);
+    const globalLayer = mergeLayers(
+      buildLayer(globalCurrent.rows, patch, 'GL', 'global', now, 1.0),
+      buildLayer(globalPrev.rows, prevPatch, 'GL', 'global', now, 0.5)
+    );
 
     // Determine fallback
     const bestLayer = regionLayer.confidence !== 'insufficient'
@@ -297,7 +348,7 @@ async function handleStatsQuery(req, res, db) {
   }
 }
 
-function buildLayer(rows, patch, region, layerName, nowMs) {
+function buildLayer(rows, patch, region, layerName, nowMs, patchWeight = 1.0) {
   const prefixData = {};
   let totalEvents = 0;
   let totalDistinctSessions = 0;
@@ -312,18 +363,11 @@ function buildLayer(rows, patch, region, layerName, nowMs) {
       prefixData[prefix] = { counts: {}, total: 0, distinct_sessions: Number(r.distinct_sessions || 0) };
     }
 
-    // Apply exponential decay: weight = 1.0 * 0.5^(days/7)
-    const lastUpdated = r.last_updated || r.last_live_at;
-    let weight = 1.0;
-    if (lastUpdated) {
-      const daysOld = (nowMs - new Date(lastUpdated).getTime()) / (1000 * 60 * 60 * 24);
-      weight = Math.pow(0.5, daysOld / 7);
-    }
-
-    const decayedCount = count * weight;
-    prefixData[prefix].counts[exact] = (prefixData[prefix].counts[exact] || 0) + decayedCount;
-    prefixData[prefix].total += decayedCount;
-    totalEvents += decayedCount;
+    // Per-patch weight: current patch = 1.0, previous patch = 0.5
+    const weightedCount = count * patchWeight;
+    prefixData[prefix].counts[exact] = (prefixData[prefix].counts[exact] || 0) + weightedCount;
+    prefixData[prefix].total += weightedCount;
+    totalEvents += weightedCount;
 
     if (layerName !== 'user') {
       totalDistinctSessions = Math.max(totalDistinctSessions, Number(r.distinct_sessions || 0));
@@ -331,16 +375,54 @@ function buildLayer(rows, patch, region, layerName, nowMs) {
     }
   }
 
-  // Round counts for cleaner JSON
-  for (const prefix of Object.keys(prefixData)) {
-    prefixData[prefix].total = Math.round(prefixData[prefix].total);
-    for (const exact of Object.keys(prefixData[prefix].counts)) {
-      prefixData[prefix].counts[exact] = Math.round(prefixData[prefix].counts[exact]);
-    }
-  }
-  totalEvents = Math.round(totalEvents);
+  return {
+    patch,
+    region,
+    prefix_data: prefixData,
+    total_events: totalEvents,
+    distinct_sessions: totalDistinctSessions,
+    distinct_users: totalDistinctUsers,
+    confidence: 'insufficient', // computed after merge
+    layer: layerName,
+    patch_weight: patchWeight,
+  };
+}
 
-  // Confidence
+function mergeLayers(current, previous) {
+  if (!current) return previous || null;
+  if (!previous) return current;
+
+  const mergedPrefixData = { ...current.prefix_data };
+
+  for (const prefix of Object.keys(previous.prefix_data)) {
+    if (!mergedPrefixData[prefix]) {
+      mergedPrefixData[prefix] = { counts: {}, total: 0, distinct_sessions: 0 };
+    }
+
+    for (const exact of Object.keys(previous.prefix_data[prefix].counts)) {
+      mergedPrefixData[prefix].counts[exact] = (mergedPrefixData[prefix].counts[exact] || 0) + previous.prefix_data[prefix].counts[exact];
+    }
+    mergedPrefixData[prefix].total += previous.prefix_data[prefix].total;
+    mergedPrefixData[prefix].distinct_sessions = Math.max(
+      mergedPrefixData[prefix].distinct_sessions,
+      previous.prefix_data[prefix].distinct_sessions
+    );
+  }
+
+  // Round counts for cleaner JSON
+  let totalEvents = 0;
+  for (const prefix of Object.keys(mergedPrefixData)) {
+    mergedPrefixData[prefix].total = Math.round(mergedPrefixData[prefix].total);
+    for (const exact of Object.keys(mergedPrefixData[prefix].counts)) {
+      mergedPrefixData[prefix].counts[exact] = Math.round(mergedPrefixData[prefix].counts[exact]);
+    }
+    totalEvents += mergedPrefixData[prefix].total;
+  }
+
+  const totalDistinctSessions = Math.max(current.distinct_sessions, previous.distinct_sessions);
+  const totalDistinctUsers = Math.max(current.distinct_users, previous.distinct_users);
+
+  // Confidence based on merged totals
   let confidence = 'insufficient';
   if (totalEvents >= 1000 && totalDistinctUsers >= 5) {
     confidence = 'high';
@@ -351,20 +433,306 @@ function buildLayer(rows, patch, region, layerName, nowMs) {
   }
 
   // For user layer, lower thresholds
+  const layerName = current.layer;
   if (layerName === 'user' && totalEvents >= 20) {
     confidence = totalEvents >= 100 ? 'moderate' : 'low';
   }
 
   return {
-    patch,
-    region,
-    prefix_data: prefixData,
+    patch: current.patch,
+    region: current.region,
+    prefix_data: mergedPrefixData,
     total_events: totalEvents,
     distinct_sessions: totalDistinctSessions,
     distinct_users: totalDistinctUsers,
     confidence,
     layer: layerName,
   };
+}
+
+/*
+  GET /api/hsr/kiyo/patch
+  Returns current patch config from Turso
+*/
+async function handleGetPatch(req, res, db) {
+  try {
+    let result;
+    let hasPhaseColumns = true;
+
+    try {
+      result = await db.execute({
+        sql: `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                     manual_override_at, manual_override_by, phase_1_days, phase_2_days
+              FROM kiyo_patch_config WHERE id = 1`,
+      });
+    } catch (colErr) {
+      if (colErr.message && colErr.message.includes('no such column')) {
+        hasPhaseColumns = false;
+        result = await db.execute({
+          sql: `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                       manual_override_at, manual_override_by
+                FROM kiyo_patch_config WHERE id = 1`,
+        });
+      } else {
+        throw colErr;
+      }
+    }
+
+    // Auto-create default config if missing
+    if (result.rows.length === 0) {
+      // 4.2: ~11d 20h left in Phase 1 + 20 days Phase 2 = ~32 days total
+      const PHASE_1_DAYS = 21;
+      const PHASE_2_DAYS = 21;
+      const ADVANCE_DAYS_42 = 32; // remaining from now
+      const fallbackStart = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const insertSql = hasPhaseColumns
+        ? `INSERT INTO kiyo_patch_config
+             (id, current_patch, patch_start_date, advance_days, timer_mode, auto_advance, phase_1_days, phase_2_days)
+           VALUES (1, ?, ?, ?, 'fresh', 1, ?, ?)`
+        : `INSERT INTO kiyo_patch_config
+             (id, current_patch, patch_start_date, advance_days, timer_mode, auto_advance)
+           VALUES (1, ?, ?, ?, 'fresh', 1)`;
+      const insertArgs = hasPhaseColumns
+        ? ['4.2', fallbackStart.toISOString(), ADVANCE_DAYS_42, PHASE_1_DAYS, PHASE_2_DAYS]
+        : ['4.2', fallbackStart.toISOString(), ADVANCE_DAYS_42];
+      await db.execute({ sql: insertSql, args: insertArgs });
+
+      result = await db.execute({
+        sql: hasPhaseColumns
+          ? `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                    manual_override_at, manual_override_by, phase_1_days, phase_2_days
+             FROM kiyo_patch_config WHERE id = 1`
+          : `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                    manual_override_at, manual_override_by
+             FROM kiyo_patch_config WHERE id = 1`,
+      });
+    }
+
+    let row = result.rows[0];
+    let startDate = new Date(row.patch_start_date);
+    const now = new Date();
+    const msPerDay = 1000 * 60 * 60 * 24;
+    let daysElapsed = Math.floor((now - startDate) / msPerDay);
+
+    // Auto-correct stale patch 4.2 start dates (patch 4.2 started ~April 21, 2026)
+    if (row.current_patch === '4.2' && daysElapsed > 21) {
+      const correctedStart = new Date('2026-04-21T20:00:00.000Z');
+      await db.execute({
+        sql: `UPDATE kiyo_patch_config SET patch_start_date = ? WHERE id = 1`,
+        args: [correctedStart.toISOString()],
+      });
+      startDate = correctedStart;
+      daysElapsed = Math.floor((now - startDate) / msPerDay);
+      // Re-read row so any cached values are fresh
+      const refreshed = await db.execute({
+        sql: hasPhaseColumns
+          ? `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                    manual_override_at, manual_override_by, phase_1_days, phase_2_days
+             FROM kiyo_patch_config WHERE id = 1`
+          : `SELECT current_patch, patch_start_date, advance_days, timer_mode, auto_advance,
+                    manual_override_at, manual_override_by
+             FROM kiyo_patch_config WHERE id = 1`,
+      });
+      row = refreshed.rows[0];
+    }
+
+    const phase1Days = hasPhaseColumns ? Number(row.phase_1_days || 21) : 21;
+    const phase2Days = hasPhaseColumns ? Number(row.phase_2_days || 21) : 21;
+    const totalPatchDays = phase1Days + phase2Days;
+
+    // Calculate phase boundaries
+    const phase1EndMs = startDate.getTime() + phase1Days * msPerDay;
+    const patchEndMs = startDate.getTime() + totalPatchDays * msPerDay;
+
+    let currentPhase = 1;
+    let phaseDaysRemaining = 0;
+    let totalDaysRemaining = 0;
+    let phaseHoursRemaining = 0;
+
+    if (now.getTime() < phase1EndMs) {
+      currentPhase = 1;
+      const phaseMsRemaining = phase1EndMs - now.getTime();
+      phaseDaysRemaining = Math.floor(phaseMsRemaining / msPerDay);
+      phaseHoursRemaining = Math.floor((phaseMsRemaining % msPerDay) / (1000 * 60 * 60));
+    } else if (now.getTime() < patchEndMs) {
+      currentPhase = 2;
+      const phaseMsRemaining = patchEndMs - now.getTime();
+      phaseDaysRemaining = Math.floor(phaseMsRemaining / msPerDay);
+      phaseHoursRemaining = Math.floor((phaseMsRemaining % msPerDay) / (1000 * 60 * 60));
+    } else {
+      currentPhase = 2;
+      phaseDaysRemaining = 0;
+      phaseHoursRemaining = 0;
+    }
+
+    const totalMsRemaining = Math.max(0, patchEndMs - now.getTime());
+    totalDaysRemaining = Math.floor(totalMsRemaining / msPerDay);
+
+    // ── AUTO-ADVANCE ──
+    // When the patch fully expires and auto_advance is ON, roll forward
+    // to the next patch and reset to Phase 1.
+    if (totalDaysRemaining <= 0 && row.auto_advance) {
+      const patchParts = row.current_patch.split('.');
+      const major = Number(patchParts[0]);
+      const minor = Number(patchParts[1]);
+      const nextPatch = `${major}.${minor + 1}`;
+      const freshStart = now.toISOString();
+
+      if (hasPhaseColumns) {
+        await db.execute({
+          sql: `UPDATE kiyo_patch_config
+                SET current_patch = ?, patch_start_date = ?, timer_mode = 'fresh',
+                    manual_override_at = ?, advance_days = ?
+                WHERE id = 1`,
+          args: [nextPatch, freshStart, freshStart, phase1Days + phase2Days],
+        });
+      } else {
+        await db.execute({
+          sql: `UPDATE kiyo_patch_config
+                SET current_patch = ?, patch_start_date = ?, timer_mode = 'fresh',
+                    manual_override_at = ?, advance_days = ?
+                WHERE id = 1`,
+          args: [nextPatch, freshStart, freshStart, phase1Days + phase2Days],
+        });
+      }
+
+      // Recompute with fresh data
+      startDate = now;
+      daysElapsed = 0;
+      currentPhase = 1;
+      phaseDaysRemaining = phase1Days;
+      phaseHoursRemaining = 0;
+      totalDaysRemaining = phase1Days + phase2Days;
+      row.current_patch = nextPatch;
+      row.patch_start_date = freshStart;
+      row.timer_mode = 'fresh';
+    }
+
+    return res.status(200).json({
+      current_patch: row.current_patch,
+      patch_start_date: row.patch_start_date,
+      phase_1_days: phase1Days,
+      phase_2_days: phase2Days,
+      current_phase: currentPhase,
+      phase_days_remaining: phaseDaysRemaining,
+      phase_hours_remaining: phaseHoursRemaining,
+      total_days_remaining: totalDaysRemaining,
+      days_elapsed: daysElapsed,
+      timer_mode: row.timer_mode,
+      auto_advance: Boolean(row.auto_advance),
+      manual_override_at: row.manual_override_at,
+      manual_override_by: row.manual_override_by,
+    });
+  } catch (dbErr) {
+    console.error('[Kiyo] Patch config error:', dbErr);
+    return res.status(500).json({ error: 'Failed to fetch patch config', detail: dbErr.message });
+  }
+}
+
+/*
+  POST /api/hsr/kiyo/admin
+  Body: { action: 'set_patch', patch: '4.3', password: '...' }
+        { action: 'override_timer', patch: '4.3', password: '...' }
+  Requires admin password from env
+*/
+async function handleAdminAction(req, res, db) {
+  const body = typeof req.body === 'object' ? req.body : {};
+  const { action, patch, password, phase_1_days, phase_2_days } = body;
+
+  const adminPassword = process.env.KIYO_ADMIN_PASSWORD;
+  if (!adminPassword || password !== adminPassword) {
+    return res.status(403).json({ error: 'Forbidden', detail: 'Invalid or missing admin password' });
+  }
+
+  if (!action) {
+    return res.status(400).json({ error: 'Missing action' });
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    if (action === 'set_patch') {
+      if (!validatePatch(patch)) {
+        return res.status(400).json({ error: 'Invalid patch', format: 'e.g. "4.3"' });
+      }
+      const p1 = Number.isInteger(phase_1_days) && phase_1_days > 0 ? phase_1_days : 21;
+      const p2 = Number.isInteger(phase_2_days) && phase_2_days > 0 ? phase_2_days : 21;
+      const totalDays = p1 + p2;
+
+      // Detect if phase columns exist
+      let hasPhases = true;
+      try {
+        await db.execute({ sql: `SELECT phase_1_days FROM kiyo_patch_config WHERE id = 0`, args: [] });
+      } catch (e) {
+        if (e.message && e.message.includes('no such column')) hasPhases = false;
+      }
+
+      if (hasPhases) {
+        await db.execute({
+          sql: `INSERT INTO kiyo_patch_config
+                  (id, current_patch, patch_start_date, manual_override_at, timer_mode, phase_1_days, phase_2_days, advance_days)
+                VALUES (1, ?, ?, ?, 'fresh', ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  current_patch = excluded.current_patch,
+                  patch_start_date = excluded.patch_start_date,
+                  manual_override_at = excluded.manual_override_at,
+                  timer_mode = excluded.timer_mode,
+                  phase_1_days = excluded.phase_1_days,
+                  phase_2_days = excluded.phase_2_days,
+                  advance_days = excluded.advance_days`,
+          args: [patch, now, now, p1, p2, totalDays],
+        });
+      } else {
+        await db.execute({
+          sql: `INSERT INTO kiyo_patch_config
+                  (id, current_patch, patch_start_date, manual_override_at, timer_mode, advance_days)
+                VALUES (1, ?, ?, ?, 'fresh', ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  current_patch = excluded.current_patch,
+                  patch_start_date = excluded.patch_start_date,
+                  manual_override_at = excluded.manual_override_at,
+                  timer_mode = excluded.timer_mode,
+                  advance_days = excluded.advance_days`,
+          args: [patch, now, now, totalDays],
+        });
+      }
+      return res.status(200).json({ status: 'patch_updated', patch, phase_1_days: p1, phase_2_days: p2, updated_at: now });
+    }
+
+    if (action === 'override_timer') {
+      if (!validatePatch(patch)) {
+        return res.status(400).json({ error: 'Invalid patch', format: 'e.g. "4.3"' });
+      }
+      await db.execute({
+        sql: `INSERT INTO kiyo_patch_config (id, current_patch, manual_override_at, timer_mode)
+              VALUES (1, ?, ?, 'rolling')
+              ON CONFLICT(id) DO UPDATE SET
+                current_patch = excluded.current_patch,
+                manual_override_at = excluded.manual_override_at,
+                timer_mode = excluded.timer_mode`,
+        args: [patch, now],
+      });
+      return res.status(200).json({ status: 'timer_overridden', patch, overridden_at: now });
+    }
+
+    if (action === 'toggle_auto_advance') {
+      await db.execute({
+        sql: `INSERT INTO kiyo_patch_config (id, auto_advance) VALUES (1, 1)
+              ON CONFLICT(id) DO UPDATE SET
+                auto_advance = CASE WHEN auto_advance = 1 THEN 0 ELSE 1 END`,
+      });
+      const current = await db.execute({
+        sql: `SELECT auto_advance FROM kiyo_patch_config WHERE id = 1`,
+      });
+      const newValue = current.rows[0]?.auto_advance === 1;
+      return res.status(200).json({ status: 'auto_advance_toggled', auto_advance: newValue });
+    }
+
+    return res.status(400).json({ error: 'Unknown action', valid: ['set_patch', 'override_timer', 'toggle_auto_advance'] });
+  } catch (dbErr) {
+    console.error('[Kiyo] Admin action error:', dbErr);
+    return res.status(500).json({ error: 'Admin action failed', detail: dbErr.message });
+  }
 }
 
 async function checkRateLimit(db, ipHash, type = 'session') {

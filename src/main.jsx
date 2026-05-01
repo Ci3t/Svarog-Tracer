@@ -6,6 +6,7 @@ import './styles/cosmetics.css';
 import App from './App.jsx';
 import { PresenceProvider } from './contexts/PresenceContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { NavigationBlockerProvider } from './contexts/NavigationBlockerContext';
 
 const isGithubPagesHost =
   typeof window !== 'undefined' &&
@@ -24,11 +25,13 @@ if (typeof document !== 'undefined') {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <RouterComponent {...routerProps}>
-      <AuthProvider>
-        <PresenceProvider>
-          <App />
-        </PresenceProvider>
-      </AuthProvider>
+      <NavigationBlockerProvider>
+        <AuthProvider>
+          <PresenceProvider>
+            <App />
+          </PresenceProvider>
+        </AuthProvider>
+      </NavigationBlockerProvider>
     </RouterComponent>
   </StrictMode>
 );

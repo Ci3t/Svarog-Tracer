@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -61,9 +62,9 @@ export default function GuideModal({ show, onClose }) {
 
   if (!show) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[160] flex items-center justify-center bg-black/85 backdrop-blur-md px-2 sm:px-4"
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/85 backdrop-blur-md px-2 sm:px-4"
       onMouseDown={onClose}
     >
       <div
@@ -392,6 +393,7 @@ export default function GuideModal({ show, onClose }) {
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

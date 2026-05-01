@@ -3,10 +3,9 @@ import { saveSession, getStats } from '../utils/kiyoApi';
 
 const LS_KEY_PENDING = 'kiyo_pending';
 const LS_KEY_UID = 'svarog_uid';
-const MIN_ROLLS_FOR_WARNING = 7;
-const AUTO_SYNC_DEBOUNCE_MS = 5000;
-const AUTO_SYNC_MIN_INTERVAL_MS = 30000;
-const AUTO_SYNC_ROLL_THRESHOLD = 10;
+const AUTO_SYNC_DEBOUNCE_MS = 2000;
+const AUTO_SYNC_MIN_INTERVAL_MS = 10000;
+const AUTO_SYNC_ROLL_THRESHOLD = 3;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [5000, 10000, 20000];
 const STALE_HOURS = 24;
@@ -47,6 +46,15 @@ function loadPendingFromStorage() {
         return null;
       }
     }
+    // Sanitize old rolls that may lack roll_index (back-compat)
+    if (Array.isArray(data.rolls)) {
+      data.rolls = data.rolls.map((r, idx) => ({
+        roll_3str: r.roll_3str || '',
+        roll_index: typeof r.roll_index === 'number' ? r.roll_index : idx,
+        ts: r.ts || Date.now(),
+        source: r.source || null,
+      }));
+    }
     return data;
   } catch {
     return null;
@@ -86,7 +94,13 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
     const stored = loadPendingFromStorage();
     // Only restore if region/patch match current context
     if (stored && stored.region === region && stored.patch === patch) {
-      return stored.rolls || [];
+      const rolls = stored.rolls || [];
+      // Auto-clear tiny sessions on refresh — not worth saving
+      if (rolls.length < 4) {
+        localStorage.removeItem(LS_KEY_PENDING);
+        return [];
+      }
+      return rolls;
     }
     return [];
   });
@@ -101,24 +115,7 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
   const debounceTimerRef = useRef(null);
   const lastSyncAttemptRef = useRef(0);
   const rollsSinceSyncRef = useRef(0);
-
-  // Persist pending rolls to localStorage whenever they change
-  useEffect(() => {
-    if (pendingRolls.length === 0) {
-      clearPendingStorage();
-      return;
-    }
-    savePendingToStorage({
-      session_id: sessionIdRef.current,
-      region,
-      patch,
-      source,
-      rolls: pendingRolls,
-      last_sync_at: lastSyncAt,
-      sync_attempts: retryCount,
-      created_at: Date.now(),
-    });
-  }, [pendingRolls, lastSyncAt, retryCount, region, patch, source]);
+  const performSyncRef = useRef(() => {});
 
   // Auto-sync: debounce + cadence
   const triggerAutoSync = useCallback(() => {
@@ -133,7 +130,7 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
       const shouldSyncByCount = rollsSinceSyncRef.current >= AUTO_SYNC_ROLL_THRESHOLD;
 
       if (shouldSyncByTime || shouldSyncByCount) {
-        performSync();
+        performSyncRef.current();
       }
     }, AUTO_SYNC_DEBOUNCE_MS);
   }, []);
@@ -148,13 +145,18 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
     rollsSinceSyncRef.current = 0;
 
     try {
+      // Derive source: if any roll has a per-roll source override, use the first one's
+      const sessionSource = pendingRolls.find(r => r.source)?.source || source;
+      // Strip source from individual rolls before sending (backend expects clean roll objects)
+      const cleanRolls = pendingRolls.map(r => ({ roll_3str: r.roll_3str, roll_index: r.roll_index, ts: r.ts }));
+
       await saveSession({
         session_id: sessionIdRef.current,
         user_id: userId,
         region,
         patch,
-        source,
-        rolls: pendingRolls,
+        source: sessionSource,
+        rolls: cleanRolls,
       });
 
       setSyncStatus('saved');
@@ -176,11 +178,12 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
       }
     }
   }, [pendingRolls, userId, region, patch, source, syncStatus, retryCount]);
+  performSyncRef.current = performSync;
 
   // Add a roll to the pending buffer
-  const addRoll = useCallback((roll3str, rollIndex, ts = Date.now()) => {
+  const addRoll = useCallback((roll3str, rollIndex, ts = Date.now(), rollSource = null) => {
     setPendingRolls((prev) => {
-      const next = [...prev, { roll_3str: roll3str, roll_index: rollIndex, ts }];
+      const next = [...prev, { roll_3str: roll3str, roll_index: rollIndex, ts, source: rollSource }];
       rollsSinceSyncRef.current += 1;
       return next;
     });
@@ -200,39 +203,12 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
     clearPendingStorage();
   }, []);
 
-  // beforeunload handler
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      const needsSave = pendingRolls.length >= MIN_ROLLS_FOR_WARNING &&
-        (!lastSyncAt || Date.now() - lastSyncAt > 60000);
-      if (needsSave) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
-    };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [pendingRolls, lastSyncAt]);
-
-  // visibilitychange handler (tab switch)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) return;
-      const needsSave = pendingRolls.length >= MIN_ROLLS_FOR_WARNING &&
-        (!lastSyncAt || Date.now() - lastSyncAt > 60000);
-      setShowUnsavedWarning(needsSave);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [pendingRolls, lastSyncAt]);
 
   // Derived state
   const canSave = pendingRolls.length > 0;
-  const shouldWarn = pendingRolls.length >= MIN_ROLLS_FOR_WARNING &&
-    (!lastSyncAt || Date.now() - lastSyncAt > 60000);
+  const shouldWarn = pendingRolls.length > 0 &&
+    (!lastSyncAt || Date.now() - lastSyncAt > 10000);
 
   return {
     pendingRolls,

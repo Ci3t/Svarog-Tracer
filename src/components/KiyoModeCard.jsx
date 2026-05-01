@@ -1,5 +1,6 @@
 ﻿// KiyoModeCard.jsx - BBP Mode v2 (Confidence-Aware, No BS)
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigationBlocker } from "../contexts/NavigationBlockerContext";
 import { predictNext3EU } from "../utils/predictNext";
 import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
 
@@ -54,12 +55,12 @@ import CompactCaesarShift from "./kiyo/CompactCaesarShift";
 import { usePresenceContext } from "../contexts/PresenceContext";
 import { useAuth } from "../hooks/useAuth";
 import { useKiyoSession } from "../hooks/useKiyoSession";
-import { getStats } from "../utils/kiyoApi";
+import { getStats, getPatch } from "../utils/kiyoApi";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // PATCH CONFIG
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const CURRENT_PATCH = "4.2"; // Update when new patch drops (~every 42 days)
+const FALLBACK_PATCH = "4.2";
 // MAIN COMPONENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
@@ -77,6 +78,7 @@ export default function KiyoModeCard({
   const [, forceUpdate] = useState({});
   const lastSentDataRef = useRef(null);
   const [datasetRegion, setDatasetRegion] = useState("EU");
+  const [currentPatch, setCurrentPatch] = useState(null);
 
   const [importedRolls, setImportedRolls] = useState([]);
   const [showImportStats, setShowImportStats] = useState(false);
@@ -96,10 +98,37 @@ export default function KiyoModeCard({
   // Auth + Kiyo session sync
   const { user: authUser } = useAuth();
   const kiyoSession = useKiyoSession({
-    userId: authUser?.id || null,
+    user: authUser || null,
     region: datasetRegion,
-    patch: CURRENT_PATCH,
+    patch: currentPatch || FALLBACK_PATCH,
   });
+
+  // Register navigation blocker when unsaved rolls exist
+  const { registerBlocker, unregisterBlocker, registerSaveCallback } = useNavigationBlocker();
+  useEffect(() => {
+    if (kiyoSession.shouldWarn) {
+      registerBlocker(() => true);
+      registerSaveCallback(() => kiyoSession.saveNow());
+    } else {
+      unregisterBlocker();
+    }
+    return () => unregisterBlocker();
+  }, [kiyoSession.shouldWarn, kiyoSession.saveNow, registerBlocker, unregisterBlocker, registerSaveCallback]);
+
+  // Fetch current patch config from backend
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPatch() {
+      try {
+        const data = await getPatch();
+        if (!cancelled && data?.current_patch) setCurrentPatch(data.current_patch);
+      } catch {
+        // silent fallback to FALLBACK_PATCH
+      }
+    }
+    loadPatch();
+    return () => { cancelled = true; };
+  }, []);
 
   // Patch stats from Turso (shadow mode)
   const [patchStats, setPatchStats] = useState(null);
@@ -201,7 +230,7 @@ export default function KiyoModeCard({
     async function loadStats() {
       setPatchStatsLoading(true);
       try {
-        const stats = await getStats(CURRENT_PATCH, datasetRegion, authUser?.id || null);
+        const stats = await getStats({ patch: currentPatch || FALLBACK_PATCH, region: datasetRegion, user_id: authUser?.id || null });
         if (!cancelled) setPatchStats(stats);
       } catch {
         // silent fallback
@@ -211,19 +240,9 @@ export default function KiyoModeCard({
     }
     loadStats();
     return () => { cancelled = true; };
-  }, [datasetRegion, authUser?.id]);
+  }, [datasetRegion, authUser?.id, currentPatch]);
 
-  // Warn on refresh/close if unsaved rolls
-  useEffect(() => {
-    function handleBeforeUnload(e) {
-      if (kiyoSession.pendingCount >= 7) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [kiyoSession.pendingCount]);
+
 
   const translatedTestRolls = useMemo(() => {
     return testRolls.map((rollObj) => {
@@ -293,7 +312,7 @@ export default function KiyoModeCard({
       setTimeout(() => setShowImportStats(false), 3000);
 
       // Queue imported rolls for Turso sync
-      validRolls.forEach((roll) => kiyoSession.addRoll(roll, 'import_paste'));
+      validRolls.forEach((roll, idx) => kiyoSession.addRoll(roll, idx, Date.now() + idx * 10, 'import_paste'));
     };
 
     reader.readAsText(file);
@@ -981,7 +1000,7 @@ export default function KiyoModeCard({
       // Queue for Turso sync (only full 3-str rolls)
       const roll3str = translated || value;
       if (/^[1-4]{3}$/.test(roll3str)) {
-        kiyoSession.addRoll(roll3str);
+        kiyoSession.addRoll(roll3str, testRolls.length);
       }
     } else {
       setTestInput("");
@@ -1129,10 +1148,10 @@ export default function KiyoModeCard({
           {kiyoSession.pendingCount > 0 && (
             <button
               onClick={() => kiyoSession.saveNow()}
-              disabled={kiyoSession.isSaving}
+              disabled={kiyoSession.syncStatus === 'syncing'}
               className="px-2 py-1 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 text-white rounded text-xs transition-colors"
             >
-              {kiyoSession.isSaving ? 'Saving...' : `Save Session (${kiyoSession.pendingCount})`}
+              {kiyoSession.syncStatus === 'syncing' ? 'Saving...' : `Save Session (${kiyoSession.pendingCount})`}
             </button>
           )}
           {kiyoSession.lastSyncAt && (

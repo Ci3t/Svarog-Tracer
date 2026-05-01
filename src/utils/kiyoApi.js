@@ -51,6 +51,13 @@ export async function getStats({ patch, region, user_id }) {
 }
 
 /**
+ * Get current patch config.
+ */
+export async function getPatch() {
+  return kiyoFetch('/patch');
+}
+
+/**
  * Health check.
  */
 export async function getHealth() {

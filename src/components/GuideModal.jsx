@@ -1,5 +1,6 @@
 // Modal component for displaying guides (JSX or markdown)
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -63,10 +64,16 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
 
   const GuideComponent = guideComponent;
 
-  return (
-    <div className="theme-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div
+      className="theme-modal-overlay fixed inset-0 z-[400] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       {/* Modal Container */}
-      <div className={`theme-modal-shell relative overflow-hidden ${showFullscreen ? 'w-full h-full' : 'w-full max-w-6xl h-[90vh]'} transition-all duration-300`}>
+      <div
+        className={`theme-modal-shell relative overflow-hidden ${showFullscreen ? 'w-full h-full' : 'w-full max-w-6xl h-[90vh]'} transition-all duration-300`}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="theme-modal-header sticky top-0 z-10 flex items-center justify-between p-4 backdrop-blur-sm">
@@ -182,6 +189,7 @@ export default function GuideModal({ isOpen, onClose, guideComponent, guideConte
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   BadgeCheck,
   Sparkles,
@@ -6,6 +6,7 @@ import {
   Users,
   Target,
   ShieldCheck,
+  ShieldBan,
   RefreshCw,
   Store,
   Wallet,
@@ -29,7 +30,11 @@ import {
   Briefcase,
   Boxes,
   Lock,
-  Check
+  Check,
+  Terminal,
+  Timer,
+  ToggleLeft,
+  Save
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -70,6 +75,19 @@ function resolveAuthDisplayName(user) {
   const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
   return metadata.global_name || metadata.full_name || discord.global_name || discord.username || metadata.user_name || user.email || user.id || '';
 }
+
+function getDiscordUserId(user) {
+  if (!user || typeof user !== 'object') return null;
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord');
+  if (!discordIdentity?.identity_data) return null;
+  return String(discordIdentity.identity_data.id || discordIdentity.identity_data.sub || '').trim() || null;
+}
+
+const SUPER_ADMINS = new Set([
+  '110890964364627968', // Ciet
+  '97579134456168448',  // Bigboypinoy
+]);
 
 function resolveAvatarUrl(user) {
   if (!user) return '';
@@ -650,7 +668,7 @@ const RosterView = ({
 /* -------------------------------------------------------------------------- */
 
 export default function UserProfilePage() {
-  const { user, replaceUser, getAuthHeader } = useAuth();
+  const { user, replaceUser, getAuthHeader, roleMode } = useAuth();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
   const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
   const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
@@ -663,7 +681,9 @@ export default function UserProfilePage() {
   const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
   const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
   const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
-  
+  const discordUserId = useMemo(() => getDiscordUserId(user), [user]);
+  const isSuperAdmin = useMemo(() => SUPER_ADMINS.has(String(discordUserId || '')) || roleMode === 'admin', [discordUserId, roleMode]);
+
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedCosmetics = useMemo(() => {
     const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
@@ -792,15 +812,21 @@ export default function UserProfilePage() {
     finally { setEquippingKey(''); }
   };
 
-  const tabs = [
-    { id: 'dossier', label: 'Overview', icon: BookOpen },
-    { id: 'combat', label: 'Matches', icon: Target },
-    { id: 'arsenal', label: 'Arsenal', icon: Briefcase },
-    { id: 'loadout', label: 'Gear', icon: Boxes },
-    { id: 'roster', label: 'Roster', icon: Users },
-    { id: 'milestones', label: 'Progress', icon: Award },
-    { id: 'recent', label: 'Recent', icon: History },
-  ];
+  const tabs = useMemo(() => {
+    const base = [
+      { id: 'dossier', label: 'Overview', icon: BookOpen },
+      { id: 'combat', label: 'Matches', icon: Target },
+      { id: 'arsenal', label: 'Arsenal', icon: Briefcase },
+      { id: 'loadout', label: 'Gear', icon: Boxes },
+      { id: 'roster', label: 'Roster', icon: Users },
+      { id: 'milestones', label: 'Progress', icon: Award },
+      { id: 'recent', label: 'Recent', icon: History },
+    ];
+    if (isSuperAdmin) {
+      base.push({ id: 'admin', label: 'Overseer', icon: Terminal });
+    }
+    return base;
+  }, [isSuperAdmin]);
 
   return (
     <div className="min-h-screen bg-transparent px-4 py-8 sm:px-8">
@@ -857,7 +883,295 @@ export default function UserProfilePage() {
             )}
             {activeTab === 'milestones' && <MilestonesView achievements={profile.progression?.achievements || []} />}
             {activeTab === 'recent' && <RecentUnlocksView items={recentItems} />}
+            {activeTab === 'admin' && (
+              <AdminView
+                getAuthHeader={getAuthHeader}
+                discordUserId={discordUserId}
+              />
+            )}
           </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               ADMIN PANEL                                  */
+/* -------------------------------------------------------------------------- */
+
+function AdminView({ getAuthHeader, discordUserId }) {
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [banReason, setBanReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
+
+  const [patchConfig, setPatchConfig] = useState(null);
+  const [patchLoading, setPatchLoading] = useState(false);
+  const [newPatch, setNewPatch] = useState('');
+  const [phase1Days, setPhase1Days] = useState(21);
+  const [phase2Days, setPhase2Days] = useState(21);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [kiyoMessage, setKiyoMessage] = useState('');
+
+  const loadUsers = useCallback(async () => {
+    setAdminUsersLoading(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load users.');
+      setAdminUsers(Array.isArray(data?.users) ? data.users : []);
+    } catch (e) {
+      setActionMessage(`Users load failed: ${e.message}`);
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  }, [getAuthHeader]);
+
+  const loadPatch = useCallback(async () => {
+    setPatchLoading(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/hsr/kiyo/patch'));
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setPatchConfig(data);
+    } catch {}
+    finally { setPatchLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+    loadPatch();
+  }, [loadUsers, loadPatch]);
+
+  const submitModeration = async (action) => {
+    if (!selectedUserId) return;
+    if (action === 'ban' && !banReason.trim()) return;
+    setActionLoading(true);
+    setActionMessage('');
+    try {
+      const res = await fetch(buildApiUrl('/api/admin-users'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ action, userId: selectedUserId, reason: banReason }),
+      });
+      if (!res.ok) throw new Error('Action failed.');
+      setActionMessage(`${action === 'ban' ? 'Banned' : 'Unbanned'} successfully.`);
+      setBanReason('');
+      setSelectedUserId('');
+      await loadUsers();
+    } catch (e) {
+      setActionMessage(`Error: ${e.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const kiyoAdminAction = async (action) => {
+    setKiyoMessage('');
+    if (!adminPassword.trim()) {
+      setKiyoMessage('Enter admin password.');
+      return;
+    }
+    try {
+      const body = { action, password: adminPassword };
+      if (action === 'set_patch' || action === 'override_timer') {
+        if (!newPatch.trim()) {
+          setKiyoMessage('Enter patch version (e.g. 4.3).');
+          return;
+        }
+        body.patch = newPatch.trim();
+      }
+      if (action === 'set_patch') {
+        body.phase_1_days = Number(phase1Days) || 21;
+        body.phase_2_days = Number(phase2Days) || 21;
+      }
+      const res = await fetch(buildApiUrl('/api/hsr/kiyo/admin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.detail || 'Admin action failed.');
+      setKiyoMessage(`Success: ${data.status}`);
+      if (action === 'set_patch' || action === 'override_timer') {
+        setNewPatch('');
+      }
+      await loadPatch();
+    } catch (e) {
+      setKiyoMessage(`Error: ${e.message}`);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    const term = userSearch.trim().toLowerCase();
+    if (!term) return adminUsers;
+    return adminUsers.filter(u => {
+      const name = String(u?.display_name || u?.email || u?.id || '').toLowerCase();
+      return name.includes(term);
+    });
+  }, [adminUsers, userSearch]);
+
+  const cardBase = "rounded-2xl border border-white/10 bg-[#0a0a0b]/60 p-6 backdrop-blur-xl";
+  const labelBase = "font-['Orbitron'] text-[10px] uppercase tracking-widest text-slate-400 mb-2 block";
+  const inputBase = "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-[var(--theme-accent)] focus:outline-none transition-colors";
+  const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
+  const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
+  const btnDanger = `${btnBase} border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20`;
+  const btnSuccess = `${btnBase} border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`;
+  const btnGhost = `${btnBase} border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10`;
+
+  return (
+    <div className="flex flex-col gap-8">
+      {(actionMessage || kiyoMessage) && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${actionMessage?.includes('Error') || kiyoMessage?.includes('Error') ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          {actionMessage || kiyoMessage}
+        </div>
+      )}
+
+      <div className={cardBase}>
+        <div className="flex items-center gap-3 mb-6">
+          <ShieldBan className="h-5 w-5 text-rose-400" />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Moderation</h3>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="flex-1">
+            <label className={labelBase}>Search Users</label>
+            <input type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)} placeholder="Filter by name or email..." className={inputBase} />
+          </div>
+          <div className="flex items-end">
+            <button onClick={loadUsers} disabled={adminUsersLoading} className={btnGhost}>
+              <RefreshCw className={`h-3.5 w-3.5 inline mr-2 ${adminUsersLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-64 overflow-y-auto rounded-xl border border-white/5 mb-4">
+          {filteredUsers.length === 0 ? (
+            <div className="p-4 text-sm text-slate-500">No users found.</div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-[#0f0f10]">
+                <tr className="text-slate-400 font-['Orbitron'] text-[9px] uppercase tracking-widest">
+                  <th className="px-4 py-2">User</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2 text-right">Select</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredUsers.map(u => (
+                  <tr key={u.id} className={`${selectedUserId === u.id ? 'bg-white/5' : 'hover:bg-white/[0.02]'} transition-colors`}>
+                    <td className="px-4 py-2">
+                      <div className="text-white font-medium">{u.display_name || u.email || u.id}</div>
+                      {u.email && <div className="text-slate-500 text-xs">{u.email}</div>}
+                    </td>
+                    <td className="px-4 py-2">
+                      {u.banned ? (
+                        <span className="inline-flex items-center gap-1 text-rose-400 text-xs font-bold uppercase"><ShieldBan className="h-3 w-3" /> Banned</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-bold uppercase"><ShieldCheck className="h-3 w-3" /> Active</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => setSelectedUserId(u.id)} className={`text-xs px-3 py-1 rounded-lg border transition-colors ${selectedUserId === u.id ? 'bg-[var(--theme-accent)] text-white border-[var(--theme-accent)]' : 'border-white/10 text-slate-400 hover:text-white hover:border-white/20'}`}>
+                        {selectedUserId === u.id ? 'Selected' : 'Select'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {selectedUserId && (
+          <div className="flex flex-col gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <label className={labelBase}>Reason (required for ban)</label>
+            <textarea value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Violation details..." rows={3} className={inputBase} />
+            <div className="flex gap-3">
+              <button onClick={() => submitModeration('ban')} disabled={actionLoading || !banReason.trim()} className={btnDanger}>
+                <ShieldBan className="h-3.5 w-3.5 inline mr-2" />
+                Ban User
+              </button>
+              <button onClick={() => submitModeration('unban')} disabled={actionLoading} className={btnSuccess}>
+                <ShieldCheck className="h-3.5 w-3.5 inline mr-2" />
+                Unban User
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={cardBase}>
+        <div className="flex items-center gap-3 mb-6">
+          <Terminal className="h-5 w-5 text-[var(--theme-accent)]" />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Kiyo Patch Control</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Current Patch</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.current_patch || '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Phase</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.current_phase ?? '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Phase Remaining</div>
+            <div className="text-2xl font-black text-white">
+              {patchConfig?.phase_days_remaining != null ? `${patchConfig.phase_days_remaining}d ${patchConfig.phase_hours_remaining ?? 0}h` : '—'}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Remaining</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.total_days_remaining ?? '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Auto Advance</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.auto_advance ? 'ON' : 'OFF'}</div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className={labelBase}>Admin Password</label>
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} placeholder="KIYO_ADMIN_PASSWORD" className={inputBase} />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className={labelBase}>Patch Version</label>
+              <input type="text" value={newPatch} onChange={e => setNewPatch(e.target.value)} placeholder="e.g. 4.3" className={inputBase} />
+            </div>
+            <div className="flex-1">
+              <label className={labelBase}>Phase 1 Days</label>
+              <input type="number" value={phase1Days} onChange={e => setPhase1Days(Number(e.target.value))} placeholder="21" className={inputBase} />
+            </div>
+            <div className="flex-1">
+              <label className={labelBase}>Phase 2 Days</label>
+              <input type="number" value={phase2Days} onChange={e => setPhase2Days(Number(e.target.value))} placeholder="21" className={inputBase} />
+            </div>
+            <div className="flex items-end gap-2">
+              <button onClick={() => kiyoAdminAction('set_patch')} className={btnPrimary}>
+                <Save className="h-3.5 w-3.5 inline mr-2" />
+                Set Patch
+              </button>
+              <button onClick={() => kiyoAdminAction('override_timer')} className={btnGhost}>
+                <Timer className="h-3.5 w-3.5 inline mr-2" />
+                Override
+              </button>
+            </div>
+          </div>
+
+          <button onClick={() => kiyoAdminAction('toggle_auto_advance')} className={`${btnGhost} self-start`}>
+            <ToggleLeft className="h-3.5 w-3.5 inline mr-2" />
+            Toggle Auto-Advance
+          </button>
         </div>
       </div>
     </div>

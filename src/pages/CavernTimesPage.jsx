@@ -2985,8 +2985,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
           </div>
         )}
 
-        <style dangerouslySetInnerHTML={{
-          __html: `
+        <style>{`
         .perspective-1000 { perspective: 1000px; }
         @keyframes subtle-pulse {
           0%, 100% { opacity: 0.8; transform: scale(1); }
@@ -3140,7 +3139,7 @@ export default function CavernTimesPage({ sessionTheme = 'modern' }) {
         .winter-theme .archive-team-like-btn {
           border-color: rgba(125, 211, 252, 0.24) !important;
         }
-      `}} />
+        `}</style>
 
         {/* Notifications */}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 pointer-events-none">

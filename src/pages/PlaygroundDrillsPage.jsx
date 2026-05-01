@@ -446,12 +446,12 @@ export default function PlaygroundDrillsPage({ sessionTheme = 'modern' }) {
 
   return (
     <div className={`playground-theme-shell min-h-screen bg-[#080b12] px-4 py-12 text-slate-200 md:px-8 [&_button:not(:disabled)]:cursor-pointer ${themeConfig.rootClassName || ''} flex flex-col`}>
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style>{`
         @keyframes holographic-scan {
           0% { transform: translateY(-100%); }
           100% { transform: translateY(100%); }
         }
-      `}} />
+      `}</style>
 
       <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col">
         {tourRunning ? (
