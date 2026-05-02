@@ -19,6 +19,35 @@ import bannerHistory from '../data/bannerHistory.json';
 // Import Banner Display Configuration
 import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
 
+// ── Cache Management ─────────────────────────────────────────────────
+
+const OLD_CACHE_KEYS = [
+  'cached_banner_data',
+  'genshin_cached_banners',
+  'wuwa_live_banners_cache_v4',
+  'wuwa_live_banners_cache_v3',
+  'wuwa_live_banners_cache_v2',
+  'wuwa_live_banners_cache',
+];
+
+/**
+ * Clears old banner caches to force fresh data fetches.
+ * Call once on app initialization.
+ */
+export function clearOldBannerCaches() {
+  if (typeof window === 'undefined') return;
+  let cleared = 0;
+  for (const key of OLD_CACHE_KEYS) {
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      cleared++;
+    }
+  }
+  if (cleared > 0) {
+    console.log(`[Cache] Cleared ${cleared} old banner cache(s)`);
+  }
+}
+
 // Import Cloudinary asset resolvers (our images primary, fetched fallback)
 import {
   resolveHsrCharacterImage,
@@ -357,10 +386,10 @@ export function extractBannerId(input = "") {
     return input.trim();
   }
   
-  // Case 2: WuWa ID with suffix (e.g., "100031_character")
-  const wuwaMatch = input.match(/^(\d+)_(character|weapon)$/);
-  if (wuwaMatch) {
-    return wuwaMatch[1]; // Return just the numeric part
+  // Case 2: ID with suffix (e.g., "100031_character", "3116_light_cone")
+  const suffixMatch = input.match(/^(\d+)_(character|weapon|light_cone)$/);
+  if (suffixMatch) {
+    return suffixMatch[1]; // Return just the numeric part
   }
   
   // Case 3: URL with hash (e.g., #2099 or #global)
@@ -604,7 +633,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         
         // Allow check only every 10 seconds to prevent button spamming
         if (nowTs - lastCheck < 10000) {
-          const cached = JSON.parse(localStorage.getItem('cached_banner_data') || '[]');
+          const cached = JSON.parse(localStorage.getItem('cached_banner_data_v2') || '[]');
           
           // INTEGRITY CHECK: Ensure we actually have data
           if (cached.length > 0) {
@@ -659,7 +688,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     if (isSame) {
         // Update timestamp even if same, to allow spam throttle
         localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
-        const cachedData = JSON.parse(localStorage.getItem('cached_banner_data') || '[]');
+        const cachedData = JSON.parse(localStorage.getItem('cached_banner_data_v2') || '[]');
         if (cachedData.length > 0) {
             return { status: 'uptodate', data: cachedData };
         }
@@ -741,7 +770,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
 
     // 7. Update Cache
     if (cleanBanners.length > 0) {
-        localStorage.setItem('cached_banner_data', JSON.stringify(cleanBanners));
+        localStorage.setItem('cached_banner_data_v2', JSON.stringify(cleanBanners));
         localStorage.setItem(CACHE_ID_KEY, JSON.stringify(newIds));
         localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
         return { status: 'updated', data: cleanBanners };
@@ -1075,9 +1104,13 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
+// Current: Lauma / Nefer (character), Nightweaver's Looking Glass / Reliquary of Truth (weapon)
+const _genshinCharFallback = 'https://paimon.moe/images/characters/lauma.png';
+const _genshinWepFallback = 'https://paimon.moe/images/banners/Epitome%20Invocation%2098.png';
+
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300099_character", bannerId: "300099", name: "Character Event Wish", type: "character", image: null, characterId: "character_banner", game: "genshin" },
-  { id: "400098_weapon", bannerId: "400098", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2098.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "300099_character", bannerId: "300099", name: "Lauma / Nefer", type: "character", image: resolveGenshinCharacterImage('lauma', _genshinCharFallback), characterId: "lauma", game: "genshin" },
+  { id: "400098_weapon", bannerId: "400098", name: "Nightweaver's Looking Glass / Reliquary of Truth", type: "weapon", image: resolveGenshinWeaponImage('Nightweaver', _genshinWepFallback), characterId: "weapon_banner", game: "genshin" },
 ];
 
 
@@ -1335,7 +1368,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   }
 
   const LAST_CHECK_KEY = 'genshin_banner_last_check';
-  const CACHE_KEY = 'genshin_cached_banners';
+  const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
   const CURRENT_CACHE_VERSION = '1.3'; // Increment this when banner overrides or active pairings change
@@ -1540,7 +1573,7 @@ const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcha
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
-  // Current featured banners
+  // Current featured banners only
   { 
     id: "100036", 
     name: "Hiyuki", 
@@ -1557,25 +1590,6 @@ export const WUWA_PRESET_BANNERS = [
     image: resolveWuWaWeaponImage('Frostburn', _wuwaFrostburnFallback),
     fallbackImage: _wuwaFrostburnFallback,
     characterId: "frostburn", 
-    game: "wuwa" 
-  },
-  // Previous banners
-  { 
-    id: "100035", 
-    name: "Lynae", 
-    type: "character", 
-    image: resolveWuWaCharacterImage('Lynae', _wuwaLynaeFallback),
-    fallbackImage: _wuwaLynaeFallback,
-    characterId: "lynae", 
-    game: "wuwa" 
-  },
-  { 
-    id: "200035", 
-    name: "Spectrum Blaster", 
-    type: "weapon", 
-    image: resolveWuWaWeaponImage('Spectrum Blaster', _wuwaSpectrumFallback),
-    fallbackImage: _wuwaSpectrumFallback,
-    characterId: "spectrum_blaster", 
     game: "wuwa" 
   },
 ];
@@ -1901,7 +1915,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v4'; // bumped: Hiyuki/Frostburn override
+  const CACHE_KEY = 'wuwa_live_banners_cache_v5'; // Bumped: Cloudinary-first, only current banners
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)

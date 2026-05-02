@@ -149,6 +149,13 @@ export default function App() {
   const [region, setRegion] = useState("America");
   const [patch, setPatch] = useState("4.0");
 
+  // Clear old banner caches on app load to force fresh data
+  useEffect(() => {
+    import('./utils/warpDataService').then(({ clearOldBannerCaches }) => {
+      clearOldBannerCaches();
+    });
+  }, []);
+
   // Auto-sync navbar patch with Kiyo backend
   useEffect(() => {
     let cancelled = false;
