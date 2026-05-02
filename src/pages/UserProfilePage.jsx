@@ -1177,12 +1177,12 @@ function AdminView({ getAuthHeader, discordUserId }) {
       </div>
 
       {/* Banner Management */}
-      <BannerAdminView />
+      <BannerAdminView discordUserId={discordUserId} />
     </div>
   );
 }
 
-function BannerAdminView() {
+function BannerAdminView({ discordUserId }) {
   const [banners, setBanners] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -1191,10 +1191,10 @@ function BannerAdminView() {
     setLoading(true);
     setMessage('');
     try {
-      const res = await fetch('/api/admin?action=banners&game=all');
+      const res = await fetch(`/api/admin?action=banners&game=all&discordId=${discordUserId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed');
-      setBanners(data.banners || {});
+      setBanners(data.data || {});
       setMessage('✓ Banners refreshed');
     } catch (e) {
       setMessage(`Error: ${e.message}`);
@@ -1222,7 +1222,7 @@ function BannerAdminView() {
       }
 
       // Tell server to clear too
-      const res = await fetch('/api/admin?action=clear-cache', { method: 'POST' });
+      const res = await fetch(`/api/admin?action=clear-cache&discordId=${discordUserId}`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
 
       setMessage(`✓ Cleared ${cleared} client cache(s). Server: ${data?.status || 'OK'}`);
