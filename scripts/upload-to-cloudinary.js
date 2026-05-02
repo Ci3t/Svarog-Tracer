@@ -208,14 +208,17 @@ async function uploadHsrPortraits() {
   }
 }
 
-// ── Phase 3: HSR Light Cone Previews (optional) ────────────────────────────
+// ── Phase 3: HSR Light Cone Previews ───────────────────────────────────────
 
 async function uploadHsrLightCones() {
   console.log("\n⚔️  Phase 3: Uploading HSR light cone previews...\n");
 
-  // Light cone IDs are not in characters.json — you'd need a separate list.
-  // For now, this is a placeholder. Populate LIGHTCONE_IDS when ready.
-  const LIGHTCONE_IDS = [];
+  // Fate collab + key light cones
+  const LIGHTCONE_IDS = [
+    23006, // LV.999
+    23045, // Fate — A Thankless Coronation
+    23046, // Fate — The Hell Where Ideals Burn
+  ];
 
   const baseUrl = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master";
 
@@ -225,9 +228,21 @@ async function uploadHsrLightCones() {
     const result = await uploadFromUrl(previewUrl, previewId);
     assetMap[`game/hsr/lightcone_preview/${lcId}.png`] = result;
   }
+}
 
-  if (LIGHTCONE_IDS.length === 0) {
-    console.log("  ℹ️  No light cone IDs configured. Add them to LIGHTCONE_IDS array to upload.");
+// ── Phase 4: HSR Element Icons ─────────────────────────────────────────────
+
+async function uploadHsrElementIcons() {
+  console.log("\n✨ Phase 4: Uploading HSR element icons...\n");
+
+  const ELEMENTS = ['Physical', 'Fire', 'Ice', 'Lightning', 'Wind', 'Quantum', 'Imaginary'];
+  const baseUrl = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master";
+
+  for (const element of ELEMENTS) {
+    const iconUrl = `${baseUrl}/icon/element/${element}.png`;
+    const iconId = `${BASE_FOLDER}/game/hsr/element_icon/${element}`;
+    const result = await uploadFromUrl(iconUrl, iconId);
+    assetMap[`game/hsr/element_icon/${element}.png`] = result;
   }
 }
 
@@ -254,6 +269,7 @@ async function main() {
 
   await uploadHsrPortraits();
   await uploadHsrLightCones();
+  await uploadHsrElementIcons();
 
   writeAssetMap();
 

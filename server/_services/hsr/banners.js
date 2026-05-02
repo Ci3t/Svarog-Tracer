@@ -162,12 +162,14 @@ export async function handler(req, res) {
           image: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${char.icon}`,
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${charId}`,
           characterId: charId,
+          rarity: char.rarity || 5,
+          element: char.element,
           game: 'hsr',
           startTime: banner.startTime,
           endTime: banner.endTime
         };
       }
-      
+
       // Check if it's a light cone
       if (lcMap[charId]) {
         const lc = lcMap[charId];
@@ -180,6 +182,7 @@ export async function handler(req, res) {
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${charId}`,
           lcPreview: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${charId}.png`,
           characterId: charId,
+          rarity: lc.rarity || 5,
           game: 'hsr',
           startTime: banner.startTime,
           endTime: banner.endTime

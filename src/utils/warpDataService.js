@@ -275,9 +275,12 @@ export const FATE_CHARACTERS = [
   {
     id: "5001",
     name: "Saber",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png", 
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1014",
     type: "character",
     characterId: "1014",
+    rarity: 5,
+    element: "imaginary",
     separator: true,
     collaboration: "Fate/Stay Night"
   },
@@ -285,8 +288,11 @@ export const FATE_CHARACTERS = [
     id: "5002",
     name: "Archer",
     image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1015",
     type: "character",
     characterId: "1015",
+    rarity: 5,
+    element: "fire",
     collaboration: "Fate/Stay Night"
   }
 ];
@@ -296,16 +302,22 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6001",
     name: "A Thankless Coronation",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23045.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23045",
+    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
     type: "light_cone",
+    rarity: 5,
     separator: true,
     collaboration: "Fate/Stay Night"
   },
   {
     id: "6002",
     name: "The Hell Where Ideals Burn",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23046.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23046",
+    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
     type: "light_cone",
+    rarity: 5,
     collaboration: "Fate/Stay Night"
   }
 ];

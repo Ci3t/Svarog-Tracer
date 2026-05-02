@@ -59,6 +59,24 @@ export function getHsrLightConeUrl(lcId, options = {}) {
 }
 
 /**
+ * Get HSR element icon URL from Cloudinary
+ * @param {string} element - Element name (e.g., 'fire', 'ice', 'quantum')
+ * @param {Object} options - Transform options
+ * @returns {string|null} Cloudinary URL or null
+ */
+export function getHsrElementUrl(element, options = {}) {
+  if (!CLOUD_NAME || !element) return null;
+  const normalized = element.charAt(0).toUpperCase() + element.slice(1).toLowerCase();
+
+  const transforms = [];
+  if (options.width) transforms.push(`w_${options.width}`);
+  transforms.push('f_auto', 'q_auto');
+
+  const transformStr = transforms.length > 0 ? `${transforms.join(',')}/` : '';
+  return `${BASE_URL}/image/upload/${transformStr}svarog-tracer/game/hsr/element_icon/${normalized}`;
+}
+
+/**
  * Get local site asset URL from Cloudinary
  * @param {string} path - Local path like 'svarog.png' or 'companions/Clara/...'
  * @param {Object} options - Transform options

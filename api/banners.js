@@ -209,6 +209,8 @@ async function fetchHSRActiveBanners() {
           characterId: b.charId,
           image: `${CONFIG.STARRAIL_RES}/icon/character/${b.charId}.png`,
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${b.charId}`,
+          rarity: charData.rarity || 5,
+          element: charData.element,
           game: 'hsr'
         };
       } else if (lcData) {
@@ -220,6 +222,7 @@ async function fetchHSRActiveBanners() {
           image: `${CONFIG.STARRAIL_RES}/icon/light_cone/${b.charId}.png`,
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${b.charId}`,
           lcPreview: `${CONFIG.STARRAIL_RES}/image/light_cone_preview/${b.charId}.png`,
+          rarity: lcData.rarity || 5,
           game: 'hsr'
         };
       } else {
