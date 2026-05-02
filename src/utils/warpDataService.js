@@ -1543,11 +1543,20 @@ export const WUWA_PRESET_BANNERS = [
     id: "200035", 
     name: "Spectrum Blaster", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster-portrait.png&w=828&q=75", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75", 
     characterId: "spectrum_blaster", 
     game: "wuwa" 
   },
 ];
+
+const WUWA_IMAGE_OVERRIDES = Object.freeze({
+  hiyuki: { base: 'character-portraits', file: 'hiyuki-portrait.png' },
+  lynae: { base: 'character-portraits', file: 'lynae-portrait.webp' },
+  sigrika: { base: 'character-portraits', file: 'sigrika-portrait.webp' },
+  frostburn: { base: 'weapon-portraits', file: 'frostburn-portrait.png' },
+  'spectrum-blaster': { base: 'weapon-portraits', file: 'spectrum-blaster.png' },
+  'solsworn-ciphers': { base: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
+});
 
 const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
   hiyuki: 'Frostburn',
@@ -1945,10 +1954,13 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
       const firstName = bannerName.split('&')[0].trim();
       const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const override = WUWA_IMAGE_OVERRIDES[slug];
       const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const imageExt = type === 'character' ? 'webp' : 'png';
       // Both characters and weapons use the -portrait suffix in the latest WuWa Tracker API
-      const image = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
+      const image = override
+        ? `https://wuwatracker.com/_next/image?url=%2Fapi%2F${override.base}%2Ffile%2F${override.file}&w=828&q=75`
+        : `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
       
       // OPTIMIZATION: Remove individual stat fetches during discovery to fix slowness.
       // Images are now predictably derived from the slug.

@@ -47,6 +47,15 @@ const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
   lynae: 'Spectrum Blaster',
 });
 
+const WUWA_IMAGE_OVERRIDES = Object.freeze({
+  hiyuki: { folder: 'character-portraits', file: 'hiyuki-portrait.png' },
+  lynae: { folder: 'character-portraits', file: 'lynae-portrait.webp' },
+  sigrika: { folder: 'character-portraits', file: 'sigrika-portrait.webp' },
+  frostburn: { folder: 'weapon-portraits', file: 'frostburn-portrait.png' },
+  'spectrum-blaster': { folder: 'weapon-portraits', file: 'spectrum-blaster.png' },
+  'solsworn-ciphers': { folder: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
+});
+
 const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
   character: '100036',
   weapon: '200036',
@@ -260,7 +269,7 @@ export async function handler(req, res) {
       bannerId: '100036',
       name: 'Hiyuki',
       type: 'character',
-      image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.webp'),
+      image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file),
       game: 'wuwa'
     });
 
@@ -304,9 +313,12 @@ export async function handler(req, res) {
       
       // OPTIMIZATION: Predictable image URLs to avoid per-banner sub-fetches
       const slug = slugifyBannerName(resolvedName);
+      const override = WUWA_IMAGE_OVERRIDES[slug];
       const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const ext = type === 'character' ? 'webp' : 'png';
-      const image = buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
+      const image = override
+        ? buildWuWaImageUrl(override.folder, override.file)
+        : buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
       
       banners.push({
         id: `${bannerId}_${type}`,
@@ -334,15 +346,15 @@ export async function handler(req, res) {
         bannerId: '100036',
         name: 'Hiyuki',
         type: 'character',
-        image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.webp'),
+        image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file),
         game: 'wuwa'
       },
       {
-        id: '200036_weapon',
-        bannerId: '200036',
+        id: '100037_weapon',
+        bannerId: '100037',
         name: 'Frostburn',
         type: 'weapon',
-        image: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'),
+        image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.frostburn.folder, WUWA_IMAGE_OVERRIDES.frostburn.file),
         game: 'wuwa'
       }
     ];

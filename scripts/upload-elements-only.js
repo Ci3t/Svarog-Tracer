@@ -13,21 +13,23 @@ const ELEMENTS = ['Physical', 'Fire', 'Ice', 'Thunder', 'Wind', 'Quantum', 'Imag
 const BASE_FOLDER = "svarog-tracer";
 const baseUrl = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master";
 
-async function uploadFromUrl(url, publicId) {
+async function uploadFromUrl(url, folderPath, fileName) {
+  const fullPublicId = `${folderPath}/${fileName}`;
   try {
-    const existing = await cloudinary.api.resource(publicId, { resource_type: "auto" }).catch(() => null);
+    const existing = await cloudinary.api.resource(fullPublicId, { resource_type: "auto" }).catch(() => null);
     if (existing) {
-      console.log(`  ⏭️  Skip (exists): ${publicId}`);
+      console.log(`  ⏭️  Skip (exists): ${fullPublicId}`);
       return existing.secure_url;
     }
   } catch {}
 
   const result = await cloudinary.uploader.upload(url, {
-    public_id: publicId,
+    folder: folderPath,
+    public_id: fileName,
     overwrite: false,
     resource_type: "auto",
   });
-  console.log(`  ✅ Uploaded: ${publicId}`);
+  console.log(`  ✅ Uploaded: ${fullPublicId}`);
   return result.secure_url;
 }
 
@@ -35,8 +37,7 @@ console.log("☁️  Uploading HSR Element Icons to Cloudinary...\n");
 
 for (const element of ELEMENTS) {
   const iconUrl = `${baseUrl}/icon/element/${element}.png`;
-  const iconId = `${BASE_FOLDER}/game/hsr/element_icon/${element}`;
-  await uploadFromUrl(iconUrl, iconId);
+  await uploadFromUrl(iconUrl, `${BASE_FOLDER}/game/hsr/element_icon`, element);
 }
 
 console.log("\n✅ Done!");

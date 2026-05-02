@@ -77,47 +77,45 @@ function addToMap(localPath, secureUrl) {
 }
 
 async function uploadLocalFile(filePath, targetFolder) {
-  const publicId = `${BASE_FOLDER}/${targetFolder}/${path.basename(filePath, path.extname(filePath))}`;
+  const folderPath = `${BASE_FOLDER}/${targetFolder}`;
+  const fileName = path.basename(filePath, path.extname(filePath));
+  const fullPublicId = `${folderPath}/${fileName}`;
 
   try {
-    // Check if already exists
-    const existing = await cloudinary.api.resource(publicId, { resource_type: "auto" }).catch(() => null);
+    const existing = await cloudinary.api.resource(fullPublicId, { resource_type: "auto" }).catch(() => null);
     if (existing) {
-      console.log(`  ⏭️  Skip (exists): ${publicId}`);
+      console.log(`  ⏭️  Skip (exists): ${fullPublicId}`);
       addToMap(filePath, existing.secure_url);
       return existing.secure_url;
     }
-  } catch {
-    // Resource doesn't exist, proceed to upload
-  }
+  } catch {}
 
   const result = await cloudinary.uploader.upload(filePath, {
-    public_id: publicId,
+    folder: folderPath,
+    public_id: fileName,
     overwrite: false,
     resource_type: "auto",
-    eager: [
-      { fetch_format: "auto", quality: "auto" },
-    ],
+    eager: [{ fetch_format: "auto", quality: "auto" }],
   });
 
-  console.log(`  ✅ Uploaded: ${publicId}`);
+  console.log(`  ✅ Uploaded: ${fullPublicId}`);
   addToMap(filePath, result.secure_url);
   return result.secure_url;
 }
 
-async function uploadFromUrl(remoteUrl, publicId) {
+async function uploadFromUrl(remoteUrl, folderPath, fileName) {
+  const fullPublicId = `${folderPath}/${fileName}`;
   try {
-    const existing = await cloudinary.api.resource(publicId, { resource_type: "image" }).catch(() => null);
+    const existing = await cloudinary.api.resource(fullPublicId, { resource_type: "image" }).catch(() => null);
     if (existing) {
-      console.log(`  ⏭️  Skip (exists): ${publicId}`);
+      console.log(`  ⏭️  Skip (exists): ${fullPublicId}`);
       return existing.secure_url;
     }
-  } catch {
-    // Doesn't exist
-  }
+  } catch {}
 
   const result = await cloudinary.uploader.upload(remoteUrl, {
-    public_id: publicId,
+    folder: folderPath,
+    public_id: fileName,
     overwrite: false,
     resource_type: "image",
     eager: [
@@ -126,7 +124,7 @@ async function uploadFromUrl(remoteUrl, publicId) {
     ],
   });
 
-  console.log(`  ✅ Uploaded: ${publicId}`);
+  console.log(`  ✅ Uploaded: ${fullPublicId}`);
   return result.secure_url;
 }
 
@@ -194,16 +192,12 @@ async function uploadHsrPortraits() {
   for (const char of HSR_CHARACTERS) {
     if (!char.numId) continue;
 
-    // Portrait
     const portraitUrl = `${baseUrl}/image/character_portrait/${char.numId}.png`;
-    const portraitId = `${BASE_FOLDER}/game/hsr/character_portrait/${char.numId}`;
-    const portraitResult = await uploadFromUrl(portraitUrl, portraitId);
+    const portraitResult = await uploadFromUrl(portraitUrl, `${BASE_FOLDER}/game/hsr/character_portrait`, String(char.numId));
     assetMap[`game/hsr/character_portrait/${char.numId}.png`] = portraitResult;
 
-    // Icon (optional — for completeness)
     const iconUrl = `${baseUrl}/icon/character/${char.numId}.png`;
-    const iconId = `${BASE_FOLDER}/game/hsr/character_icon/${char.numId}`;
-    const iconResult = await uploadFromUrl(iconUrl, iconId);
+    const iconResult = await uploadFromUrl(iconUrl, `${BASE_FOLDER}/game/hsr/character_icon`, String(char.numId));
     assetMap[`game/hsr/character_icon/${char.numId}.png`] = iconResult;
   }
 }
@@ -224,8 +218,7 @@ async function uploadHsrLightCones() {
 
   for (const lcId of LIGHTCONE_IDS) {
     const previewUrl = `${baseUrl}/image/light_cone_preview/${lcId}.png`;
-    const previewId = `${BASE_FOLDER}/game/hsr/lightcone_preview/${lcId}`;
-    const result = await uploadFromUrl(previewUrl, previewId);
+    const result = await uploadFromUrl(previewUrl, `${BASE_FOLDER}/game/hsr/lightcone_preview`, String(lcId));
     assetMap[`game/hsr/lightcone_preview/${lcId}.png`] = result;
   }
 }
@@ -240,8 +233,7 @@ async function uploadHsrElementIcons() {
 
   for (const element of ELEMENTS) {
     const iconUrl = `${baseUrl}/icon/element/${element}.png`;
-    const iconId = `${BASE_FOLDER}/game/hsr/element_icon/${element}`;
-    const result = await uploadFromUrl(iconUrl, iconId);
+    const result = await uploadFromUrl(iconUrl, `${BASE_FOLDER}/game/hsr/element_icon`, element);
     assetMap[`game/hsr/element_icon/${element}.png`] = result;
   }
 }
