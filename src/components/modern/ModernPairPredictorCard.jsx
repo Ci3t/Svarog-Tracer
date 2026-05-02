@@ -449,10 +449,13 @@ export default function ModernPairPredictorCard({
     );
   }
 
-  // Commons display: main = strongest common by commonScore, alt = second common
+  // Commons display: the top "Play this pair" lane must stay on commons only.
+  // Svarog Eye can still show the exact/noise-aware pair separately.
   const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
-  const mainCommon = commonOrder[0] || displayPair?.[0] || commons?.[0];
-  const altCommon  = commonOrder[1] || displayPair?.find(c => c !== mainCommon) || commons?.find(c => c !== mainCommon) || alt;
+  const commonsPair = Array.isArray(commons) && commons.length === 2 ? commons : displayPair;
+  const commonsOrder = commonOrder.filter((value) => commonsPair?.includes(value));
+  const mainCommon = commonsOrder[0] || commonsPair?.[0] || commons?.[0];
+  const altCommon  = commonsOrder[1] || commonsPair?.find(c => c !== mainCommon) || commons?.find(c => c !== mainCommon) || alt;
   const sessionModel = sessionState || {
     key: pairSafety === 'danger' ? 'break' : pairSafety === 'caution' ? 'probe' : 'pair',
     label: pairSafety === 'danger' ? 'Break Live' : pairSafety === 'caution' ? 'Noise Watch' : 'Pair First',
@@ -535,9 +538,9 @@ export default function ModernPairPredictorCard({
   const commonLeanPct = Math.round((mainCommonScore / commonScoreTotal) * 100);
   const topNoise = sessionFallback[0] || noiseOrder[0] || freshOutsider?.value || null;
   const secondNoise = sessionFallback[1] || noiseOrder[1] || null;
-  // 🆕 Show exact prediction in summary when noise is likely
-  const displayLead = shouldShowExact ? exactPair[0] : sessionPlayLead;
-  const displayAlt  = shouldShowExact ? exactPair[1] : sessionPlayAlt;
+  // Top play cards are the commons lane only. Exact/noise-aware picks stay in Svarog Eye.
+  const displayLead = mainCommon;
+  const displayAlt  = altCommon;
   const topSummaryLine = displayAlt
     ? `Play ${displayLead} / ${displayAlt}. Lean ${displayLead} first.`
     : `Play ${displayLead}.`;
