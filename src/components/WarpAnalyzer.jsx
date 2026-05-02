@@ -497,7 +497,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
               <img
                 src={currentBanner.portrait || currentBanner.image}
                 alt=""
-                className="absolute top-0 right-0 h-full w-auto object-cover object-[top_right] opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
+                className="absolute top-0 right-0 h-full w-auto object-cover object-[top_right] opacity-20 brightness-[0.6] scale-110 origin-right"
                 onError={(event) => {
                   if (currentBanner?.portrait && event.target.src !== currentBanner.image) {
                     event.target.src = currentBanner.image;
