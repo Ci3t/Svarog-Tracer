@@ -14,10 +14,16 @@
  *   - Run from project root
  */
 
-const cloudinary = require("cloudinary").v2;
-const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
+import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -29,7 +35,7 @@ const BASE_FOLDER = "svarog-tracer";
 const LOCAL_ASSET_DIR = path.join(__dirname, "..", "public");
 const OUTPUT_MAP = path.join(__dirname, "..", "src", "generated", "cloudinary-map.js");
 
-const HSR_CHARACTERS = require(path.join(__dirname, "..", "src", "data", "characters.json"));
+const HSR_CHARACTERS = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "src", "data", "characters.json"), "utf8"));
 
 // ── Validation ─────────────────────────────────────────────────────────────
 
@@ -163,7 +169,9 @@ async function uploadLocalAssets() {
     if (!allowedExts.has(ext)) return;
 
     const relative = path.relative(LOCAL_ASSET_DIR, filePath);
-    const targetFolder = path.dirname(relative).replace(/\\/g, "/");
+    let targetFolder = path.dirname(relative).replace(/\\/g, "/");
+    // Root-level files go into "root" subfolder instead of "."
+    if (targetFolder === ".") targetFolder = "root";
     const fullPublicPath = path.join("public", relative);
 
     uploadQueue.push(() => uploadLocalFile(filePath, `site/${targetFolder}`));
