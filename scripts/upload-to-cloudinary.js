@@ -63,7 +63,12 @@ cloudinary.config({
 const assetMap = {};
 
 function normalizeKey(filePath) {
-  return filePath.replace(/^public\//, "").replace(/\\/g, "/");
+  // Convert any path to clean relative path from public/ root
+  // Handles: D:\Coding\HSR_PatternRecord\public\foo.png → foo.png
+  // Handles: public/companions/Clara/foo.mp3 → companions/Clara/foo.mp3
+  return filePath
+    .replace(/\\/g, '/')
+    .replace(/.*\bpublic\//, '');
 }
 
 function addToMap(localPath, secureUrl) {

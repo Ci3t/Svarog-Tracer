@@ -496,7 +496,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
               <img
                 src={currentBanner.portrait || currentBanner.image}
                 alt=""
-                className="absolute top-0 right-0 h-full w-auto object-cover opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
+                className="absolute top-0 right-0 h-full w-auto object-cover object-[top_right] opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
                 onError={(event) => {
                   if (currentBanner?.portrait && event.target.src !== currentBanner.image) {
                     event.target.src = currentBanner.image;
@@ -679,15 +679,16 @@ export default function WarpAnalyzer({ sessionTheme }) {
                       <div
                         onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                         className={`
-                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
-                                              ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
-                                              bg-slate-900/50 backdrop-blur-sm
-                                          `}
+                          group cursor-pointer relative rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
+                          ${banner.type === 'light_cone' || banner.type === 'weapon' ? 'aspect-[3/2]' : 'aspect-[2/3]'}
+                          ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
+                          bg-slate-900/50 backdrop-blur-sm
+                        `}
                       >
-                          <img
+                        <img
                           src={banner.portrait || banner.image}
                           alt={banner.name}
-                          className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
+                          className={`w-full h-full object-cover ${banner.type === 'light_cone' || banner.type === 'weapon' ? 'object-center' : 'object-[top_center]'} transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
                           onError={(event) => {
                             if (banner.portrait && event.target.src !== banner.image) {
                               event.target.src = banner.image;
@@ -696,6 +697,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
                             }
                           }}
                         />
+                        {/* Shine sweep effect on hover */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-in-out pointer-events-none z-10" />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-4">
                           <div className="flex gap-1 mb-2">

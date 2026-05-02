@@ -208,6 +208,7 @@ async function fetchHSRActiveBanners() {
           type: "character",
           characterId: b.charId,
           image: `${CONFIG.STARRAIL_RES}/icon/character/${b.charId}.png`,
+          portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${b.charId}`,
           game: 'hsr'
         };
       } else if (lcData) {
@@ -217,6 +218,7 @@ async function fetchHSRActiveBanners() {
           type: "light_cone",
           characterId: b.charId,
           image: `${CONFIG.STARRAIL_RES}/icon/light_cone/${b.charId}.png`,
+          portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${b.charId}`,
           game: 'hsr'
         };
       } else {
