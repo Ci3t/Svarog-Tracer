@@ -7,12 +7,21 @@ import { handler as hsrBannersHandler } from '../server/_services/hsr/banners.js
 import { handler as genshinBannersHandler } from '../server/_services/genshin/banners.js';
 import { handler as wuwaBannersHandler } from '../server/_services/wuwa/banners.js';
 
-// Simple auth check (in production, use proper authentication)
+// Super admin Discord IDs (same as UserProfilePage)
+const SUPER_ADMINS = new Set([
+  '110890964364627968', // Ciet
+  '97579134456168448',  // Bigboypinoy
+]);
+
 function isAuthorized(req) {
-  const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
+  // Check Discord ID from header or query
+  const discordId = req.headers['x-discord-id'] || req.query.discordId;
+  if (discordId && SUPER_ADMINS.has(String(discordId))) return true;
+  // Allow local dev if no ID provided and no ADMIN_API_KEY set
   const adminKey = process.env.ADMIN_API_KEY;
-  // If no key is set, allow local development access
-  if (!adminKey) return true;
+  if (!adminKey && !discordId) return true;
+  // Fallback to API key
+  const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
   return authHeader === `Bearer ${adminKey}` || authHeader === adminKey;
 }
 

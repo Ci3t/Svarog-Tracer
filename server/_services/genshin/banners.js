@@ -59,52 +59,7 @@ function toPaimonSlug(name) {
     .replace(/^_+|_+$/g, '');
 }
 
-function detectFiveStarCharacters(list) {
-  /**
-   * Smart heuristic: Featured 5-star characters have pull counts that are
-   * 5x-50x higher than 4-star characters. We find the biggest gap in the
-   * sorted list to auto-detect the 5-star threshold.
-   */
-  const characters = list
-    .filter(item => item.type === 'character')
-    .sort((a, b) => b.count - a.count);
 
-  if (characters.length === 0) return [];
-  if (characters.length === 1) return [characters[0].name];
-  if (characters.length === 2) return [characters[0].name, characters[1].name];
-
-  // Find the biggest ratio drop-off between consecutive characters
-  let bestGapIndex = 0;
-  let bestRatio = 1;
-
-  for (let i = 0; i < characters.length - 1; i++) {
-    const current = characters[i].count;
-    const next = characters[i + 1].count;
-    if (next <= 0) continue;
-    const ratio = current / next;
-    if (ratio > bestRatio) {
-      bestRatio = ratio;
-      bestGapIndex = i;
-    }
-  }
-
-  // If the biggest gap is significant (3x+), characters before it are 5-stars
-  if (bestRatio >= 3) {
-    const fiveStars = characters.slice(0, bestGapIndex + 1).slice(0, 2);
-    console.log(`[Genshin Auto] Detected 5-stars via gap heuristic (ratio ${bestRatio.toFixed(1)}x):`, fiveStars.map(c => c.name));
-    return fiveStars.map(c => c.name);
-  }
-
-  // Fallback: if no clear gap, use the top 2 if they have high counts
-  const topTwo = characters.slice(0, 2);
-  const minCount = topTwo[1]?.count || 0;
-  if (minCount >= 500) {
-    console.log(`[Genshin Auto] Using top 2 by count (no clear gap):`, topTwo.map(c => c.name));
-    return topTwo.map(c => c.name);
-  }
-
-  return [];
-}
 
 function extractFeaturedCharacterSlugs(list) {
   if (!list || list.length === 0) return [];
@@ -127,11 +82,7 @@ function extractFeaturedCharacterSlugs(list) {
 
   if (curated.length > 0) return curated;
 
-  // Strategy 2: Smart auto-detection via statistical gap analysis
-  const autoDetected = detectFiveStarCharacters(list);
-  if (autoDetected.length > 0) return autoDetected;
-
-  // Strategy 3: Legacy heuristic fallback
+  // Strategy 2: Legacy heuristic fallback
   return list
     .filter(item => {
       if (item.type !== 'character') return false;
