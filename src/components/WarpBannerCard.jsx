@@ -13,21 +13,22 @@ const Star = ({ filled, active }) => (
 );
 
 const ELEMENT_META = {
-  physical:  { bg: 'bg-stone-500',     text: 'text-stone-100',     label: 'P' },
-  fire:      { bg: 'bg-red-500',       text: 'text-red-100',       label: 'F' },
-  ice:       { bg: 'bg-sky-400',       text: 'text-sky-900',       label: 'I' },
-  lightning: { bg: 'bg-violet-500',    text: 'text-violet-100',    label: 'L' },
-  wind:      { bg: 'bg-emerald-500',   text: 'text-emerald-100',   label: 'W' },
-  quantum:   { bg: 'bg-indigo-500',    text: 'text-indigo-100',    label: 'Q' },
-  imaginary: { bg: 'bg-amber-400',     text: 'text-amber-900',     label: 'I' },
+  physical:  { bg: 'bg-stone-500',     text: 'text-stone-100',     label: 'P', folder: 'Physical' },
+  fire:      { bg: 'bg-red-500',       text: 'text-red-100',       label: 'F', folder: 'Fire' },
+  ice:       { bg: 'bg-sky-400',       text: 'text-sky-900',       label: 'I', folder: 'Ice' },
+  lightning: { bg: 'bg-violet-500',    text: 'text-violet-100',    label: 'L', folder: 'Thunder' },
+  wind:      { bg: 'bg-emerald-500',   text: 'text-emerald-100',   label: 'W', folder: 'Wind' },
+  quantum:   { bg: 'bg-indigo-500',    text: 'text-indigo-100',    label: 'Q', folder: 'Quantum' },
+  imaginary: { bg: 'bg-amber-400',     text: 'text-amber-900',     label: 'I', folder: 'Imaginary' },
 };
 
 function getHsrElementUrl(element) {
   if (!element) return null;
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   if (!cloudName) return null;
-  const normalized = element.charAt(0).toUpperCase() + element.slice(1).toLowerCase();
-  return `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_48/svarog-tracer/game/hsr/element_icon/${normalized}`;
+  const meta = ELEMENT_META[element.toLowerCase()];
+  const folder = meta ? meta.folder : (element.charAt(0).toUpperCase() + element.slice(1).toLowerCase());
+  return `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_48/svarog-tracer/game/hsr/element_icon/${folder}`;
 }
 
 function getElementMeta(element) {
@@ -49,6 +50,7 @@ export default function WarpBannerCard({
   const breatheRef = useRef(null);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [elementImgLoaded, setElementImgLoaded] = useState(false);
 
   const isHsr = game === 'hsr';
   const isLightCone = banner.type === 'light_cone';
@@ -272,7 +274,7 @@ export default function WarpBannerCard({
           </span>
         </div>
 
-        {/* Top-right element badge — always visible with color fallback */}
+        {/* Top-right element badge — image with color fallback */}
         {banner.element && (
           <div className="absolute top-2 right-2 z-30">
             <div className={`
@@ -284,16 +286,19 @@ export default function WarpBannerCard({
                 <img
                   src={elementUrl}
                   alt={banner.element}
-                  className="w-5 h-5 object-contain relative z-10"
+                  className={`w-5 h-5 object-contain relative z-10 ${elementImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  onLoad={() => setElementImgLoaded(true)}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               ) : null}
-              <span className={`
-                absolute inset-0 flex items-center justify-center text-[10px] font-black z-0
-                ${getElementMeta(banner.element).text}
-              `}>
-                {getElementMeta(banner.element).label}
-              </span>
+              {!elementImgLoaded && (
+                <span className={`
+                  absolute inset-0 flex items-center justify-center text-[10px] font-black z-0
+                  ${getElementMeta(banner.element).text}
+                `}>
+                  {getElementMeta(banner.element).label}
+                </span>
+              )}
             </div>
           </div>
         )}
