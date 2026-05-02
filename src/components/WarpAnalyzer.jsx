@@ -491,13 +491,17 @@ export default function WarpAnalyzer({ sessionTheme }) {
             style={{ backgroundImage: 'radial-gradient(#f59e0b 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }} />
 
           {/* FADED CHARACTER BG */}
-          {currentBanner?.image && (
+          {(currentBanner?.portrait || currentBanner?.image) && (
             <div className="absolute inset-0 transition-opacity duration-1000 ease-in-out overflow-hidden">
               <img
-                src={currentBanner.image}
+                src={currentBanner.portrait || currentBanner.image}
                 alt=""
                 className="absolute top-0 right-0 h-full w-auto object-cover opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
-                onError={(event) => applyLv999ImageFallback(event, currentBanner?.name)}
+                onError={(event) => {
+                  if (currentBanner?.portrait && event.target.src !== currentBanner.image) {
+                    event.target.src = currentBanner.image;
+                  }
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-l from-slate-950/20 via-slate-950/60 to-slate-950" />
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-transparent to-slate-950" />
@@ -680,11 +684,17 @@ export default function WarpAnalyzer({ sessionTheme }) {
                                               bg-slate-900/50 backdrop-blur-sm
                                           `}
                       >
-                        <img
-                          src={banner.image}
+                          <img
+                          src={banner.portrait || banner.image}
                           alt={banner.name}
                           className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
-                          onError={(event) => applyLv999ImageFallback(event, banner.name)}
+                          onError={(event) => {
+                            if (banner.portrait && event.target.src !== banner.image) {
+                              event.target.src = banner.image;
+                            } else {
+                              applyLv999ImageFallback(event, banner.name);
+                            }
+                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-4">

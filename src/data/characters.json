@@ -4,636 +4,727 @@
     "numId": 1001,
     "name": "March 7th",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1001.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1001.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1001"
   },
   {
     "id": "dan-heng",
     "numId": 1002,
     "name": "Dan Heng",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1002.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1002.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1002"
   },
   {
     "id": "himeko",
     "numId": 1003,
     "name": "Himeko",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1003.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1003.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1003"
   },
   {
     "id": "welt",
     "numId": 1004,
     "name": "Welt",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1004.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1004.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1004"
   },
   {
     "id": "kafka",
     "numId": 1005,
     "name": "Kafka",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1005.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1005.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1005"
   },
   {
     "id": "silver-wolf",
     "numId": 1006,
     "name": "Silver Wolf",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1006.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1006.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1006"
   },
   {
     "id": "arlan",
     "numId": 1008,
     "name": "Arlan",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1008.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1008.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1008"
   },
   {
     "id": "asta",
     "numId": 1009,
     "name": "Asta",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1009.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1009.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1009"
   },
   {
     "id": "herta",
     "numId": 1013,
     "name": "Herta",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1013.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1013.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1013"
   },
   {
     "id": "bronya",
     "numId": 1101,
     "name": "Bronya",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1101.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1101.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1101"
   },
   {
     "id": "seele",
     "numId": 1102,
     "name": "Seele",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1102.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1102.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1102"
   },
   {
     "id": "serval",
     "numId": 1103,
     "name": "Serval",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1103.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1103.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1103"
   },
   {
     "id": "gepard",
     "numId": 1104,
     "name": "Gepard",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1104.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1104.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1104"
   },
   {
     "id": "natasha",
     "numId": 1105,
     "name": "Natasha",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1105.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1105.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1105"
   },
   {
     "id": "pela",
     "numId": 1106,
     "name": "Pela",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1106.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1106.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1106"
   },
   {
     "id": "clara",
     "numId": 1107,
     "name": "Clara",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1107.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1107.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1107"
   },
   {
     "id": "sampo",
     "numId": 1108,
     "name": "Sampo",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1108.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1108.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1108"
   },
   {
     "id": "hook",
     "numId": 1109,
     "name": "Hook",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1109.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1109.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1109"
   },
   {
     "id": "lynx",
     "numId": 1110,
     "name": "Lynx",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1110.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1110.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1110"
   },
   {
     "id": "luka",
     "numId": 1111,
     "name": "Luka",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1111.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1111.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1111"
   },
   {
     "id": "topaz-numby",
     "numId": 1112,
     "name": "Topaz & Numby",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1112.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1112.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1112"
   },
   {
     "id": "qingque",
     "numId": 1201,
     "name": "Qingque",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1201.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1201.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1201"
   },
   {
     "id": "tingyun",
     "numId": 1202,
     "name": "Tingyun",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1202.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1202.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1202"
   },
   {
     "id": "luocha",
     "numId": 1203,
     "name": "Luocha",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1203.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1203.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1203"
   },
   {
     "id": "jing-yuan",
     "numId": 1204,
     "name": "Jing Yuan",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1204.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1204.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1204"
   },
   {
     "id": "blade",
     "numId": 1205,
     "name": "Blade",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1205.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1205.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1205"
   },
   {
     "id": "sushang",
     "numId": 1206,
     "name": "Sushang",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1206.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1206.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1206"
   },
   {
     "id": "yukong",
     "numId": 1207,
     "name": "Yukong",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1207.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1207.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1207"
   },
   {
     "id": "fu-xuan",
     "numId": 1208,
     "name": "Fu Xuan",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1208.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1208.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1208"
   },
   {
     "id": "yanqing",
     "numId": 1209,
     "name": "Yanqing",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1209.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1209.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1209"
   },
   {
     "id": "guinaifen",
     "numId": 1210,
     "name": "Guinaifen",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1210.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1210.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1210"
   },
   {
     "id": "bailu",
     "numId": 1211,
     "name": "Bailu",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1211.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1211.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1211"
   },
   {
     "id": "jingliu",
     "numId": 1212,
     "name": "Jingliu",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1212.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1212.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1212"
   },
   {
     "id": "dan-heng-imbibitor-lunae",
     "numId": 1213,
     "name": "Dan Heng • Imbibitor Lunae",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1213.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1213.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1213"
   },
   {
     "id": "xueyi",
     "numId": 1214,
     "name": "Xueyi",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1214.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1214.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1214"
   },
   {
     "id": "hanya",
     "numId": 1215,
     "name": "Hanya",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1215.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1215.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1215"
   },
   {
     "id": "huohuo",
     "numId": 1217,
     "name": "Huohuo",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1217.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1217.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1217"
   },
   {
     "id": "jiaoqiu",
     "numId": 1218,
     "name": "Jiaoqiu",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1218.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1218.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1218"
   },
   {
     "id": "feixiao",
     "numId": 1220,
     "name": "Feixiao",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1220.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1220.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1220"
   },
   {
     "id": "yunli",
     "numId": 1221,
     "name": "Yunli",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1221.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1221.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1221"
   },
   {
     "id": "lingsha",
     "numId": 1222,
     "name": "Lingsha",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1222.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1222.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1222"
   },
   {
     "id": "moze",
     "numId": 1223,
     "name": "Moze",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1223.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1223.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1223"
   },
   {
     "id": "march-7th-hunt",
     "numId": 1224,
     "name": "March 7th (Hunt)",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1224.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1224.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1224"
   },
   {
     "id": "fugue",
     "numId": 1225,
     "name": "Fugue",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1225.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1225.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1225"
   },
   {
     "id": "gallagher",
     "numId": 1301,
     "name": "Gallagher",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1301.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1301.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1301"
   },
   {
     "id": "argenti",
     "numId": 1302,
     "name": "Argenti",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1302.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1302.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1302"
   },
   {
     "id": "ruan-mei",
     "numId": 1303,
     "name": "Ruan Mei",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1303.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1303.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1303"
   },
   {
     "id": "aventurine",
     "numId": 1304,
     "name": "Aventurine",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1304.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1304.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1304"
   },
   {
     "id": "dr-ratio",
     "numId": 1305,
     "name": "Dr. Ratio",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1305.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1305.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1305"
   },
   {
     "id": "sparkle",
     "numId": 1306,
     "name": "Sparkle",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1306.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1306.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1306"
   },
   {
     "id": "black-swan",
     "numId": 1307,
     "name": "Black Swan",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1307.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1307.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1307"
   },
   {
     "id": "acheron",
     "numId": 1308,
     "name": "Acheron",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1308.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1308.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1308"
   },
   {
     "id": "robin",
     "numId": 1309,
     "name": "Robin",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1309.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1309.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1309"
   },
   {
     "id": "firefly",
     "numId": 1310,
     "name": "Firefly",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1310"
   },
   {
     "id": "misha",
     "numId": 1312,
     "name": "Misha",
     "rarity": 4,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1312.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1312.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1312"
   },
   {
     "id": "sunday",
     "numId": 1313,
     "name": "Sunday",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1313.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1313.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1313"
   },
   {
     "id": "jade",
     "numId": 1314,
     "name": "Jade",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1314.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1314.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1314"
   },
   {
     "id": "boothill",
     "numId": 1315,
     "name": "Boothill",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1315.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1315.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1315"
   },
   {
     "id": "rappa",
     "numId": 1317,
     "name": "Rappa",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1317.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1317.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1317"
   },
   {
     "id": "the-dahlia",
     "numId": 1321,
     "name": "The Dahlia",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1321"
   },
   {
     "id": "the-herta",
     "numId": 1401,
     "name": "The Herta",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1401.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1401.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1401"
   },
   {
     "id": "aglaea",
     "numId": 1402,
     "name": "Aglaea",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1402.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1402.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1402"
   },
   {
     "id": "tribbie",
     "numId": 1403,
     "name": "Tribbie",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1403.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1403.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1403"
   },
   {
     "id": "mydei",
     "numId": 1404,
     "name": "Mydei",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1404.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1404.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1404"
   },
   {
     "id": "anaxa",
     "numId": 1405,
     "name": "Anaxa",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1405.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1405.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1405"
   },
   {
     "id": "cipher",
     "numId": 1406,
     "name": "Cipher",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1406.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1406.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1406"
   },
   {
     "id": "castorice",
     "numId": 1407,
     "name": "Castorice",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1407.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1407.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1407"
   },
   {
     "id": "phainon",
     "numId": 1408,
     "name": "Phainon",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1408.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1408.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1408"
   },
   {
     "id": "hyacine",
     "numId": 1409,
     "name": "Hyacine",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1409.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1409.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1409"
   },
   {
     "id": "hysilens",
     "numId": 1410,
     "name": "Hysilens",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1410.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1410.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1410"
   },
   {
     "id": "cerydra",
     "numId": 1412,
     "name": "Cerydra",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1412.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1412.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1412"
   },
   {
     "id": "evernight",
     "numId": 1413,
     "name": "Evernight",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1413.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1413.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1413"
   },
   {
     "id": "dan-heng-permansor-terrae",
     "numId": 1414,
     "name": "Dan Heng • Permansor Terrae",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1414.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1414.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1414"
   },
   {
     "id": "cyrene",
     "numId": 1415,
     "name": "Cyrene",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1415.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1415.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1415"
   },
   {
     "id": "sparxie",
     "numId": 1501,
     "name": "Sparxie",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1501.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1501.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1501"
   },
   {
     "id": "yao-guang",
     "numId": 1502,
     "name": "Yao Guang",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1502.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1502.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1502"
   },
   {
     "id": "ashveil",
     "numId": 1504,
     "name": "Ashveil",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1504.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1504.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1504"
   },
   {
     "id": "saber",
     "numId": 1014,
     "name": "Saber",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1014"
   },
   {
     "id": "archer",
     "numId": 1015,
     "name": "Archer",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1015"
   },
   {
     "id": "trailblazer-destruction-m",
     "numId": 8001,
     "name": "Trailblazer • Destruction (M)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8001.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8001.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8001"
   },
   {
     "id": "trailblazer-destruction-f",
     "numId": 8002,
     "name": "Trailblazer • Destruction (F)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8002.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8002.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8002"
   },
   {
     "id": "trailblazer-preservation-m",
     "numId": 8003,
     "name": "Trailblazer • Preservation (M)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8003.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8003.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8003"
   },
   {
     "id": "trailblazer-preservation-f",
     "numId": 8004,
     "name": "Trailblazer • Preservation (F)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8004.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8004.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8004"
   },
   {
     "id": "trailblazer-harmony-m",
     "numId": 8005,
     "name": "Trailblazer • Harmony (M)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8005.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8005.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8005"
   },
   {
     "id": "trailblazer-harmony-f",
     "numId": 8006,
     "name": "Trailblazer • Harmony (F)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8006.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8006.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8006"
   },
   {
     "id": "trailblazer-remembrance-m",
     "numId": 8007,
     "name": "Trailblazer • Remembrance (M)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8007.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8007.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8007"
   },
   {
     "id": "trailblazer-remembrance-f",
     "numId": 8008,
     "name": "Trailblazer • Remembrance (F)",
     "rarity": 5,
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8008.png"
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/8008.png",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8008"
   },
   {
     "id": "evanescia",
     "numId": 1505,
     "name": "Evanescia",
     "rarity": 5,
-    "image": "https://static.nanoka.cc/assets/hsr/avatardrawcard/1505.webp"
+    "image": "https://static.nanoka.cc/assets/hsr/avatardrawcard/1505.webp",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1505"
   },
   {
     "id": "trailblazer-elation-m",
     "numId": 8009,
     "name": "Trailblazer • Elation (M)",
     "rarity": 5,
-    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8009.webp"
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8009.webp",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8009"
   },
   {
     "id": "trailblazer-elation-f",
     "numId": 8010,
     "name": "Trailblazer • Elation (F)",
     "rarity": 5,
-    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8010.webp"
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/8010.webp",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/8010"
   },
   {
     "id": "silver-wolf-999",
     "numId": 1506,
     "name": "Silver Wolf 999",
     "rarity": 5,
-    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/1506.webp"
+    "image": "https://static.nanoka.cc/assets/hsr/avatarroundicon/1506.webp",
+    "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1506"
   }
 ]

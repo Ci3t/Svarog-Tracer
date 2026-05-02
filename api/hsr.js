@@ -3,6 +3,7 @@ import { handler as statsHandler } from '../server/_services/hsr/stats.js';
 import { handler as cavernHandler } from '../server/_services/hsr/cavern-clears.js';
 import { handler as cronHandler } from '../server/_services/hsr/cron-wipe.js';
 import { handler as kiyoHandler } from '../server/_services/hsr/kiyo.js';
+import { handler as assetsHandler } from '../server/_services/hsr/assets.js';
 import { setCorsHeaders } from '../server/_services/zone/shared.js';
 
 function resolvePathPart(req) {
@@ -50,6 +51,7 @@ export default async function handler(req, res) {
   if (pathPart === 'banners') return bannersHandler(req, res);
   if (pathPart === 'stats') return statsHandler(req, res);
   if (pathPart === 'cron-wipe') return cronHandler(req, res);
+  if (pathPart === 'assets') return assetsHandler(req, res);
 
   return res.status(404).json({ error: 'HSR Endpoint Not Found', pathPart, url: req.url });
 }
