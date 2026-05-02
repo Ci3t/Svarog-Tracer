@@ -693,6 +693,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
                  id: b.bannerId,
                  name: info.name,
                  image: info.icon ? `${IMG_BASE}${info.icon}` : "",
+                 portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/${type === 'light_cone' ? 'lightcone_preview' : 'character_portrait'}/${b.charId}`,
                  type: type,
                  characterId: b.charId,
                  game: 'hsr'
