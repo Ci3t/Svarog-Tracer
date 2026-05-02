@@ -37,11 +37,14 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!isAuthorized(req)) {
+  const { action } = req.query;
+
+  // Public actions: anyone can fetch banners
+  const isPublicAction = action === 'banners' || action === 'status';
+
+  if (!isPublicAction && !isAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  const { action } = req.query;
 
   try {
     switch (action) {
