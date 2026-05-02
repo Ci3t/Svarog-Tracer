@@ -1191,7 +1191,9 @@ function BannerAdminView({ discordUserId }) {
     setLoading(true);
     setMessage('');
     try {
-      const res = await fetch(`/api/admin?action=banners&game=all&discordId=${discordUserId}`);
+      const res = await fetch('/api/admin?action=banners&game=all', {
+        headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed');
       setBanners(data.data || {});
@@ -1222,7 +1224,10 @@ function BannerAdminView({ discordUserId }) {
       }
 
       // Tell server to clear too
-      const res = await fetch(`/api/admin?action=clear-cache&discordId=${discordUserId}`, { method: 'POST' });
+      const res = await fetch('/api/admin?action=clear-cache', {
+        method: 'POST',
+        headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
+      });
       const data = await res.json().catch(() => ({}));
 
       setMessage(`✓ Cleared ${cleared} client cache(s). Server: ${data?.status || 'OK'}`);

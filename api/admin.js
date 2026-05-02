@@ -15,11 +15,16 @@ const SUPER_ADMINS = new Set([
 
 function isAuthorized(req) {
   // Check Discord ID from header or query
-  const discordId = req.headers['x-discord-id'] || req.query.discordId;
+  let discordId = req.headers['x-discord-id'] || req.query.discordId;
+  // Handle null/undefined sent as strings from frontend
+  if (discordId === 'null' || discordId === 'undefined' || discordId === '') discordId = null;
+  
   if (discordId && SUPER_ADMINS.has(String(discordId))) return true;
+  
   // Allow local dev if no ID provided and no ADMIN_API_KEY set
   const adminKey = process.env.ADMIN_API_KEY;
   if (!adminKey && !discordId) return true;
+  
   // Fallback to API key
   const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
   return authHeader === `Bearer ${adminKey}` || authHeader === adminKey;
