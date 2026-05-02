@@ -34,7 +34,8 @@ import {
   Terminal,
   Timer,
   ToggleLeft,
-  Save
+  Save,
+  Trash2
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -1173,6 +1174,137 @@ function AdminView({ getAuthHeader, discordUserId }) {
             Toggle Auto-Advance
           </button>
         </div>
+      </div>
+
+      {/* Banner Management */}
+      <BannerAdminView />
+    </div>
+  );
+}
+
+function BannerAdminView() {
+  const [banners, setBanners] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const loadBanners = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/admin?action=banners&game=all');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed');
+      setBanners(data.banners || {});
+      setMessage('✓ Banners refreshed');
+    } catch (e) {
+      setMessage(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearCaches = async () => {
+    setMessage('');
+    try {
+      // Clear localStorage cache keys
+      const keys = [
+        'cached_banner_data_v2',
+        'genshin_cached_banners_v2',
+        'wuwa_live_banners_cache_v5',
+        'wuwa_parser_working_strategy',
+      ];
+      let cleared = 0;
+      for (const k of keys) {
+        if (localStorage.getItem(k)) {
+          localStorage.removeItem(k);
+          cleared++;
+        }
+      }
+
+      // Tell server to clear too
+      const res = await fetch('/api/admin?action=clear-cache', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+
+      setMessage(`✓ Cleared ${cleared} client cache(s). Server: ${data?.status || 'OK'}`);
+    } catch (e) {
+      setMessage(`Cache clear error: ${e.message}`);
+    }
+  };
+
+  useEffect(() => {
+    loadBanners();
+  }, []);
+
+  const cardBase = "rounded-2xl border border-white/10 bg-[#0a0a0b]/60 p-6 backdrop-blur-xl";
+  const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
+  const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
+  const btnGhost = `${btnBase} border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10`;
+
+  const gameCards = [
+    { key: 'hsr', label: 'HSR', color: 'text-purple-400' },
+    { key: 'genshin', label: 'Genshin', color: 'text-emerald-400' },
+    { key: 'wuwa', label: 'WuWa', color: 'text-amber-400' },
+  ];
+
+  return (
+    <div className={cardBase}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <RefreshCw className={`h-5 w-5 text-[var(--theme-accent)] ${loading ? 'animate-spin' : ''}`} />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Banner Management</h3>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={loadBanners} disabled={loading} className={btnPrimary}>
+            <RefreshCw className="h-3.5 w-3.5 inline mr-2" />
+            Refresh Banners
+          </button>
+          <button onClick={clearCaches} className={btnGhost}>
+            <Trash2 className="h-3.5 w-3.5 inline mr-2" />
+            Clear Caches
+          </button>
+        </div>
+      </div>
+
+      {message && (
+        <div className={`rounded-xl border px-4 py-2 text-xs mb-4 ${message.includes('Error') ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          {message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {gameCards.map(g => {
+          const list = banners[g.key] || [];
+          return (
+            <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-slate-500 text-xs uppercase tracking-widest mb-2">{g.label}</div>
+              <div className={`text-3xl font-black ${g.color}`}>{list.length}</div>
+              <div className="text-slate-500 text-xs mt-1">Active banners</div>
+              {list.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {list.slice(0, 2).map((b, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5" loading="lazy" onError={e => e.target.style.display='none'} />
+                      <div>
+                        <div className="text-white font-medium">{b.name}</div>
+                        <div className="text-slate-500 capitalize">{b.type}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="text-slate-500 text-xs uppercase tracking-widest mb-2">Asset Upload Commands</div>
+        <code className="block text-xs text-slate-300 font-mono bg-black/30 rounded-lg p-3 space-y-1">
+          <div>node scripts/auto-upload-assets.js genshin</div>
+          <div>node scripts/auto-upload-assets.js wuwa</div>
+          <div>node scripts/upload-hoyo-assets.js hsr</div>
+        </code>
+        <div className="text-slate-500 text-xs mt-2">Run in terminal. Put new images in D:\Coding\Assests Hoyo\{game} first.</div>
       </div>
     </div>
   );
