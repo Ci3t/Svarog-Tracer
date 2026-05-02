@@ -6,9 +6,9 @@
  * All games still pull fresh data each time — only image resolution changes.
  */
 
-import { CLOUDINARY_MAP } from '../../../src/generated/cloudinary-map.js';
-import { GENSHIN_NORMALIZED_MAP } from '../../../src/generated/cloudinary-genshin-map.js';
-import { WUWA_ASSET_MAP } from '../../../src/generated/cloudinary-wuwa-map.js';
+import { CLOUDINARY_MAP } from '../../src/generated/cloudinary-map.js';
+import { GENSHIN_NORMALIZED_MAP } from '../../src/generated/cloudinary-genshin-map.js';
+import { WUWA_ASSET_MAP } from '../../src/generated/cloudinary-wuwa-map.js';
 
 // ── HSR ──────────────────────────────────────────────────────────────
 
