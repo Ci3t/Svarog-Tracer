@@ -59,6 +59,7 @@ const ModernLiveSessionPage = lazy(() => import('./pages/ModernLiveSessionPage')
 const ModernLongStringPage = lazy(() => import('./pages/ModernLongStringPage'));
 const ModernKiyoModePage = lazy(() => import('./pages/ModernKiyoModePage'));
 const WarpAnalyzerPage = lazy(() => import('./pages/WarpAnalyzerPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 const ModernGuidesPage = lazy(() => import('./pages/ModernGuidesPage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BannerTracker = lazy(() => import('./pages/BannerTracker'));
@@ -1296,6 +1297,7 @@ export default function App() {
               }
             />
             <Route path="/warp-analyzer" element={<WarpAnalyzerPage sessionTheme={sessionTheme} />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="/banner-tracker" element={<BannerTracker sessionTheme={sessionTheme} />} />
             <Route path="/caverns" element={<CavernTimesPage sessionTheme={sessionTheme} />} />
             <Route path="/tutorial" element={<TutorialPage sessionTheme={sessionTheme} />} />

@@ -4,6 +4,10 @@
  * Scans local asset folders, uploads missing files, regenerates maps.
  * Usage: node scripts/auto-upload-assets.js [game|all]
  *   game: hsr|genshin|wuwa|all
+ * 
+ *  Put new images in D:\Coding\Assests Hoyo\wuwa\ (or genshin\)
+2. Run: node scripts/auto-upload-assets.js wuwa
+3. Done — Cloudinary has the new images and maps are regenerated
  */
 
 import { v2 as cloudinary } from "cloudinary";
