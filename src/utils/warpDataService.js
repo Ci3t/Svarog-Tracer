@@ -204,6 +204,7 @@ export async function fetchCentralizedBanners(game = 'all') {
         id: b.id,
         name: b.name,
         image: b.image,
+        portrait: b.portrait,
         type: b.type,
         characterId: b.characterId,
         game: 'hsr'  // IMPORTANT: Keep this for filtering!

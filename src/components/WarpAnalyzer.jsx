@@ -680,7 +680,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                         onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
                         className={`
                           group cursor-pointer relative rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
-                          ${banner.type === 'light_cone' || banner.type === 'weapon' ? 'aspect-[3/2]' : 'aspect-[2/3]'}
+                          ${selectedGame === 'hsr' && banner.type === 'light_cone' ? 'aspect-[3/2]' : 'aspect-[3/4]'}
                           ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
                           bg-slate-900/50 backdrop-blur-sm
                         `}
@@ -688,7 +688,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                         <img
                           src={banner.portrait || banner.image}
                           alt={banner.name}
-                          className={`w-full h-full object-cover ${banner.type === 'light_cone' || banner.type === 'weapon' ? 'object-center' : 'object-[top_center]'} transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
+                          className={`w-full h-full object-cover ${selectedGame === 'hsr' && banner.type === 'character' ? 'object-[top_center]' : ''} transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
                           onError={(event) => {
                             if (banner.portrait && event.target.src !== banner.image) {
                               event.target.src = banner.image;
