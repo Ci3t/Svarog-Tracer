@@ -102,7 +102,7 @@ export async function handler(req, res) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const html = await response.text();
-    const banners = [];
+    const allBanners = [];
     const seenIds = new Set();
 
     // Extract all banner IDs from HTML dynamically
@@ -147,7 +147,7 @@ export async function handler(req, res) {
         ? resolveWuWaCharacterImage(resolvedName, fallbackImage)
         : resolveWuWaWeaponImage(resolvedName, fallbackImage);
 
-      banners.push({
+      allBanners.push({
         id: `${bannerId}_${type}`,
         bannerId,
         name: resolvedName,
@@ -158,12 +158,17 @@ export async function handler(req, res) {
       });
     }
 
-    console.log(`[WuWa Banners API] Discovered ${banners.length} banner(s)`);
-    banners.forEach(b => console.log(`  - ${b.bannerId}: ${b.name} (${b.type})`));
-
-    if (banners.length === 0) {
+    if (allBanners.length === 0) {
       throw new Error('No banners found in HTML');
     }
+
+    // Only keep the 5 most recent banners per type (discard old ones)
+    const chars = allBanners.filter(b => b.type === 'character').sort(compareWuWaBannerIdsDesc).slice(0, 5);
+    const weapons = allBanners.filter(b => b.type === 'weapon').sort(compareWuWaBannerIdsDesc).slice(0, 5);
+    const banners = [...chars, ...weapons];
+
+    console.log(`[WuWa Banners API] Discovered ${allBanners.length} total, using ${banners.length} recent`);
+    banners.forEach(b => console.log(`  - ${b.bannerId}: ${b.name} (${b.type})`));
 
     // Select current banners dynamically (highest IDs = newest)
     const currentBanners = selectCurrentBanners(banners);

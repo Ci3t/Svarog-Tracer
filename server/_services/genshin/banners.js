@@ -16,7 +16,7 @@ const GENSHIN_FEATURED_CHAR_WHITELIST = new Set([
   'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
   'baizhu', 'chasca', 'chiori', 'citlali', 'clorinde', 'columbina', 'cyno',
   'emilie', 'escoffier', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa',
-  'jahoda', 'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lyney',
+  'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lyney',
   'mavuika', 'mualani', 'nahida', 'navia', 'nefer', 'neuvillette', 'nilou',
   'raiden_shogun', 'shenhe', 'sigewinne', 'skirk', 'tartaglia', 'traveler',
   'venti', 'wanderer', 'wriothesley', 'xianyun', 'xiao', 'yae_miko', 'yelan',
@@ -68,7 +68,7 @@ function extractFeaturedCharacterSlugs(list) {
     'beidou', 'ningguang', 'yanfei', 'rosaria', 'xinyan', 'sayu', 'kujou_sara', 'thoma', 'gorou', 'yun_jin',
     'kuki_shinobu', 'heizou', 'collei', 'dori', 'candace', 'layla', 'faruzan', 'yaoyao', 'mika', 'kaveh',
     'kirara', 'lynette', 'freminet', 'charlotte', 'gaming', 'chevreuse', 'sethos', 'kachina', 'aino',
-    'ifa', 'illuga', 'dahlia', 'shikanoin_heizou', 'lan_yan'
+    'ifa', 'illuga', 'dahlia', 'shikanoin_heizou', 'lan_yan', 'jahoda'
   ];
 
   const curated = list
