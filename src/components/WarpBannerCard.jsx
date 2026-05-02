@@ -2,12 +2,13 @@ import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 
 /**
- * Warp Banner Showcase — Advanced floating character display
- * Not a "card" — a floating showcase where the image is the hero.
+ * Warp Banner Showcase — "Character Emerges from Void"
+ * No box. No border. The character IS the element.
+ * Image fades to transparent at the bottom. Name + stars float below.
  */
 
-const Star = ({ className, filled }) => (
-  <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" className={className}>
+const Star = ({ filled, active }) => (
+  <svg viewBox="0 0 24 24" className={`w-3 h-3 ${filled ? (active ? 'text-amber-400' : 'text-slate-600') : 'text-slate-800'}`} fill="currentColor">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
   </svg>
 );
@@ -19,127 +20,94 @@ export default function WarpBannerCard({
   index,
   game,
 }) {
-  const cardRef = useRef(null);
+  const wrapperRef = useRef(null);
   const imgRef = useRef(null);
   const glowRef = useRef(null);
+  const burstRef = useRef(null);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const isHsr = game === 'hsr';
-  const isCharacter = banner.type === 'character' || banner.type === 'standard' || banner.type === 'bangboo';
   const isLightCone = banner.type === 'light_cone';
   const isWeapon = banner.type === 'weapon';
 
-  // Entrance animation — staggered rise with slight rotation
+  // Entrance animation — rise from below with fade
   useEffect(() => {
-    if (!cardRef.current) return;
-
+    if (!wrapperRef.current) return;
     gsap.fromTo(
-      cardRef.current,
-      { y: 60, opacity: 0, scale: 0.9, rotateX: 8 },
-      {
-        y: 0,
-        opacity: 1,
-        scale: 1,
-        rotateX: 0,
-        duration: 0.7,
-        ease: 'power4.out',
-        delay: index * 0.08,
-      }
+      wrapperRef.current,
+      { y: 50, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out', delay: index * 0.08 }
     );
   }, [index]);
 
-  // 3D Tilt + parallax (desktop only)
+  // Selection burst particles
   useEffect(() => {
-    const card = cardRef.current;
-    if (!card || window.matchMedia('(pointer: coarse)').matches) return;
+    if (!isSelected || !burstRef.current) return;
+    const particles = burstRef.current.querySelectorAll('.burst-particle');
+    particles.forEach((p, i) => {
+      const angle = (i / particles.length) * Math.PI * 2;
+      const dist = 40 + Math.random() * 30;
+      gsap.fromTo(p,
+        { x: 0, y: 0, opacity: 1, scale: 1 },
+        {
+          x: Math.cos(angle) * dist,
+          y: Math.sin(angle) * dist,
+          opacity: 0,
+          scale: 0,
+          duration: 0.6,
+          ease: 'power2.out',
+          delay: 0.05,
+        }
+      );
+    });
+  }, [isSelected]);
 
-    const handleMouseMove = (e) => {
-      const rect = card.getBoundingClientRect();
+  // 3D hover tilt (desktop only)
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || window.matchMedia('(pointer: coarse)').matches) return;
+
+    const onMove = (e) => {
+      const rect = el.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width - 0.5;
       const y = (e.clientY - rect.top) / rect.height - 0.5;
 
-      gsap.to(card, {
-        rotateY: x * 12,
-        rotateX: -y * 12,
-        y: -8,
-        duration: 0.35,
+      gsap.to(el, {
+        rotateY: x * 10,
+        rotateX: -y * 8,
+        y: -10,
+        duration: 0.3,
         ease: 'power2.out',
       });
 
       if (imgRef.current) {
         gsap.to(imgRef.current, {
-          x: -x * 20,
-          y: -y * 20,
-          scale: 1.18,
-          duration: 0.35,
-          ease: 'power2.out',
+          scale: 1.08,
+          x: -x * 12,
+          duration: 0.3,
         });
       }
 
       if (glowRef.current) {
-        gsap.to(glowRef.current, {
-          opacity: 0.6,
-          scale: 1.1,
-          duration: 0.35,
-        });
+        gsap.to(glowRef.current, { opacity: 0.55, scale: 1.05, duration: 0.3 });
       }
     };
 
-    const handleMouseLeave = () => {
-      gsap.to(card, {
-        rotateY: 0,
-        rotateX: 0,
-        y: 0,
-        duration: 0.6,
-        ease: 'power2.out',
-      });
-
-      if (imgRef.current) {
-        gsap.to(imgRef.current, {
-          x: 0,
-          y: 0,
-          scale: 1,
-          duration: 0.6,
-          ease: 'power2.out',
-        });
-      }
-
+    const onLeave = () => {
+      gsap.to(el, { rotateY: 0, rotateX: 0, y: 0, duration: 0.5, ease: 'power2.out' });
+      if (imgRef.current) gsap.to(imgRef.current, { scale: 1, x: 0, duration: 0.5 });
       if (glowRef.current) {
-        gsap.to(glowRef.current, {
-          opacity: isSelected ? 0.5 : 0,
-          scale: 1,
-          duration: 0.6,
-        });
+        gsap.to(glowRef.current, { opacity: isSelected ? 0.4 : 0, scale: 1, duration: 0.5 });
       }
     };
 
-    card.addEventListener('mousemove', handleMouseMove);
-    card.addEventListener('mouseleave', handleMouseLeave);
-
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
     return () => {
-      card.removeEventListener('mousemove', handleMouseMove);
-      card.removeEventListener('mouseleave', handleMouseLeave);
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
     };
-  }, [isSelected]);
-
-  // Selection flash
-  useEffect(() => {
-    if (!isSelected || !cardRef.current) return;
-
-    const tl = gsap.timeline();
-    tl.to(cardRef.current, {
-      filter: 'brightness(1.6) saturate(1.4)',
-      duration: 0.06,
-      yoyo: true,
-      repeat: 3,
-    }).to(cardRef.current, {
-      filter: 'brightness(1.05) saturate(1.1)',
-      duration: 0.4,
-      ease: 'power2.out',
-    });
-
-    return () => { tl.kill(); };
   }, [isSelected]);
 
   const handleImgError = (e) => {
@@ -159,167 +127,131 @@ export default function WarpBannerCard({
 
   const handleImgLoad = () => setImgLoaded(true);
 
-  const getPlaceholderColor = () => {
-    const hash = banner.name?.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0) || 0;
-    const hues = [200, 260, 320, 30, 160];
-    return hues[Math.abs(hash) % hues.length];
+  const getGlowColor = () => {
+    if (isSelected) return '245, 158, 11';
+    if (isLightCone) return '59, 130, 246';
+    return '168, 85, 247';
   };
 
-  const glowColor = isSelected
-    ? 'rgba(245,158,11,0.5)'
-    : isLightCone
-    ? 'rgba(59,130,246,0.35)'
-    : 'rgba(168,85,247,0.3)';
+  const maskStyle = {
+    maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
+    WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
+  };
 
   return (
     <div
-      ref={cardRef}
+      ref={wrapperRef}
       onClick={onClick}
-      className="group cursor-pointer relative"
-      style={{
-        perspective: '1200px',
-        transformStyle: 'preserve-3d',
-      }}
+      className="group cursor-pointer relative flex flex-col items-center"
+      style={{ perspective: '1000px', transformStyle: 'preserve-3d' }}
     >
-      {/* Outer glow layer — behind everything */}
-      <div
-        ref={glowRef}
-        className="absolute -inset-3 rounded-2xl transition-opacity duration-500 pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse at center, ${glowColor} 0%, transparent 70%)`,
-          opacity: isSelected ? 0.5 : 0,
-          filter: 'blur(16px)',
-          zIndex: 0,
-        }}
-      />
+      {/* Image area — the character emerges here */}
+      <div className="relative w-full aspect-[2/3]">
+        {/* Background glow — appears behind the image */}
+        <div
+          ref={glowRef}
+          className="absolute -inset-2 rounded-3xl pointer-events-none transition-opacity"
+          style={{
+            background: `radial-gradient(ellipse at 50% 80%, rgba(${getGlowColor()},0.45) 0%, transparent 65%)`,
+            opacity: isSelected ? 0.4 : 0,
+            filter: 'blur(20px)',
+            zIndex: 0,
+          }}
+        />
 
-      {/* Main container — aspect ratio frame */}
-      <div
-        className={`
-          relative rounded-2xl overflow-visible
-          aspect-[2/3]
-          transition-all duration-500
-          ${isSelected ? 'z-20' : 'z-10'}
-        `}
-        style={{
-          transformStyle: 'preserve-3d',
-        }}
-      >
-        {/* Image layer — can overflow the frame */}
-        <div className="absolute inset-0 rounded-2xl overflow-hidden">
+        {/* The character image with bottom fade */}
+        <div className="absolute inset-0 z-10" style={maskStyle}>
           {!imgError ? (
             <img
               ref={imgRef}
               src={banner.portrait || banner.image}
               alt={banner.name}
               className={`
-                w-full h-full
-                object-cover object-top
-                transition-all duration-700 ease-out
-                ${isSelected ? 'scale-100 brightness-105' : 'scale-100 brightness-90 group-hover:brightness-100'}
+                w-full h-full object-cover object-top
+                transition-all duration-500 ease-out
+                ${isSelected ? 'brightness-110' : 'brightness-95 group-hover:brightness-105'}
                 ${imgLoaded ? 'opacity-100' : 'opacity-0'}
               `}
-              style={{
-                imageRendering: 'auto',
-                willChange: 'transform',
-              }}
+              style={{ willChange: 'transform' }}
               onError={handleImgError}
               onLoad={handleImgLoad}
             />
           ) : null}
 
-          {/* Placeholder fallback */}
+          {/* Placeholder */}
           {(imgError || !banner.image) && (
-            <div
-              className="absolute inset-0 flex items-center justify-center rounded-2xl"
-              style={{
-                background: `linear-gradient(160deg, hsl(${getPlaceholderColor()}, 45%, 18%) 0%, hsl(${getPlaceholderColor()}, 35%, 8%) 100%)`,
-              }}
-            >
-              <span className="text-5xl font-black text-white/15 uppercase">
-                {banner.name?.charAt(0)}
-              </span>
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-950">
+              <span className="text-6xl font-black text-white/10">{banner.name?.charAt(0)}</span>
             </div>
           )}
 
-          {/* Loading shimmer */}
+          {/* Loading */}
           {!imgLoaded && !imgError && (
-            <div className="absolute inset-0 animate-pulse rounded-2xl bg-gradient-to-br from-slate-800/60 to-slate-950/60" />
+            <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-slate-800/70 to-slate-950/70" />
           )}
-
-          {/* LC decorative frame overlay */}
-          {isLightCone && (
-            <div className="absolute inset-0 pointer-events-none rounded-2xl border border-white/[0.06]">
-              <div className="absolute top-0 left-0 w-6 h-6 border-t border-l border-blue-400/30 rounded-tl-2xl" />
-              <div className="absolute top-0 right-0 w-6 h-6 border-t border-r border-blue-400/30 rounded-tr-2xl" />
-              <div className="absolute bottom-0 left-0 w-6 h-6 border-b border-l border-blue-400/30 rounded-bl-2xl" />
-              <div className="absolute bottom-0 right-0 w-6 h-6 border-b border-r border-blue-400/30 rounded-br-2xl" />
-            </div>
-          )}
-
-          {/* Very subtle bottom fade for text readability ONLY */}
-          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none z-10" />
-
-          {/* Shine sweep on hover */}
-          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/[0.06] to-transparent transition-transform duration-1000 ease-in-out pointer-events-none z-20 rounded-2xl" />
         </div>
 
-        {/* Top-right: rarity indicator (mini) */}
-        <div className="absolute top-2.5 right-2.5 z-20 flex gap-0.5">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              className={`w-2 h-2 ${
-                i < (banner.rarity || 5)
-                  ? isSelected ? 'text-amber-400' : 'text-amber-500/60'
-                  : 'text-white/10'
-              }`}
-              filled={i < (banner.rarity || 5)}
-            />
-          ))}
-        </div>
-
-        {/* Top-left: type badge */}
-        <div className="absolute top-2.5 left-2.5 z-20">
+        {/* Top-left type badge */}
+        <div className="absolute top-1 left-1 z-20">
           <span className={`
-            text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md
-            backdrop-blur-md bg-black/30 border
+            text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded
+            bg-black/40 backdrop-blur-sm border
             ${isLightCone || isWeapon
               ? 'border-blue-400/30 text-blue-300'
-              : 'border-purple-400/30 text-purple-300'
+              : 'border-purple-400/25 text-purple-300'
             }
           `}>
             {isLightCone ? 'LC' : isWeapon ? 'WPN' : 'CHAR'}
           </span>
         </div>
 
-        {/* Bottom: name panel */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 z-20">
-          <h3 className={`
-            text-[11px] font-bold uppercase tracking-wider leading-tight
-            drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]
-            ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}
-            transition-colors duration-300
-          `}>
-            {banner.name}
-          </h3>
-
-          {banner.collaboration && (
-            <div className="mt-0.5 text-[9px] text-amber-300/80 font-semibold uppercase tracking-wider drop-shadow-md">
-              {banner.collaboration}
+        {/* Selected ring + burst container */}
+        {isSelected && (
+          <>
+            {/* Amber outline */}
+            <div
+              className="absolute -inset-1 rounded-2xl pointer-events-none z-30"
+              style={{
+                border: '2px solid rgba(245,158,11,0.6)',
+                boxShadow: '0 0 25px rgba(245,158,11,0.25), inset 0 0 15px rgba(245,158,11,0.08)',
+              }}
+            />
+            {/* Particle burst origin */}
+            <div ref={burstRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="burst-particle absolute w-1 h-1 rounded-full bg-amber-400"
+                  style={{ top: 0, left: 0 }}
+                />
+              ))}
             </div>
-          )}
+          </>
+        )}
+      </div>
+
+      {/* Info BELOW the image — not overlaid */}
+      <div className="mt-1 flex flex-col items-center gap-1 z-20">
+        {/* Rarity stars */}
+        <div className="flex gap-0.5">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} filled={i < (banner.rarity || 5)} active={isSelected} />
+          ))}
         </div>
 
-        {/* Selected ring border */}
-        {isSelected && (
-          <div
-            className="absolute -inset-[2px] rounded-2xl pointer-events-none z-30"
-            style={{
-              border: '2px solid rgba(245,158,11,0.7)',
-              boxShadow: '0 0 20px rgba(245,158,11,0.3), inset 0 0 20px rgba(245,158,11,0.1)',
-            }}
-          />
+        {/* Name */}
+        <h3 className={`
+          text-[11px] font-bold uppercase tracking-wider text-center leading-tight
+          ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}
+          transition-colors duration-300
+        `}>
+          {banner.name}
+        </h3>
+
+        {banner.collaboration && (
+          <div className="text-[9px] text-amber-400/70 font-semibold uppercase tracking-wider">
+            {banner.collaboration}
+          </div>
         )}
       </div>
     </div>
