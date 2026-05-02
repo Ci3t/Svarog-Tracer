@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
+import WarpBannerCard from "./WarpBannerCard";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -676,45 +677,13 @@ export default function WarpAnalyzer({ sessionTheme }) {
                         </div>
                       )}
 
-                      <div
+                      <WarpBannerCard
+                        banner={banner}
+                        isSelected={isSelected}
                         onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
-                        className={`
-                          group cursor-pointer relative rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
-                          ${selectedGame === 'hsr' && banner.type === 'light_cone' ? 'aspect-[3/2]' : 'aspect-[3/4]'}
-                          ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
-                          bg-slate-900/50 backdrop-blur-sm
-                        `}
-                      >
-                        <img
-                          src={banner.portrait || banner.image}
-                          alt={banner.name}
-                          className={`w-full h-full object-cover ${selectedGame === 'hsr' && banner.type === 'character' ? 'object-[top_center]' : ''} transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
-                          onError={(event) => {
-                            if (banner.portrait && event.target.src !== banner.image) {
-                              event.target.src = banner.image;
-                            } else {
-                              applyLv999ImageFallback(event, banner.name);
-                            }
-                          }}
-                        />
-                        {/* Shine sweep effect on hover */}
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-in-out pointer-events-none z-10" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <div className="flex gap-1 mb-2">
-                            {[...Array(5)].map((_, i) => (
-                              <Icons.Star key={i} className={`w-3 h-3 ${isSelected ? "text-amber-500 fill-amber-500" : "text-slate-600 fill-slate-600"}`} />
-                            ))}
-                          </div>
-                          <h3 className={`text-sm font-bold uppercase tracking-wider ${isSelected ? "text-white" : "text-slate-400"}`}>{banner.name}</h3>
-                          {banner.collaboration && (
-                            <div className="mt-1 text-[10px] text-amber-400/70 font-medium uppercase tracking-wider">
-                              {banner.collaboration}
-                            </div>
-                          )}
-                        </div>
-                        {isSelected && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#f59e0b]" />}
-                      </div>
+                        index={index}
+                        game={selectedGame}
+                      />
                     </React.Fragment>
                   )
                 })}
