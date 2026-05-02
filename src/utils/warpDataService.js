@@ -284,7 +284,7 @@ export const FATE_CHARACTERS = [
     type: "character",
     characterId: "1014",
     rarity: 5,
-    element: "imaginary",
+    element: "wind",
     separator: true,
     collaboration: "Fate/Stay Night"
   },
@@ -296,7 +296,7 @@ export const FATE_CHARACTERS = [
     type: "character",
     characterId: "1015",
     rarity: 5,
-    element: "fire",
+    element: "quantum",
     collaboration: "Fate/Stay Night"
   }
 ];

@@ -274,32 +274,23 @@ export default function WarpBannerCard({
           </span>
         </div>
 
-        {/* Top-right element badge — image with color fallback */}
+        {/* Top-right element badge — transparent icon only, letter fallback */}
         {banner.element && (
-          <div className="absolute top-2 right-2 z-30">
-            <div className={`
-              w-7 h-7 rounded-full border border-white/20 flex items-center justify-center
-              ${getElementMeta(banner.element).bg}
-              shadow-lg shadow-black/40
-            `}>
-              {elementUrl ? (
-                <img
-                  src={elementUrl}
-                  alt={banner.element}
-                  className={`w-5 h-5 object-contain relative z-10 ${elementImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-                  onLoad={() => setElementImgLoaded(true)}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              ) : null}
-              {!elementImgLoaded && (
-                <span className={`
-                  absolute inset-0 flex items-center justify-center text-[10px] font-black z-0
-                  ${getElementMeta(banner.element).text}
-                `}>
-                  {getElementMeta(banner.element).label}
-                </span>
-              )}
-            </div>
+          <div className="absolute top-2 right-2 z-30 flex items-center justify-center w-7 h-7">
+            {elementUrl ? (
+              <img
+                src={elementUrl}
+                alt={banner.element}
+                className={`w-7 h-7 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] ${elementImgLoaded ? 'block' : 'hidden'}`}
+                onLoad={() => setElementImgLoaded(true)}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : null}
+            {!elementImgLoaded && (
+              <span className="text-[10px] font-black text-white/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                {getElementMeta(banner.element).label}
+              </span>
+            )}
           </div>
         )}
 
