@@ -1603,15 +1603,8 @@ const WUWA_IMAGE_OVERRIDES = Object.freeze({
   'solsworn-ciphers': { base: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
 });
 
-const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
-  hiyuki: 'Frostburn',
-  lynae: 'Spectrum Blaster',
-});
-
-const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
-  character: '100036',
-  weapon: '200036',
-});
+// ── Dynamic banner selection (no hardcoded IDs) ──────────────────────
+// Newest banners are automatically selected by highest bannerId
 
 function compareWuWaBannerIdsDesc_Client(a, b) {
   return Number.parseInt(String(b?.bannerId || b?.id || '0'), 10) - Number.parseInt(String(a?.bannerId || a?.id || '0'), 10);
@@ -1676,42 +1669,26 @@ function findWuWaBannerByOccurrence_Client(banners, html) {
 function selectWuWaVisibleBanners_Client(banners, html) {
   const characterBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'character');
   const weaponBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'weapon');
-  const currentTitle = extractWuWaCurrentTitle_Client(html);
 
-  const forcedCurrentCharacter = findWuWaBannerById_Client(characterBanners, WUWA_CURRENT_FEATURED_IDS.character);
-  const forcedCurrentWeapon = findWuWaBannerById_Client(weaponBanners, WUWA_CURRENT_FEATURED_IDS.weapon);
+  if (characterBanners.length === 0 && weaponBanners.length === 0) return [];
 
-  if (forcedCurrentCharacter || forcedCurrentWeapon) {
-    const pairedWeaponName = forcedCurrentCharacter
-      ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(forcedCurrentCharacter.name || '').trim().toLowerCase()]
-      : '';
-    const selectedWeapon =
-      forcedCurrentWeapon ||
-      findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
-      pickHighestWuWaBanner_Client(weaponBanners) ||
-      findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
-      null;
+  // Select newest by bannerId descending
+  const selectedChar = pickHighestWuWaBanner_Client(characterBanners);
+  let selectedWeapon = pickHighestWuWaBanner_Client(weaponBanners);
 
-    return [forcedCurrentCharacter, selectedWeapon].filter(Boolean);
+  // Try to pair by matching last 2 digits of bannerId
+  // (e.g., 100036 char pairs with 200036 weapon)
+  if (selectedChar && weaponBanners.length > 1) {
+    const charSuffix = String(selectedChar.bannerId).slice(-2);
+    const matchedWeapon = weaponBanners.find(w => String(w.bannerId).slice(-2) === charSuffix);
+    if (matchedWeapon) {
+      selectedWeapon = matchedWeapon;
+    }
   }
 
-  const selectedCharacter =
-    findWuWaBannerByTitle_Client(characterBanners, currentTitle) ||
-    pickHighestWuWaBanner_Client(characterBanners) ||
-    findWuWaBannerByOccurrence_Client(characterBanners, html) ||
-    characterBanners[0] ||
-    null;
-  const pairedWeaponName = selectedCharacter
-    ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
-    : '';
-  const selectedWeapon =
-    findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
-    pickHighestWuWaBanner_Client(weaponBanners) ||
-    findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
-    weaponBanners[0] ||
-    null;
+  console.log(`[WuWa Client] Selected: ${selectedChar?.name} (${selectedChar?.bannerId}) + ${selectedWeapon?.name} (${selectedWeapon?.bannerId})`);
 
-  return [selectedCharacter, selectedWeapon].filter(Boolean);
+  return [selectedChar, selectedWeapon].filter(Boolean);
 }
 
 function buildWuWaBannerIdCandidates_Client(id) {
@@ -1979,13 +1956,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
       const rawBannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
       
-      // Apply known-banner name overrides (same as server-side WUWA_KNOWN_BANNERS)
-      const WUWA_CLIENT_KNOWN_NAMES = {
-        '100036': 'Hiyuki', '200036': 'Frostburn', '101036': 'Frostburn',
-        '100035': 'Lynae', '200035': 'Spectrum Blaster', '101035': 'Spectrum Blaster',
-        '100034': 'Sigrika', '200034': 'Solsworn Ciphers', '101034': 'Solsworn Ciphers',
-      };
-      const bannerName = WUWA_CLIENT_KNOWN_NAMES[bannerId] || rawBannerName;
+      const bannerName = rawBannerName;
       
       // Skip standard banner
       if (bannerName.toLowerCase().includes('standard')) continue;

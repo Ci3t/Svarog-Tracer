@@ -4,7 +4,6 @@
  * Images: Our Cloudinary assets primary, paimon.moe fallback
  */
 
-import { GENSHIN_BANNER_CONTROL } from './bannerControl.js';
 import { resolveGenshinCharacterImage, resolveGenshinWeaponImage } from '../../utils/gameAssetResolver.js';
 
 const PAIMON_API = 'https://api.paimon.moe/wish';
@@ -173,59 +172,18 @@ function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'aut
   };
 }
 
-function applyManualOverride(banner, type) {
-  if (type === 'character' && GENSHIN_BANNER_CONTROL.overrideCharacterName) {
-    const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideCharacterName);
-    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideCharacterImage ||
-      (forcedSlug ? `${GENSHIN_CHAR_IMG_BASE}${forcedSlug}.png` : banner?.image || null);
-    return {
-      ...(banner || {
-        id: `${GENSHIN_BANNER_CONTROL.characterBannerId}_character`,
-        bannerId: GENSHIN_BANNER_CONTROL.characterBannerId,
-        type: 'character',
-        game: 'genshin',
-        characterId: 'manual_character',
-        source: 'manual-override'
-      }),
-      name: GENSHIN_BANNER_CONTROL.overrideCharacterName,
-      image: forcedSlug ? resolveGenshinCharacterImage(forcedSlug, fallbackImage) : fallbackImage,
-      fallbackImage,
-      source: 'manual-override'
-    };
-  }
+/**
+ * Auto-discover the current banner by scanning from a high predicted ID downward.
+ * No hardcoded IDs needed — automatically adapts to new patches.
+ */
+async function discoverBannerAuto(prefix, type) {
+  // Scan from a high predicted ID down to a safe minimum
+  // This range should cover banners for the next several years
+  const MAX_ID = 120;  // e.g., 300120
+  const MIN_ID = 70;   // e.g., 300070
 
-  if (type === 'weapon' && GENSHIN_BANNER_CONTROL.overrideWeaponName) {
-    const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideWeaponName);
-    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideWeaponImage ||
-      (forcedSlug
-        ? `${GENSHIN_WEAPON_IMG_BASE}${forcedSlug}.png`
-        : banner?.image || `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`);
-    return {
-      ...(banner || {
-        id: `${GENSHIN_BANNER_CONTROL.weaponBannerId}_weapon`,
-        bannerId: GENSHIN_BANNER_CONTROL.weaponBannerId,
-        type: 'weapon',
-        game: 'genshin',
-        characterId: 'manual_weapon',
-        source: 'manual-override'
-      }),
-      name: GENSHIN_BANNER_CONTROL.overrideWeaponName,
-      image: forcedSlug ? resolveGenshinWeaponImage(forcedSlug, fallbackImage) : fallbackImage,
-      fallbackImage,
-      source: 'manual-override'
-    };
-  }
-
-  return banner;
-}
-
-async function discoverBannerNear(baseId, prefix, type) {
-  const scanIds = [];
-  for (let i = baseId + 2; i >= baseId - 8 && i >= 0; i--) {
-    scanIds.push(`${prefix}${String(i).padStart(3, '0')}`);
-  }
-
-  for (const bannerId of scanIds) {
+  for (let i = MAX_ID; i >= MIN_ID; i--) {
+    const bannerId = `${prefix}${String(i).padStart(3, '0')}`;
     try {
       const response = await fetch(`${PAIMON_API}?banner=${bannerId}`, {
         headers: {
@@ -243,10 +201,17 @@ async function discoverBannerNear(baseId, prefix, type) {
       if (type === 'character') {
         const slugs = extractFeaturedCharacterSlugs(data.list);
         const payload = buildCharacterBannerPayload(bannerId, slugs, legendaryCount, 'auto');
-        if (payload) return payload;
+        if (payload) {
+          console.log(`[Genshin Auto] Found character banner ${bannerId}: ${payload.name}`);
+          return payload;
+        }
       } else {
         const slugs = extractFeaturedWeaponSlugs(data.list);
-        return buildWeaponBannerPayload(bannerId, slugs, legendaryCount, 'auto');
+        const payload = buildWeaponBannerPayload(bannerId, slugs, legendaryCount, 'auto');
+        if (payload) {
+          console.log(`[Genshin Auto] Found weapon banner ${bannerId}: ${payload.name}`);
+          return payload;
+        }
       }
     } catch {
       continue;
@@ -295,23 +260,11 @@ export async function handler(req, res) {
   try {
     console.log('[Genshin Banners API] Auto-discovering current banners...');
 
-    const currentCharBase = parseInt(GENSHIN_BANNER_CONTROL.characterBannerId.slice(-3), 10);
-    const currentWeaponBase = parseInt(GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-3), 10);
-
-    let [characterBanner, weaponBanner] = await Promise.all([
-      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character'),
-      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon')
+    // Fully dynamic discovery — no hardcoded IDs
+    const [characterBanner, weaponBanner] = await Promise.all([
+      discoverBannerAuto('300', 'character'),
+      discoverBannerAuto('400', 'weapon')
     ]);
-
-    if (!characterBanner) {
-      characterBanner = await discoverBannerNear(currentCharBase, '300', 'character');
-    }
-    if (!weaponBanner) {
-      weaponBanner = await discoverBannerNear(currentWeaponBase, '400', 'weapon');
-    }
-
-    characterBanner = applyManualOverride(characterBanner, 'character');
-    weaponBanner = applyManualOverride(weaponBanner, 'weapon');
 
     const allBanners = [characterBanner, weaponBanner].filter(Boolean);
     allBanners.sort((a, b) => parseInt(b.bannerId, 10) - parseInt(a.bannerId, 10));
