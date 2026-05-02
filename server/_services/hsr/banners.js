@@ -1,7 +1,10 @@
 /**
  * HSR Banners API Endpoint
  * Discovers live HSR banners from starrailstation.com
+ * Images: Our Cloudinary assets primary, StarRailRes fallback
  */
+
+import { resolveHsrCharacterImage, resolveHsrLightConeImage } from '../../utils/gameAssetResolver.js';
 
 export async function handler(req, res) {
   // Enable CORS
@@ -148,19 +151,23 @@ export async function handler(req, res) {
     };
 
     // 4. Map banner IDs to character/LC names and images
+    // Our Cloudinary assets are primary; fetched URLs are fallback
     const banners = dedupedCandidates.map(banner => {
       const charId = banner.characterId;
       
       // Check if it's a character
       if (charMap[charId]) {
         const char = charMap[charId];
+        const fallbackImage = `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${char.icon}`;
+        const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${charId}`;
         return {
           id: `${banner.bannerId}_character`,
           bannerId: banner.bannerId,
           name: char.name,
           type: 'character',
-          image: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${char.icon}`,
-          portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${charId}`,
+          image: resolveHsrCharacterImage(charId, fallbackPortrait),
+          fallbackImage,
+          portrait: resolveHsrCharacterImage(charId, fallbackPortrait),
           characterId: charId,
           rarity: char.rarity || 5,
           element: char.element,
@@ -173,13 +180,16 @@ export async function handler(req, res) {
       // Check if it's a light cone
       if (lcMap[charId]) {
         const lc = lcMap[charId];
+        const fallbackImage = `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${lc.icon}`;
+        const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${charId}`;
         return {
           id: `${banner.bannerId}_light_cone`,
           bannerId: banner.bannerId,
           name: lc.name,
           type: 'light_cone',
-          image: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${lc.icon}`,
-          portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${charId}`,
+          image: resolveHsrLightConeImage(charId, fallbackPortrait),
+          fallbackImage,
+          portrait: resolveHsrLightConeImage(charId, fallbackPortrait),
           lcPreview: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${charId}.png`,
           characterId: charId,
           rarity: lc.rarity || 5,

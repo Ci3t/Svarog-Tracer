@@ -19,6 +19,16 @@ import bannerHistory from '../data/bannerHistory.json';
 // Import Banner Display Configuration
 import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
 
+// Import Cloudinary asset resolvers (our images primary, fetched fallback)
+import {
+  resolveHsrCharacterImage,
+  resolveHsrLightConeImage,
+  resolveGenshinCharacterImage,
+  resolveGenshinWeaponImage,
+  resolveWuWaCharacterImage,
+  resolveWuWaWeaponImage
+} from './gameAssetResolver.js';
+
 const HSR_LV999_NAME = 'Silver Wolf LV.999';
 const HSR_LV999_IMAGE = 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp';
 const HSR_LV999_LC_NAME = 'Silver Wolf LV.999 Light Cone';
@@ -706,11 +716,18 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         }
         
         if (info) {
+             const fallbackImage = info.icon ? `${IMG_BASE}${info.icon}` : "";
+             const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/${type === 'light_cone' ? 'lightcone_preview' : 'character_portrait'}/${b.charId}`;
              finalBanners.push({
                  id: b.bannerId,
                  name: info.name,
-                 image: info.icon ? `${IMG_BASE}${info.icon}` : "",
-                 portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/${type === 'light_cone' ? 'lightcone_preview' : 'character_portrait'}/${b.charId}`,
+                 image: type === 'character'
+                   ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
+                   : resolveHsrLightConeImage(b.charId, fallbackPortrait),
+                 fallbackImage,
+                 portrait: type === 'character'
+                   ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
+                   : resolveHsrLightConeImage(b.charId, fallbackPortrait),
                  type: type,
                  characterId: b.charId,
                  game: 'hsr'
@@ -1408,13 +1425,15 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
           w.charAt(0).toUpperCase() + w.slice(1)
         ).join(' ');
         const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+        const fallbackImage = `${GENSHIN_IMG_BASE}${charIconName}.png`;
         
         banners.push({
           id: `${bannerId}_${char.name}`,
           bannerId: bannerId,
           name: formattedName,
           type: 'character',
-          image: `${GENSHIN_IMG_BASE}${charIconName}.png`,
+          image: resolveGenshinCharacterImage(char.name, fallbackImage),
+          fallbackImage,
           characterId: char.name,
           game: 'genshin'
         });
@@ -1436,12 +1455,14 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
             // Check for manual override first, then extract weapons
             const override = GENSHIN_BANNER_OVERRIDES[bannerId];
             const weaponName = override ? override.name : (extractGenshinWeaponNames(data.list) || `Epitome Invocation`);
+            const fallbackImage = `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`;
             banners.push({
               id: `${bannerId}_weapon`,
               bannerId: bannerId,
               name: weaponName,
               type: 'weapon',
-              image: `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`,
+              image: resolveGenshinWeaponImage(weaponName, fallbackImage),
+              fallbackImage,
               characterId: 'weapon_banner',
               game: 'genshin'
             });
@@ -1512,13 +1533,20 @@ function extractGenshinWeaponNames(list) {
 // ============================================================
 
 // WuWa preset banners (fallback if auto-discovery fails)
+// Images: Cloudinary primary, wuwatracker fallback
+const _wuwaHiyukiFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75";
+const _wuwaFrostburnFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75";
+const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
+const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
+
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners
   { 
     id: "100036", 
     name: "Hiyuki", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75", 
+    image: resolveWuWaCharacterImage('Hiyuki', _wuwaHiyukiFallback),
+    fallbackImage: _wuwaHiyukiFallback,
     characterId: "hiyuki", 
     game: "wuwa" 
   },
@@ -1526,7 +1554,8 @@ export const WUWA_PRESET_BANNERS = [
     id: "200036", 
     name: "Frostburn", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75", 
+    image: resolveWuWaWeaponImage('Frostburn', _wuwaFrostburnFallback),
+    fallbackImage: _wuwaFrostburnFallback,
     characterId: "frostburn", 
     game: "wuwa" 
   },
@@ -1535,7 +1564,8 @@ export const WUWA_PRESET_BANNERS = [
     id: "100035", 
     name: "Lynae", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75", 
+    image: resolveWuWaCharacterImage('Lynae', _wuwaLynaeFallback),
+    fallbackImage: _wuwaLynaeFallback,
     characterId: "lynae", 
     game: "wuwa" 
   },
@@ -1543,7 +1573,8 @@ export const WUWA_PRESET_BANNERS = [
     id: "200035", 
     name: "Spectrum Blaster", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75", 
+    image: resolveWuWaWeaponImage('Spectrum Blaster', _wuwaSpectrumFallback),
+    fallbackImage: _wuwaSpectrumFallback,
     characterId: "spectrum_blaster", 
     game: "wuwa" 
   },
@@ -1950,20 +1981,19 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
                    (poolType.includes('weapon') ? 'weapon' : 
                    (isCharacter ? 'character' : 'weapon'));
       
-      // Generate image URL (WuWa Tracker pattern)
-      // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
+      // Generate image URL
+      // Primary: Our Cloudinary assets | Fallback: WuWa Tracker
       const firstName = bannerName.split('&')[0].trim();
       const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const override = WUWA_IMAGE_OVERRIDES[slug];
       const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const imageExt = type === 'character' ? 'webp' : 'png';
-      // Both characters and weapons use the -portrait suffix in the latest WuWa Tracker API
-      const image = override
+      const fallbackImage = override
         ? `https://wuwatracker.com/_next/image?url=%2Fapi%2F${override.base}%2Ffile%2F${override.file}&w=828&q=75`
         : `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
-      
-      // OPTIMIZATION: Remove individual stat fetches during discovery to fix slowness.
-      // Images are now predictably derived from the slug.
+      const image = type === 'character'
+        ? resolveWuWaCharacterImage(firstName, fallbackImage)
+        : resolveWuWaWeaponImage(firstName, fallbackImage);
       
       banners.push({
         id: `${bannerId}_${type}`,
@@ -1971,6 +2001,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
         name: bannerName,
         type,
         image,
+        fallbackImage,
         game: 'wuwa'
       });
     }

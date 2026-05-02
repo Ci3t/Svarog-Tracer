@@ -1,0 +1,77 @@
+/**
+ * Client-side game asset resolver
+ * Mirrors server/utils/gameAssetResolver.js for client-side use
+ * Primary: Our Cloudinary assets
+ * Fallback: External API images
+ */
+
+import { CLOUDINARY_MAP } from '../generated/cloudinary-map.js';
+import { GENSHIN_NORMALIZED_MAP } from '../generated/cloudinary-genshin-map.js';
+import { WUWA_ASSET_MAP } from '../generated/cloudinary-wuwa-map.js';
+
+// ── HSR ──────────────────────────────────────────────────────────────
+
+export function resolveHsrCharacterImage(charId, fallbackUrl) {
+  const key = `game/hsr/character_portrait/${charId}.png`;
+  return CLOUDINARY_MAP[key] || fallbackUrl;
+}
+
+export function resolveHsrIconImage(charId, fallbackUrl) {
+  const key = `game/hsr/character_icon/${charId}.png`;
+  return CLOUDINARY_MAP[key] || fallbackUrl;
+}
+
+export function resolveHsrLightConeImage(lcId, fallbackUrl) {
+  return fallbackUrl;
+}
+
+// ── Genshin ──────────────────────────────────────────────────────────
+
+export function resolveGenshinCharacterImage(slug, fallbackUrl) {
+  const normalized = slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const entry = GENSHIN_NORMALIZED_MAP[normalized];
+  if (!entry) return fallbackUrl;
+  return entry.splash || entry.portrait || entry.icon || fallbackUrl;
+}
+
+export function resolveGenshinWeaponImage(name, fallbackUrl) {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const entry = GENSHIN_NORMALIZED_MAP[normalized];
+  if (!entry) return fallbackUrl;
+  return entry.icon || entry.splash || entry.portrait || fallbackUrl;
+}
+
+// ── WuWa ─────────────────────────────────────────────────────────────
+
+export function resolveWuWaCharacterImage(name, fallbackUrl) {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  for (const [filename, url] of Object.entries(WUWA_ASSET_MAP)) {
+    const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fileBase.includes(normalized) && (filename.includes('splash') || filename.includes('portrait'))) {
+      return url;
+    }
+  }
+  
+  for (const [filename, url] of Object.entries(WUWA_ASSET_MAP)) {
+    const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fileBase.includes(normalized) && filename.includes('icon')) {
+      return url;
+    }
+  }
+  
+  return fallbackUrl;
+}
+
+export function resolveWuWaWeaponImage(name, fallbackUrl) {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  for (const [filename, url] of Object.entries(WUWA_ASSET_MAP)) {
+    const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fileBase.includes(normalized)) {
+      return url;
+    }
+  }
+  
+  return fallbackUrl;
+}

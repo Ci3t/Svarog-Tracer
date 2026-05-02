@@ -1,9 +1,11 @@
 /**
  * Genshin Banners API Endpoint
  * Discovers live Genshin banners from paimon.moe
+ * Images: Our Cloudinary assets primary, paimon.moe fallback
  */
 
 import { GENSHIN_BANNER_CONTROL } from './bannerControl.js';
+import { resolveGenshinCharacterImage, resolveGenshinWeaponImage } from '../../utils/gameAssetResolver.js';
 
 const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
@@ -134,13 +136,16 @@ function extractFeaturedWeaponSlugs(list) {
 function buildCharacterBannerPayload(bannerId, slugs, legendaryCount, source = 'auto') {
   if (!slugs.length) return null;
 
+  const slug = slugs[0];
+  const fallbackImage = `${GENSHIN_CHAR_IMG_BASE}${slug}.png`;
   return {
     id: `${bannerId}_character`,
     bannerId,
     name: slugs.map(toTitleCaseFromSlug).join(' / '),
     type: 'character',
-    image: `${GENSHIN_CHAR_IMG_BASE}${slugs[0]}.png`,
-    characterId: slugs[0],
+    image: resolveGenshinCharacterImage(slug, fallbackImage),
+    fallbackImage,
+    characterId: slug,
     game: 'genshin',
     source,
     pullCount: legendaryCount
@@ -149,14 +154,18 @@ function buildCharacterBannerPayload(bannerId, slugs, legendaryCount, source = '
 
 function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'auto') {
   const name = slugs.length ? slugs.map(toTitleCaseFromSlug).join(' / ') : 'Epitome Invocation';
-  const image = `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerId.slice(-2)}.png`;
+  const fallbackImage = `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${bannerId.slice(-2)}.png`;
+  const primaryImage = slugs.length
+    ? resolveGenshinWeaponImage(slugs[0], fallbackImage)
+    : fallbackImage;
 
   return {
     id: `${bannerId}_weapon`,
     bannerId,
     name,
     type: 'weapon',
-    image,
+    image: primaryImage,
+    fallbackImage,
     characterId: 'weapon_banner',
     game: 'genshin',
     source,
@@ -167,6 +176,8 @@ function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'aut
 function applyManualOverride(banner, type) {
   if (type === 'character' && GENSHIN_BANNER_CONTROL.overrideCharacterName) {
     const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideCharacterName);
+    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideCharacterImage ||
+      (forcedSlug ? `${GENSHIN_CHAR_IMG_BASE}${forcedSlug}.png` : banner?.image || null);
     return {
       ...(banner || {
         id: `${GENSHIN_BANNER_CONTROL.characterBannerId}_character`,
@@ -177,14 +188,18 @@ function applyManualOverride(banner, type) {
         source: 'manual-override'
       }),
       name: GENSHIN_BANNER_CONTROL.overrideCharacterName,
-      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage ||
-        (forcedSlug ? `${GENSHIN_CHAR_IMG_BASE}${forcedSlug}.png` : banner?.image || null),
+      image: forcedSlug ? resolveGenshinCharacterImage(forcedSlug, fallbackImage) : fallbackImage,
+      fallbackImage,
       source: 'manual-override'
     };
   }
 
   if (type === 'weapon' && GENSHIN_BANNER_CONTROL.overrideWeaponName) {
     const forcedSlug = toPaimonSlug(GENSHIN_BANNER_CONTROL.overrideWeaponName);
+    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideWeaponImage ||
+      (forcedSlug
+        ? `${GENSHIN_WEAPON_IMG_BASE}${forcedSlug}.png`
+        : banner?.image || `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`);
     return {
       ...(banner || {
         id: `${GENSHIN_BANNER_CONTROL.weaponBannerId}_weapon`,
@@ -195,10 +210,8 @@ function applyManualOverride(banner, type) {
         source: 'manual-override'
       }),
       name: GENSHIN_BANNER_CONTROL.overrideWeaponName,
-      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage ||
-        (forcedSlug
-          ? `${GENSHIN_WEAPON_IMG_BASE}${forcedSlug}.png`
-          : banner?.image || `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${GENSHIN_BANNER_CONTROL.weaponBannerId.slice(-2)}.png`),
+      image: forcedSlug ? resolveGenshinWeaponImage(forcedSlug, fallbackImage) : fallbackImage,
+      fallbackImage,
       source: 'manual-override'
     };
   }

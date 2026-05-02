@@ -1,7 +1,10 @@
 /**
  * WuWa Banners API Endpoint
  * Fetches live WuWa banners from WuWa Tracker
+ * Images: Our Cloudinary assets primary, wuwatracker fallback
  */
+
+import { resolveWuWaCharacterImage, resolveWuWaWeaponImage } from '../../utils/gameAssetResolver.js';
 
 const WUWA_KNOWN_BANNERS = Object.freeze({
   '100036': {
@@ -264,21 +267,26 @@ export async function handler(req, res) {
     const banners = [];
 
     // 1. HARD-PRIORITIZE CURRENT BANNERS (Hiyuki & Frostburn)
+    // Use our Cloudinary assets as primary; wuwatracker as fallback
+    const hiyukiFallback = buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file);
     banners.push({
       id: '100036_character',
       bannerId: '100036',
       name: 'Hiyuki',
       type: 'character',
-      image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file),
+      image: resolveWuWaCharacterImage('Hiyuki', hiyukiFallback),
+      fallbackImage: hiyukiFallback,
       game: 'wuwa'
     });
 
+    const frostburnFallback = buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png');
     banners.push({
       id: '200036_weapon',
       bannerId: '200036',
       name: 'Frostburn',
       type: 'weapon',
-      image: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'),
+      image: resolveWuWaWeaponImage('Frostburn', frostburnFallback),
+      fallbackImage: frostburnFallback,
       game: 'wuwa'
     });
 
@@ -316,9 +324,12 @@ export async function handler(req, res) {
       const override = WUWA_IMAGE_OVERRIDES[slug];
       const folder = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const ext = type === 'character' ? 'webp' : 'png';
-      const image = override
+      const fallbackImage = override
         ? buildWuWaImageUrl(override.folder, override.file)
         : buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
+      const image = type === 'character'
+        ? resolveWuWaCharacterImage(resolvedName, fallbackImage)
+        : resolveWuWaWeaponImage(resolvedName, fallbackImage);
       
       banners.push({
         id: `${bannerId}_${type}`,
@@ -326,6 +337,7 @@ export async function handler(req, res) {
         name: resolvedName,
         type,
         image,
+        fallbackImage,
         game: 'wuwa'
       });
     }
@@ -340,13 +352,16 @@ export async function handler(req, res) {
   } catch (error) {
     console.error('[WuWa Banners API] Error:', error);
     // Ultimate fallback if everything fails
+    const hiyukiFallback = buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file);
+    const frostburnFallback = buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.frostburn.folder, WUWA_IMAGE_OVERRIDES.frostburn.file);
     const fallback = [
       {
         id: '100036_character',
         bannerId: '100036',
         name: 'Hiyuki',
         type: 'character',
-        image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.hiyuki.folder, WUWA_IMAGE_OVERRIDES.hiyuki.file),
+        image: resolveWuWaCharacterImage('Hiyuki', hiyukiFallback),
+        fallbackImage: hiyukiFallback,
         game: 'wuwa'
       },
       {
@@ -354,7 +369,8 @@ export async function handler(req, res) {
         bannerId: '100037',
         name: 'Frostburn',
         type: 'weapon',
-        image: buildWuWaImageUrl(WUWA_IMAGE_OVERRIDES.frostburn.folder, WUWA_IMAGE_OVERRIDES.frostburn.file),
+        image: resolveWuWaWeaponImage('Frostburn', frostburnFallback),
+        fallbackImage: frostburnFallback,
         game: 'wuwa'
       }
     ];
