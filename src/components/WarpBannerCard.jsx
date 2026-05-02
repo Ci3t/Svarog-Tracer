@@ -12,12 +12,27 @@ const Star = ({ filled, active }) => (
   </svg>
 );
 
+const ELEMENT_META = {
+  physical:  { bg: 'bg-stone-500',     text: 'text-stone-100',     label: 'P' },
+  fire:      { bg: 'bg-red-500',       text: 'text-red-100',       label: 'F' },
+  ice:       { bg: 'bg-sky-400',       text: 'text-sky-900',       label: 'I' },
+  lightning: { bg: 'bg-violet-500',    text: 'text-violet-100',    label: 'L' },
+  wind:      { bg: 'bg-emerald-500',   text: 'text-emerald-100',   label: 'W' },
+  quantum:   { bg: 'bg-indigo-500',    text: 'text-indigo-100',    label: 'Q' },
+  imaginary: { bg: 'bg-amber-400',     text: 'text-amber-900',     label: 'I' },
+};
+
 function getHsrElementUrl(element) {
   if (!element) return null;
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   if (!cloudName) return null;
   const normalized = element.charAt(0).toUpperCase() + element.slice(1).toLowerCase();
   return `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_48/svarog-tracer/game/hsr/element_icon/${normalized}`;
+}
+
+function getElementMeta(element) {
+  if (!element) return null;
+  return ELEMENT_META[element.toLowerCase()] || { bg: 'bg-slate-500', text: 'text-slate-100', label: element.charAt(0).toUpperCase() };
 }
 
 export default function WarpBannerCard({
@@ -257,16 +272,28 @@ export default function WarpBannerCard({
           </span>
         </div>
 
-        {/* Top-right element icon */}
-        {elementUrl && (
+        {/* Top-right element badge — always visible with color fallback */}
+        {banner.element && (
           <div className="absolute top-2 right-2 z-30">
-            <div className="w-7 h-7 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center p-1">
-              <img
-                src={elementUrl}
-                alt={banner.element}
-                className="w-full h-full object-contain"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
+            <div className={`
+              w-7 h-7 rounded-full border border-white/20 flex items-center justify-center
+              ${getElementMeta(banner.element).bg}
+              shadow-lg shadow-black/40
+            `}>
+              {elementUrl ? (
+                <img
+                  src={elementUrl}
+                  alt={banner.element}
+                  className="w-5 h-5 object-contain relative z-10"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : null}
+              <span className={`
+                absolute inset-0 flex items-center justify-center text-[10px] font-black z-0
+                ${getElementMeta(banner.element).text}
+              `}>
+                {getElementMeta(banner.element).label}
+              </span>
             </div>
           </div>
         )}

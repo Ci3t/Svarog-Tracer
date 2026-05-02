@@ -205,8 +205,12 @@ export async function fetchCentralizedBanners(game = 'all') {
         name: b.name,
         image: b.image,
         portrait: b.portrait,
+        lcPreview: b.lcPreview,
         type: b.type,
         characterId: b.characterId,
+        rarity: b.rarity,
+        element: b.element,
+        collaboration: b.collaboration,
         game: 'hsr'  // IMPORTANT: Keep this for filtering!
       })),
       ...(data.genshin || []).map(b => ({
