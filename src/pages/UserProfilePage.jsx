@@ -1304,7 +1304,7 @@ function BannerAdminView() {
           <div>node scripts/auto-upload-assets.js wuwa</div>
           <div>node scripts/upload-hoyo-assets.js hsr</div>
         </code>
-        <div className="text-slate-500 text-xs mt-2">Run in terminal. Put new images in D:\Coding\Assests Hoyo\{game} first.</div>
+        <div className="text-slate-500 text-xs mt-2">Run in terminal. Put new images in D:\Coding\Assests Hoyo\[game] first.</div>
       </div>
     </div>
   );
