@@ -9,6 +9,8 @@
 import { CLOUDINARY_MAP } from '../../src/generated/cloudinary-map.js';
 import { GENSHIN_NORMALIZED_MAP } from '../../src/generated/cloudinary-genshin-map.js';
 import { WUWA_ASSET_MAP } from '../../src/generated/cloudinary-wuwa-map.js';
+import { WUWA_WEAPON_MAP } from '../../src/generated/cloudinary-wuwa-weapons-map.js';
+import { GENSHIN_WEAPON_MAP } from '../../src/generated/cloudinary-genshin-weapons-map.js';
 
 // ── HSR ──────────────────────────────────────────────────────────────
 
@@ -47,10 +49,22 @@ export function resolveGenshinCharacterImage(slug, fallbackUrl) {
 
 export function resolveGenshinWeaponImage(name, fallbackUrl) {
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  // 1. Try dedicated weapon map first
+  for (const [filename, url] of Object.entries(GENSHIN_WEAPON_MAP)) {
+    const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fileBase.includes(normalized)) {
+      return url;
+    }
+  }
+  
+  // 2. Fall back to character map (old weapons may be there)
   const entry = GENSHIN_NORMALIZED_MAP[normalized];
-  if (!entry) return fallbackUrl;
-  const target = entry.icon || entry.splash || entry.portrait;
-  return target || fallbackUrl;
+  if (entry) {
+    return entry.icon || entry.splash || entry.portrait || fallbackUrl;
+  }
+  
+  return fallbackUrl;
 }
 
 // ── WuWa ─────────────────────────────────────────────────────────────
@@ -81,6 +95,15 @@ export function resolveWuWaCharacterImage(name, fallbackUrl) {
 export function resolveWuWaWeaponImage(name, fallbackUrl) {
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   
+  // 1. Try dedicated weapon map first
+  for (const [filename, url] of Object.entries(WUWA_WEAPON_MAP)) {
+    const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fileBase.includes(normalized)) {
+      return url;
+    }
+  }
+  
+  // 2. Fall back to character map (old fallback)
   for (const [filename, url] of Object.entries(WUWA_ASSET_MAP)) {
     const fileBase = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (fileBase.includes(normalized)) {
