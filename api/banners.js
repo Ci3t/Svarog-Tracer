@@ -219,6 +219,7 @@ async function fetchHSRActiveBanners() {
           characterId: b.charId,
           image: `${CONFIG.STARRAIL_RES}/icon/light_cone/${b.charId}.png`,
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${b.charId}`,
+          lcPreview: `${CONFIG.STARRAIL_RES}/image/light_cone_preview/${b.charId}.png`,
           game: 'hsr'
         };
       } else {
@@ -692,7 +693,7 @@ function buildWuWaCurrentBannerFallback() {
       bannerId: '100036',
       name: 'Hiyuki',
       type: 'character',
-      image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.webp'),
+      image: 'https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75',
       game: 'wuwa'
     },
     {

@@ -178,6 +178,7 @@ export async function handler(req, res) {
           type: 'light_cone',
           image: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${lc.icon}`,
           portrait: `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${charId}`,
+          lcPreview: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${charId}.png`,
           characterId: charId,
           game: 'hsr',
           startTime: banner.startTime,

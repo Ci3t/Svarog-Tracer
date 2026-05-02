@@ -1502,7 +1502,7 @@ export const WUWA_PRESET_BANNERS = [
     id: "100036", 
     name: "Hiyuki", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.webp&w=828&q=75", 
+    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75", 
     characterId: "hiyuki", 
     game: "wuwa" 
   },

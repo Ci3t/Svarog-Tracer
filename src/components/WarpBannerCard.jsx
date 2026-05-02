@@ -74,8 +74,9 @@ export default function WarpBannerCard({
 
       if (imgRef.current) {
         gsap.to(imgRef.current, {
-          x: -x * 8,
-          y: -y * 8,
+          x: -x * 14,
+          y: -y * 14,
+          scale: isHsr && isCharacter ? 1.45 : 1.08,
           duration: 0.3,
         });
       }
@@ -94,6 +95,7 @@ export default function WarpBannerCard({
         gsap.to(imgRef.current, {
           x: 0,
           y: 0,
+          scale: 1,
           duration: 0.5,
         });
       }
@@ -130,6 +132,14 @@ export default function WarpBannerCard({
   }, [isSelected]);
 
   const handleImgError = (e) => {
+    // LC fallback chain: Cloudinary portrait → GitHub preview → GitHub icon
+    if (isLightCone && banner.portrait && e.target.src === banner.portrait) {
+      const githubPreview = banner.lcPreview || `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${banner.characterId}.png`;
+      if (githubPreview && e.target.src !== githubPreview) {
+        e.target.src = githubPreview;
+        return;
+      }
+    }
     setImgError(true);
     if (banner.portrait && e.target.src !== banner.image) {
       e.target.src = banner.image;
@@ -172,8 +182,8 @@ export default function WarpBannerCard({
             alt={banner.name}
             className={`
               w-full h-full transition-all duration-700
-              ${isHsr && isCharacter ? 'object-cover object-top' : 'object-cover'}
-              ${isSelected ? 'grayscale-0 scale-110' : 'grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105'}
+              ${isHsr && isCharacter ? 'object-cover object-[center_8%]' : 'object-cover'}
+              ${isSelected ? 'grayscale-0 scale-[1.35]' : 'grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-[1.12]'}
               ${imgLoaded ? 'opacity-100' : 'opacity-0'}
             `}
             onError={handleImgError}
