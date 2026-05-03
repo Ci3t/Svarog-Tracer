@@ -3,6 +3,8 @@ import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
 import WarpBannerCard from "./WarpBannerCard";
 import PatchInfo from "./warp/PatchInfo";
+import BannerRail from "./warp/BannerRail";
+import ChartStage from "./warp/ChartStage";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -60,8 +62,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
   // Refs for sliding animations
   const gameTabsRef = useRef(null);
   const gamePillRef = useRef(null);
-  const categoryTabsRef = useRef(null);
-  const categoryPillRef = useRef(null);
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
@@ -247,20 +247,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
       });
     }
   }, [selectedGame]);
-
-  useEffect(() => {
-    if (!categoryTabsRef.current || !categoryPillRef.current) return;
-
-    const activeBtn = categoryTabsRef.current.querySelector('button.active');
-    if (activeBtn) {
-      gsap.to(categoryPillRef.current, {
-        x: activeBtn.offsetLeft,
-        width: activeBtn.offsetWidth,
-        duration: 0.4,
-        ease: "power2.out"
-      });
-    }
-  }, [bannerType]);
 
   // Current selected banner
   const currentBanner = useMemo(() => {
@@ -644,49 +630,83 @@ export default function WarpAnalyzer({ sessionTheme }) {
               <PatchInfo game={selectedGame} />
             </div>
 
-            {/* BANNER SELECTION (Tabs + Grid) */}
-            <div className="max-w-4xl mx-auto mb-12">
-              <div className="flex justify-center mb-8">
-                <div ref={categoryTabsRef} className="relative grid grid-cols-2 p-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg w-full max-w-md overflow-hidden">
-                  <div ref={categoryPillRef} className="absolute top-1 bottom-1 left-0 rounded-md shadow-lg z-0 bg-purple-600 pointer-events-none" />
-                  <button
-                    onClick={() => setBannerType('character')}
-                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${bannerType === 'character' ? "active text-white" : "text-slate-400 hover:text-white"}`}
-                  >
-                    Characters
-                  </button>
-                  <button
-                    onClick={() => setBannerType(selectedGame === 'hsr' ? 'light_cone' : 'weapon')}
-                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "active text-white" : "text-slate-400 hover:text-white"}`}
-                  >
-                    {selectedGame === 'hsr' ? 'Light Cones' : 'Weapons'}
-                  </button>
+            {/* SPLIT-STAGE LAYOUT: Banner Rail + Chart Stage */}
+            <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto" style={{ minHeight: '70vh' }}>
+              {/* Left: Banner Rail */}
+              <div className="lg:w-80 shrink-0">
+                <div className="h-full bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl overflow-hidden">
+                  <BannerRail
+                    banners={banners}
+                    selectedBannerId={selectedBannerId}
+                    onSelectBanner={(id) => { setSelectedBannerId(id); handleFetch(id); }}
+                    onFetchBanner={handleFetch}
+                    game={selectedGame}
+                    bannerType={bannerType}
+                    onChangeBannerType={setBannerType}
+                    loading={bannersLoading}
+                  />
                 </div>
-
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {activeBanners.map((banner, index, array) => {
-                  const isSelected = selectedBannerId === banner.id;
-                  const prevBanner = index > 0 ? array[index - 1] : null;
-                  const showSeparator = banner.separator && (!prevBanner || !prevBanner.collaboration);
+              {/* Right: Chart Stage */}
+              <div className="flex-1 min-w-0">
+                <div className="h-full bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl overflow-hidden">
+                  <ChartStage
+                    banner={currentBanner}
+                    data={data}
+                    game={selectedGame}
+                    gameColor={getGameColor()}
+                    softPityStart={softPityStart}
+                    softPityEnd={softPityEnd}
+                    isLoading={loading}
+                  />
+                </div>
+              </div>
+            </div>
 
-                  return (
-                    <React.Fragment key={`${banner.id}_${banner.characterId}`}>
-                      {/* Separator for collaboration banners */}
-                      {showSeparator && (
-                        <div className="col-span-2 md:col-span-4 flex items-center gap-4 my-4">
-                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
-                          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30">
-                            <Icons.Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                            <span className="text-sm font-bold text-amber-400 uppercase tracking-wider">
-                              {banner.collaboration} Collaboration
-                            </span>
-                            <Icons.Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                          </div>
-                          <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 via-transparent to-transparent"></div>
-                        </div>
-                      )}
+            {/* ERROR DISPLAY WITH RECOVERY OPTIONS */}
+            {error && !loading && (
+              <div className={`max-w-4xl mx-auto mt-6 ${error.includes('400') ? 'bg-amber-950/40 border-amber-500/30' : 'bg-red-950/40 border-red-500/30'} border rounded-2xl p-6 animate-in fade-in`}>
+                <div className="flex items-start gap-4">
+                  <div className={`p-2 ${error.includes('400') ? 'bg-amber-500/20' : 'bg-red-500/20'} rounded-lg shrink-0`}>
+                    <Icons.Zap className={`w-5 h-5 ${error.includes('400') ? 'text-amber-400' : 'text-red-400'}`} />
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <h4 className={`${error.includes('400') ? 'text-amber-400' : 'text-red-400'} font-bold uppercase tracking-wider text-sm`}>
+                        {error.includes('400') ? 'No Data Available Yet' : 'Fetch Failed'}
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {error.includes('400')
+                          ? 'Community data for this banner has not been collected yet. This usually happens with brand new banners.'
+                          : error}
+                      </p>
+                    </div>
+                    {!error.includes('400') && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleFetch(selectedBannerId, true)}
+                          className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 rounded-lg text-xs font-bold text-red-400 uppercase tracking-wider transition-all"
+                        >
+                          ↻ Retry Now
+                        </button>
+                        <button
+                          onClick={() => setShowInputModal(true)}
+                          className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/40 rounded-lg text-xs font-bold text-slate-300 uppercase tracking-wider transition-all"
+                        >
+                          ⚙ Manual Override
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-500 italic">
+                      {error.includes('400')
+                        ? 'Tip: Try a different banner, or check back in a few hours once the community uploads more pull data.'
+                        : 'Tip: Click "Manual Override" to enter a banner ID directly, or wait for automatic retry on next banner selection.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
                       <WarpBannerCard
                         banner={banner}
@@ -746,15 +766,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
               </div>
             )}
 
-            {/* LOADING STATE */}
-            {loading && (
-              <div className="max-w-4xl mx-auto mb-8 bg-purple-950/30 border border-purple-500/30 rounded-2xl p-6 animate-pulse">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-purple-400 font-bold uppercase tracking-wider text-sm">Fetching data (retrying if needed)...</span>
-                </div>
-              </div>
-            )}
+
 
             {/* INITIATE BUTTON REMOVED - Clicking banners auto-triggers fetch with caching */}
             {/* Force refresh available in config modal */}
