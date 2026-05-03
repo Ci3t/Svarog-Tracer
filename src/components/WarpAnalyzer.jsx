@@ -60,6 +60,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
   // Refs for sliding animations
   const gameTabsRef = useRef(null);
   const gamePillRef = useRef(null);
+  const bannerLoadSeqRef = useRef(0);
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
@@ -77,6 +78,10 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
   // -- Load banners based on selected game --
   useEffect(() => {
+    const loadSeq = ++bannerLoadSeqRef.current;
+    let cancelled = false;
+    const isCurrentLoad = () => !cancelled && bannerLoadSeqRef.current === loadSeq;
+
     const loadBanners = async () => {
       setBannersLoading(true);
       try {
@@ -86,6 +91,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
           if (selectedGame === 'hsr') {
             const hsrBanners = allBanners.filter(b => b.game === 'hsr');
+            if (!isCurrentLoad()) return;
             if (hsrBanners.length > 0) {
               // Merge with Fate collaboration
               const mergedBanners = [...hsrBanners, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
@@ -98,6 +104,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           } else if (selectedGame === 'genshin') {
             const genshinBanners = allBanners.filter(b => b.game === 'genshin');
+            if (!isCurrentLoad()) return;
             if (genshinBanners.length > 0) {
               setBanners(genshinBanners);
               setSelectedBannerId(genshinBanners[0].id);
@@ -107,6 +114,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           } else if (selectedGame === 'wuwa') {
             const wuwaBanners = allBanners.filter(b => b.game === 'wuwa');
+            if (!isCurrentLoad()) return;
             if (wuwaBanners.length > 0) {
               setBanners(wuwaBanners);
               setSelectedBannerId(wuwaBanners[0].id);
@@ -116,19 +124,26 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           }
         } else if (selectedGame === 'zzz') {
+          if (!isCurrentLoad()) return;
           // ZZZ uses preset banners (zzz.rng.moe has clean API, no live discovery needed)
           setBanners(ZZZ_PRESET_BANNERS);
           setSelectedBannerId(ZZZ_PRESET_BANNERS[0]?.id);
         }
         // Clear current data when switching games
+        if (!isCurrentLoad()) return;
         setData(null);
         setBannerType('character');
         setWinsOnlyMode(false);
       } finally {
-        setBannersLoading(false);
+        if (isCurrentLoad()) {
+          setBannersLoading(false);
+        }
       }
     };
     loadBanners().catch(e => console.warn(e));
+    return () => {
+      cancelled = true;
+    };
   }, [selectedGame]);
 
   const handleFetch = async (targetId, force = false) => {
