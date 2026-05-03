@@ -14,6 +14,7 @@ import {
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CALLS = 60; // per minute per IP
+const MIN_ROLLS_PER_SAVED_SESSION = 6;
 const MAX_ROLLS_PER_SESSION = 200;
 const STATS_RATE_LIMIT_MAX = 120; // per minute per IP
 const KIYO_PATCH_FALLBACK = Object.freeze({
@@ -186,6 +187,14 @@ async function handleSessionSave(req, res, db) {
 
   if (!Array.isArray(rolls) || rolls.length === 0) {
     return res.status(400).json({ error: 'Missing or empty rolls array', received: rolls });
+  }
+  if (rolls.length < MIN_ROLLS_PER_SAVED_SESSION) {
+    return res.status(202).json({
+      status: 'skipped',
+      reason: 'minimum_rolls_not_met',
+      min_rolls: MIN_ROLLS_PER_SAVED_SESSION,
+      received: rolls.length,
+    });
   }
   if (rolls.length > MAX_ROLLS_PER_SESSION) {
     return res.status(400).json({ error: 'Too many rolls', max: MAX_ROLLS_PER_SESSION, received: rolls.length });

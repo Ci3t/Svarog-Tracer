@@ -1143,16 +1143,34 @@ export default function KiyoModeCard({
       </div>
 
       {/* Save Session + DB Confidence */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2">
+      <div className="kiyo-session-strip flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
           {kiyoSession.pendingCount > 0 && (
-            <button
-              onClick={() => kiyoSession.saveNow()}
-              disabled={kiyoSession.syncStatus === 'syncing'}
-              className="px-2 py-1 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 text-white rounded text-xs transition-colors"
-            >
-              {kiyoSession.syncStatus === 'syncing' ? 'Saving...' : `Save Session (${kiyoSession.pendingCount})`}
-            </button>
+            <>
+              <button
+                onClick={() => kiyoSession.saveNow()}
+                disabled={!kiyoSession.canSave || kiyoSession.syncStatus === 'syncing'}
+                className="kiyo-session-save-button"
+                title={
+                  kiyoSession.canSave
+                    ? 'Save this Kiyo session to the database'
+                    : `Add ${kiyoSession.remainingToSave} more roll${kiyoSession.remainingToSave === 1 ? '' : 's'} to enable DB save`
+                }
+              >
+                {kiyoSession.syncStatus === 'syncing'
+                  ? 'Saving...'
+                  : kiyoSession.canSave
+                    ? `Save Session (${kiyoSession.pendingCount})`
+                    : `${kiyoSession.pendingCount}/${kiyoSession.minRollsToSave} before save`}
+              </button>
+              <button
+                onClick={kiyoSession.discardPending}
+                className="kiyo-session-clear-button"
+                title="Clear this unsaved Kiyo session"
+              >
+                Clear Session
+              </button>
+            </>
           )}
           {kiyoSession.lastSyncAt && (
             <span className="text-slate-500">

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { saveSession, getStats } from '../utils/kiyoApi';
+import { saveSession } from '../utils/kiyoApi';
 
 const LS_KEY_PENDING = 'kiyo_pending';
 const LS_KEY_UID = 'svarog_uid';
 const AUTO_SYNC_DEBOUNCE_MS = 2000;
 const AUTO_SYNC_MIN_INTERVAL_MS = 10000;
-const AUTO_SYNC_ROLL_THRESHOLD = 3;
+const MIN_ROLLS_TO_SAVE = 6;
+const AUTO_SYNC_ROLL_THRESHOLD = MIN_ROLLS_TO_SAVE;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [5000, 10000, 20000];
 const STALE_HOURS = 24;
@@ -96,7 +97,7 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
     if (stored && stored.region === region && stored.patch === patch) {
       const rolls = stored.rolls || [];
       // Auto-clear tiny sessions on refresh — not worth saving
-      if (rolls.length < 4) {
+      if (rolls.length < MIN_ROLLS_TO_SAVE) {
         localStorage.removeItem(LS_KEY_PENDING);
         return [];
       }
@@ -138,6 +139,7 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
   // Perform the actual sync
   const performSync = useCallback(async () => {
     if (pendingRolls.length === 0) return;
+    if (pendingRolls.length < MIN_ROLLS_TO_SAVE) return;
     if (syncStatus === 'syncing') return;
 
     setSyncStatus('syncing');
@@ -180,6 +182,28 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
   }, [pendingRolls, userId, region, patch, source, syncStatus, retryCount]);
   performSyncRef.current = performSync;
 
+  // Persist only DB-eligible sessions. Short warmup sessions stay memory-only,
+  // so refreshing the page clears them instead of resurrecting a tiny save.
+  useEffect(() => {
+    if (pendingRolls.length >= MIN_ROLLS_TO_SAVE) {
+      savePendingToStorage({
+        session_id: sessionIdRef.current,
+        user_id: userId,
+        region,
+        patch,
+        source,
+        rolls: pendingRolls,
+        created_at: pendingRolls[0]?.ts || Date.now(),
+        last_sync_at: lastSyncAt,
+      });
+      return;
+    }
+
+    if (pendingRolls.length > 0) {
+      clearPendingStorage();
+    }
+  }, [pendingRolls, userId, region, patch, source, lastSyncAt]);
+
   // Add a roll to the pending buffer
   const addRoll = useCallback((roll3str, rollIndex, ts = Date.now(), rollSource = null) => {
     setPendingRolls((prev) => {
@@ -206,13 +230,15 @@ export function useKiyoSession({ region, patch, source = 'live_manual', user }) 
 
 
   // Derived state
-  const canSave = pendingRolls.length > 0;
-  const shouldWarn = pendingRolls.length > 0 &&
+  const canSave = pendingRolls.length >= MIN_ROLLS_TO_SAVE;
+  const shouldWarn = pendingRolls.length >= MIN_ROLLS_TO_SAVE &&
     (!lastSyncAt || Date.now() - lastSyncAt > 10000);
 
   return {
     pendingRolls,
     pendingCount: pendingRolls.length,
+    minRollsToSave: MIN_ROLLS_TO_SAVE,
+    remainingToSave: Math.max(0, MIN_ROLLS_TO_SAVE - pendingRolls.length),
     addRoll,
     saveNow,
     discardPending,
