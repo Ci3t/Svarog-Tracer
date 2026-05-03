@@ -36,7 +36,9 @@ import {
   ToggleLeft,
   Save,
   Trash2,
-  Pencil
+  Pencil,
+  Clock,
+  Save
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -287,508 +289,167 @@ const IdentityHero = ({ user, displayName, credentials, stats, avatarUrl, initia
       </div>
     </div>
   );
+}
+
+// ── Patch Timer Admin ──────────────────────────────────────────────────
+
+const DEFAULT_PATCHES = {
+  hsr: { version: '4.0', startDate: '2026-04-09', durationDays: 42 },
+  genshin: { version: '6.5', startDate: '2026-04-16', durationDays: 42 },
+  wuwa: { version: '3.3', startDate: '2026-04-25', durationDays: 42 },
 };
 
-const MetricRadar = ({ stats }) => {
-  const points = [
-    { label: 'ACC', val: Math.min(stats.accuracy || 80, 100), x: 50, y: 10 },
-    { label: 'SPD', val: Math.min(stats.speed || 70, 100), x: 90, y: 35 },
-    { label: 'STR', val: Math.min(stats.streak || 60, 100), x: 90, y: 75 },
-    { label: 'CON', val: Math.min(stats.consistency || 85, 100), x: 50, y: 95 },
-    { label: 'EXP', val: Math.min(stats.experience || 50, 100), x: 10, y: 75 },
-    { label: 'PWR', val: Math.min(stats.power || 40, 100), x: 10, y: 35 },
+function PatchTimerAdminView() {
+  const [patches, setPatches] = useState(() => {
+    try {
+      const saved = localStorage.getItem('admin_patch_timers');
+      return saved ? JSON.parse(saved) : DEFAULT_PATCHES;
+    } catch { return DEFAULT_PATCHES; }
+  });
+  const [editGame, setEditGame] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [message, setMessage] = useState('');
+
+  const savePatches = (next) => {
+    setPatches(next);
+    localStorage.setItem('admin_patch_timers', JSON.stringify(next));
+  };
+
+  const calculateDays = (startDate, durationDays) => {
+    const start = new Date(startDate + 'T00:00:00');
+    const now = new Date();
+    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const elapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    const remaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+    const progress = Math.min(100, Math.max(0, (elapsed / durationDays) * 100));
+    return { elapsed, remaining, progress, end };
+  };
+
+  const gameCards = [
+    { key: 'hsr', label: 'HSR', color: 'text-purple-400', accent: '#a855f7' },
+    { key: 'genshin', label: 'Genshin', color: 'text-emerald-400', accent: '#10b981' },
+    { key: 'wuwa', label: 'WuWa', color: 'text-amber-400', accent: '#f59e0b' },
   ];
 
-  const polyPoints = points.map(p => {
-    const rx = 50 + (p.x - 50) * (p.val / 100);
-    const ry = 50 + (p.y - 50) * (p.val / 100);
-    return `${rx},${ry}`;
-  }).join(' ');
+  const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
+  const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
+  const cardBase = "rounded-2xl border border-white/10 bg-[#0a0a0b]/60 p-6 backdrop-blur-xl";
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative h-60 w-60">
-        <svg viewBox="0 0 100 100" className="h-full w-full opacity-60">
-          <polygon points="50,10 90,35 90,75 50,95 10,75 10,35" className="fill-none stroke-white/20 stroke-[0.5]" />
-          <polygon points={polyPoints} className="fill-[var(--theme-accent-soft)]/20 stroke-[var(--theme-accent)] stroke-1" />
-        </svg>
-      </div>
-    </div>
-  );
-};
-
-const ClaraOSFeedback = ({ bestScore, winRate }) => (
-  <div className="rounded-2xl border border-[var(--theme-accent-soft)] bg-[var(--theme-accent-soft)]/5 p-6 relative overflow-hidden">
-    <div className="flex items-start gap-4">
-      <div className="h-10 w-10 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-        <Cpu className="h-5 w-5 text-pink-400" />
-      </div>
-      <div>
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-pink-400 mb-1">Clara Note</div>
-        <p className="text-[11px] leading-relaxed text-slate-300 italic">
-          "{bestScore > 100 ? "Performance metrics are exceeding baseline projections." : "Stable run cycle detected. Maintain focus."}"
-        </p>
-      </div>
-    </div>
-  </div>
-);
-
-const DossierView = ({ stats, profile, presence }) => (
-  <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
-    <div className="space-y-10">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-            <Trophy className="h-4 w-4" /> PvP Snapshot
-          </div>
-          <div className="space-y-5">
-            <div className="flex justify-between items-end">
-              <span className="text-[11px] text-slate-400">Win Rate</span>
-              <span className="font-['Orbitron'] text-lg font-bold text-white">{profile.competitive?.winRate || 0}%</span>
-            </div>
-            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-[var(--theme-accent)]" style={{ width: `${profile.competitive?.winRate || 0}%` }} />
-            </div>
-          </div>
+    <div className={cardBase}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Clock className="h-5 w-5 text-[var(--theme-accent)]" />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Patch Timers</h3>
         </div>
-        {/* Placeholder for other cards to match original breadth */}
       </div>
-    </div>
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
-        <MetricRadar stats={{ accuracy: profile.competitive?.winRate || 0 }} />
-      </div>
-      <ClaraOSFeedback bestScore={stats.bestScore} />
-    </div>
-  </div>
-);
 
-const CombatLogView = ({ recentMatches }) => (
-  <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
-    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 flex items-center gap-2">
-      <Target className="h-4 w-4" /> Combat History
-    </div>
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
-        <thead>
-          <tr className="text-[9px] uppercase tracking-widest text-slate-500">
-            <th className="pb-4">Result</th>
-            <th className="pb-4">Opponent</th>
-            <th className="pb-4 text-center">Score</th>
-            <th className="pb-4 text-right">Time</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm">
-          {recentMatches.map((m, i) => (
-            <tr key={i} className="border-t border-white/5">
-              <td className="py-4">
-                <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase ${m.result === 'win' ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
-                  {m.result}
-                </span>
-              </td>
-              <td className="py-4 text-white font-medium">{m.opponentName}</td>
-              <td className="py-4 text-center font-mono text-white">{m.score}</td>
-              <td className="py-4 text-right text-slate-500 text-[10px]">{formatRelativeTime(m.finishedAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
+      {message && (
+        <div className={`rounded-xl border px-4 py-2 text-xs mb-4 ${message.includes('Error') ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          {message}
+        </div>
+      )}
 
-const LoadoutView = ({ allTitles, credentials, onEquipTitle, activeTitleKey, unlockedTitles = [], actionKey = '' }) => (
-  <div className="rounded-3xl border border-white/5 bg-white/[0.01] p-8">
-    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 flex items-center justify-between">
-      <div className="flex items-center gap-2"><Award className="h-4 w-4 text-[var(--theme-accent)]" /> Identity Titles</div>
-      <div className="text-slate-600 font-mono text-[9px] uppercase tracking-widest">{unlockedTitles.length} / {allTitles.length} UNLOCKED</div>
-    </div>
-    
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {allTitles.map(title => {
-        const isUnlocked = unlockedTitles.includes(title.key);
-        const isActive = activeTitleKey === title.key;
-        const isBusy = actionKey === `equip-title:${title.key}`;
-        return (
-          <div 
-            key={title.key} 
-            className={`group relative p-5 rounded-2xl border transition-all duration-300 ${
-              isActive 
-                ? 'border-[var(--theme-accent)] bg-[var(--theme-accent-soft)]/10 shadow-[0_0_15px_var(--theme-accent-soft)]' 
-                : isUnlocked 
-                  ? 'border-white/10 bg-white/[0.03] hover:border-white/20' 
-                  : 'border-white/5 bg-black/40 opacity-60 grayscale'
-            }`}
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex justify-between items-start">
-                <AnimatedTitleText 
-                  title={title.name} 
-                  rarity={title.rarity} 
-                  className={`text-[12px] font-black uppercase ${!isUnlocked && 'blur-[1px]'}`} 
-                />
-                {!isUnlocked && <Lock className="h-3 w-3 text-slate-600" />}
-                {isUnlocked && isActive && <Check className="h-3 w-3 text-[var(--theme-accent)]" />}
-              </div>
-              
-              <div className="text-[9px] font-mono text-slate-500 leading-relaxed min-h-[2em]">
-                {isUnlocked 
-                  ? (title.description || title.requirement || '')
-                  : (title.requirement ? `LOCKED: ${title.requirement}` : '???. UNLOCK VIA PLAYGROUND OR MARKETPLACE.')}
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {gameCards.map(g => {
+          const patch = patches[g.key] || DEFAULT_PATCHES[g.key];
+          const isEditing = editGame === g.key;
+          const { elapsed, remaining, progress, end } = calculateDays(patch.startDate, patch.durationDays);
 
-              {isUnlocked ? (
-                <button 
-                  onClick={() => onEquipTitle(title.key)} 
-                  disabled={isActive || isBusy}
-                  className={`mt-2 w-full py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                    isActive 
-                      ? 'bg-[var(--theme-accent)]/20 text-white cursor-default' 
-                      : isBusy
-                        ? 'bg-white/5 text-slate-500 cursor-wait'
-                        : 'border border-white/10 text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
+          return (
+            <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-slate-500 text-xs uppercase tracking-widest">{g.label}</div>
+                <button
+                  onClick={() => {
+                    if (isEditing) {
+                      setEditGame(null);
+                    } else {
+                      setEditGame(g.key);
+                      setEditForm(prev => ({ ...prev, [g.key]: { ...patch } }));
+                    }
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-white transition-colors"
                 >
-                  {isBusy ? 'Equipping...' : isActive ? 'Active' : 'Equip Title'}
+                  {isEditing ? 'Cancel' : <><Pencil className="h-3 w-3 inline mr-1" />Edit</>}
                 </button>
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Version</label>
+                    <input
+                      type="text"
+                      value={editForm[g.key]?.version || patch.version}
+                      onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], version: e.target.value } }))}
+                      className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={editForm[g.key]?.startDate || patch.startDate}
+                      onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], startDate: e.target.value } }))}
+                      className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Duration (days)</label>
+                    <input
+                      type="number"
+                      value={editForm[g.key]?.durationDays || patch.durationDays}
+                      onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], durationDays: parseInt(e.target.value) || 42 } }))}
+                      className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = { ...patches, [g.key]: editForm[g.key] };
+                      savePatches(next);
+                      setEditGame(null);
+                      setMessage(`✓ ${g.label} patch updated`);
+                      setTimeout(() => setMessage(''), 2000);
+                    }}
+                    className={`${btnPrimary} w-full text-[10px] py-2`}
+                  >
+                    <Save className="h-3 w-3 inline mr-2" />
+                    Save Patch
+                  </button>
+                </div>
               ) : (
-                <div className="mt-2 w-full py-1.5 rounded-lg border border-white/5 bg-black/20 text-center text-[8px] font-black uppercase tracking-widest text-slate-700">
-                  {title.cost > 0 ? `Buy for ${title.cost.toLocaleString()} tokens` : 'Earn via Gameplay'}
+                <div className="space-y-3">
+                  <div className={`text-3xl font-black ${g.color}`}>{patch.version}</div>
+                  <div className="text-slate-500 text-xs">Current patch</div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Day {elapsed} / {patch.durationDays}</span>
+                      <span className={remaining <= 7 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                        {remaining > 0 ? `${remaining}d left` : 'Ended'}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${progress}%`, backgroundColor: g.accent, opacity: 0.8 }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Ends: {end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-);
-
-const ArsenalView = ({ ownedItems, equippedKeys, onEquip, displayName, actionKey }) => {
-  const [filter, setFilter] = useState('all');
-  const SLOT_LABELS = { frame: 'Frames', badge: 'Badges', nameplate: 'Banners', title: 'Titles', companion: 'Clara Skins' };
-  const slots = ['all', 'frame', 'badge', 'nameplate', 'title', 'companion'];
-
-  const filtered = filter === 'all' ? ownedItems : ownedItems.filter(it => it.slot === filter || it.type === filter);
-
-  return (
-    <div className="space-y-6">
-      {/* Slot Filter Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 rounded-xl bg-white/[0.03] border border-white/5">
-        {slots.map(s => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-              filter === s ? 'bg-[var(--theme-accent)] text-white shadow-[0_0_10px_var(--theme-accent-soft)]' : 'text-slate-500 hover:text-white'
-            }`}
-          >
-            {s === 'all' ? 'All Items' : SLOT_LABELS[s] || s}
-          </button>
-        ))}
+          );
+        })}
       </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-600 font-['Orbitron'] text-[10px] uppercase tracking-widest space-y-3">
-          <Package className="h-12 w-12 opacity-20" />
-          <span>No items found in this slot.</span>
-          <a href="/marketplace" className="text-[var(--theme-accent)] underline hover:opacity-80 transition-opacity">Browse the Marketplace</a>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map(item => {
-            const accent = getCosmeticAccentStyle(item.rarity || 'common');
-            const presetKey = item.key.replace(/-banner$|-frame$|-badge$|-title$/g, '');
-            const Preset = LOADOUT_PRESETS[presetKey] || LOADOUT_PRESETS['quantum-neon'];
-            const slotEquippedKey = equippedKeys?.[item.slot] || equippedKeys?.[item.type] || '';
-            const isEquipped = String(slotEquippedKey).trim() === String(item.key).trim();
-            const isBusy = actionKey === `equip:${item.key}`;
-            const isCompanion = item.type === 'companion';
-            const companionPreview = isCompanion ? getClaraCompanionPreview(item.key) : '';
-
-            return (
-              <div
-                key={item.key}
-                className={`relative group overflow-hidden rounded-2xl border p-4 flex flex-col gap-3 transition-all duration-300 ${
-                  isEquipped
-                    ? 'border-[var(--theme-accent)]/60 bg-[var(--theme-accent-soft)]/10 shadow-[0_0_20px_var(--theme-accent-soft)]'
-                    : 'border-white/5 bg-white/[0.02] hover:border-white/20'
-                }`}
-              >
-                {/* Color glow */}
-                <div className="absolute -top-6 -right-6 h-16 w-16 blur-2xl opacity-30 pointer-events-none" style={{ backgroundColor: isCompanion ? accent.color : Preset.color }} />
-
-                {/* Item Preview */}
-                <div className="flex items-center justify-center h-20 relative">
-                  {item.slot === 'nameplate' && <div className="w-full h-12 pointer-events-none"><Preset.banner /></div>}
-                  {item.slot === 'badge' && <div className="h-16 w-16 pointer-events-none"><Preset.badge /></div>}
-                  {item.slot === 'frame' && (
-                    <div className="h-16 w-16 relative flex items-center justify-center">
-                      <div className="absolute inset-[-12px]"><Preset.frame /></div>
-                      <div className="h-12 w-12 rounded-full bg-slate-800" />
-                    </div>
-                  )}
-                  {(item.type === 'title' || item.slot === 'title') && (
-                    <AnimatedTitleText title={item.name} rarity={item.rarity} className="text-sm font-black uppercase" />
-                  )}
-                  {isCompanion && companionPreview && (
-                    <img src={companionPreview} alt={item.name} className="max-h-20 w-auto object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
-                  )}
-                </div>
-
-                {/* Item Info */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: isCompanion ? accent.color : Preset.color }}>{item.rarity}</div>
-                    <div className="text-xs font-black text-white uppercase tracking-wide">{item.name}</div>
-                    <div className="text-[8px] text-slate-600 uppercase tracking-widest mt-0.5">{isCompanion ? getClaraCompanionSlotLabel(item.slot) : item.slot}</div>
-                  </div>
-                  {isEquipped && <BadgeCheck className="h-5 w-5 flex-shrink-0" style={{ color: accent.color }} />}
-                </div>
-
-                {/* Equip Button */}
-                {item.type !== 'title' && (
-                  <button
-                    onClick={() => onEquip?.(item)}
-                    disabled={isEquipped || isBusy}
-                    className="w-full py-2 rounded-lg border font-['Orbitron'] text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={!isEquipped ? { borderColor: accent.borderColor, color: accent.color, backgroundColor: `${accent.color}15` } : { borderColor: 'rgba(255,255,255,0.1)', color: '#64748b', backgroundColor: 'transparent' }}
-                  >
-                    {isBusy ? 'Equipping...' : isEquipped ? '✓ Equipped' : 'Equip'}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
-};
+}
 
-const MilestonesView = ({ achievements }) => (
-  <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
-    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 flex items-center gap-2">
-      <Award className="h-4 w-4" /> Achievements
-    </div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      {achievements.map(a => (
-        <div key={a.key} className={`p-5 rounded-2xl border ${a.unlocked ? 'border-emerald-500/20 bg-emerald-500/[0.02]' : 'border-white/5 opacity-60'}`}>
-          <div className="flex justify-between mb-2">
-            <div className="text-[11px] font-black uppercase text-white">{a.name}</div>
-            {a.unlocked && <BadgeCheck className="h-4 w-4 text-emerald-400" />}
-          </div>
-          <p className="text-[10px] text-slate-500 mb-4">{a.description}</p>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const RecentUnlocksView = ({ items }) => (
-  <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
-    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 flex items-center gap-2">
-      <History className="h-4 w-4" /> Recent Timeline
-    </div>
-    <div className="space-y-3">
-      {items.map((it, i) => (
-        <div key={i} className="flex justify-between items-center p-4 rounded-xl border border-white/5">
-          <div>
-            <div className="text-[9px] uppercase font-bold text-slate-600">{it.typeLabel}</div>
-            <div className="text-xs font-bold text-white">{it.name}</div>
-          </div>
-          <div className="text-[10px] text-slate-500">{it.whenLabel}</div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const RosterView = ({
-  user,
-  ownedOptions,
-  ownedSet,
-  ownedSearchTerm,
-  setOwnedSearchTerm,
-  toggleOwnedCharacter,
-  saveOwnedRoster,
-  loadOwnedRoster,
-  importOwnedRosterFile,
-  ownedLoading,
-  ownedSaving,
-  ownedImporting,
-  error,
-  success,
-}) => (
-  <div className="space-y-6">
-    <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Roster Sync</div>
-          <h3 className="mt-2 text-2xl font-black uppercase tracking-[0.08em] text-white">Owned Characters Import</h3>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Import your Reliquary JSON or manually mark characters here. This is the same saved owned roster used by Zones, so changes made in Profile are immediately linked there too.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
-          Shared With Zones
-        </div>
-      </div>
-    </div>
-
-    {error ? (
-      <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-        {error}
-      </div>
-    ) : null}
-
-    {success ? (
-      <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-        {success}
-      </div>
-    ) : null}
-
-    <OwnedRosterPanel
-      user={user}
-      ownedOptions={ownedOptions}
-      ownedSet={ownedSet}
-      ownedSearchTerm={ownedSearchTerm}
-      setOwnedSearchTerm={setOwnedSearchTerm}
-      toggleOwnedCharacter={toggleOwnedCharacter}
-      saveOwnedRoster={saveOwnedRoster}
-      loadOwnedRoster={loadOwnedRoster}
-      importOwnedRosterFile={importOwnedRosterFile}
-      ownedLoading={ownedLoading}
-      ownedSaving={ownedSaving}
-      ownedImporting={ownedImporting}
-    />
-  </div>
-);
-
-/* -------------------------------------------------------------------------- */
-/*                               MAIN PAGE                                     */
-/* -------------------------------------------------------------------------- */
-
-export default function UserProfilePage() {
-  const { user, replaceUser, getAuthHeader, roleMode } = useAuth();
-  const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
-  const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
-  const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
-  const { stats: presenceStats, refreshPresence } = usePresenceContext();
-  const ownedRoster = useOwnedRoster();
-
-  const [activeTab, setActiveTab] = useState('dossier');
-  const [equippingKey, setEquippingKey] = useState('');
-
-  const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
-  const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
-  const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
-  const discordUserId = useMemo(() => getDiscordUserId(user), [user]);
-  const isSuperAdmin = useMemo(() => SUPER_ADMINS.has(String(discordUserId || '')) || roleMode === 'admin', [discordUserId, roleMode]);
-
-  const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
-  const equippedCosmetics = useMemo(() => {
-    const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
-    const fromApi = marketplaceData?.equipped && typeof marketplaceData.equipped === 'object' ? marketplaceData.equipped : {};
-    return {
-      badgeKey: fromApi.badgeKey || fromMeta.badgeKey || '',
-      nameplateKey: fromApi.nameplateKey || fromMeta.nameplateKey || '',
-      frameKey: fromApi.frameKey || fromMeta.frameKey || '',
-      claraPlaygroundKey: fromApi.claraPlaygroundKey || fromMeta.claraPlaygroundKey || '',
-      claraGuideKey: fromApi.claraGuideKey || fromMeta.claraGuideKey || '',
-    };
-  }, [user?.user_metadata, marketplaceData?.equipped]);
-
-  const credentials = useMemo(() => ({
-    title: getTitleDefinition(equippedTitleKey),
-    badge: getMarketplaceItem(equippedCosmetics.badgeKey),
-    banner: getMarketplaceItem(equippedCosmetics.nameplateKey),
-    frame: getMarketplaceItem(equippedCosmetics.frameKey),
-    claraPlayground: getMarketplaceItem(equippedCosmetics.claraPlaygroundKey),
-    claraGuide: getMarketplaceItem(equippedCosmetics.claraGuideKey),
-  }), [equippedTitleKey, equippedCosmetics]);
-
-  const ownedItems = useMemo(
-    () => (Array.isArray(marketplaceData?.catalog) ? marketplaceData.catalog.filter(it => it.owned) : []),
-    [marketplaceData?.catalog]
-  );
-
-  const equippedKeys = useMemo(() => ({
-    badge: equippedCosmetics.badgeKey,
-    nameplate: equippedCosmetics.nameplateKey,
-    frame: equippedCosmetics.frameKey,
-    clara_playground: equippedCosmetics.claraPlaygroundKey,
-    clara_guide: equippedCosmetics.claraGuideKey,
-    companion: equippedCosmetics.claraPlaygroundKey || equippedCosmetics.claraGuideKey,
-    title: equippedTitleKey,
-  }), [equippedCosmetics, equippedTitleKey]);
-
-  const profile = seasonData?.profile || {};
-  const walletBalance = Number(marketplaceData?.wallet?.tokenBalance || 0);
-
-  // Merge marketplace titles + progression-only titles not in marketplace
-  const allTitles = useMemo(() => {
-    const marketTitles = MARKETPLACE_ITEMS.filter(it => it.slot === 'title' || it.type === 'title');
-    const marketKeys = new Set(marketTitles.map(it => it.key));
-    const progressionOnly = TITLE_DEFINITIONS
-      .filter(it => !marketKeys.has(it.key))
-      .map(it => ({ ...it, type: 'title', slot: 'title', cost: 0 }));
-    return [...marketTitles, ...progressionOnly];
-  }, []);
-
-  // All title keys this user has unlocked — from API (covers both marketplace + earned)
-  const unlockedTitleKeys = useMemo(() => {
-    const fromApi = Array.isArray(marketplaceData?.unlockedTitleKeys) ? marketplaceData.unlockedTitleKeys : [];
-    // Also include catalog-owned titles as a fallback
-    const fromCatalog = Array.isArray(marketplaceData?.catalog)
-      ? marketplaceData.catalog.filter(it => (it.slot === 'title' || it.type === 'title') && it.owned).map(it => it.key)
-      : [];
-    return [...new Set([...fromApi, ...fromCatalog])];
-  }, [marketplaceData]);
-
-  // Recent unlocks from ownedItems timestamps
-  const recentItems = useMemo(() => {
-    if (!Array.isArray(marketplaceData?.ownedItems)) return [];
-    return marketplaceData.ownedItems
-      .filter(it => it.purchased_at || it.created_at)
-      .sort((a, b) => new Date(b.purchased_at || b.created_at) - new Date(a.purchased_at || a.created_at))
-      .slice(0, 15)
-      .map(it => {
-        const def = getMarketplaceItem(it.key);
-        return {
-          name: def?.name || it.key,
-          typeLabel: def?.slot || def?.type || 'Item',
-          whenLabel: formatRelativeTime(it.purchased_at || it.created_at),
-        };
-      });
-  }, [marketplaceData?.ownedItems]);
-
-  const statsOverview = {
-    userId: user?.id,
-    leaderboardRank: profile.leaderboardRank,
-    bestScore: profile.competitive?.bestScore || 0,
-    winRate: profile.competitive?.winRate || 0,
-    level: profile.progression?.levelProgress?.level || 1,
-    currentLevelXp: profile.progression?.levelProgress?.currentLevelXp || 0,
-    nextLevelXp: profile.progression?.levelProgress?.nextLevelXp || 0,
-    levelProgressPercent: profile.progression?.levelProgress?.progressPercent || 0,
-  };
-
-  const activeTheme = PRESET_LOADOUTS.find(l => l.banner === credentials.banner?.key)?.theme || 'default';
-
-  const handleEquipTitle = async (key) => {
-    setEquippingKey(`equip-title:${key}`);
-    try {
-      const response = await fetch(buildApiUrl('/api/profile'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ action: 'equip', titleKey: key }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (response.ok) {
-        if (payload?.user) replaceUser?.(payload.user);
-        await refreshMarketplace?.();
-      }
     } catch {}
     finally { setEquippingKey(''); }
   };
@@ -1179,6 +840,11 @@ function AdminView({ getAuthHeader, discordUserId }) {
 
       {/* Banner Management */}
       <BannerAdminView discordUserId={discordUserId} />
+
+      {/* Patch Timers */}
+      <div className="mt-6">
+        <PatchTimerAdminView />
+      </div>
     </div>
   );
 }
