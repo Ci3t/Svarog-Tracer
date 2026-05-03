@@ -101,11 +101,18 @@ export default function ModernLiveSessionPage({
     return saved == null ? true : saved === '1';
   });
   const [claraSpeaking, setClaraSpeaking] = useState(false);
+  const [claraImgError, setClaraImgError] = useState(false);
   const [claraPosition, setClaraPosition] = useState(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0 };
     try {
       const raw = window.localStorage.getItem(LIVE_CLARA_POSITION_KEY);
-      return raw ? JSON.parse(raw) : { x: 0, y: 0 };
+      const pos = raw ? JSON.parse(raw) : { x: 0, y: 0 };
+      // Safety clamp: if she was dragged way off-screen, reset to origin
+      const MAX_OFFSCREEN = 400;
+      return {
+        x: Math.max(-MAX_OFFSCREEN, Math.min(MAX_OFFSCREEN, pos?.x ?? 0)),
+        y: Math.max(-MAX_OFFSCREEN, Math.min(MAX_OFFSCREEN, pos?.y ?? 0)),
+      };
     } catch {
       return { x: 0, y: 0 };
     }
@@ -149,9 +156,14 @@ export default function ModernLiveSessionPage({
       if (!dragStateRef.current) return;
       const point = 'touches' in event ? event.touches[0] : event;
       if (!point) return;
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1920;
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 1080;
+      const rawX = point.clientX - dragStateRef.current.startX;
+      const rawY = point.clientY - dragStateRef.current.startY;
+      // Keep at least 80px of Clara visible so she can never be fully lost
       setClaraPosition({
-        x: point.clientX - dragStateRef.current.startX,
-        y: point.clientY - dragStateRef.current.startY,
+        x: Math.max(-(vw - 80), Math.min(vw - 80, rawX)),
+        y: Math.max(-(vh - 80), Math.min(vh - 80, rawY)),
       });
     };
 
@@ -208,7 +220,7 @@ export default function ModernLiveSessionPage({
           <div className="contents lg:block lg:col-span-3 lg:space-y-4">
             <div className="order-1 lg:order-none">
               <div>
-                <div className="mb-2 flex items-center justify-end">
+                <div className="mb-2 flex items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setClaraAssistEnabled((current) => !current)}
@@ -223,6 +235,25 @@ export default function ModernLiveSessionPage({
                       {claraAssistEnabled ? 'On' : 'Off'}
                     </span>
                   </button>
+                  {claraAssistEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClaraPosition({ x: 0, y: 0 });
+                        if (typeof window !== 'undefined') {
+                          window.localStorage.setItem(LIVE_CLARA_POSITION_KEY, JSON.stringify({ x: 0, y: 0 }));
+                        }
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/8 bg-white/[0.04] px-2 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-cyan-100"
+                      title="Reset Clara to default position"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                      Reset
+                    </button>
+                  )}
                 </div>
 
                 <ModernPairPredictorCard entries={entries} region={region} onTrustGuideChange={setTrustGuideText} />
@@ -315,7 +346,7 @@ export default function ModernLiveSessionPage({
 
       {claraAssistEnabled ? (
         <div
-          className="pointer-events-none fixed bottom-4 left-4 z-40 hidden xl:block"
+          className="pointer-events-none fixed bottom-4 left-4 z-40 hidden lg:block"
           style={{ transform: `translate(${claraPosition.x}px, ${claraPosition.y}px)` }}
         >
           <div className="relative w-[320px]">
@@ -339,6 +370,7 @@ export default function ModernLiveSessionPage({
                       textShadow: 'none',
                       filter: 'none',
                       mixBlendMode: 'normal',
+                      whiteSpace: 'pre-line',
                     }}
                   >
                     {trustGuideText}
@@ -356,16 +388,24 @@ export default function ModernLiveSessionPage({
               onMouseDown={beginClaraDrag}
               onTouchStart={beginClaraDrag}
             >
-              <img
-                src={resolvePlaygroundClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
-                alt="Clara Assist"
-                className="h-auto w-[265px] object-contain drop-shadow-[0_14px_28px_rgba(0,0,0,0.28)]"
-                style={{
-                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.88) 82%, rgba(0,0,0,0.45) 92%, rgba(0,0,0,0) 100%)',
-                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.88) 82%, rgba(0,0,0,0.45) 92%, rgba(0,0,0,0) 100%)',
-                }}
-                draggable="false"
-              />
+              {!claraImgError ? (
+                <img
+                  src={resolvePlaygroundClaraAsset(user?.user_metadata || {}, { speaking: claraSpeaking })}
+                  alt="Clara Assist"
+                  className="h-auto w-[265px] object-contain drop-shadow-[0_14px_28px_rgba(0,0,0,0.28)]"
+                  style={{
+                    WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.88) 82%, rgba(0,0,0,0.45) 92%, rgba(0,0,0,0) 100%)',
+                    maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0.88) 82%, rgba(0,0,0,0.45) 92%, rgba(0,0,0,0) 100%)',
+                  }}
+                  draggable="false"
+                  onError={() => setClaraImgError(true)}
+                />
+              ) : (
+                <div className="w-[265px] h-[320px] rounded-2xl bg-slate-900/80 border border-cyan-400/30 flex flex-col items-center justify-center text-cyan-400">
+                  <span className="text-4xl font-black">C</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest mt-2">Clara Assist</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

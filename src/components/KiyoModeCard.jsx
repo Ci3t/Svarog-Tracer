@@ -1026,6 +1026,23 @@ export default function KiyoModeCard({
     });
   };
 
+  const handleClearSession = () => {
+    // Clear hook pending rolls + localStorage
+    kiyoSession.discardPending();
+    // Clear all local UI state so the board resets
+    setTestRolls([]);
+    setImportedRolls([]);
+    setTestInput('');
+    setCaesarInput('');
+    setActivePrefix(null);
+    setLiveRolls([]);
+    liveRollEventsRef.current = [];
+    prevLiveRollsRef.current = 0;
+    setEuSheetLoaded(false);
+    setShowImportStats(false);
+    handleResetWaveAccuracy();
+  };
+
   useEffect(() => {
     if (!analyzeWavePatterns || combinedRolls.length < 4) return;
 
@@ -1164,7 +1181,7 @@ export default function KiyoModeCard({
                     : `${kiyoSession.pendingCount}/${kiyoSession.minRollsToSave} before save`}
               </button>
               <button
-                onClick={kiyoSession.discardPending}
+                onClick={handleClearSession}
                 className="kiyo-session-clear-button"
                 title="Clear this unsaved Kiyo session"
               >

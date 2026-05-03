@@ -407,10 +407,60 @@ export default function ModernPairPredictorCard({
     return null;
   }, [isNoiseTrap, trapCandidate, pairSafety, analyzerMain, analyzerSecond, commonsFlipDetected, flipConfidence, newCommons, noiseTrackerItems, rolls]);
 
+  // Rich session observation for Clara's speech bubble
+  const claraObservationText = useMemo(() => {
+    if (isWarming || rolls.length === 0) return null;
+    const displayPair = trustedPair?.length === 2 ? trustedPair : commons;
+    const parts = [];
+
+    // Commons
+    if (displayPair?.length) {
+      parts.push(`Commons: ${displayPair.join(' & ')}`);
+    }
+
+    // Session safety + roll count
+    if (pairSafety === 'danger') {
+      parts.push(`Session: BREAK DANGER (${rolls.length} rolls)`);
+    } else if (pairSafety === 'caution') {
+      parts.push(`Session: shaky — watch noise (${rolls.length} rolls)`);
+    } else {
+      parts.push(`Session: safe (${rolls.length} rolls)`);
+    }
+
+    // Svarog Eye picks
+    if (analyzerPrediction) {
+      const eyeLine = analyzerAlt && analyzerAlt !== analyzerPrediction
+        ? `Svarog Eye: ${analyzerPrediction} / ${analyzerAlt}`
+        : `Svarog Eye: ${analyzerPrediction}`;
+      parts.push(eyeLine);
+    }
+
+    // Noise watch
+    if (noiseOrder?.length) {
+      const noiseTrends = noiseOrder.map((n) => {
+        const dir = trends?.[n]?.direction;
+        const pct = Math.round(distribution?.[n] ?? 0);
+        if (dir && dir !== 'stable') return `${n} ${dir} (${pct}%)`;
+        return `${n} (${pct}%)`;
+      }).join(', ');
+      parts.push(`Noise watch: ${noiseTrends}`);
+    }
+
+    // Fresh outsider alert (if any)
+    if (freshOutsider?.value) {
+      parts.push(`Outsider pressure: ${freshOutsider.value}`);
+    }
+
+    return parts.join('\n');
+  }, [
+    isWarming, rolls.length, trustedPair, commons, pairSafety,
+    analyzerPrediction, analyzerAlt, noiseOrder, trends, distribution, freshOutsider,
+  ]);
+
   useEffect(() => {
     if (!onTrustGuideChange) return;
-    onTrustGuideChange(claraAlertText ?? trustGuideAssistText);
-  }, [onTrustGuideChange, claraAlertText, trustGuideAssistText]);
+    onTrustGuideChange(claraAlertText ?? claraObservationText ?? trustGuideAssistText);
+  }, [onTrustGuideChange, claraAlertText, claraObservationText, trustGuideAssistText]);
 
   // ?? SESSION RESET: all hooks done — safe to return early now
   if (isSessionReset) {
