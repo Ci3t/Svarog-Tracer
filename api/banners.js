@@ -6,14 +6,28 @@ import { handler as wuwaBannersHandler } from '../server/_services/wuwa/banners.
 // Helper: Invoke a service handler and capture its JSON response
 async function callServiceHandler(handler) {
   let capturedData = null;
+  let statusCode = 200;
   const mockRes = {
-    status: () => ({
-      json: (data) => { capturedData = data; },
-      end: () => {},
-    }),
+    status: (code) => {
+      statusCode = code;
+      return {
+        json: (data) => { capturedData = data; },
+        end: () => {},
+      };
+    },
     setHeader: () => {},
   };
-  await handler({ method: 'GET', query: {} }, mockRes);
+  try {
+    await handler({ method: 'GET', query: {} }, mockRes);
+  } catch (err) {
+    console.error('[Banners API] Service handler error:', err?.message || err);
+    return [];
+  }
+  // If handler returned error status, treat as empty
+  if (statusCode >= 400) {
+    console.warn(`[Banners API] Service returned HTTP ${statusCode}`);
+    return [];
+  }
   return capturedData || [];
 }
 

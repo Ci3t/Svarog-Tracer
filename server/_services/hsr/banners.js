@@ -6,6 +6,19 @@
 
 import { resolveHsrCharacterImage, resolveHsrLightConeImage } from '../../utils/gameAssetResolver.js';
 
+const HSR_FETCH_TIMEOUT_MS = 10000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = HSR_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,7 +41,7 @@ export async function handler(req, res) {
     
     // 1. Fetch warp config from starrailstation
     const configUrl = `https://starrailstation.com/api/v1/warp_config?_t=${nowTs}`;
-    const configRes = await fetch(configUrl, {
+    const configRes = await fetchWithTimeout(configUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json'
@@ -42,8 +55,8 @@ export async function handler(req, res) {
     const configData = await configRes.json();
     // 3. Fetch character and light cone metadata from StarRailRes
     const [charRes, lcRes] = await Promise.all([
-      fetch('https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/characters.json'),
-      fetch('https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/light_cones.json')
+      fetchWithTimeout('https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/characters.json'),
+      fetchWithTimeout('https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en/light_cones.json')
     ]);
     
     const charMap = charRes.ok ? await charRes.json() : {};

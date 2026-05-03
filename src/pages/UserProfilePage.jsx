@@ -36,7 +36,8 @@ import {
   ToggleLeft,
   Save,
   Trash2,
-  Pencil
+  Pencil,
+  Clock
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -902,6 +903,160 @@ export default function UserProfilePage() {
 /*                               ADMIN PANEL                                  */
 /* -------------------------------------------------------------------------- */
 
+const DEFAULT_PATCHES = {
+  hsr: { version: '4.2', startDate: '2026-04-09', durationDays: 42 },
+  genshin: { version: '6.5', startDate: '2026-04-16', durationDays: 42 },
+  wuwa: { version: '3.3', startDate: '2026-04-25', durationDays: 42 },
+};
+
+function PatchTimerAdminView() {
+  const [patches, setPatches] = useState(DEFAULT_PATCHES);
+  const [editGame, setEditGame] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Fetch from server on load
+  useEffect(() => {
+    fetch(buildApiUrl('/api/patch-timers'))
+      .then(r => r.json())
+      .then(data => {
+        const next = {};
+        for (const [game, info] of Object.entries(data)) {
+          next[game] = {
+            version: info.patch,
+            startDate: info.startDate,
+            durationDays: info.totalDays,
+          };
+        }
+        setPatches(next);
+      })
+      .catch(() => {
+        // Fallback to localStorage
+        try {
+          const saved = localStorage.getItem('admin_patch_timers');
+          if (saved) setPatches(JSON.parse(saved));
+        } catch { /* ignore */ }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const saveToServer = async (game, patch) => {
+    try {
+      const res = await fetch(buildApiUrl('/api/patch-timers'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game,
+          patch: patch.version,
+          startDate: patch.startDate,
+          durationDays: patch.durationDays,
+        }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      return true;
+    } catch (err) {
+      console.warn('[PatchTimer] Server save failed:', err.message);
+      return false;
+    }
+  };
+
+  const savePatches = async (game, patch) => {
+    const serverOk = await saveToServer(game, patch);
+    if (!serverOk) {
+      // Fallback: save to localStorage
+      const next = { ...patches, [game]: patch };
+      localStorage.setItem('admin_patch_timers', JSON.stringify(next));
+    }
+    setPatches(prev => ({ ...prev, [game]: patch }));
+  };
+
+  const calculateDays = (startDate, durationDays) => {
+    const start = new Date(startDate + 'T00:00:00');
+    const now = new Date();
+    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const elapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    const remaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+    const progress = Math.min(100, Math.max(0, (elapsed / durationDays) * 100));
+    return { elapsed, remaining, progress, end };
+  };
+
+  const gameCards = [
+    { key: 'hsr', label: 'Honkai: Star Rail', color: 'text-purple-400', accent: '#a855f7' },
+    { key: 'genshin', label: 'Genshin Impact', color: 'text-amber-400', accent: '#f59e0b' },
+    { key: 'wuwa', label: 'Wuthering Waves', color: 'text-cyan-400', accent: '#06b6d4' },
+  ];
+
+  const btnPrimary = "rounded-lg bg-[var(--theme-accent)] text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 hover:opacity-90 transition-opacity";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+          <Clock className="h-4 w-4 text-[var(--theme-accent)]" />
+          Patch Timers
+        </h3>
+        {message && <span className="text-[10px] text-emerald-400">{message}</span>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {gameCards.map(g => {
+          const patch = patches[g.key];
+          const { elapsed, remaining, progress, end } = calculateDays(patch.startDate, patch.durationDays);
+          const isEditing = editGame === g.key;
+
+          return (
+            <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold ${g.color}`}>{g.label}</span>
+                <button onClick={() => { setEditGame(isEditing ? null : g.key); setEditForm(prev => ({ ...prev, [g.key]: patch })); }} className="text-[10px] text-slate-500 hover:text-white transition-colors">
+                  {isEditing ? 'Cancel' : 'Edit'}
+                </button>
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Version</label>
+                    <input type="text" value={editForm[g.key]?.version || patch.version} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], version: e.target.value } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Start Date</label>
+                    <input type="date" value={editForm[g.key]?.startDate || patch.startDate} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], startDate: e.target.value } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Duration (days)</label>
+                    <input type="number" value={editForm[g.key]?.durationDays || patch.durationDays} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], durationDays: parseInt(e.target.value) || 42 } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <button onClick={async () => { await savePatches(g.key, editForm[g.key]); setEditGame(null); setMessage(`✓ ${g.label} patch updated`); setTimeout(() => setMessage(''), 2000); }} className={`${btnPrimary} w-full text-[10px] py-2`}>
+                    <Save className="h-3 w-3 inline mr-1" />
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className={`text-2xl font-black ${g.color}`}>{patch.version}</div>
+                  <div className="text-slate-500 text-xs">Current patch</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Day {elapsed} / {patch.durationDays}</span>
+                      <span className={remaining <= 7 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>{remaining > 0 ? `${remaining}d left` : 'Ended'}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: g.accent, opacity: 0.8 }} />
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">Ends: {end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ getAuthHeader, discordUserId }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
@@ -1175,6 +1330,11 @@ function AdminView({ getAuthHeader, discordUserId }) {
             Toggle Auto-Advance
           </button>
         </div>
+      </div>
+
+      {/* Patch Timers */}
+      <div className={cardBase}>
+        <PatchTimerAdminView />
       </div>
 
       {/* Banner Management */}

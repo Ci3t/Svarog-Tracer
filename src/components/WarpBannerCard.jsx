@@ -231,7 +231,6 @@ export default function WarpBannerCard({
           style={{
             background: `radial-gradient(ellipse at 50% 70%, rgba(${accent.shadow},${isSelected ? 0.5 : 0.15}) 0%, transparent 65%)`,
             opacity: isSelected ? 1 : 0,
-            filter: 'blur(30px)',
             zIndex: 0,
           }}
         />
