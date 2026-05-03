@@ -708,66 +708,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
               </div>
             )}
 
-                      <WarpBannerCard
-                        banner={banner}
-                        isSelected={isSelected}
-                        onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
-                        index={index}
-                        game={selectedGame}
-                      />
-                    </React.Fragment>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* ERROR DISPLAY WITH RECOVERY OPTIONS */}
-            {error && !loading && (
-              <div className={`max-w-4xl mx-auto mb-8 ${error.includes('400') ? 'bg-amber-950/40 border-amber-500/30' : 'bg-red-950/40 border-red-500/30'} border rounded-2xl p-6 animate-in fade-in`}>
-                <div className="flex items-start gap-4">
-                  <div className={`p-2 ${error.includes('400') ? 'bg-amber-500/20' : 'bg-red-500/20'} rounded-lg shrink-0`}>
-                    <Icons.Zap className={`w-5 h-5 ${error.includes('400') ? 'text-amber-400' : 'text-red-400'}`} />
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div>
-                      <h4 className={`${error.includes('400') ? 'text-amber-400' : 'text-red-400'} font-bold uppercase tracking-wider text-sm`}>
-                        {error.includes('400') ? 'No Data Available Yet' : 'Fetch Failed'}
-                      </h4>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {error.includes('400')
-                          ? 'Community data for this banner has not been collected yet. This usually happens with brand new banners.'
-                          : error}
-                      </p>
-                    </div>
-                    {/* Only show retry buttons for non-400 errors to avoid API flooding */}
-                    {!error.includes('400') && (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleFetch(selectedBannerId, true)}
-                          className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 rounded-lg text-xs font-bold text-red-400 uppercase tracking-wider transition-all"
-                        >
-                          ↻ Retry Now
-                        </button>
-                        <button
-                          onClick={() => setShowInputModal(true)}
-                          className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/40 rounded-lg text-xs font-bold text-slate-300 uppercase tracking-wider transition-all"
-                        >
-                          ⚙ Manual Override
-                        </button>
-                      </div>
-                    )}
-                    <p className="text-[10px] text-slate-500 italic">
-                      {error.includes('400')
-                        ? 'Tip: Try a different banner, or check back in a few hours once the community uploads more pull data.'
-                        : 'Tip: Click "Manual Override" to enter a banner ID directly, or wait for automatic retry on next banner selection.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-
-
             {/* INITIATE BUTTON REMOVED - Clicking banners auto-triggers fetch with caching */}
             {/* Force refresh available in config modal */}
 
