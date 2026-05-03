@@ -186,9 +186,19 @@ export default function WarpBannerCard({
 
   const getGlowColor = () => {
     if (isSelected) return '245, 158, 11';
-    if (isLightCone) return '59, 130, 246';
+    if (isLightCone || isWeapon) return '59, 130, 246';
     return '168, 85, 247';
   };
+
+  const getGameAccentColor = () => {
+    if (game === 'hsr') return { border: 'rgba(147, 51, 234, 0.6)', glow: 'rgba(147, 51, 234, 0.4)', shadow: '147, 51, 234' };
+    if (game === 'genshin') return { border: 'rgba(245, 158, 11, 0.6)', glow: 'rgba(245, 158, 11, 0.4)', shadow: '245, 158, 11' };
+    if (game === 'wuwa') return { border: 'rgba(6, 182, 212, 0.6)', glow: 'rgba(6, 182, 212, 0.4)', shadow: '6, 182, 212' };
+    if (game === 'zzz') return { border: 'rgba(34, 197, 94, 0.6)', glow: 'rgba(34, 197, 94, 0.4)', shadow: '34, 197, 94' };
+    return { border: 'rgba(168, 85, 247, 0.6)', glow: 'rgba(168, 85, 247, 0.4)', shadow: '168, 85, 247' };
+  };
+
+  const accent = getGameAccentColor();
 
   const maskStyle = {
     maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
@@ -203,15 +213,25 @@ export default function WarpBannerCard({
       style={{ perspective: '1000px', transformStyle: 'preserve-3d' }}
     >
       {/* Image area — the character emerges here */}
-      <div className="relative w-full aspect-[2/3] overflow-hidden rounded-2xl">
+      <div className="relative w-full aspect-[3/4] overflow-hidden rounded-2xl
+        transition-all duration-500 ease-out
+        group-hover:scale-[1.02] group-hover:-translate-y-1
+        ${isSelected ? 'scale-[1.02] -translate-y-1' : ''}
+      "
+        style={{
+          boxShadow: isSelected
+            ? `0 0 40px ${accent.glow}, 0 20px 50px -10px rgba(0,0,0,0.5), 0 0 0 2px ${accent.border}`
+            : `0 10px 40px -10px rgba(0,0,0,0.4)`,
+        }}
+      >
         {/* Background glow — appears behind the image */}
         <div
           ref={glowRef}
-          className="absolute -inset-4 rounded-3xl pointer-events-none transition-opacity"
+          className="absolute -inset-8 rounded-3xl pointer-events-none transition-all duration-500"
           style={{
-            background: `radial-gradient(ellipse at 50% 70%, rgba(${getGlowColor()},0.5) 0%, transparent 60%)`,
-            opacity: isSelected ? 0.45 : 0,
-            filter: 'blur(24px)',
+            background: `radial-gradient(ellipse at 50% 70%, rgba(${accent.shadow},${isSelected ? 0.5 : 0.15}) 0%, transparent 65%)`,
+            opacity: isSelected ? 1 : 0,
+            filter: 'blur(30px)',
             zIndex: 0,
           }}
         />
@@ -297,12 +317,12 @@ export default function WarpBannerCard({
         {/* Selected ring + burst container */}
         {isSelected && (
           <>
-            {/* Amber outline */}
+            {/* Game-colored outline */}
             <div
               className="absolute inset-0 rounded-2xl pointer-events-none z-30"
               style={{
-                border: '2px solid rgba(245,158,11,0.7)',
-                boxShadow: '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(245,158,11,0.1)',
+                border: `2px solid ${accent.border}`,
+                boxShadow: `0 0 30px ${accent.glow}, inset 0 0 20px ${accent.glow}`,
               }}
             />
             {/* Particle burst origin */}
@@ -320,7 +340,7 @@ export default function WarpBannerCard({
       </div>
 
       {/* Info BELOW the image — not overlaid */}
-      <div className="mt-2 flex flex-col items-center gap-1 z-20">
+      <div className="mt-3 flex flex-col items-center gap-1.5 z-20">
         {/* Rarity stars */}
         <div className="flex gap-0.5">
           {[...Array(5)].map((_, i) => (
@@ -330,16 +350,19 @@ export default function WarpBannerCard({
 
         {/* Name */}
         <h3 className={`
-          text-[11px] font-bold uppercase tracking-wider text-center leading-tight
-          ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}
+          text-sm font-black uppercase tracking-widest text-center leading-tight
+          ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}
           transition-colors duration-300
         `}>
           {banner.name}
         </h3>
 
         {banner.collaboration && (
-          <div className="text-[9px] text-amber-400/70 font-semibold uppercase tracking-wider">
-            {banner.collaboration}
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
+            <Star filled={true} active={true} />
+            <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">
+              {banner.collaboration}
+            </span>
           </div>
         )}
       </div>

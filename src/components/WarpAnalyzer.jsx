@@ -649,7 +649,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
                 {activeBanners.map((banner, index, array) => {
                   const isSelected = selectedBannerId === banner.id;
                   const prevBanner = index > 0 ? array[index - 1] : null;
