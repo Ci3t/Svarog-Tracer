@@ -35,7 +35,8 @@ import {
   Timer,
   ToggleLeft,
   Save,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -1186,6 +1187,8 @@ function BannerAdminView({ discordUserId }) {
   const [banners, setBanners] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [editGame, setEditGame] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const loadBanners = async () => {
     setLoading(true);
@@ -1208,12 +1211,12 @@ function BannerAdminView({ discordUserId }) {
   const clearCaches = async () => {
     setMessage('');
     try {
-      // Clear localStorage cache keys
       const keys = [
         'cached_banner_data_v2',
         'genshin_cached_banners_v2',
         'wuwa_live_banners_cache_v5',
         'wuwa_parser_working_strategy',
+        'admin_banner_overrides'
       ];
       let cleared = 0;
       for (const k of keys) {
@@ -1222,18 +1225,40 @@ function BannerAdminView({ discordUserId }) {
           cleared++;
         }
       }
-
-      // Tell server to clear too
       const res = await fetch('/api/admin?action=clear-cache', {
         method: 'POST',
         headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
       });
       const data = await res.json().catch(() => ({}));
-
       setMessage(`✓ Cleared ${cleared} client cache(s). Server: ${data?.status || 'OK'}`);
+      setEditForm({});
     } catch (e) {
       setMessage(`Cache clear error: ${e.message}`);
     }
+  };
+
+  const saveOverrides = () => {
+    try {
+      localStorage.setItem('admin_banner_overrides', JSON.stringify(editForm));
+      setMessage('✓ Overrides saved locally');
+      setEditGame(null);
+    } catch (e) {
+      setMessage(`Save error: ${e.message}`);
+    }
+  };
+
+  const applyOverrides = (game, list) => {
+    try {
+      const overrides = JSON.parse(localStorage.getItem('admin_banner_overrides') || '{}');
+      if (!overrides[game]) return list;
+      return list.map(b => {
+        const key = b.id || b.bannerId;
+        if (overrides[game][key]) {
+          return { ...b, ...overrides[game][key] };
+        }
+        return b;
+      });
+    } catch (e) { return list; }
   };
 
   useEffect(() => {
@@ -1244,6 +1269,7 @@ function BannerAdminView({ discordUserId }) {
   const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
   const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
   const btnGhost = `${btnBase} border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10`;
+  const btnDanger = `${btnBase} border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20`;
 
   const gameCards = [
     { key: 'hsr', label: 'HSR', color: 'text-purple-400' },
@@ -1278,24 +1304,88 @@ function BannerAdminView({ discordUserId }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {gameCards.map(g => {
-          const list = banners[g.key] || [];
+          const rawList = banners[g.key] || [];
+          const list = applyOverrides(g.key, rawList);
+          const isEditing = editGame === g.key;
+
           return (
             <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-              <div className="text-slate-500 text-xs uppercase tracking-widest mb-2">{g.label}</div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-slate-500 text-xs uppercase tracking-widest">{g.label}</div>
+                <button
+                  onClick={() => {
+                    if (isEditing) {
+                      setEditGame(null);
+                    } else {
+                      setEditGame(g.key);
+                      const form = {};
+                      list.forEach(b => { form[b.id || b.bannerId] = { name: b.name, image: b.image }; });
+                      setEditForm(prev => ({ ...prev, [g.key]: form }));
+                    }
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                >
+                  {isEditing ? 'Cancel' : <><Pencil className="h-3 w-3 inline mr-1" />Edit</>}
+                </button>
+              </div>
               <div className={`text-3xl font-black ${g.color}`}>{list.length}</div>
               <div className="text-slate-500 text-xs mt-1">Active banners</div>
+
               {list.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {list.slice(0, 2).map((b, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5" loading="lazy" onError={e => e.target.style.display='none'} />
-                      <div>
-                        <div className="text-white font-medium">{b.name}</div>
-                        <div className="text-slate-500 capitalize">{b.type}</div>
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {list.map((b, i) => {
+                    const key = b.id || b.bannerId;
+                    const edited = isEditing && editForm[g.key]?.[key];
+
+                    return (
+                      <div key={i} className="text-xs">
+                        {isEditing ? (
+                          <div className="space-y-1.5 p-2 rounded-lg bg-white/5 border border-white/5">
+                            <div className="flex items-center gap-2">
+                              <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <input
+                                  type="text"
+                                  value={editForm[g.key]?.[key]?.name || b.name}
+                                  onChange={e => setEditForm(prev => ({
+                                    ...prev,
+                                    [g.key]: { ...prev[g.key], [key]: { ...prev[g.key]?.[key], name: e.target.value } }
+                                  }))}
+                                  className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-[var(--theme-accent)] outline-none"
+                                />
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={editForm[g.key]?.[key]?.image || b.image}
+                              onChange={e => setEditForm(prev => ({
+                                ...prev,
+                                [g.key]: { ...prev[g.key], [key]: { ...prev[g.key]?.[key], image: e.target.value } }
+                              }))}
+                              placeholder="Image URL"
+                              className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-slate-300 text-[10px] focus:border-[var(--theme-accent)] outline-none"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group">
+                            <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5 shrink-0" loading="lazy" onError={e => e.target.style.display='none'} />
+                            <div className="min-w-0">
+                              <div className="text-white font-medium truncate">{b.name}</div>
+                              <div className="text-slate-500 capitalize">{b.type}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              )}
+
+              {isEditing && (
+                <button onClick={saveOverrides} className={`${btnPrimary} w-full mt-3 text-[10px] py-2`}>
+                  <Save className="h-3 w-3 inline mr-2" />
+                  Save Overrides
+                </button>
               )}
             </div>
           );
