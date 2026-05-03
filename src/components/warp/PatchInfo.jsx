@@ -3,14 +3,32 @@ import { useGameTheme } from './GameTheme';
 import { buildApiUrl } from '../../utils/apiBase';
 
 const FALLBACK_PATCH_INFO = {
-  hsr: { patch: '3.7', phase: 1, phaseDaysLeft: 0, daysLeft: 0, totalDays: 42, progressPercent: 0 },
-  genshin: { patch: '6.2', phase: 1, phaseDaysLeft: 0, daysLeft: 0, totalDays: 42, progressPercent: 0 },
-  wuwa: { patch: '2.8', phase: 1, phaseDaysLeft: 0, daysLeft: 0, totalDays: 42, progressPercent: 0 },
-  zzz: { patch: '2.4', phase: 1, phaseDaysLeft: 0, daysLeft: 0, totalDays: 42, progressPercent: 0 },
+  hsr: { patch: '3.7', startDate: '2026-04-22', totalDays: 42 },
+  genshin: { patch: '6.2', startDate: '2026-04-29', totalDays: 42 },
+  wuwa: { patch: '2.8', startDate: '2026-04-29', totalDays: 42 },
+  zzz: { patch: '2.4', startDate: '2026-04-23', totalDays: 42 },
 };
 
 function getFallbackPatchInfo(game) {
-  return FALLBACK_PATCH_INFO[game] || FALLBACK_PATCH_INFO.hsr;
+  const fallback = FALLBACK_PATCH_INFO[game] || FALLBACK_PATCH_INFO.hsr;
+  const start = new Date(`${fallback.startDate}T00:00:00Z`);
+  const now = new Date();
+  const totalMs = fallback.totalDays * 24 * 60 * 60 * 1000;
+  const elapsedMs = Math.max(0, now.getTime() - start.getTime());
+  const remainingMs = Math.max(0, totalMs - elapsedMs);
+  const daysElapsed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+  const phase = daysElapsed < fallback.totalDays / 2 ? 1 : 2;
+
+  return {
+    patch: fallback.patch,
+    phase,
+    phaseDaysLeft: phase === 1
+      ? Math.max(0, Math.ceil((fallback.totalDays / 2) - daysElapsed))
+      : Math.max(0, Math.ceil(fallback.totalDays - daysElapsed)),
+    daysLeft: Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000))),
+    totalDays: fallback.totalDays,
+    progressPercent: Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100))),
+  };
 }
 
 /**
@@ -49,7 +67,7 @@ export default function PatchInfo({ game }) {
   const info = patchData || getFallbackPatchInfo(game);
 
   const phaseLabel = info.phase === 1 ? 'Phase 1' : 'Phase 2';
-  const progressPercent = 100 - info.progressPercent;
+  const progressPercent = info.progressPercent;
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40 backdrop-blur-md">

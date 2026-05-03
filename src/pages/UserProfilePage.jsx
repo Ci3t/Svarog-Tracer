@@ -1001,7 +1001,7 @@ function PatchTimerAdminView() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {gameCards.map(g => {
-          const patch = patches[g.key];
+          const patch = patches[g.key] || DEFAULT_PATCHES[g.key];
           const { elapsed, remaining, progress, end } = calculateDays(patch.startDate, patch.durationDays);
           const isEditing = editGame === g.key;
 

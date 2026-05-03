@@ -233,13 +233,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (req.method === 'GET') {
-      const view = String(req.query?.view || '').trim().toLowerCase();
-      if (view === 'challenge-leaderboard') {
-        return challengeLeaderboardHandler(req, res);
-      }
-      if (view === 'challenge-results') {
-        return challengeResultsHandler(req, res);
+    const slug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
+    const pathPart = slug || req.url?.split('/').pop()?.split('?')[0] || '';
+
+    if (pathPart === 'challenge-leaderboard' || pathPart === 'challenge-results') {
+      if (req.method === 'GET') {
+        return await challengeLeaderboardHandler(req, res);
+      } else if (req.method === 'POST') {
+        return await challengeResultsHandler(req, res);
       }
       throw new HttpError(404, 'Unknown playground view.');
     }
@@ -250,11 +251,11 @@ export default async function handler(req, res) {
 
     const body = readBody(req);
     if (body?.contractId) {
-      return challengeResultsHandler(req, res);
+      return await challengeResultsHandler(req, res);
     }
 
     if (body?.mode && body?.sessionKey) {
-      return handlePracticeResult(req, res);
+      return await handlePracticeResult(req, res);
     }
 
     throw new HttpError(400, 'Unknown playground action.');

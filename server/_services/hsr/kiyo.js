@@ -16,12 +16,31 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_CALLS = 60; // per minute per IP
 const MAX_ROLLS_PER_SESSION = 200;
 const STATS_RATE_LIMIT_MAX = 120; // per minute per IP
+const KIYO_PATCH_FALLBACK = Object.freeze({
+  current_patch: '4.2',
+  patch_start_date: '2026-04-21T20:00:00.000Z',
+  phase_1_days: 21,
+  phase_2_days: 21,
+  timer_mode: 'fallback',
+  auto_advance: false,
+  manual_override_at: null,
+  manual_override_by: null,
+});
+const FORCE_PATCH_FALLBACK = process.env.KIYO_PATCH_FORCE_FALLBACK === 'true';
 
 export async function handler(req, res) {
   setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  const pathPart = resolveKiyoPath(req);
+
+  // This route is polled by the UI. On Windows, local vercel dev can crash inside
+  // libuv/libsql handle cleanup, so keep this display route DB-free there.
+  if (FORCE_PATCH_FALLBACK && pathPart === 'patch' && req.method === 'GET') {
+    return handleGetPatchFallback(req, res);
   }
 
   if (!isTursoConfigured()) {
@@ -32,8 +51,6 @@ export async function handler(req, res) {
   if (!db) {
     return res.status(503).json({ error: 'Kiyo DB unavailable' });
   }
-
-  const pathPart = resolveKiyoPath(req);
 
   try {
     if (pathPart === 'session' && req.method === 'POST') {
@@ -64,6 +81,13 @@ export async function handler(req, res) {
 }
 
 function resolveKiyoPath(req) {
+  const slug = Array.isArray(req.query?.slug) ? req.query.slug[0] : req.query?.slug;
+  if (slug) {
+    const slugParts = String(slug).split('/').filter(Boolean);
+    const kiyoIdx = slugParts.indexOf('kiyo');
+    return kiyoIdx === -1 ? (slugParts[0] || '') : (slugParts[kiyoIdx + 1] || '');
+  }
+
   const raw = req.url || '';
   // Strip query string before splitting
   const pathOnly = raw.split('?')[0];
@@ -71,6 +95,49 @@ function resolveKiyoPath(req) {
   const kiyoIdx = segments.indexOf('kiyo');
   if (kiyoIdx === -1) return '';
   return segments[kiyoIdx + 1] || '';
+}
+
+function buildKiyoPatchPayload(base = KIYO_PATCH_FALLBACK) {
+  const startDate = new Date(base.patch_start_date);
+  const now = new Date();
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const phase1Days = Number(base.phase_1_days || 21);
+  const phase2Days = Number(base.phase_2_days || 21);
+  const totalPatchDays = phase1Days + phase2Days;
+  const phase1EndMs = startDate.getTime() + phase1Days * msPerDay;
+  const patchEndMs = startDate.getTime() + totalPatchDays * msPerDay;
+  const nowMs = now.getTime();
+  const daysElapsed = Math.max(0, Math.floor((nowMs - startDate.getTime()) / msPerDay));
+
+  let currentPhase = 1;
+  let phaseMsRemaining = phase1EndMs - nowMs;
+  if (nowMs >= phase1EndMs) {
+    currentPhase = 2;
+    phaseMsRemaining = Math.max(0, patchEndMs - nowMs);
+  }
+
+  const totalMsRemaining = Math.max(0, patchEndMs - nowMs);
+
+  return {
+    current_patch: base.current_patch,
+    patch_start_date: base.patch_start_date,
+    phase_1_days: phase1Days,
+    phase_2_days: phase2Days,
+    current_phase: currentPhase,
+    phase_days_remaining: Math.max(0, Math.floor(phaseMsRemaining / msPerDay)),
+    phase_hours_remaining: Math.max(0, Math.floor((phaseMsRemaining % msPerDay) / (1000 * 60 * 60))),
+    total_days_remaining: Math.max(0, Math.floor(totalMsRemaining / msPerDay)),
+    days_elapsed: daysElapsed,
+    timer_mode: base.timer_mode,
+    auto_advance: Boolean(base.auto_advance),
+    manual_override_at: base.manual_override_at,
+    manual_override_by: base.manual_override_by,
+  };
+}
+
+function handleGetPatchFallback(req, res) {
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+  return res.status(200).json(buildKiyoPatchPayload());
 }
 
 /*

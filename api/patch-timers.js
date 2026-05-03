@@ -7,6 +7,7 @@ import { createClient } from '@libsql/client';
 
 const DB_URL = process.env.TURSO_DB_URL;
 const DB_AUTH = process.env.TURSO_AUTH_TOKEN;
+const FORCE_PATCH_FALLBACK = process.env.PATCH_TIMERS_FORCE_FALLBACK === 'true';
 
 const FALLBACK_PATCHES = Object.freeze({
   hsr: { current_patch: '3.7', patch_start_date: '2026-04-22', patch_duration_days: 42, auto_advance: false },
@@ -82,13 +83,18 @@ function buildFallbackResponse(game) {
   );
 }
 
-export async function handler(req, res) {
+async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Discord-Id');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (FORCE_PATCH_FALLBACK) {
+    const { game } = req.query || {};
+    return res.status(200).json(buildFallbackResponse(game));
+  }
 
   const db = getDb();
   if (!db) {
@@ -187,6 +193,12 @@ export async function handler(req, res) {
     return res.status(200).json(game ? response[game] : response);
   } catch (err) {
     console.error('[PatchTimerAPI] Fetch error:', err.message);
+    if (req.method === 'GET') {
+      return res.status(200).json(buildFallbackResponse(game));
+    }
     return res.status(500).json({ error: 'Database error', detail: err.message });
   }
 }
+
+export { handler };
+export default handler;

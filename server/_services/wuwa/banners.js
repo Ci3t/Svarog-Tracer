@@ -23,17 +23,25 @@ const WUWA_IMAGE_OVERRIDES = Object.freeze({
 });
 
 const WUWA_FETCH_TIMEOUT_MS = 8000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
+
+let bannerCache = {
+  data: null,
+  timestamp: 0,
+};
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
       ...options,
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs)
     });
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (error) {
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms`);
+    }
+    throw error;
   }
 }
 
@@ -51,6 +59,36 @@ function slugifyBannerName(value) {
 
 function buildWuWaImageUrl(folder, fileName) {
   return `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
+}
+
+function buildWuWaFallbackBanners() {
+  const hiyukiFallback = buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.png');
+  const frostburnFallback = buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png');
+
+  return [
+    {
+      id: '100036_character',
+      bannerId: '100036',
+      name: 'Hiyuki',
+      type: 'character',
+      image: resolveWuWaCharacterImage('Hiyuki', hiyukiFallback),
+      fallbackImage: hiyukiFallback,
+      characterId: 'hiyuki',
+      game: 'wuwa',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '200036_weapon',
+      bannerId: '200036',
+      name: 'Frostburn',
+      type: 'weapon',
+      image: resolveWuWaWeaponImage('Frostburn', frostburnFallback),
+      fallbackImage: frostburnFallback,
+      characterId: 'frostburn',
+      game: 'wuwa',
+      source: 'controlled-fallback',
+    },
+  ];
 }
 
 /**
@@ -93,7 +131,18 @@ export async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  if (FORCE_BANNER_FALLBACK) {
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json(buildWuWaFallbackBanners());
+  }
+
   try {
+    const cacheValid = bannerCache.data && Date.now() - bannerCache.timestamp < CACHE_TTL_MS;
+    if (cacheValid) {
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+      return res.status(200).json(bannerCache.data);
+    }
+
     console.log('[WuWa Banners API] Fetching live banners dynamically...');
 
     const response = await fetchWithTimeout(`https://wuwatracker.com/tracker/stats?t=${Date.now()}`, {
@@ -172,12 +221,21 @@ export async function handler(req, res) {
 
     // Select current banners dynamically (highest IDs = newest)
     const currentBanners = selectCurrentBanners(banners);
+    const safeBanners = currentBanners.length > 0 ? currentBanners : buildWuWaFallbackBanners();
+    bannerCache = {
+      data: safeBanners,
+      timestamp: Date.now(),
+    };
 
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    return res.status(200).json(currentBanners);
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json(safeBanners);
   } catch (error) {
     console.error('[WuWa Banners API] Error:', error);
-    // Ultimate fallback: use presets from client-side map
-    return res.status(200).json([]);
+    const fallbackBanners = buildWuWaFallbackBanners();
+    bannerCache = {
+      data: fallbackBanners,
+      timestamp: Date.now(),
+    };
+    return res.status(200).json(fallbackBanners);
   }
 }

@@ -46,12 +46,12 @@ export default async function handler(req, res) {
 
   console.log(`[HSR Hub] Routing pathPart: "${pathPart}" from URL: "${req.url}"`);
   
-  if (pathPart === 'kiyo') return kiyoHandler(req, res);
-  if (pathPart === 'cavern-clears') return cavernHandler(req, res);
-  if (pathPart === 'banners') return bannersHandler(req, res);
-  if (pathPart === 'stats') return statsHandler(req, res);
-  if (pathPart === 'cron-wipe') return cronHandler(req, res);
-  if (pathPart === 'assets') return assetsHandler(req, res);
+  if (pathPart === 'kiyo') return await kiyoHandler(req, res);
+  if (pathPart === 'cavern-clears') return await cavernHandler(req, res);
+  if (pathPart === 'banners') return await bannersHandler(req, res);
+  if (pathPart === 'stats') return await statsHandler(req, res);
+  if (pathPart === 'cron-wipe') return await cronHandler(req, res);
+  if (pathPart === 'assets') return await assetsHandler(req, res);
 
   return res.status(404).json({ error: 'HSR Endpoint Not Found', pathPart, url: req.url });
 }

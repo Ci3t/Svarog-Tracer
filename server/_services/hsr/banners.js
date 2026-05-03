@@ -7,15 +7,130 @@
 import { resolveHsrCharacterImage, resolveHsrLightConeImage } from '../../utils/gameAssetResolver.js';
 
 const HSR_FETCH_TIMEOUT_MS = 10000;
+const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
+
+function buildHsrFallbackBanners() {
+  const characterPortrait = (id) =>
+    resolveHsrCharacterImage(id, `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/${id}.png`);
+  const lightConePortrait = (id) =>
+    resolveHsrLightConeImage(id, `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${id}.png`);
+
+  return [
+    {
+      id: '2116_character',
+      bannerId: '2116',
+      name: 'Silver Wolf LV.999',
+      image: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
+      portrait: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
+      type: 'character',
+      characterId: '1006',
+      rarity: 5,
+      element: 'quantum',
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '2117_character',
+      bannerId: '2117',
+      name: 'The Dahlia',
+      image: characterPortrait('1321'),
+      portrait: characterPortrait('1321'),
+      type: 'character',
+      characterId: '1321',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '2118_character',
+      bannerId: '2118',
+      name: 'Firefly',
+      image: characterPortrait('1310'),
+      portrait: characterPortrait('1310'),
+      type: 'character',
+      characterId: '1310',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '2119_character',
+      bannerId: '2119',
+      name: 'Castorice',
+      image: characterPortrait('1407'),
+      portrait: characterPortrait('1407'),
+      type: 'character',
+      characterId: '1407',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '3116_light_cone',
+      bannerId: '3116',
+      name: 'Silver Wolf LV.999 Light Cone',
+      image: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp',
+      portrait: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp',
+      type: 'light_cone',
+      characterId: '23006',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '3117_light_cone',
+      bannerId: '3117',
+      name: 'Never Forget Her Flame',
+      image: lightConePortrait('23050'),
+      portrait: lightConePortrait('23050'),
+      lcPreview: lightConePortrait('23050'),
+      type: 'light_cone',
+      characterId: '23050',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '3118_light_cone',
+      bannerId: '3118',
+      name: 'Whereabouts Should Dreams Rest',
+      image: lightConePortrait('23025'),
+      portrait: lightConePortrait('23025'),
+      lcPreview: lightConePortrait('23025'),
+      type: 'light_cone',
+      characterId: '23025',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+    {
+      id: '3119_light_cone',
+      bannerId: '3119',
+      name: 'Make Farewells More Beautiful',
+      image: lightConePortrait('23040'),
+      portrait: lightConePortrait('23040'),
+      lcPreview: lightConePortrait('23040'),
+      type: 'light_cone',
+      characterId: '23040',
+      rarity: 5,
+      game: 'hsr',
+      source: 'controlled-fallback',
+    },
+  ];
+}
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = HSR_FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { 
+      ...options, 
+      signal: AbortSignal.timeout(timeoutMs) 
+    });
     return response;
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (error) {
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms`);
+    }
+    throw error;
   }
 }
 
@@ -31,6 +146,11 @@ export async function handler(req, res) {
   
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  if (FORCE_BANNER_FALLBACK) {
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json(buildHsrFallbackBanners());
   }
   
   try {
@@ -143,7 +263,7 @@ export async function handler(req, res) {
     if (dedupedCandidates.length === 0) {
       console.log('[HSR Banners API] No active banners found');
       res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-      return res.status(200).json([]);
+      return res.status(200).json(buildHsrFallbackBanners());
     }
 
     console.log(`[HSR Banners API] Found ${dedupedCandidates.length} active banner candidate(s)`);
@@ -240,7 +360,7 @@ export async function handler(req, res) {
     } else if (
       knownCharacterNames.has('Firefly') &&
       knownCharacterNames.has('Castorice') &&
-      knownCharacterNames.has('Dahlia')
+      (knownCharacterNames.has('The Dahlia') || knownCharacterNames.has('Dahlia'))
     ) {
       const unknownIndex = banners.findIndex((banner) => banner.type === 'unknown');
       if (unknownIndex !== -1) {
@@ -275,9 +395,7 @@ export async function handler(req, res) {
     return res.status(200).json(banners);
   } catch (error) {
     console.error('[HSR Banners API] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to discover HSR banners',
-      message: error.message 
-    });
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    return res.status(200).json(buildHsrFallbackBanners());
   }
 }

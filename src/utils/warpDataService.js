@@ -197,12 +197,39 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
 const BANNER_API_URL = buildApiUrl('/api/banners');
+const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
+const bannerClientCache = new Map();
+const bannerClientRequests = new Map();
+
+async function fetchBannersWithClientCache(game, loader) {
+  const cacheKey = game || 'all';
+  const cached = bannerClientCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < BANNER_CLIENT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  if (bannerClientRequests.has(cacheKey)) {
+    return bannerClientRequests.get(cacheKey);
+  }
+
+  const request = loader()
+    .then((data) => {
+      bannerClientCache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      bannerClientRequests.delete(cacheKey);
+    });
+
+  bannerClientRequests.set(cacheKey, request);
+  return request;
+}
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners(game = 'all') {
   try {
     if (game === 'genshin') {
-      const genshinBanners = await genshinApi.getBanners();
+      const genshinBanners = await fetchBannersWithClientCache('genshin', () => genshinApi.getBanners());
       return Array.isArray(genshinBanners)
         ? genshinBanners.map((b) => ({
           id: b.id,
@@ -217,7 +244,7 @@ export async function fetchCentralizedBanners(game = 'all') {
     }
 
     if (game === 'wuwa') {
-      const wuwaBanners = await wuwaApi.getBanners();
+      const wuwaBanners = await fetchBannersWithClientCache('wuwa', () => wuwaApi.getBanners());
       return Array.isArray(wuwaBanners)
         ? wuwaBanners.map((b) => ({
           id: b.id,
@@ -233,9 +260,12 @@ export async function fetchCentralizedBanners(game = 'all') {
 
     const params = new URLSearchParams();
     if (game && game !== 'all') params.set('game', game);
-    const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
-    if (!response.ok) return [];
-    const data = await response.json();
+    const data = await fetchBannersWithClientCache(game || 'all', async () => {
+      const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
+      if (!response.ok) return null;
+      return response.json();
+    });
+    if (!data) return [];
     
     // Convert API format to website format (preserve 'game' property!)
     const allBanners = [
@@ -525,7 +555,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
   } else if (
     knownCharacterNames.has('Firefly') &&
     knownCharacterNames.has('Castorice') &&
-    knownCharacterNames.has('Dahlia')
+    (knownCharacterNames.has('The Dahlia') || knownCharacterNames.has('Dahlia'))
   ) {
     const unknownIndex = list.findIndex((banner) => banner?.game === 'hsr' && banner?.type === 'unknown');
     if (unknownIndex !== -1) {

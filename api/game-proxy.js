@@ -50,14 +50,12 @@ export default async function handler(req, res) {
   }
 
   if (game === 'genshin') {
-    if (pathPart === 'banners') return genshinBannersHandler(req, res);
-    if (pathPart === 'stats') return genshinStatsHandler(req, res);
-    return res.status(404).json({ error: 'Genshin Endpoint Not Found', pathPart, url: req.url });
-  }
-
-  if (game === 'wuwa') {
-    if (pathPart === 'banners') return wuwaBannersHandler(req, res);
-    if (pathPart === 'stats') return wuwaStatsHandler(req, res);
+    if (pathPart === 'banners') return await genshinBannersHandler(req, res);
+    if (pathPart === 'stats') return await genshinStatsHandler(req, res);
+  } else if (game === 'wuwa') {
+    // URL format: /api/wuwa/banners
+    if (pathPart === 'banners') return await wuwaBannersHandler(req, res);
+    if (pathPart === 'stats') return await wuwaStatsHandler(req, res);
     return res.status(404).json({ error: 'WuWa Endpoint Not Found', pathPart, url: req.url });
   }
 

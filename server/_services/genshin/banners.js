@@ -4,12 +4,25 @@
  * Images: Our Cloudinary assets primary, paimon.moe fallback
  */
 
+import { GENSHIN_BANNER_CONTROL } from './bannerControl.js';
 import { resolveGenshinCharacterImage, resolveGenshinWeaponImage } from '../../utils/gameAssetResolver.js';
 
 const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
 const GENSHIN_WEAPON_IMG_BASE = 'https://paimon.moe/images/weapons/';
 const GENSHIN_BANNER_IMG_BASE = 'https://paimon.moe/images/banners/';
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const EXACT_FETCH_TIMEOUT_MS = 1800;
+const DISCOVERY_FETCH_TIMEOUT_MS = 900;
+const DISCOVERY_WINDOW = 8;
+const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
+
+let bannerCache = {
+  data: null,
+  timestamp: 0,
+};
+
+let inFlightRequest = null;
 
 const MINOR_WORDS = new Set(['of', 'the', 'and', 'in', 'a', 'an']);
 const GENSHIN_FEATURED_CHAR_WHITELIST = new Set([
@@ -57,6 +70,54 @@ function toPaimonSlug(name) {
     .split(' / ')[0]
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+function fetchWithTimeout(url, options = {}, timeoutMs = EXACT_FETCH_TIMEOUT_MS) {
+  return fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(timeoutMs)
+  }).catch(error => {
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  });
+}
+
+function buildControlledFallbackBanners() {
+  const characterId = GENSHIN_BANNER_CONTROL.characterBannerId;
+  const weaponId = GENSHIN_BANNER_CONTROL.weaponBannerId;
+  const characterName = GENSHIN_BANNER_CONTROL.overrideCharacterName || 'Current Character Banner';
+  const weaponName = GENSHIN_BANNER_CONTROL.overrideWeaponName || 'Current Weapon Banner';
+  const characterSlug = toPaimonSlug(characterName);
+  const weaponSlug = toPaimonSlug(weaponName);
+  const characterFallback = GENSHIN_BANNER_CONTROL.overrideCharacterImage || `${GENSHIN_CHAR_IMG_BASE}${characterSlug}.png`;
+  const weaponFallback = GENSHIN_BANNER_CONTROL.overrideWeaponImage || `${GENSHIN_WEAPON_IMG_BASE}${weaponSlug}.png`;
+
+  return [
+    {
+      id: `${characterId}_character`,
+      bannerId: characterId,
+      name: characterName,
+      type: 'character',
+      image: resolveGenshinCharacterImage(characterSlug, characterFallback),
+      fallbackImage: characterFallback,
+      characterId: characterSlug,
+      game: 'genshin',
+      source: 'controlled-fallback',
+    },
+    {
+      id: `${weaponId}_weapon`,
+      bannerId: weaponId,
+      name: weaponName,
+      type: 'weapon',
+      image: resolveGenshinWeaponImage(weaponSlug, weaponFallback),
+      fallbackImage: weaponFallback,
+      characterId: 'weapon_banner',
+      game: 'genshin',
+      source: 'controlled-fallback',
+    },
+  ];
 }
 
 
@@ -181,20 +242,21 @@ function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'aut
  * No hardcoded IDs needed — automatically adapts to new patches.
  */
 async function discoverBannerAuto(prefix, type) {
-  // Scan from a high predicted ID down to a safe minimum
-  // This range should cover banners for the next several years
-  const MAX_ID = 120;  // e.g., 300120
-  const MIN_ID = 70;   // e.g., 300070
+  const controlledId = type === 'character'
+    ? GENSHIN_BANNER_CONTROL.characterBannerId
+    : GENSHIN_BANNER_CONTROL.weaponBannerId;
+  const controlledNumber = Number.parseInt(String(controlledId || '').slice(3), 10);
+  const MAX_ID = Number.isFinite(controlledNumber) ? controlledNumber + 2 : 120;
+  const MIN_ID = Math.max(70, MAX_ID - DISCOVERY_WINDOW);
 
   for (let i = MAX_ID; i >= MIN_ID; i--) {
     const bannerId = `${prefix}${String(i).padStart(3, '0')}`;
     try {
-      const response = await fetch(`${PAIMON_API}?banner=${bannerId}`, {
+      const response = await fetchWithTimeout(`${PAIMON_API}?banner=${bannerId}`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0)'
         },
-        signal: AbortSignal.timeout(3000)
-      });
+      }, DISCOVERY_FETCH_TIMEOUT_MS);
 
       if (!response.ok) continue;
 
@@ -229,12 +291,11 @@ async function fetchBannerByExactId(bannerId, type) {
   if (!bannerId) return null;
 
   try {
-    const response = await fetch(`${PAIMON_API}?banner=${bannerId}`, {
+    const response = await fetchWithTimeout(`${PAIMON_API}?banner=${bannerId}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0)'
       },
-      signal: AbortSignal.timeout(3000)
-    });
+    }, EXACT_FETCH_TIMEOUT_MS);
 
     if (!response.ok) return null;
 
@@ -254,13 +315,86 @@ async function fetchBannerByExactId(bannerId, type) {
   }
 }
 
+async function loadGenshinBanners() {
+  const cacheValid = bannerCache.data && Date.now() - bannerCache.timestamp < CACHE_TTL_MS;
+  if (cacheValid) {
+    return bannerCache.data;
+  }
+
+  if (inFlightRequest) {
+    return inFlightRequest;
+  }
+
+  inFlightRequest = (async () => {
+    const fallbackBanners = buildControlledFallbackBanners();
+    const [exactCharacter, exactWeapon] = await Promise.all([
+      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character'),
+      fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon'),
+    ]);
+
+    let allBanners = [
+      exactCharacter || fallbackBanners.find((banner) => banner.type === 'character'),
+      exactWeapon || fallbackBanners.find((banner) => banner.type === 'weapon'),
+    ].filter(Boolean);
+
+    if (allBanners.length === 0) {
+      const [characterBanner, weaponBanner] = await Promise.all([
+        discoverBannerAuto('300', 'character'),
+        discoverBannerAuto('400', 'weapon')
+      ]);
+      allBanners = [characterBanner, weaponBanner].filter(Boolean);
+    }
+
+    if (allBanners.length === 0) {
+      allBanners = fallbackBanners;
+    }
+
+    allBanners.sort((a, b) => parseInt(b.bannerId, 10) - parseInt(a.bannerId, 10));
+    bannerCache = {
+      data: allBanners,
+      timestamp: Date.now(),
+    };
+    return allBanners;
+  })().finally(() => {
+    inFlightRequest = null;
+  });
+
+  return inFlightRequest;
+}
+
 export async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  if (FORCE_BANNER_FALLBACK) {
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json(buildControlledFallbackBanners());
+  }
+
+  try {
+    console.log('[Genshin Banners API] Loading current banners...');
+    const allBanners = await loadGenshinBanners();
+
+    console.log(
+      '[Genshin Banners API] Discovered',
+      allBanners.length,
+      'active banner(s):',
+      allBanners.map(b => `${b.name} (${b.bannerId})`).join(', ')
+    );
+
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json(allBanners);
+  } catch (error) {
+    console.error('[Genshin Banners API] Error, returning controlled fallback:', error);
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    return res.status(200).json(buildControlledFallbackBanners());
+  }
+
+  /*
   try {
     console.log('[Genshin Banners API] Auto-discovering current banners...');
 
@@ -286,4 +420,5 @@ export async function handler(req, res) {
     console.error('[Genshin Banners API] Fatal Error:', error);
     return res.status(500).json({ error: 'Failed to discover Genshin banners', message: error.message });
   }
+  */
 }

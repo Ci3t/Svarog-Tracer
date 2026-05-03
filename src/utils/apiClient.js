@@ -28,8 +28,12 @@ async function apiFetch(endpoint, options = {}) {
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      const error = contentType.includes('application/json')
+        ? await response.json().catch(() => ({}))
+        : { message: await response.text().catch(() => '') };
+      const message = error.error || error.message || `HTTP ${response.status}`;
+      throw new Error(message);
     }
     
     return await response.json();

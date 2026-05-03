@@ -257,15 +257,6 @@ export default function WarpBannerCard({
             />
           ) : null}
 
-          {/* Chromatic aberration overlay on hover */}
-          <div
-            className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{
-              background: 'linear-gradient(105deg, transparent 40%, rgba(255,0,0,0.06) 45%, rgba(0,255,255,0.06) 50%, transparent 55%)',
-              mixBlendMode: 'screen',
-            }}
-          />
-
           {/* Placeholder */}
           {(imgError || !banner.image) && (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-950">
