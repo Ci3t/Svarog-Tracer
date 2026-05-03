@@ -183,6 +183,20 @@ export default function KiyoModeCard({
 
   // ðŸ”¥ Window analysis helpers
   const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 4);
+  const lastWindowStartRef = useRef(null);
+
+  useEffect(() => {
+    if (!windowInfo?.startMs) return;
+
+    const previousWindowStart = lastWindowStartRef.current;
+    const didRollover = previousWindowStart != null && previousWindowStart !== windowInfo.startMs;
+    lastWindowStartRef.current = windowInfo.startMs;
+
+    const hasEnoughRollsToSave = kiyoSession.pendingCount >= kiyoSession.minRollsToSave;
+    if (didRollover && hasEnoughRollsToSave) {
+      void kiyoSession.saveNow();
+    }
+  }, [windowInfo?.startMs, kiyoSession.pendingCount, kiyoSession.minRollsToSave, kiyoSession.saveNow]);
 
   const liveRollEventsRef = useRef([]);
   const prevLiveRollsRef = useRef(0);
@@ -1149,7 +1163,7 @@ export default function KiyoModeCard({
           <select
             value={datasetRegion}
             onChange={(e) => setDatasetRegion(e.target.value)}
-            className="bg-slate-900 border cursor-pointer border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="kiyo-region-select bg-slate-900 border cursor-pointer border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
           >
             <option value="EU">EU</option>
             <option value="NA">NA</option>

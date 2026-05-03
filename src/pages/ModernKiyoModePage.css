@@ -241,6 +241,15 @@
     border-color: color-mix(in srgb, #f87171 44%, transparent);
 }
 
+.modern-kiyo-page .kiyo-region-select {
+    color: var(--theme-text);
+}
+
+.modern-kiyo-page .kiyo-region-select option {
+    color: #111827;
+    background: #ffffff;
+}
+
 .modern-kiyo-page .kiyo-chip-muted {
     background: color-mix(in srgb, var(--theme-surface-3) 74%, transparent) !important;
     border: 1px solid var(--theme-border-soft) !important;
