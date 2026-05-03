@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
 import WarpBannerCard from "./WarpBannerCard";
+import PatchInfo from "./warp/PatchInfo";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -508,6 +509,11 @@ export default function WarpAnalyzer({ sessionTheme }) {
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-transparent to-slate-950" />
               <div className="absolute inset-0 bg-gradient-to-r from-slate-950/10 via-transparent to-transparent" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" />
+              {/* GAME-COLORED AMBIENT GLOW */}
+              <div
+                className="absolute -top-1/4 -right-1/4 w-[800px] h-[800px] rounded-full blur-[150px] opacity-20 pointer-events-none transition-colors duration-1000"
+                style={{ background: `radial-gradient(circle, ${getGameColor()} 0%, transparent 70%)` }}
+              />
             </div>
           )}
         </div>
@@ -631,6 +637,11 @@ export default function WarpAnalyzer({ sessionTheme }) {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* PATCH INFO BAR */}
+            <div className="max-w-4xl mx-auto mb-6">
+              <PatchInfo game={selectedGame} />
             </div>
 
             {/* BANNER SELECTION (Tabs + Grid) */}
