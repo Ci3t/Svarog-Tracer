@@ -197,7 +197,7 @@ export default async function handler(req, res) {
         });
       }
 
-      return seasonStatsHandler(req, res);
+      return await seasonStatsHandler(req, res);
     }
 
     if (req.method !== 'POST') {

@@ -31,15 +31,23 @@
     },
     {
       "source": "/api/wuwa/:slug*",
-      "destination": "/api/wuwa"
+      "destination": "/api/game-proxy"
     },
     {
       "source": "/api/genshin/:slug*",
-      "destination": "/api/genshin"
+      "destination": "/api/game-proxy"
     },
     {
       "source": "/api/zone/:slug*",
       "destination": "/api/zone"
+    },
+    {
+      "source": "/api/admin-users",
+      "destination": "/api/admin?action=users"
+    },
+    {
+      "source": "/api/admin-users/:path*",
+      "destination": "/api/admin?action=users"
     }
   ],
   "crons": [

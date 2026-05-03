@@ -1171,11 +1171,11 @@ export default function PlaygroundFreePage({ sessionTheme = 'modern' }) {
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style>{`
         .relic-session-container .astral-session-table .overflow-auto {
            max-height: 355px !important;
         }
-      `}} />
+      `}</style>
       <ProgressionSummaryToast
         summary={progressionSummary}
         title="Free training logged"

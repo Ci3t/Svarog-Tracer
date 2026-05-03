@@ -2,6 +2,24 @@
  * HSR Stats API Endpoint
  * Fetches Honkai: Star Rail statistics from stardb.gg
  */
+const LOCAL_SAFE_MODE = process.env.STATS_FORCE_FALLBACK === 'true';
+
+function buildFallbackStats(id) {
+  return {
+    stats: {
+      total_pulls_5: 0,
+      by_rollnum_pulls_5: {},
+      by_rollnum_chance_5: {},
+      count_win_5: 0,
+      count_lose_5: 0,
+    },
+    image: null,
+    list: [],
+    fallback: true,
+    bannerId: id,
+    message: 'Local safe-mode fallback: live HSR stats fetch skipped.',
+  };
+}
 
 export async function handler(req, res) {
   // Enable CORS
@@ -22,6 +40,11 @@ export async function handler(req, res) {
   if (!id) {
     return res.status(400).json({ error: 'Banner ID is required' });
   }
+
+  if (LOCAL_SAFE_MODE) {
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    return res.status(200).json(buildFallbackStats(id));
+  }
   
   try {
     const apiUrl = `https://starrailstation.com/api/v1/warp_fetch/${id}/?_t=${Date.now()}`;
@@ -31,7 +54,8 @@ export async function handler(req, res) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(8000)
     });
     
     if (!response.ok) {
@@ -47,9 +71,6 @@ export async function handler(req, res) {
     return res.status(200).json(data);
   } catch (error) {
     console.error('[HSR API] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch HSR stats',
-      message: error.message 
-    });
+    return res.status(200).json(buildFallbackStats(id));
   }
 }

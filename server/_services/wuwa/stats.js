@@ -6,17 +6,36 @@
 import { parseWuWaHTML_Adaptive } from '../../utils/wuwaAdaptiveParser.js';
 
 const WUWA_FETCH_TIMEOUT_MS = 8000;
+const LOCAL_SAFE_MODE = process.env.STATS_FORCE_FALLBACK === 'true';
+
+function buildWuWaStatsFallback(id, message = 'Local safe-mode fallback: live WuWa stats fetch skipped.') {
+  return {
+    stats: {
+      total_pulls_5: 0,
+      by_rollnum_pulls_5: {},
+      by_rollnum_chance_5: {},
+      count_win_5: 0,
+      count_lose_5: 0
+    },
+    image: null,
+    list: [],
+    fallback: true,
+    bannerId: id,
+    message
+  };
+}
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
       ...options,
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs)
     });
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (error) {
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms`);
+    }
+    throw error;
   }
 }
 
@@ -48,6 +67,11 @@ export async function handler(req, res) {
   
   if (!id) {
     return res.status(400).json({ error: 'Banner ID is required' });
+  }
+
+  if (LOCAL_SAFE_MODE) {
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    return res.status(200).json(buildWuWaStatsFallback(id));
   }
   
   try {
@@ -117,19 +141,7 @@ export async function handler(req, res) {
 
     if (!finalStats) {
       console.warn('[WuWa API] Parsing failed, returning fallback');
-      return res.status(200).json({
-        stats: {
-          total_pulls_5: 0,
-          by_rollnum_pulls_5: {},
-          by_rollnum_chance_5: {},
-          count_win_5: 0,
-          count_lose_5: 0
-        },
-        image: null,
-        list: [],
-        fallback: true,
-        message: "Stats processing failed - Anti-bot protection active"
-      });
+      return res.status(200).json(buildWuWaStatsFallback(id, 'Stats processing failed - Anti-bot protection active'));
     }
     
     // Cache for 5 minutes
@@ -138,9 +150,6 @@ export async function handler(req, res) {
     return res.status(200).json(finalStats);
   } catch (error) {
     console.error('[WuWa API] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch WuWa stats',
-      message: error.message 
-    });
+    return res.status(200).json(buildWuWaStatsFallback(id, error.message));
   }
 }

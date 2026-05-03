@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
+import WarpBannerCard from "./WarpBannerCard";
+import PatchInfo from "./warp/PatchInfo";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -58,8 +60,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
   // Refs for sliding animations
   const gameTabsRef = useRef(null);
   const gamePillRef = useRef(null);
-  const categoryTabsRef = useRef(null);
-  const categoryPillRef = useRef(null);
+  const bannerLoadSeqRef = useRef(0);
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
@@ -77,6 +78,10 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
   // -- Load banners based on selected game --
   useEffect(() => {
+    const loadSeq = ++bannerLoadSeqRef.current;
+    let cancelled = false;
+    const isCurrentLoad = () => !cancelled && bannerLoadSeqRef.current === loadSeq;
+
     const loadBanners = async () => {
       setBannersLoading(true);
       try {
@@ -86,6 +91,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
           if (selectedGame === 'hsr') {
             const hsrBanners = allBanners.filter(b => b.game === 'hsr');
+            if (!isCurrentLoad()) return;
             if (hsrBanners.length > 0) {
               // Merge with Fate collaboration
               const mergedBanners = [...hsrBanners, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
@@ -98,6 +104,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           } else if (selectedGame === 'genshin') {
             const genshinBanners = allBanners.filter(b => b.game === 'genshin');
+            if (!isCurrentLoad()) return;
             if (genshinBanners.length > 0) {
               setBanners(genshinBanners);
               setSelectedBannerId(genshinBanners[0].id);
@@ -107,6 +114,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           } else if (selectedGame === 'wuwa') {
             const wuwaBanners = allBanners.filter(b => b.game === 'wuwa');
+            if (!isCurrentLoad()) return;
             if (wuwaBanners.length > 0) {
               setBanners(wuwaBanners);
               setSelectedBannerId(wuwaBanners[0].id);
@@ -116,19 +124,26 @@ export default function WarpAnalyzer({ sessionTheme }) {
             }
           }
         } else if (selectedGame === 'zzz') {
+          if (!isCurrentLoad()) return;
           // ZZZ uses preset banners (zzz.rng.moe has clean API, no live discovery needed)
           setBanners(ZZZ_PRESET_BANNERS);
           setSelectedBannerId(ZZZ_PRESET_BANNERS[0]?.id);
         }
         // Clear current data when switching games
+        if (!isCurrentLoad()) return;
         setData(null);
         setBannerType('character');
         setWinsOnlyMode(false);
       } finally {
-        setBannersLoading(false);
+        if (isCurrentLoad()) {
+          setBannersLoading(false);
+        }
       }
     };
     loadBanners().catch(e => console.warn(e));
+    return () => {
+      cancelled = true;
+    };
   }, [selectedGame]);
 
   const handleFetch = async (targetId, force = false) => {
@@ -245,20 +260,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
       });
     }
   }, [selectedGame]);
-
-  useEffect(() => {
-    if (!categoryTabsRef.current || !categoryPillRef.current) return;
-
-    const activeBtn = categoryTabsRef.current.querySelector('button.active');
-    if (activeBtn) {
-      gsap.to(categoryPillRef.current, {
-        x: activeBtn.offsetLeft,
-        width: activeBtn.offsetWidth,
-        duration: 0.4,
-        ease: "power2.out"
-      });
-    }
-  }, [bannerType]);
 
   // Current selected banner
   const currentBanner = useMemo(() => {
@@ -491,18 +492,27 @@ export default function WarpAnalyzer({ sessionTheme }) {
             style={{ backgroundImage: 'radial-gradient(#f59e0b 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }} />
 
           {/* FADED CHARACTER BG */}
-          {currentBanner?.image && (
+          {(currentBanner?.portrait || currentBanner?.image) && (
             <div className="absolute inset-0 transition-opacity duration-1000 ease-in-out overflow-hidden">
               <img
-                src={currentBanner.image}
+                src={currentBanner.portrait || currentBanner.image}
                 alt=""
-                className="absolute top-0 right-0 h-full w-auto object-cover opacity-25 grayscale-[0.2] brightness-[0.7] blur-[12px] scale-110 origin-right"
-                onError={(event) => applyLv999ImageFallback(event, currentBanner?.name)}
+                className="absolute top-0 right-0 h-full w-auto object-cover object-[top_right] opacity-20 brightness-[0.6] scale-110 origin-right"
+                onError={(event) => {
+                  if (currentBanner?.portrait && event.target.src !== currentBanner.image) {
+                    event.target.src = currentBanner.image;
+                  }
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-l from-slate-950/20 via-slate-950/60 to-slate-950" />
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-transparent to-slate-950" />
               <div className="absolute inset-0 bg-gradient-to-r from-slate-950/10 via-transparent to-transparent" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" />
+              {/* GAME-COLORED AMBIENT GLOW */}
+              <div
+                className="absolute -top-1/4 -right-1/4 w-[800px] h-[800px] rounded-full blur-[150px] opacity-20 pointer-events-none transition-colors duration-1000"
+                style={{ background: `radial-gradient(circle, ${getGameColor()} 0%, transparent 70%)` }}
+              />
             </div>
           )}
         </div>
@@ -628,28 +638,33 @@ export default function WarpAnalyzer({ sessionTheme }) {
               )}
             </div>
 
-            {/* BANNER SELECTION (Tabs + Grid) */}
-            <div className="max-w-4xl mx-auto mb-12">
+            {/* PATCH INFO BAR */}
+            <div className="max-w-4xl mx-auto mb-6">
+              <PatchInfo game={selectedGame} />
+            </div>
+
+            {/* BANNER SELECTION (Tabs + Big Card Grid) */}
+            <div className="max-w-7xl mx-auto mb-12">
               <div className="flex justify-center mb-8">
-                <div ref={categoryTabsRef} className="relative grid grid-cols-2 p-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg w-full max-w-md overflow-hidden">
-                  <div ref={categoryPillRef} className="absolute top-1 bottom-1 left-0 rounded-md shadow-lg z-0 bg-purple-600 pointer-events-none" />
+                <div className="relative grid grid-cols-2 p-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg w-full max-w-md overflow-hidden">
                   <button
                     onClick={() => setBannerType('character')}
-                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${bannerType === 'character' ? "active text-white" : "text-slate-400 hover:text-white"}`}
+                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${bannerType === 'character' ? "active text-white" : "text-slate-400 hover:text-white"}`}
+                    style={bannerType === 'character' ? { backgroundColor: getGameColor() } : {}}
                   >
                     Characters
                   </button>
                   <button
                     onClick={() => setBannerType(selectedGame === 'hsr' ? 'light_cone' : 'weapon')}
-                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-medium transition-colors cursor-pointer ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "active text-white" : "text-slate-400 hover:text-white"}`}
+                    className={`z-10 relative py-2 px-4 rounded-md text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${(bannerType === 'light_cone' || bannerType === 'weapon') ? "active text-white" : "text-slate-400 hover:text-white"}`}
+                    style={(bannerType === 'light_cone' || bannerType === 'weapon') ? { backgroundColor: getGameColor() } : {}}
                   >
                     {selectedGame === 'hsr' ? 'Light Cones' : 'Weapons'}
                   </button>
                 </div>
-
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
                 {activeBanners.map((banner, index, array) => {
                   const isSelected = selectedBannerId === banner.id;
                   const prevBanner = index > 0 ? array[index - 1] : null;
@@ -659,7 +674,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     <React.Fragment key={`${banner.id}_${banner.characterId}`}>
                       {/* Separator for collaboration banners */}
                       {showSeparator && (
-                        <div className="col-span-2 md:col-span-4 flex items-center gap-4 my-4">
+                        <div className="col-span-2 lg:col-span-4 flex items-center gap-4 my-4">
                           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
                           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30">
                             <Icons.Star className="w-4 h-4 text-amber-500 fill-amber-500" />
@@ -672,36 +687,13 @@ export default function WarpAnalyzer({ sessionTheme }) {
                         </div>
                       )}
 
-                      <div
+                      <WarpBannerCard
+                        banner={banner}
+                        isSelected={isSelected}
                         onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
-                        className={`
-                                              group cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all duration-300 theme-glass-card warp-banner-card
-                                              ${isSelected ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.02]" : "border-slate-800 hover:border-amber-500/50 hover:scale-[1.01]"}
-                                              bg-slate-900/50 backdrop-blur-sm
-                                          `}
-                      >
-                        <img
-                          src={banner.image}
-                          alt={banner.name}
-                          className={`w-full h-full object-cover transition-all duration-700 ${isSelected ? "grayscale-0 scale-110" : "grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"}`}
-                          onError={(event) => applyLv999ImageFallback(event, banner.name)}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <div className="flex gap-1 mb-2">
-                            {[...Array(5)].map((_, i) => (
-                              <Icons.Star key={i} className={`w-3 h-3 ${isSelected ? "text-amber-500 fill-amber-500" : "text-slate-600 fill-slate-600"}`} />
-                            ))}
-                          </div>
-                          <h3 className={`text-sm font-bold uppercase tracking-wider ${isSelected ? "text-white" : "text-slate-400"}`}>{banner.name}</h3>
-                          {banner.collaboration && (
-                            <div className="mt-1 text-[10px] text-amber-400/70 font-medium uppercase tracking-wider">
-                              {banner.collaboration}
-                            </div>
-                          )}
-                        </div>
-                        {isSelected && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#f59e0b]" />}
-                      </div>
+                        index={index}
+                        game={selectedGame}
+                      />
                     </React.Fragment>
                   )
                 })}
@@ -710,7 +702,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
             {/* ERROR DISPLAY WITH RECOVERY OPTIONS */}
             {error && !loading && (
-              <div className={`max-w-4xl mx-auto mb-8 ${error.includes('400') ? 'bg-amber-950/40 border-amber-500/30' : 'bg-red-950/40 border-red-500/30'} border rounded-2xl p-6 animate-in fade-in`}>
+              <div className={`max-w-4xl mx-auto mt-6 ${error.includes('400') ? 'bg-amber-950/40 border-amber-500/30' : 'bg-red-950/40 border-red-500/30'} border rounded-2xl p-6 animate-in fade-in`}>
                 <div className="flex items-start gap-4">
                   <div className={`p-2 ${error.includes('400') ? 'bg-amber-500/20' : 'bg-red-500/20'} rounded-lg shrink-0`}>
                     <Icons.Zap className={`w-5 h-5 ${error.includes('400') ? 'text-amber-400' : 'text-red-400'}`} />
@@ -726,7 +718,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
                           : error}
                       </p>
                     </div>
-                    {/* Only show retry buttons for non-400 errors to avoid API flooding */}
                     {!error.includes('400') && (
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -749,16 +740,6 @@ export default function WarpAnalyzer({ sessionTheme }) {
                         : 'Tip: Click "Manual Override" to enter a banner ID directly, or wait for automatic retry on next banner selection.'}
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* LOADING STATE */}
-            {loading && (
-              <div className="max-w-4xl mx-auto mb-8 bg-purple-950/30 border border-purple-500/30 rounded-2xl p-6 animate-pulse">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-purple-400 font-bold uppercase tracking-wider text-sm">Fetching data (retrying if needed)...</span>
                 </div>
               </div>
             )}

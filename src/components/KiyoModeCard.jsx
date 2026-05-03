@@ -1,11 +1,13 @@
-// KiyoModeCard.jsx - BBP Mode v2 (Confidence-Aware, No BS)
+﻿// KiyoModeCard.jsx - BBP Mode v2 (Confidence-Aware, No BS)
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { predictNext3EU, predictWithPrefix } from "../utils/predictNext";
+import { useNavigationBlocker } from "../contexts/NavigationBlockerContext";
+import { predictNext3EU } from "../utils/predictNext";
 import AccuracyHeaderBar from "./kiyo/AccuracyHeaderBar";
 
 import {
   EU_SEQUENTIAL_3STR_RECENT,
   EU_SEQUENTIAL_2STR_RECENT,
+  EU_SEQUENTIAL_3STR,
   EU_PATCH_INFO,
 } from "../utils/euLiveSheetData";
 import {
@@ -29,18 +31,14 @@ import { getWindowTracker } from "../utils/windowPerformanceTracker";
 import { predictWithCascadingPriority } from "../utils/cascadingPredictor";
 import { predictWithPairs } from "../utils/pairTransitionPredictor";
 import { getSmartRecommendation } from "../utils/smartDecisionSystem";
-import { analyzePatternWithWindow } from "../utils/patternRecognition";
 import { 
   WAVE_SCHEMES, 
-  analyzeColumnWave, 
-  getExpectedLabel 
+  analyzeColumnWave 
 } from "../utils/kiyoLogic";
-import { getSessionCommons, getYZCommons } from "../utils/kiyoCommons";
-import { analyzeAllPrefixWaves, getPrefixWavePrediction, analyze2strWave } from "../utils/kiyoPrefixWave";
+import { analyzeAllPrefixWaves } from "../utils/kiyoPrefixWave";
 
 import RollInput from "./kiyo/RollInput";
 import AddedRollsPanel from "./kiyo/AddedRollsPanel";
-import WavePairingTable from "./kiyo/WavePairingTable";
 import { getWaveAndTableSignals } from "../utils/kiyo2strSignals";
 import ImportStatsDisplay from "./kiyo/ImportStatsDisplay";
 import WaveAnalysisDisplay from "./kiyo/WaveAnalysisDisplay";
@@ -48,17 +46,23 @@ import PrefixPredictors from "./kiyo/PrefixPredictors";
 import BettingRecommendationCard from "./kiyo/BettingRecommendationCard";
 import FiveMinWindowTracker, { FiveMinProgressBar, WindowStatsMini } from "./FiveMinWindowTracker";
 import GuideModal from "./kiyo/GuideModal";
+import PrefixWavePanel from "./kiyo/PrefixWavePanel";
 import AdvancedToolsSection from "./AdvancedToolsSection";
 import { useFiveMinuteWindowRolls } from "../utils/useFiveMinuteWindowRolls";
 import { useWindowPatternAnalysis } from "../hooks/useWindowPatternAnalysis";
 import RecommendationPanel from "./kiyo/RecommendationPanel";
 import CompactCaesarShift from "./kiyo/CompactCaesarShift";
 import { usePresenceContext } from "../contexts/PresenceContext";
+import { useAuth } from "../hooks/useAuth";
+import { useKiyoSession } from "../hooks/useKiyoSession";
+import { getStats, getPatch } from "../utils/kiyoApi";
 
-
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PATCH CONFIG
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const FALLBACK_PATCH = "4.2";
 // MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export default function KiyoModeCard({
   entries = [],
@@ -74,6 +78,7 @@ export default function KiyoModeCard({
   const [, forceUpdate] = useState({});
   const lastSentDataRef = useRef(null);
   const [datasetRegion, setDatasetRegion] = useState("EU");
+  const [currentPatch, setCurrentPatch] = useState(null);
 
   const [importedRolls, setImportedRolls] = useState([]);
   const [showImportStats, setShowImportStats] = useState(false);
@@ -90,6 +95,45 @@ export default function KiyoModeCard({
   // Track predictions for live stats
   const { trackPrediction } = usePresenceContext();
 
+  // Auth + Kiyo session sync
+  const { user: authUser } = useAuth();
+  const kiyoSession = useKiyoSession({
+    user: authUser || null,
+    region: datasetRegion,
+    patch: currentPatch || FALLBACK_PATCH,
+  });
+
+  // Register navigation blocker when unsaved rolls exist
+  const { registerBlocker, unregisterBlocker, registerSaveCallback } = useNavigationBlocker();
+  useEffect(() => {
+    if (kiyoSession.shouldWarn) {
+      registerBlocker(() => true);
+      registerSaveCallback(() => kiyoSession.saveNow());
+    } else {
+      unregisterBlocker();
+    }
+    return () => unregisterBlocker();
+  }, [kiyoSession.shouldWarn, kiyoSession.saveNow, registerBlocker, unregisterBlocker, registerSaveCallback]);
+
+  // Fetch current patch config from backend
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPatch() {
+      try {
+        const data = await getPatch();
+        if (!cancelled && data?.current_patch) setCurrentPatch(data.current_patch);
+      } catch {
+        // silent fallback to FALLBACK_PATCH
+      }
+    }
+    loadPatch();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Patch stats from Turso (shadow mode)
+  const [patchStats, setPatchStats] = useState(null);
+  const [patchStatsLoading, setPatchStatsLoading] = useState(false);
+
   const live3Rolls = useMemo(() => {
     return entries
       .map((e) => (e.s3 || "").replace(/0+$/, ""))
@@ -103,7 +147,7 @@ export default function KiyoModeCard({
       .map((e) => {
         const ts = e?.time ? new Date(e.time).getTime() : 0;
         const roll = String(e?.s3 ?? "").trim();
-        const raw = String(e?.raw ?? roll).trim(); // 🔥 Capture raw roll for Col 1
+        const raw = String(e?.raw ?? roll).trim(); // ðŸ”¥ Capture raw roll for Col 1
         return { roll, raw, ts };
       })
       .filter((x) => x.ts > 0 && x.roll.length >= 3)
@@ -111,7 +155,7 @@ export default function KiyoModeCard({
 
     const importedEvents = importedRolls.map((roll, i) => ({
       roll,
-      raw: roll, // 🔥 Imported rolls are already in their raw form
+      raw: roll, // ðŸ”¥ Imported rolls are already in their raw form
       ts: Date.now() + i * 10,
     }));
     
@@ -128,7 +172,7 @@ export default function KiyoModeCard({
       };
     });
     
-    // 🔥 Ensure liveEvents have raw field
+    // ðŸ”¥ Ensure liveEvents have raw field
     const liveEvents = liveRolls.map(e => ({
       ...e,
       raw: e.raw || e.roll // Fallback to roll if raw is missing
@@ -137,14 +181,22 @@ export default function KiyoModeCard({
     return [...entryEvents, ...importedEvents, ...testEvents, ...liveEvents];
   }, [entries, importedRolls, testRolls, liveRolls]);
 
-  // 🔥 Window analysis helpers
+  // ðŸ”¥ Window analysis helpers
   const { windowInfo } = useFiveMinuteWindowRolls(rollEvents, 4);
+  const lastWindowStartRef = useRef(null);
 
-  const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (!windowInfo?.startMs) return;
+
+    const previousWindowStart = lastWindowStartRef.current;
+    const didRollover = previousWindowStart != null && previousWindowStart !== windowInfo.startMs;
+    lastWindowStartRef.current = windowInfo.startMs;
+
+    const hasEnoughRollsToSave = kiyoSession.pendingCount >= kiyoSession.minRollsToSave;
+    if (didRollover && hasEnoughRollsToSave) {
+      void kiyoSession.saveNow();
+    }
+  }, [windowInfo?.startMs, kiyoSession.pendingCount, kiyoSession.minRollsToSave, kiyoSession.saveNow]);
 
   const liveRollEventsRef = useRef([]);
   const prevLiveRollsRef = useRef(0);
@@ -186,6 +238,26 @@ export default function KiyoModeCard({
     prevLiveRollsRef.current = rolls.slice();
   }, [live3Rolls]);
 
+  // Fetch patch stats from Turso on mount / region change
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      setPatchStatsLoading(true);
+      try {
+        const stats = await getStats({ patch: currentPatch || FALLBACK_PATCH, region: datasetRegion, user_id: authUser?.id || null });
+        if (!cancelled) setPatchStats(stats);
+      } catch {
+        // silent fallback
+      } finally {
+        if (!cancelled) setPatchStatsLoading(false);
+      }
+    }
+    loadStats();
+    return () => { cancelled = true; };
+  }, [datasetRegion, authUser?.id, currentPatch]);
+
+
+
   const translatedTestRolls = useMemo(() => {
     return testRolls.map((rollObj) => {
       const roll = typeof rollObj === 'string' ? rollObj : rollObj.roll;
@@ -217,11 +289,21 @@ export default function KiyoModeCard({
     });
   }, [importedRolls]);
 
+  const kiyoLiveRolls = useMemo(() => {
+    return [...translatedTestRolls, ...live3Rolls].filter((roll) => /^[1-4]{3}$/.test(String(roll || "")));
+  }, [translatedTestRolls, live3Rolls]);
+
   const combinedRolls = useMemo(() => {
     return [...translatedImportedRolls, ...translatedTestRolls, ...live3Rolls];
   }, [translatedImportedRolls, translatedTestRolls, live3Rolls]);
 
-  // 🔄 Window pattern analysis (uses raw rolls for time-tracking and state extraction)
+  const kiyoPreviewPrefix = useMemo(() => {
+    const value = String(testInput || "").trim();
+    if (/^[1-4]{2,3}$/.test(value)) return value.slice(0, 2);
+    return activePrefix;
+  }, [testInput, activePrefix]);
+
+  // ðŸ”„ Window pattern analysis (uses raw rolls for time-tracking and state extraction)
   const windowAnalysis = useWindowPatternAnalysis(rollEvents, windowInfo);
 
   const handleFileImport = (e) => {
@@ -242,6 +324,9 @@ export default function KiyoModeCard({
       setImportedRolls(validRolls);
       setShowImportStats(true);
       setTimeout(() => setShowImportStats(false), 3000);
+
+      // Queue imported rolls for Turso sync
+      validRolls.forEach((roll, idx) => kiyoSession.addRoll(roll, idx, Date.now() + idx * 10, 'import_paste'));
     };
 
     reader.readAsText(file);
@@ -251,6 +336,25 @@ export default function KiyoModeCard({
   const handleClearImported = () => {
     if (confirm(`Clear ${importedRolls.length} imported rolls?`))
       setImportedRolls([]);
+  };
+
+  const [euSheetLoaded, setEuSheetLoaded] = useState(false);
+  const euPatch36Rolls = useMemo(() => {
+    const patchNumber = (patch) => Number.parseFloat(String(patch || "0"));
+    return EU_SEQUENTIAL_3STR
+      .filter((row) => patchNumber(row.patch) >= 3.6)
+      .map((row) => row["3str"])
+      .filter(Boolean);
+  }, []);
+
+  const handleLoadEUSheet = () => {
+    if (euSheetLoaded) {
+      setImportedRolls([]);
+      setEuSheetLoaded(false);
+    } else {
+      setImportedRolls(euPatch36Rolls);
+      setEuSheetLoaded(true);
+    }
   };
 
   const kiyoAccuracy = useMemo(() => {
@@ -352,7 +456,7 @@ export default function KiyoModeCard({
       };
     }
 
-    // 🔥 5-MINUTE WINDOW OPTIMIZATION: Use shorter lookback for small sessions
+    // ðŸ”¥ 5-MINUTE WINDOW OPTIMIZATION: Use shorter lookback for small sessions
     const is5MinWindow = combinedRolls.length <= 15;
     const lookbackSize = is5MinWindow ? Math.min(10, combinedRolls.length) : 18;
     
@@ -362,7 +466,7 @@ export default function KiyoModeCard({
     // Raw rolls for Col 1 (Raw) - Extract from rollEvents which are raw
     const rawBaseRolls = rollEvents.map(e => e.raw || e.roll).slice(-lookbackSize);
 
-    // 🔥 Get window analysis for per-window pattern detection
+    // ðŸ”¥ Get window analysis for per-window pattern detection
     const baseWindowContext = {
       windowStates: null, // Will be set per column below
       previousStates: null, // NEW: Previous window context
@@ -407,7 +511,7 @@ export default function KiyoModeCard({
         status: col1RawAnalysis.action === "FLIP" ? "due_to_flip" : col1RawAnalysis.action === "SKIP" ? "suppressed" : "likely_continue",
         expected: col1RawAnalysis.flipTarget && col1RawAnalysis.flipTarget.length > 0
           ? (WAVE_SCHEMES.col1.pairA.some(d => col1RawAnalysis.flipTarget.includes(d)) ? WAVE_SCHEMES.col1.pairALabel : WAVE_SCHEMES.col1.pairBLabel)
-          : "—",
+          : "â€”",
         message: col1RawAnalysis.message,
       },
       {
@@ -429,7 +533,7 @@ export default function KiyoModeCard({
             : "likely_continue",
         expected: col2Analysis.flipTarget && col2Analysis.flipTarget.length > 0
           ? (WAVE_SCHEMES.col2.pairA.some(d => col2Analysis.flipTarget.includes(d)) ? WAVE_SCHEMES.col2.pairALabel : WAVE_SCHEMES.col2.pairBLabel)
-          : "—",
+          : "â€”",
         message: col2Analysis.message,
         adaptiveNote: col2Analysis.message,
       },
@@ -452,7 +556,7 @@ export default function KiyoModeCard({
             : "likely_continue",
         expected: col3Analysis.flipTarget && col3Analysis.flipTarget.length > 0
           ? (WAVE_SCHEMES.col3.pairA.some(d => col3Analysis.flipTarget.includes(d)) ? WAVE_SCHEMES.col3.pairALabel : WAVE_SCHEMES.col3.pairBLabel)
-          : "—",
+          : "â€”",
         message: col3Analysis.message,
         adaptiveNote: col3Analysis.message,
       },
@@ -472,7 +576,7 @@ export default function KiyoModeCard({
         ? "MODERATE"
         : "NORMAL";
 
-    // 🔥 NEW: Column Comparison & Betting Recommendation
+    // ðŸ”¥ NEW: Column Comparison & Betting Recommendation
     const col2Clear = !col2Analysis.isChaotic && col2Analysis.confidence >= 0.6;
     const col3Clear = !col3Analysis.isChaotic && col3Analysis.confidence >= 0.6;
     
@@ -532,14 +636,14 @@ export default function KiyoModeCard({
       const noiseLabel = isCommonsA ? scheme.pairBLabel : scheme.pairALabel;
       const dominancePct = Math.round((analysis.dominance ?? 0.5) * 100);
 
-      // Build per-digit frequency for 2str (col2 → y digit → "4y") or col3 (z digit)
+      // Build per-digit frequency for 2str (col2 â†’ y digit â†’ "4y") or col3 (z digit)
       const freq = {};
       const total = rolls.length;
       for (const r of rolls) {
         const d = String(r)[digitPos];
         if (d) freq[d] = (freq[d] || 0) + 1;
       }
-      // Map digits → "4y" or show as parts of 3str
+      // Map digits â†’ "4y" or show as parts of 3str
       const mkPair = digitPos === 1
         ? (d) => `4${d}` // col2: show "41","42" etc.
         : (d) => `z=${d}`;   // col3: show z-digit
@@ -591,110 +695,21 @@ export default function KiyoModeCard({
       window: windowInfo,
       windowQuality: windowInfo?.quality ?? null,
       bettingRecommendation,
-      col2CommonsInfo,    // ← commons overlay
-      col3CommonsInfo,    // ← commons overlay
+      col2CommonsInfo,    // â† commons overlay
+      col3CommonsInfo,    // â† commons overlay
     };
   }, [combinedRolls, windowInfo, windowAnalysis]);
 
-  // 🔬 PER-PREFIX WAVE ANALYSIS (correct Kiyo approach)
+  // ðŸ”¬ PER-PREFIX WAVE ANALYSIS (correct Kiyo approach)
   const prefixWaveData = useMemo(() => {
     if (!combinedRolls || combinedRolls.length < 3) return null;
     return analyzeAllPrefixWaves(combinedRolls);
   }, [combinedRolls]);
 
-  const prefixWavePrediction = useMemo(() => {
-    if (!prefixWaveData) return null;
-    return getPrefixWavePrediction(prefixWaveData, testInput, combinedRolls);
-  }, [prefixWaveData, testInput, combinedRolls]);
-
-  // 📊 2-STRING WAVE — lighter entry point, Y-digit pairing across all rolls
-  const twoStrWave = useMemo(() => {
-    if (!combinedRolls || combinedRolls.length < 3) return null;
-    return analyze2strWave(combinedRolls);
-  }, [combinedRolls]);
   const twoStrSignals = useMemo(() => {
     if (!combinedRolls || combinedRolls.length < 3) return null;
     return getWaveAndTableSignals(combinedRolls);
   }, [combinedRolls]);
-
-  const smartPrefixPrediction = useMemo(() => {
-    if (combinedRolls.length < 3) return null;
-
-    let sourcePrefix = null;
-    let sourceType = null;
-
-    if (testInput.length >= 2) {
-      const paddedInput = testInput.length === 2 ? testInput + "1" : testInput;
-      const translated = translateTo4(paddedInput);
-      if (translated && translated.length >= 2) {
-        sourcePrefix = translated.slice(0, 2);
-        sourceType = "typing";
-      }
-    } else if (activePrefix && activePrefix.length === 2) {
-      sourcePrefix = activePrefix;
-      sourceType = "manual";
-    } else if (combinedRolls.length > 0) {
-      const lastRoll = combinedRolls[combinedRolls.length - 1];
-      sourcePrefix = lastRoll.slice(0, 2);
-      sourceType = "auto";
-    }
-
-    if (!sourcePrefix) return null;
-
-    // 🔥 IMPROVEMENT: Increase live data lookback from 15 to 30
-    const recentRolls = combinedRolls.slice(-30);
-    const liveTable = {};
-
-    for (let i = 0; i < recentRolls.length - 1; i++) {
-      const prefix = recentRolls[i].slice(0, 2);
-      const nextDigit = recentRolls[i + 1][2];
-
-      if (!liveTable[prefix]) liveTable[prefix] = {};
-      liveTable[prefix][nextDigit] = (liveTable[prefix][nextDigit] || 0) + 1;
-    }
-
-    const liveMatches = liveTable[sourcePrefix];
-
-    if (liveMatches) {
-      const sorted = Object.entries(liveMatches).sort((a, b) => b[1] - a[1]);
-      const total = sorted.reduce((sum, [_, count]) => sum + count, 0);
-      const mainDigit = sorted[0][0];
-      const mainCount = sorted[0][1];
-      const confidence = mainCount / total;
-
-      // 🔥 IMPROVEMENT: Lower threshold from 0.5 to 0.4, boost confidence
-      if (total >= 2 && confidence >= 0.4) {
-        return {
-          prediction: sourcePrefix + mainDigit,
-          confidence: Math.min(confidence * 1.2, 0.85), // Boost live confidence
-          alt: sorted[1] ? sourcePrefix + sorted[1][0] : null,
-          matchCount: total,
-          sourcePrefix,
-          sourceType: `live-${sourceType}`,
-          mode: "live-priority",
-        };
-      }
-    }
-
-    // Fallback to sheet data with REDUCED confidence
-    const trainingPrediction = predictWithPrefix(
-      EU_SEQUENTIAL_3STR_RECENT,
-      sourcePrefix
-    );
-
-    if (trainingPrediction.prediction) {
-      return {
-        ...trainingPrediction,
-        confidence: Math.min(trainingPrediction.confidence * 0.5, 0.55), // Reduced from 0.7
-        sourcePrefix,
-        sourceType: `training-${sourceType}`,
-        mode: "training-fallback",
-        warning: "Live data weak - using historical with low confidence",
-      };
-    }
-
-    return null;
-  }, [combinedRolls, activePrefix, testInput]);
 
   const prediction = useMemo(() => {
     if (combinedRolls.length < 4) return null;
@@ -727,7 +742,7 @@ export default function KiyoModeCard({
     return basePrediction;
   }, [combinedRolls, analyzeWavePatterns]);
 
-  // 🎯 SMART RECOMMENDATION SYSTEM - 2-STR AND 3-STR
+  // ðŸŽ¯ SMART RECOMMENDATION SYSTEM - 2-STR AND 3-STR
   const smartRecommendation = useMemo(() => {
     if (!combinedRolls || combinedRolls.length < 4) return null;
 
@@ -751,7 +766,7 @@ export default function KiyoModeCard({
       currentPrefix = lastRoll.slice(0, 2);
     }
 
-    // 2-STR PREDICTION — uses live BBP pair-matrix predictor (same as live session card)
+    // 2-STR PREDICTION â€” uses live BBP pair-matrix predictor (same as live session card)
     const bbp2str = predictWithPairs(
       combinedRolls.filter(r => r && r.length >= 2).map(r => r.slice(0, 2)),
       { region: datasetRegion }
@@ -797,7 +812,7 @@ export default function KiyoModeCard({
 
     const vizRolls = combinedRolls.slice(-12).reverse(); // newest first
 
-    // ✅ Wall-clock 5-min bucket (00/05/10/15/...) - matches useFiveMinuteWindowRolls
+    // âœ… Wall-clock 5-min bucket (00/05/10/15/...) - matches useFiveMinuteWindowRolls
     const bucket5m = (ts) => {
       const d = new Date(ts);
       const start = new Date(d);
@@ -813,7 +828,7 @@ export default function KiyoModeCard({
       // Search backwards from the end to get the most recent occurrence
       const rollEventIdx = rollEvents.length - 1 - vizIdx;
       const ts = rollEvents[rollEventIdx]?.ts || Date.now();
-      const rawRoll = rollEvents[rollEventIdx]?.raw || r;  // 🔥 Use .raw for Col 1
+      const rawRoll = rollEvents[rollEventIdx]?.raw || r;  // ðŸ”¥ Use .raw for Col 1
 
       // Col 1 uses FIRST digit of RAW roll (user request)
       const col1Digit = rawRoll[0];
@@ -925,17 +940,17 @@ export default function KiyoModeCard({
       } : null,
       pairingViz: pairingViz ? [...pairingViz] : [],
       combinedRolls: [...combinedRolls],
-      windowTracker: getWindowTracker(), // 🔥 NEW: Add window tracker
+      windowTracker: getWindowTracker(), // ðŸ”¥ NEW: Add window tracker
 
       waveData: {
-        // 🔥 NEW: Latest raw roll for Column 1 analysis
+        // ðŸ”¥ NEW: Latest raw roll for Column 1 analysis
         latestRawRoll: pairingViz?.[0]?.raw || null,
         
         // Column 1 Raw (Odds/Evens based on raw first digit)
         col1RawPrediction: analyzeWavePatterns?.columns?.[0]?.flipTarget || [],
         col1RawConfidence: analyzeWavePatterns?.columns?.[0]?.confidence || 0,
         col1RawStatus: analyzeWavePatterns?.columns?.[0]?.status || "unknown",
-        col1Expected: analyzeWavePatterns?.columns?.[0]?.flipLabel || "—",
+        col1Expected: analyzeWavePatterns?.columns?.[0]?.flipLabel || "â€”",
         
         // Column 2 (Outer/Inner) - now at index 2
         col2Prediction: analyzeWavePatterns?.columns?.[2]?.flipTarget || [],
@@ -945,15 +960,15 @@ export default function KiyoModeCard({
         col2Status: analyzeWavePatterns?.columns?.[2]?.status || "unknown",
         col3Status: analyzeWavePatterns?.columns?.[3]?.status || "unknown",
         
-        // 🔥 NEW: Pattern analysis fields
+        // ðŸ”¥ NEW: Pattern analysis fields
         col2PatternStatus: analyzeWavePatterns?.columns?.[2]?.patternStatus || null,
         col3PatternStatus: analyzeWavePatterns?.columns?.[3]?.patternStatus || null,
         col2WindowBoundary: analyzeWavePatterns?.columns?.[2]?.windowBoundary || false,
         col3WindowBoundary: analyzeWavePatterns?.columns?.[3]?.windowBoundary || false,
         col2PatternBroke: analyzeWavePatterns?.columns?.[2]?.patternBroke || false,
         col3PatternBroke: analyzeWavePatterns?.columns?.[3]?.patternBroke || false,
-        col2Expected: analyzeWavePatterns?.columns?.[2]?.flipLabel || "—",
-        col3Expected: analyzeWavePatterns?.columns?.[3]?.flipLabel || "—",
+        col2Expected: analyzeWavePatterns?.columns?.[2]?.flipLabel || "â€”",
+        col3Expected: analyzeWavePatterns?.columns?.[3]?.flipLabel || "â€”",
         wave2Action: twoStrSignals?.waveSnapshot?.action || null,
         wave2SessionMode: twoStrSignals?.waveSnapshot?.sessionMode || null,
         wave2PairingName: twoStrSignals?.waveSnapshot?.pairingName || null,
@@ -982,20 +997,25 @@ export default function KiyoModeCard({
   const submitRoll = () => {
     const value = testInput.trim();
 
-    if (value.length === 2 && /^[1-8]{2}$/.test(value)) {
-      // 2-str input — translate to 4x format (e.g. "32" → "43")
-      const translated = translateTo4(value + "1").slice(0, 2); // translate Y digit, ignore Z
+    if (value.length === 2 && /^[1-4]{2}$/.test(value)) {
+      const translated = translateTo4(value + "1").slice(0, 2);
       const ts = windowInfo?.startMs || Date.now();
       setTestRolls((prev) => [...prev, { roll: translated, raw: value, ts, is2str: true }]);
       setTestInput("");
       trackPrediction();
-    } else if (value.length === 3 && /^[1-8]{3}$/.test(value)) {
-      // 3-str input — translate normally
+    } else if (value.length === 3 && /^[1-4]{3}$/.test(value)) {
       const translated = translateTo4(value);
       const ts = windowInfo?.startMs || Date.now();
-      setTestRolls((prev) => [...prev, { roll: translated || value, raw: value, ts }]);
+      const rollObj = { roll: translated || value, raw: value, ts };
+      setTestRolls((prev) => [...prev, rollObj]);
       setTestInput("");
       trackPrediction();
+
+      // Queue for Turso sync (only full 3-str rolls)
+      const roll3str = translated || value;
+      if (/^[1-4]{3}$/.test(roll3str)) {
+        kiyoSession.addRoll(roll3str, testRolls.length);
+      }
     } else {
       setTestInput("");
     }
@@ -1018,6 +1038,23 @@ export default function KiyoModeCard({
       col3: { hits: 0, total: 0 },
       lastPredictions: { col2: null, col3: null },
     });
+  };
+
+  const handleClearSession = () => {
+    // Clear hook pending rolls + localStorage
+    kiyoSession.discardPending();
+    // Clear all local UI state so the board resets
+    setTestRolls([]);
+    setImportedRolls([]);
+    setTestInput('');
+    setCaesarInput('');
+    setActivePrefix(null);
+    setLiveRolls([]);
+    liveRollEventsRef.current = [];
+    prevLiveRollsRef.current = 0;
+    setEuSheetLoaded(false);
+    setShowImportStats(false);
+    handleResetWaveAccuracy();
   };
 
   useEffect(() => {
@@ -1069,15 +1106,19 @@ export default function KiyoModeCard({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-emerald-400">🌊 Kiyo Mode</h3>
-          <p className="text-xs text-slate-400">
-            Wave Theory + Smart Prefix Prediction
-          </p>
+
+      {/* â”€â”€ TOP BAR: actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#334155', letterSpacing: '1.5px', fontFamily: 'monospace' }}>
+            KIYO
+          </span>
+          <span style={{ padding: '5px 0 7px', fontSize: '11px', fontWeight: 800, color: '#c4b5fd', borderBottom: '2px solid #818cf8' }}>
+            3 String
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -1087,20 +1128,27 @@ export default function KiyoModeCard({
           />
           <button
             onClick={() => setShowGuide(true)}
-            className="px-3 py-1.5 text-xs font-semibold kiyo-accent-soft rounded-lg transition cursor-pointer"
-          >
-            📖 Guide
-          </button>
+            className="px-2.5 py-1 text-xs font-semibold kiyo-accent-soft rounded transition cursor-pointer"
+          >Guide</button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-semibold kiyo-accent-soft rounded-lg transition cursor-pointer"
-          >
-            📁 Import
-          </button>
+            className="px-2.5 py-1 text-xs font-semibold kiyo-accent-soft rounded transition cursor-pointer"
+          >Import</button>
+          <button
+            onClick={handleLoadEUSheet}
+            title={euSheetLoaded ? `Clear ${euPatch36Rolls.length} EU sheet rolls` : `Load ${euPatch36Rolls.length} EU patch 3.6+ community 3-string rolls`}
+            className="px-2.5 py-1 text-xs font-semibold rounded transition cursor-pointer"
+            style={{
+              background: euSheetLoaded ? 'rgba(251,191,36,0.15)' : 'rgba(129,140,248,0.10)',
+              border: `1px solid ${euSheetLoaded ? 'rgba(251,191,36,0.35)' : 'rgba(129,140,248,0.25)'}`,
+              color: euSheetLoaded ? '#fbbf24' : '#818cf8',
+            }}
+          >{euSheetLoaded ? `✕ EU Sheet (${euPatch36Rolls.length})` : `EU Sheet`}</button>
+          <GuideModal show={showGuide} onClose={() => setShowGuide(false)} />
         </div>
-        <GuideModal show={showGuide} onClose={() => setShowGuide(false)} />
       </div>
 
+      {/* â”€â”€ ACCURACY + REGION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <AccuracyHeaderBar
           kiyoAccuracy={kiyoAccuracy}
@@ -1110,19 +1158,76 @@ export default function KiyoModeCard({
           onResetWaveAccuracy={handleResetWaveAccuracy}
           regionLabel={datasetRegion}
         />
-
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400">Sheet Data:</span>
+          <span className="text-slate-400">Region:</span>
           <select
             value={datasetRegion}
             onChange={(e) => setDatasetRegion(e.target.value)}
-            className="bg-slate-900 border cursor-pointer border-slate-700 rounded-lg px-3 py-2 text-sm min-w-[8px] focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="kiyo-region-select bg-slate-900 border cursor-pointer border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
           >
             <option value="EU">EU</option>
             <option value="NA">NA</option>
             <option value="ASIA">ASIA</option>
             <option value="ALL">Global</option>
           </select>
+        </div>
+      </div>
+
+      {/* Save Session + DB Confidence */}
+      <div className="kiyo-session-strip flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          {kiyoSession.pendingCount > 0 && (
+            <>
+              <button
+                onClick={() => kiyoSession.saveNow()}
+                disabled={!kiyoSession.canSave || kiyoSession.syncStatus === 'syncing'}
+                className="kiyo-session-save-button"
+                title={
+                  kiyoSession.canSave
+                    ? 'Save this Kiyo session to the database'
+                    : `Add ${kiyoSession.remainingToSave} more roll${kiyoSession.remainingToSave === 1 ? '' : 's'} to enable DB save`
+                }
+              >
+                {kiyoSession.syncStatus === 'syncing'
+                  ? 'Saving...'
+                  : kiyoSession.canSave
+                    ? `Save Session (${kiyoSession.pendingCount})`
+                    : `${kiyoSession.pendingCount}/${kiyoSession.minRollsToSave} before save`}
+              </button>
+              <button
+                onClick={handleClearSession}
+                className="kiyo-session-clear-button"
+                title="Clear this unsaved Kiyo session"
+              >
+                Clear Session
+              </button>
+            </>
+          )}
+          {kiyoSession.lastSyncAt && (
+            <span className="text-slate-500">
+              Last saved: {new Date(kiyoSession.lastSyncAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        <div className="text-slate-400">
+          {patchStatsLoading ? (
+            <span>Loading patch stats...</span>
+          ) : patchStats ? (
+            <span>
+              Live {combinedRolls.length} rolls
+              {patchStats.user?.confidence && patchStats.user.confidence !== 'insufficient'
+                ? ` + your prior ${patchStats.user.total_events}`
+                : ''}
+              {patchStats.region?.confidence && ['moderate', 'high'].includes(patchStats.region.confidence)
+                ? ` + ${datasetRegion} prior ${patchStats.region.total_events}`
+                : ''}
+              {patchStats.fallback_needed
+                ? ' + sheet fallback'
+                : ''}
+            </span>
+          ) : (
+            <span>Live {combinedRolls.length} rolls + sheet fallback</span>
+          )}
         </div>
       </div>
 
@@ -1134,41 +1239,39 @@ export default function KiyoModeCard({
         onClearImported={handleClearImported}
       />
 
-      {/* Sticky Input: progress bar on top, then 2-col row */}
-      <div className="sticky top-[80px] sm:top-[70px] z-20 pb-3 mb-4 mt-2">
-        {/* Progress bar spanning full width — always rendered when windowInfo exists */}
+      {/* â”€â”€ STICKY: progress bar + roll input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div className="sticky top-[80px] sm:top-[70px] z-20 pb-3 mb-1 mt-2">
         {windowInfo && analyzeWavePatterns && (
           <FiveMinProgressBar windowInfo={windowInfo} analyzeWavePatterns={analyzeWavePatterns} />
         )}
-
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-          {/* Roll Input + window stats below it */}
-          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
-            <RollInput
-              testInput={testInput}
-              setTestInput={setTestInput}
-              handleTestRollSubmit={handleTestRollSubmit}
-              onAddRoll={submitRoll}
-              setActivePrefix={setActivePrefix}
-            />
-            {windowInfo && analyzeWavePatterns && (
-              <WindowStatsMini windowInfo={windowInfo} analyzeWavePatterns={analyzeWavePatterns} />
-            )}
-          </div>
-
-          {/* Caesar Shift */}
-          <div className="flex-1 min-w-0 theme-glass-card kiyo-snow-card p-3">
-            <CompactCaesarShift
-              caesarInput={caesarInput}
-              setCaesarInput={setCaesarInput}
-            />
-          </div>
+        <div className="theme-glass-card kiyo-snow-card p-3">
+          <RollInput
+            testInput={testInput}
+            setTestInput={setTestInput}
+            handleTestRollSubmit={handleTestRollSubmit}
+            onAddRoll={submitRoll}
+            setActivePrefix={setActivePrefix}
+          />
+          {windowInfo && analyzeWavePatterns && (
+            <WindowStatsMini windowInfo={windowInfo} analyzeWavePatterns={analyzeWavePatterns} />
+          )}
         </div>
       </div>
 
-      {/* ── Added Rolls + Wave Pairing Table (side by side) ───────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3.5 items-start">
-        {/* LEFT: Added Rolls (no old WaveAnalysisDisplay child) */}
+      {kiyoLiveRolls.length + translatedImportedRolls.length >= 3 ? (
+        <PrefixWavePanel
+          prefixWaveData={prefixWaveData}
+          combinedRolls={combinedRolls}
+          liveRolls={kiyoLiveRolls}
+          seedRolls={translatedImportedRolls}
+          activePrefix={kiyoPreviewPrefix}
+        />
+      ) : (
+        <div className="theme-glass-card kiyo-snow-card p-8 text-center">
+          <span className="text-xs text-slate-500 font-mono">Enter 3+ rolls to see 3 String analysis</span>
+        </div>
+      )}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-3">
         <div className="theme-glass-card kiyo-snow-card p-2">
           <AddedRollsPanel
             testRolls={testRolls}
@@ -1179,248 +1282,15 @@ export default function KiyoModeCard({
           />
         </div>
 
-        {/* RIGHT: Wave Pairing Table */}
-        <div className="theme-glass-card kiyo-snow-card p-2">
-          {pairingViz && pairingViz.length > 0 && (
-            <WavePairingTable
-              pairingViz={pairingViz}
-              combinedRolls={combinedRolls}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* ── ARCHIVED: Old col-flip / col-commons / advanced tools ─── */}
-      {/*
-        <RecommendationPanel
-          waveAccuracy={waveAccuracy}
-          kiyoAccuracy={kiyoAccuracy}
-          pairingViz={pairingViz}
-          smartRecommendation={smartRecommendation}
-          combinedRolls={combinedRolls}
-          analyzeWavePatterns={analyzeWavePatterns}
-        />
-
-        📊 Commons Overlay Card
-        {analyzeWavePatterns && (analyzeWavePatterns.col2CommonsInfo || analyzeWavePatterns.col3CommonsInfo) && combinedRolls.length >= 4 && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97))',
-            border: '1px solid rgba(99,102,241,0.25)',
-            borderRadius: '12px',
-            padding: '14px 16px',
-            marginBottom: '8px',
-          }}>
-            Header
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#818cf8' }}>📊 Session Commons
-              </span>
-              <span style={{ fontSize: '10px', color: '#475569' }}>which side owns this session, and does wave flip agree?</span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {[{
-                label: 'Col 2 (Outer/Inner)',
-                info: analyzeWavePatterns.col2CommonsInfo,
-                accentColor: '#6ee7b7',
-              }, {
-                label: 'Col 3 (Low/High)',
-                info: analyzeWavePatterns.col3CommonsInfo,
-                accentColor: '#f59e0b',
-              }].map(({ label, info, accentColor }) => {
-                if (!info) return null;
-                const isFlip = info.action === 'FLIP';
-                const isWait = info.action === 'WAIT' || info.action === 'SKIP';
-                const alignColor = info.flipAlignment === 'toward_commons' ? '#34d399'
-                  : info.flipAlignment === 'toward_noise' ? '#f87171' : '#94a3b8';
-                const alignIcon = info.flipAlignment === 'toward_commons' ? '✅'
-                  : info.flipAlignment === 'toward_noise' ? '⚠️' : '⏳';
-                const alignText = info.flipAlignment === 'toward_commons'
-                  ? `→ Commons flip — confidence ↑`
-                  : info.flipAlignment === 'toward_noise'
-                  ? `→ Noise flip — may snap back`
-                  : `→ Hold…`;
-
-                return (
-                  <div key={label} style={{
-                    padding: '10px 12px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderRadius: '9px',
-                    borderLeft: `3px solid ${accentColor}`,
-                  }}>
-                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 600 }}>{label}</div>
-
-                    Commons pairs
-                    <div style={{ marginBottom: '6px' }}>
-                      <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px', fontWeight: 600 }}>
-                        COMMONS → {info.commonsLabel} [{info.commonsDigits.join(',')}] — {info.dominancePct}%
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {info.commonsPairs.length > 0 ? info.commonsPairs.map(p => (
-                          <span key={p.pair} style={{
-                            fontSize: '12px', fontWeight: 700, color: accentColor,
-                            background: `${accentColor}15`, padding: '1px 7px', borderRadius: '4px'
-                          }}>
-                            {p.pair} <span style={{ opacity: 0.55, fontSize: '10px' }}>{p.pct}%</span>
-                          </span>
-                        )) : <span style={{ fontSize: '10px', color: '#475569' }}>none yet</span>}
-                      </div>
-                    </div>
-
-                    Noise pairs
-                    <div style={{ marginBottom: '8px' }}>
-                      <div style={{ fontSize: '9px', color: '#475569', marginBottom: '3px', fontWeight: 600 }}>
-                        NOISE → {info.noiseLabel}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {info.noisePairs.length > 0 ? info.noisePairs.map(p => (
-                          <span key={p.pair} style={{ fontSize: '11px', color: '#475569' }}>
-                            · {p.pair} <span style={{ opacity: 0.5, fontSize: '9px' }}>{p.pct}%</span>
-                          </span>
-                        )) : <span style={{ fontSize: '10px', color: '#334155' }}>not appearing</span>}
-                      </div>
-                    </div>
-
-                    Wave prediction + alignment
-                    {isWait ? (
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>⏳ Building pattern…</div>
-                    ) : (
-                      <div style={{
-                        padding: '5px 8px',
-                        borderRadius: '6px',
-                        background: info.flipAlignment === 'toward_noise'
-                          ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)',
-                        border: `1px solid ${alignColor}30`,
-                      }}>
-                        <div style={{ fontSize: '11px', fontWeight: 600, color: isFlip ? '#f59e0b' : '#94a3b8' }}>
-                          {isFlip ? '🎯 FLIP → ' : '📊 HOLD '}{info.flipToLabel || '—'}
-                        </div>
-                        <div style={{ fontSize: '10px', color: alignColor, marginTop: '2px' }}>
-                          {alignIcon} {alignText}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        Sticky Advanced Tools (Caesar Shift)
-        <div style={{
-          position: 'sticky',
-          top: '120px', // Below the input card
-          zIndex: 9,
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
-          backdropFilter: 'blur(10px)',
-          paddingBottom: '16px',
-          marginBottom: '16px'
-        }}>
-          <AdvancedToolsSection
-            waveAccuracy={waveAccuracy}
-            kiyoAccuracy={kiyoAccuracy}
-            pairingViz={pairingViz}
-            combinedRolls={combinedRolls}
+        {/* â”€â”€ CAESAR SHIFT â€” always available â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        <div className="theme-glass-card kiyo-snow-card p-3">
+          <CompactCaesarShift
+            caesarInput={caesarInput}
+            setCaesarInput={setCaesarInput}
           />
         </div>
-        These sections have been commented out to simplify the UI.
-        They can be restored from the git history if needed.
-      */}
-
-      {/* 🔬 Prefix Wave — DISABLED, enable when testing 3str Z-digit */}
-      {false && prefixWaveData && combinedRolls.length >= 3 && (() => {
-        const PREFIXES = ['41', '42', '43', '44'];
-        const pred = prefixWavePrediction;
-        return (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97))',
-            border: '1px solid rgba(139,92,246,0.30)',
-            borderRadius: '12px', padding: '14px 16px', marginBottom: '8px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#a78bfa' }}>🔬 Prefix Wave</span>
-                <span style={{ fontSize: '10px', color: '#475569', marginLeft: '8px' }}>each prefix has its own independent Z pairing</span>
-              </div>
-              {pred && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: '8px',
-                  background: pred.action === 'FLIP' ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.15)',
-                  border: pred.action === 'FLIP' ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(139,92,246,0.4)',
-                }}>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{pred.activePrefix}x →</span>
-                  <span style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', color: pred.action === 'FLIP' ? '#f59e0b' : '#c4b5fd' }}>{pred.prediction}</span>
-                  {pred.alt && <span style={{ fontSize: '11px', color: '#64748b' }}>/ {pred.alt}</span>}
-                  <span style={{ fontSize: '9px', color: '#64748b' }}>{pred.pairingName}</span>
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-              {PREFIXES.map(px => {
-                const a = prefixWaveData.analyses[px];
-                const isActive = pred?.activePrefix === px;
-                const isCommons = a.isCommons && a.freq > 0;
-                const actionColor = a.action === 'FLIP' ? '#f59e0b' : a.action === 'HOLD' ? '#6ee7b7' : '#475569';
-                return (
-                  <div key={px} style={{
-                    padding: '10px 12px', borderRadius: '9px',
-                    background: isActive ? 'rgba(139,92,246,0.08)' : isCommons ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.015)',
-                    border: `1px solid ${isActive ? 'rgba(139,92,246,0.6)' : isCommons ? 'rgba(99,102,241,0.30)' : 'rgba(255,255,255,0.05)'}`,
-                    opacity: a.freq === 0 ? 0.38 : 1,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: isActive ? '#a78bfa' : '#e2e8f0' }}>{px}x</span>
-                      {isCommons && <span style={{ fontSize: '8px', fontWeight: 700, color: '#818cf8', background: 'rgba(99,102,241,0.15)', padding: '1px 5px', borderRadius: '3px' }}>COMMONS</span>}
-                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#64748b' }}>{a.freq}× {a.freqPct > 0 ? `(${a.freqPct}%)` : ''}</span>
-                    </div>
-                    {a.pairing && a.hasData ? (
-                      <>
-                        <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>
-                          Pairing: <span style={{ color: '#c4b5fd', fontWeight: 600 }}>{a.pairingName}</span>
-                          {a.pairingConfidence >= 0.6 && <span style={{ color: '#34d399', marginLeft: '4px' }}>★</span>}
-                        </div>
-                        <div style={{ fontSize: '9px', color: '#475569', marginBottom: '5px' }}>
-                          A:{a.pairing.pairALabel}[{a.pairing.pairA.join(',')}] · B:{a.pairing.pairBLabel}[{a.pairing.pairB.join(',')}]
-                        </div>
-                        {a.action !== 'WAIT' && a.action !== 'SKIP' && (
-                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
-                            Run: <span style={{ color: '#e2e8f0' }}>{a.currentLabel}</span>{' '}
-                            {Array(Math.min(a.runLength, 6)).fill('●').join('')}{a.runLength > 6 ? `+${a.runLength-6}` : ''}
-                            <span style={{ opacity: 0.45 }}> /N={a.dominantN}</span>
-                          </div>
-                        )}
-                        <div style={{ fontSize: '11px', fontWeight: 600, color: actionColor }}>{a.message}</div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: '10px', color: '#475569' }}>{a.message}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ARCHIVED: Sticky Advanced Tools (col-flip tools) — commented out for UI cleanup
-      <div style={{
-        position: 'sticky',
-        top: '120px',
-        zIndex: 9,
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
-        backdropFilter: 'blur(10px)',
-        paddingBottom: '16px',
-        marginBottom: '16px'
-      }}>
-        <AdvancedToolsSection
-          waveAccuracy={waveAccuracy}
-          kiyoAccuracy={kiyoAccuracy}
-          pairingViz={pairingViz}
-          combinedRolls={combinedRolls}
-        />
       </div>
-      */}
+
     </div>
   );
 }
-

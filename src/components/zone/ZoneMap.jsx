@@ -435,13 +435,13 @@ export default function ZoneMap({
               </select>
             </label>
             <label className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Cavern</span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Domain</span>
               <select
                 value={mapCavernFilter}
                 onChange={(event) => setMapCavernFilter(event.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-200 outline-none focus:border-slate-500"
               >
-                <option value="all">All Caverns</option>
+                <option value="all">All Domains</option>
                 {cavernOptions.map((name) => (
                   <option key={`zone-cavern-${name}`} value={name}>{name}</option>
                 ))}
@@ -624,7 +624,7 @@ export default function ZoneMap({
           <div className="theme-glass-card p-20 text-center border-dashed border-slate-800">
             <BarChart3 className="w-12 h-12 text-slate-700 mx-auto mb-4" />
             <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No zone cards match these filters.</p>
-            <p className="text-[10px] text-slate-600 mt-2 font-bold italic">Try another user, another cavern, or widen the map filters.</p>
+            <p className="text-[10px] text-slate-600 mt-2 font-bold italic">Try another user, another domain, or widen the map filters.</p>
           </div>
         ) : (
           <div className={zoneCardView === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 XL:grid-cols-4 gap-6" : "space-y-4"}>
@@ -635,7 +635,7 @@ export default function ZoneMap({
                 const hasVariants = Boolean(variantsByZone[zoneKey]);
                 const likeCount = Number(zone?.like_count ?? 0);
                 const viewerLiked = Boolean(zone?.viewer_liked);
-                const cavernName = findCavernById(zone?.dominant_cavern)?.name || zone?.dominant_cavern || 'Unknown Cavern';
+                const cavernName = findCavernById(zone?.dominant_cavern)?.name || zone?.dominant_cavern || 'Unknown Domain';
                 const regionTag = getRegionTag(zone?.dominant_region);
                   const noteText = sanitizeDisplayedZoneNote(zone?.latest_note);
                 

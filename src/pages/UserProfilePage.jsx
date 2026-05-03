@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   BadgeCheck,
   Sparkles,
@@ -6,6 +6,7 @@ import {
   Users,
   Target,
   ShieldCheck,
+  ShieldBan,
   RefreshCw,
   Store,
   Wallet,
@@ -29,7 +30,14 @@ import {
   Briefcase,
   Boxes,
   Lock,
-  Check
+  Check,
+  Terminal,
+  Timer,
+  ToggleLeft,
+  Save,
+  Trash2,
+  Pencil,
+  Clock
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useAuth } from '../hooks/useAuth';
@@ -70,6 +78,19 @@ function resolveAuthDisplayName(user) {
   const discord = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord')?.identity_data || {};
   return metadata.global_name || metadata.full_name || discord.global_name || discord.username || metadata.user_name || user.email || user.id || '';
 }
+
+function getDiscordUserId(user) {
+  if (!user || typeof user !== 'object') return null;
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord');
+  if (!discordIdentity?.identity_data) return null;
+  return String(discordIdentity.identity_data.id || discordIdentity.identity_data.sub || '').trim() || null;
+}
+
+const SUPER_ADMINS = new Set([
+  '110890964364627968', // Ciet
+  '97579134456168448',  // Bigboypinoy
+]);
 
 function resolveAvatarUrl(user) {
   if (!user) return '';
@@ -650,7 +671,7 @@ const RosterView = ({
 /* -------------------------------------------------------------------------- */
 
 export default function UserProfilePage() {
-  const { user, replaceUser, getAuthHeader } = useAuth();
+  const { user, replaceUser, getAuthHeader, roleMode } = useAuth();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
   const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
   const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
@@ -663,7 +684,9 @@ export default function UserProfilePage() {
   const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
   const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
   const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
-  
+  const discordUserId = useMemo(() => getDiscordUserId(user), [user]);
+  const isSuperAdmin = useMemo(() => SUPER_ADMINS.has(String(discordUserId || '')) || roleMode === 'admin', [discordUserId, roleMode]);
+
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedCosmetics = useMemo(() => {
     const fromMeta = resolveEquippedCosmeticsFromMetadata(user?.user_metadata || {});
@@ -792,15 +815,21 @@ export default function UserProfilePage() {
     finally { setEquippingKey(''); }
   };
 
-  const tabs = [
-    { id: 'dossier', label: 'Overview', icon: BookOpen },
-    { id: 'combat', label: 'Matches', icon: Target },
-    { id: 'arsenal', label: 'Arsenal', icon: Briefcase },
-    { id: 'loadout', label: 'Gear', icon: Boxes },
-    { id: 'roster', label: 'Roster', icon: Users },
-    { id: 'milestones', label: 'Progress', icon: Award },
-    { id: 'recent', label: 'Recent', icon: History },
-  ];
+  const tabs = useMemo(() => {
+    const base = [
+      { id: 'dossier', label: 'Overview', icon: BookOpen },
+      { id: 'combat', label: 'Matches', icon: Target },
+      { id: 'arsenal', label: 'Arsenal', icon: Briefcase },
+      { id: 'loadout', label: 'Gear', icon: Boxes },
+      { id: 'roster', label: 'Roster', icon: Users },
+      { id: 'milestones', label: 'Progress', icon: Award },
+      { id: 'recent', label: 'Recent', icon: History },
+    ];
+    if (isSuperAdmin) {
+      base.push({ id: 'admin', label: 'Overseer', icon: Terminal });
+    }
+    return base;
+  }, [isSuperAdmin]);
 
   return (
     <div className="min-h-screen bg-transparent px-4 py-8 sm:px-8">
@@ -857,8 +886,680 @@ export default function UserProfilePage() {
             )}
             {activeTab === 'milestones' && <MilestonesView achievements={profile.progression?.achievements || []} />}
             {activeTab === 'recent' && <RecentUnlocksView items={recentItems} />}
+            {activeTab === 'admin' && (
+              <AdminView
+                getAuthHeader={getAuthHeader}
+                discordUserId={discordUserId}
+              />
+            )}
           </main>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               ADMIN PANEL                                  */
+/* -------------------------------------------------------------------------- */
+
+const DEFAULT_PATCHES = {
+  hsr: { version: '4.2', startDate: '2026-04-09', durationDays: 42 },
+  genshin: { version: '6.5', startDate: '2026-04-16', durationDays: 42 },
+  wuwa: { version: '3.3', startDate: '2026-04-25', durationDays: 42 },
+};
+
+function PatchTimerAdminView() {
+  const [patches, setPatches] = useState(DEFAULT_PATCHES);
+  const [editGame, setEditGame] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Fetch from server on load
+  useEffect(() => {
+    fetch(buildApiUrl('/api/patch-timers'))
+      .then(r => r.json())
+      .then(data => {
+        const next = {};
+        for (const [game, info] of Object.entries(data)) {
+          next[game] = {
+            version: info.patch,
+            startDate: info.startDate,
+            durationDays: info.totalDays,
+          };
+        }
+        setPatches(next);
+      })
+      .catch(() => {
+        // Fallback to localStorage
+        try {
+          const saved = localStorage.getItem('admin_patch_timers');
+          if (saved) setPatches(JSON.parse(saved));
+        } catch { /* ignore */ }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const saveToServer = async (game, patch) => {
+    try {
+      const res = await fetch(buildApiUrl('/api/patch-timers'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game,
+          patch: patch.version,
+          startDate: patch.startDate,
+          durationDays: patch.durationDays,
+        }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      return true;
+    } catch (err) {
+      console.warn('[PatchTimer] Server save failed:', err.message);
+      return false;
+    }
+  };
+
+  const savePatches = async (game, patch) => {
+    const serverOk = await saveToServer(game, patch);
+    if (!serverOk) {
+      // Fallback: save to localStorage
+      const next = { ...patches, [game]: patch };
+      localStorage.setItem('admin_patch_timers', JSON.stringify(next));
+    }
+    setPatches(prev => ({ ...prev, [game]: patch }));
+  };
+
+  const calculateDays = (startDate, durationDays) => {
+    const start = new Date(startDate + 'T00:00:00');
+    const now = new Date();
+    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const elapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    const remaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+    const progress = Math.min(100, Math.max(0, (elapsed / durationDays) * 100));
+    return { elapsed, remaining, progress, end };
+  };
+
+  const gameCards = [
+    { key: 'hsr', label: 'Honkai: Star Rail', color: 'text-purple-400', accent: '#a855f7' },
+    { key: 'genshin', label: 'Genshin Impact', color: 'text-amber-400', accent: '#f59e0b' },
+    { key: 'wuwa', label: 'Wuthering Waves', color: 'text-cyan-400', accent: '#06b6d4' },
+  ];
+
+  const btnPrimary = "rounded-lg bg-[var(--theme-accent)] text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 hover:opacity-90 transition-opacity";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+          <Clock className="h-4 w-4 text-[var(--theme-accent)]" />
+          Patch Timers
+        </h3>
+        {message && <span className="text-[10px] text-emerald-400">{message}</span>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {gameCards.map(g => {
+          const patch = patches[g.key] || DEFAULT_PATCHES[g.key];
+          const { elapsed, remaining, progress, end } = calculateDays(patch.startDate, patch.durationDays);
+          const isEditing = editGame === g.key;
+
+          return (
+            <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold ${g.color}`}>{g.label}</span>
+                <button onClick={() => { setEditGame(isEditing ? null : g.key); setEditForm(prev => ({ ...prev, [g.key]: patch })); }} className="text-[10px] text-slate-500 hover:text-white transition-colors">
+                  {isEditing ? 'Cancel' : 'Edit'}
+                </button>
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Version</label>
+                    <input type="text" value={editForm[g.key]?.version || patch.version} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], version: e.target.value } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Start Date</label>
+                    <input type="date" value={editForm[g.key]?.startDate || patch.startDate} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], startDate: e.target.value } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Duration (days)</label>
+                    <input type="number" value={editForm[g.key]?.durationDays || patch.durationDays} onChange={e => setEditForm(prev => ({ ...prev, [g.key]: { ...prev[g.key], durationDays: parseInt(e.target.value) || 42 } }))} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-[var(--theme-accent)] outline-none" />
+                  </div>
+                  <button onClick={async () => { await savePatches(g.key, editForm[g.key]); setEditGame(null); setMessage(`✓ ${g.label} patch updated`); setTimeout(() => setMessage(''), 2000); }} className={`${btnPrimary} w-full text-[10px] py-2`}>
+                    <Save className="h-3 w-3 inline mr-1" />
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className={`text-2xl font-black ${g.color}`}>{patch.version}</div>
+                  <div className="text-slate-500 text-xs">Current patch</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Day {elapsed} / {patch.durationDays}</span>
+                      <span className={remaining <= 7 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>{remaining > 0 ? `${remaining}d left` : 'Ended'}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: g.accent, opacity: 0.8 }} />
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">Ends: {end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AdminView({ getAuthHeader, discordUserId }) {
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [banReason, setBanReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
+
+  const [patchConfig, setPatchConfig] = useState(null);
+  const [patchLoading, setPatchLoading] = useState(false);
+  const [newPatch, setNewPatch] = useState('');
+  const [phase1Days, setPhase1Days] = useState(21);
+  const [phase2Days, setPhase2Days] = useState(21);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [kiyoMessage, setKiyoMessage] = useState('');
+
+  const loadUsers = useCallback(async () => {
+    setAdminUsersLoading(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load users.');
+      setAdminUsers(Array.isArray(data?.users) ? data.users : []);
+    } catch (e) {
+      setActionMessage(`Users load failed: ${e.message}`);
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  }, [getAuthHeader]);
+
+  const loadPatch = useCallback(async () => {
+    setPatchLoading(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/hsr/kiyo/patch'));
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setPatchConfig(data);
+    } catch {}
+    finally { setPatchLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+    loadPatch();
+  }, [loadUsers, loadPatch]);
+
+  const submitModeration = async (action) => {
+    if (!selectedUserId) return;
+    if (action === 'ban' && !banReason.trim()) return;
+    setActionLoading(true);
+    setActionMessage('');
+    try {
+      const res = await fetch(buildApiUrl('/api/admin-users'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ action, userId: selectedUserId, reason: banReason }),
+      });
+      if (!res.ok) throw new Error('Action failed.');
+      setActionMessage(`${action === 'ban' ? 'Banned' : 'Unbanned'} successfully.`);
+      setBanReason('');
+      setSelectedUserId('');
+      await loadUsers();
+    } catch (e) {
+      setActionMessage(`Error: ${e.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const kiyoAdminAction = async (action) => {
+    setKiyoMessage('');
+    if (!adminPassword.trim()) {
+      setKiyoMessage('Enter admin password.');
+      return;
+    }
+    try {
+      const body = { action, password: adminPassword };
+      if (action === 'set_patch' || action === 'override_timer') {
+        if (!newPatch.trim()) {
+          setKiyoMessage('Enter patch version (e.g. 4.3).');
+          return;
+        }
+        body.patch = newPatch.trim();
+      }
+      if (action === 'set_patch') {
+        body.phase_1_days = Number(phase1Days) || 21;
+        body.phase_2_days = Number(phase2Days) || 21;
+      }
+      const res = await fetch(buildApiUrl('/api/hsr/kiyo/admin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.detail || 'Admin action failed.');
+      setKiyoMessage(`Success: ${data.status}`);
+      if (action === 'set_patch' || action === 'override_timer') {
+        setNewPatch('');
+      }
+      await loadPatch();
+    } catch (e) {
+      setKiyoMessage(`Error: ${e.message}`);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    const term = userSearch.trim().toLowerCase();
+    if (!term) return adminUsers;
+    return adminUsers.filter(u => {
+      const name = String(u?.display_name || u?.email || u?.id || '').toLowerCase();
+      return name.includes(term);
+    });
+  }, [adminUsers, userSearch]);
+
+  const cardBase = "rounded-2xl border border-white/10 bg-[#0a0a0b]/60 p-6 backdrop-blur-xl";
+  const labelBase = "font-['Orbitron'] text-[10px] uppercase tracking-widest text-slate-400 mb-2 block";
+  const inputBase = "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-[var(--theme-accent)] focus:outline-none transition-colors";
+  const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
+  const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
+  const btnDanger = `${btnBase} border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20`;
+  const btnSuccess = `${btnBase} border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`;
+  const btnGhost = `${btnBase} border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10`;
+
+  return (
+    <div className="flex flex-col gap-8">
+      {(actionMessage || kiyoMessage) && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${actionMessage?.includes('Error') || kiyoMessage?.includes('Error') ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          {actionMessage || kiyoMessage}
+        </div>
+      )}
+
+      <div className={cardBase}>
+        <div className="flex items-center gap-3 mb-6">
+          <ShieldBan className="h-5 w-5 text-rose-400" />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Moderation</h3>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="flex-1">
+            <label className={labelBase}>Search Users</label>
+            <input type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)} placeholder="Filter by name or email..." className={inputBase} />
+          </div>
+          <div className="flex items-end">
+            <button onClick={loadUsers} disabled={adminUsersLoading} className={btnGhost}>
+              <RefreshCw className={`h-3.5 w-3.5 inline mr-2 ${adminUsersLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-64 overflow-y-auto rounded-xl border border-white/5 mb-4">
+          {filteredUsers.length === 0 ? (
+            <div className="p-4 text-sm text-slate-500">No users found.</div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-[#0f0f10]">
+                <tr className="text-slate-400 font-['Orbitron'] text-[9px] uppercase tracking-widest">
+                  <th className="px-4 py-2">User</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2 text-right">Select</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredUsers.map(u => (
+                  <tr key={u.id} className={`${selectedUserId === u.id ? 'bg-white/5' : 'hover:bg-white/[0.02]'} transition-colors`}>
+                    <td className="px-4 py-2">
+                      <div className="text-white font-medium">{u.display_name || u.email || u.id}</div>
+                      {u.email && <div className="text-slate-500 text-xs">{u.email}</div>}
+                    </td>
+                    <td className="px-4 py-2">
+                      {u.banned ? (
+                        <span className="inline-flex items-center gap-1 text-rose-400 text-xs font-bold uppercase"><ShieldBan className="h-3 w-3" /> Banned</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-bold uppercase"><ShieldCheck className="h-3 w-3" /> Active</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => setSelectedUserId(u.id)} className={`text-xs px-3 py-1 rounded-lg border transition-colors ${selectedUserId === u.id ? 'bg-[var(--theme-accent)] text-white border-[var(--theme-accent)]' : 'border-white/10 text-slate-400 hover:text-white hover:border-white/20'}`}>
+                        {selectedUserId === u.id ? 'Selected' : 'Select'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {selectedUserId && (
+          <div className="flex flex-col gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <label className={labelBase}>Reason (required for ban)</label>
+            <textarea value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Violation details..." rows={3} className={inputBase} />
+            <div className="flex gap-3">
+              <button onClick={() => submitModeration('ban')} disabled={actionLoading || !banReason.trim()} className={btnDanger}>
+                <ShieldBan className="h-3.5 w-3.5 inline mr-2" />
+                Ban User
+              </button>
+              <button onClick={() => submitModeration('unban')} disabled={actionLoading} className={btnSuccess}>
+                <ShieldCheck className="h-3.5 w-3.5 inline mr-2" />
+                Unban User
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={cardBase}>
+        <div className="flex items-center gap-3 mb-6">
+          <Terminal className="h-5 w-5 text-[var(--theme-accent)]" />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Kiyo Patch Control</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Current Patch</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.current_patch || '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Phase</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.current_phase ?? '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Phase Remaining</div>
+            <div className="text-2xl font-black text-white">
+              {patchConfig?.phase_days_remaining != null ? `${patchConfig.phase_days_remaining}d ${patchConfig.phase_hours_remaining ?? 0}h` : '—'}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Remaining</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.total_days_remaining ?? '—'}</div>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Auto Advance</div>
+            <div className="text-2xl font-black text-white">{patchConfig?.auto_advance ? 'ON' : 'OFF'}</div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className={labelBase}>Admin Password</label>
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} placeholder="KIYO_ADMIN_PASSWORD" className={inputBase} />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className={labelBase}>Patch Version</label>
+              <input type="text" value={newPatch} onChange={e => setNewPatch(e.target.value)} placeholder="e.g. 4.3" className={inputBase} />
+            </div>
+            <div className="flex-1">
+              <label className={labelBase}>Phase 1 Days</label>
+              <input type="number" value={phase1Days} onChange={e => setPhase1Days(Number(e.target.value))} placeholder="21" className={inputBase} />
+            </div>
+            <div className="flex-1">
+              <label className={labelBase}>Phase 2 Days</label>
+              <input type="number" value={phase2Days} onChange={e => setPhase2Days(Number(e.target.value))} placeholder="21" className={inputBase} />
+            </div>
+            <div className="flex items-end gap-2">
+              <button onClick={() => kiyoAdminAction('set_patch')} className={btnPrimary}>
+                <Save className="h-3.5 w-3.5 inline mr-2" />
+                Set Patch
+              </button>
+              <button onClick={() => kiyoAdminAction('override_timer')} className={btnGhost}>
+                <Timer className="h-3.5 w-3.5 inline mr-2" />
+                Override
+              </button>
+            </div>
+          </div>
+
+          <button onClick={() => kiyoAdminAction('toggle_auto_advance')} className={`${btnGhost} self-start`}>
+            <ToggleLeft className="h-3.5 w-3.5 inline mr-2" />
+            Toggle Auto-Advance
+          </button>
+        </div>
+      </div>
+
+      {/* Patch Timers */}
+      <div className={cardBase}>
+        <PatchTimerAdminView />
+      </div>
+
+      {/* Banner Management */}
+      <BannerAdminView discordUserId={discordUserId} />
+    </div>
+  );
+}
+
+function BannerAdminView({ discordUserId }) {
+  const [banners, setBanners] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [editGame, setEditGame] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  const loadBanners = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/admin?action=banners&game=all', {
+        headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed');
+      setBanners(data.data || {});
+      setMessage('✓ Banners refreshed');
+    } catch (e) {
+      setMessage(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearCaches = async () => {
+    setMessage('');
+    try {
+      const keys = [
+        'cached_banner_data_v2',
+        'genshin_cached_banners_v2',
+        'wuwa_live_banners_cache_v5',
+        'wuwa_parser_working_strategy',
+        'admin_banner_overrides'
+      ];
+      let cleared = 0;
+      for (const k of keys) {
+        if (localStorage.getItem(k)) {
+          localStorage.removeItem(k);
+          cleared++;
+        }
+      }
+      const res = await fetch('/api/admin?action=clear-cache', {
+        method: 'POST',
+        headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(`✓ Cleared ${cleared} client cache(s). Server: ${data?.status || 'OK'}`);
+      setEditForm({});
+    } catch (e) {
+      setMessage(`Cache clear error: ${e.message}`);
+    }
+  };
+
+  const saveOverrides = () => {
+    try {
+      localStorage.setItem('admin_banner_overrides', JSON.stringify(editForm));
+      setMessage('✓ Overrides saved locally');
+      setEditGame(null);
+    } catch (e) {
+      setMessage(`Save error: ${e.message}`);
+    }
+  };
+
+  const applyOverrides = (game, list) => {
+    try {
+      const overrides = JSON.parse(localStorage.getItem('admin_banner_overrides') || '{}');
+      if (!overrides[game]) return list;
+      return list.map(b => {
+        const key = b.id || b.bannerId;
+        if (overrides[game][key]) {
+          return { ...b, ...overrides[game][key] };
+        }
+        return b;
+      });
+    } catch (e) { return list; }
+  };
+
+  useEffect(() => {
+    loadBanners();
+  }, []);
+
+  const cardBase = "rounded-2xl border border-white/10 bg-[#0a0a0b]/60 p-6 backdrop-blur-xl";
+  const btnBase = "rounded-xl px-5 py-2.5 font-['Orbitron'] text-[10px] uppercase tracking-widest transition-all";
+  const btnPrimary = `${btnBase} bg-[var(--theme-accent)] text-white hover:brightness-110`;
+  const btnGhost = `${btnBase} border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10`;
+  const btnDanger = `${btnBase} border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20`;
+
+  const gameCards = [
+    { key: 'hsr', label: 'HSR', color: 'text-purple-400' },
+    { key: 'genshin', label: 'Genshin', color: 'text-emerald-400' },
+    { key: 'wuwa', label: 'WuWa', color: 'text-amber-400' },
+  ];
+
+  return (
+    <div className={cardBase}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <RefreshCw className={`h-5 w-5 text-[var(--theme-accent)] ${loading ? 'animate-spin' : ''}`} />
+          <h3 className="font-['Orbitron'] text-sm font-black uppercase tracking-[0.12em] text-white">Banner Management</h3>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={loadBanners} disabled={loading} className={btnPrimary}>
+            <RefreshCw className="h-3.5 w-3.5 inline mr-2" />
+            Refresh Banners
+          </button>
+          <button onClick={clearCaches} className={btnGhost}>
+            <Trash2 className="h-3.5 w-3.5 inline mr-2" />
+            Clear Caches
+          </button>
+        </div>
+      </div>
+
+      {message && (
+        <div className={`rounded-xl border px-4 py-2 text-xs mb-4 ${message.includes('Error') ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          {message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {gameCards.map(g => {
+          const rawList = banners[g.key] || [];
+          const list = applyOverrides(g.key, rawList);
+          const isEditing = editGame === g.key;
+
+          return (
+            <div key={g.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-slate-500 text-xs uppercase tracking-widest">{g.label}</div>
+                <button
+                  onClick={() => {
+                    if (isEditing) {
+                      setEditGame(null);
+                    } else {
+                      setEditGame(g.key);
+                      const form = {};
+                      list.forEach(b => { form[b.id || b.bannerId] = { name: b.name, image: b.image }; });
+                      setEditForm(prev => ({ ...prev, [g.key]: form }));
+                    }
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                >
+                  {isEditing ? 'Cancel' : <><Pencil className="h-3 w-3 inline mr-1" />Edit</>}
+                </button>
+              </div>
+              <div className={`text-3xl font-black ${g.color}`}>{list.length}</div>
+              <div className="text-slate-500 text-xs mt-1">Active banners</div>
+
+              {list.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {list.map((b, i) => {
+                    const key = b.id || b.bannerId;
+                    const edited = isEditing && editForm[g.key]?.[key];
+
+                    return (
+                      <div key={i} className="text-xs">
+                        {isEditing ? (
+                          <div className="space-y-1.5 p-2 rounded-lg bg-white/5 border border-white/5">
+                            <div className="flex items-center gap-2">
+                              <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <input
+                                  type="text"
+                                  value={editForm[g.key]?.[key]?.name || b.name}
+                                  onChange={e => setEditForm(prev => ({
+                                    ...prev,
+                                    [g.key]: { ...prev[g.key], [key]: { ...prev[g.key]?.[key], name: e.target.value } }
+                                  }))}
+                                  className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-[var(--theme-accent)] outline-none"
+                                />
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={editForm[g.key]?.[key]?.image || b.image}
+                              onChange={e => setEditForm(prev => ({
+                                ...prev,
+                                [g.key]: { ...prev[g.key], [key]: { ...prev[g.key]?.[key], image: e.target.value } }
+                              }))}
+                              placeholder="Image URL"
+                              className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-slate-300 text-[10px] focus:border-[var(--theme-accent)] outline-none"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group">
+                            <img src={b.image} alt="" className="w-8 h-8 rounded object-cover bg-white/5 shrink-0" loading="lazy" onError={e => e.target.style.display='none'} />
+                            <div className="min-w-0">
+                              <div className="text-white font-medium truncate">{b.name}</div>
+                              <div className="text-slate-500 capitalize">{b.type}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isEditing && (
+                <button onClick={saveOverrides} className={`${btnPrimary} w-full mt-3 text-[10px] py-2`}>
+                  <Save className="h-3 w-3 inline mr-2" />
+                  Save Overrides
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="text-slate-500 text-xs uppercase tracking-widest mb-2">Asset Upload Commands</div>
+        <code className="block text-xs text-slate-300 font-mono bg-black/30 rounded-lg p-3 space-y-1">
+          <div>node scripts/auto-upload-assets.js genshin</div>
+          <div>node scripts/auto-upload-assets.js wuwa</div>
+          <div>node scripts/upload-hoyo-assets.js hsr</div>
+        </code>
+        <div className="text-slate-500 text-xs mt-2">Run in terminal. Put new images in D:\Coding\Assests Hoyo\[game] first.</div>
       </div>
     </div>
   );

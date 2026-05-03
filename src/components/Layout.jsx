@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useNavigationBlocker } from '../contexts/NavigationBlockerContext';
 import { gsap } from 'gsap';
 import {
   ArrowUpRight,
@@ -109,6 +110,12 @@ export default function Layout({
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
   const [adminBanReason, setAdminBanReason] = useState('');
   const [adminUserActionLoading, setAdminUserActionLoading] = useState(false);
+
+  // Navigation blocker modal
+  const { checkBlocked, triggerSave } = useNavigationBlocker();
+  const [navBlockModalOpen, setNavBlockModalOpen] = useState(false);
+  const [pendingNavPath, setPendingNavPath] = useState(null);
+  const [isSavingOnNav, setIsSavingOnNav] = useState(false);
 
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
@@ -417,6 +424,51 @@ export default function Layout({
     color: 'var(--theme-text-primary)',
   };
 
+  const SafeNavLink = useCallback(({ to, children, onClick, ...props }) => {
+    const handleClick = (e) => {
+      if (checkBlocked()) {
+        e.preventDefault();
+        setPendingNavPath(to);
+        setNavBlockModalOpen(true);
+        return;
+      }
+      if (onClick) onClick(e);
+    };
+    return (
+      <NavLink to={to} onClick={handleClick} {...props}>
+        {children}
+      </NavLink>
+    );
+  }, [checkBlocked]);
+
+  const confirmBlockedNav = useCallback(() => {
+    setNavBlockModalOpen(false);
+    if (pendingNavPath) {
+      navigate(pendingNavPath);
+      setPendingNavPath(null);
+    }
+  }, [pendingNavPath, navigate]);
+
+  const saveAndNavigate = useCallback(async () => {
+    setIsSavingOnNav(true);
+    try {
+      await triggerSave();
+    } catch {
+      // Save failed — user already chose to leave, so navigate anyway
+    }
+    setIsSavingOnNav(false);
+    setNavBlockModalOpen(false);
+    if (pendingNavPath) {
+      navigate(pendingNavPath);
+      setPendingNavPath(null);
+    }
+  }, [triggerSave, pendingNavPath, navigate]);
+
+  const cancelBlockedNav = useCallback(() => {
+    setNavBlockModalOpen(false);
+    setPendingNavPath(null);
+  }, []);
+
   return (
     <div className="min-h-screen bg-transparent">
       {deckStyles}
@@ -465,9 +517,9 @@ export default function Layout({
                   { to: '/tutorial', label: 'Tutorial', icon: BookOpen },
                   { to: '/playground', label: 'Playground', icon: Gamepad2 }
                 ].map(tab => (
-                  <NavLink key={tab.to} to={tab.to} data-active={location.pathname === tab.to || (tab.to === '/playground' && location.pathname.startsWith('/playground/'))} className={({ isActive }) => `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive ? activeTabTextClass : inactiveTabTextClass}`}>
+                  <SafeNavLink key={tab.to} to={tab.to} data-active={location.pathname === tab.to || (tab.to === '/playground' && location.pathname.startsWith('/playground/'))} className={({ isActive }) => `relative z-10 flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-center ${isActive ? activeTabTextClass : inactiveTabTextClass}`}>
                     <span className="inline-flex items-center gap-1.5">{tab.icon && <tab.icon className="h-3.5 w-3.5" />}{tab.label}</span>
-                  </NavLink>
+                  </SafeNavLink>
                 ))}
               </nav>
 
@@ -705,9 +757,9 @@ export default function Layout({
                     )}
                   </div>
                 ) : (
-                  <NavLink to="/auth" className="px-4 py-2 text-xs font-black rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                  <SafeNavLink to="/auth" className="px-4 py-2 text-xs font-black rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
                     Zone Login
-                  </NavLink>
+                  </SafeNavLink>
                 )}
               </div>
             </div>
@@ -908,6 +960,39 @@ export default function Layout({
           </div>
         </div>
       </footer>
+
+      {/* Navigation Blocker Modal */}
+      {navBlockModalOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full max-w-sm mx-4 p-6 rounded-2xl border border-amber-500/30 bg-slate-900/95 shadow-2xl">
+            <h3 className="text-sm font-bold text-amber-200 mb-2">Unsaved Rolls</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              You have unsaved roll data. If you leave now, any rolls not yet synced will be lost.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={cancelBlockedNav}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors"
+              >
+                Stay
+              </button>
+              <button
+                onClick={confirmBlockedNav}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 transition-colors"
+              >
+                Leave Anyway
+              </button>
+              <button
+                onClick={saveAndNavigate}
+                disabled={isSavingOnNav}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 transition-colors"
+              >
+                {isSavingOnNav ? 'Saving...' : 'Save & Leave'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

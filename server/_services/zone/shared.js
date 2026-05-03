@@ -56,21 +56,17 @@ export class HttpError extends Error {
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = SUPABASE_REQUEST_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...options,
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs)
     });
+    return response;
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new HttpError(504, 'Supabase request timed out.');
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Fetch timed out after ${timeoutMs}ms`);
     }
     throw error;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

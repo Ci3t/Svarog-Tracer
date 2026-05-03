@@ -20,16 +20,16 @@ export default async function handler(req, res) {
   const slug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
   const pathPart = slug || req.url?.split('/').pop()?.split('?')[0] || '';
 
-  if (pathPart === 'submit') return submitHandler(req, res);
-  if (pathPart === 'map') return mapHandler(req, res);
-  if (pathPart === 'flag-epoch') return flagEpochHandler(req, res);
-  if (pathPart === 'variants') return variantsHandler(req, res);
-  if (pathPart === 'nearby') return nearbyHandler(req, res);
-  if (pathPart === 'owned') return ownedHandler(req, res);
-  if (pathPart === 'export') return exportHandler(req, res);
-  if (pathPart === 'log-runs') return logRunsHandler(req, res);
-  if (pathPart === 'admin-runs') return adminRunsHandler(req, res);
-  if (pathPart === 'likes') return likesHandler(req, res);
+  if (pathPart === 'submit') return await submitHandler(req, res);
+  if (pathPart === 'map') return await mapHandler(req, res);
+  if (pathPart === 'flag-epoch') return await flagEpochHandler(req, res);
+  if (pathPart === 'variants') return await variantsHandler(req, res);
+  if (pathPart === 'nearby') return await nearbyHandler(req, res);
+  if (pathPart === 'owned') return await ownedHandler(req, res);
+  if (pathPart === 'export') return await exportHandler(req, res);
+  if (pathPart === 'log-runs') return await logRunsHandler(req, res);
+  if (pathPart === 'admin-runs') return await adminRunsHandler(req, res);
+  if (pathPart === 'likes') return await likesHandler(req, res);
 
   return res.status(404).json({ error: 'Zone endpoint not found.', pathPart, url: req.url });
 }

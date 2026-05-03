@@ -19,6 +19,45 @@ import bannerHistory from '../data/bannerHistory.json';
 // Import Banner Display Configuration
 import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
 
+// ── Cache Management ─────────────────────────────────────────────────
+
+const OLD_CACHE_KEYS = [
+  'cached_banner_data',
+  'genshin_cached_banners',
+  'wuwa_live_banners_cache_v4',
+  'wuwa_live_banners_cache_v3',
+  'wuwa_live_banners_cache_v2',
+  'wuwa_live_banners_cache',
+];
+
+/**
+ * Clears old banner caches to force fresh data fetches.
+ * Call once on app initialization.
+ */
+export function clearOldBannerCaches() {
+  if (typeof window === 'undefined') return;
+  let cleared = 0;
+  for (const key of OLD_CACHE_KEYS) {
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      cleared++;
+    }
+  }
+  if (cleared > 0) {
+    console.log(`[Cache] Cleared ${cleared} old banner cache(s)`);
+  }
+}
+
+// Import Cloudinary asset resolvers (our images primary, fetched fallback)
+import {
+  resolveHsrCharacterImage,
+  resolveHsrLightConeImage,
+  resolveGenshinCharacterImage,
+  resolveGenshinWeaponImage,
+  resolveWuWaCharacterImage,
+  resolveWuWaWeaponImage
+} from './gameAssetResolver.js';
+
 const HSR_LV999_NAME = 'Silver Wolf LV.999';
 const HSR_LV999_IMAGE = 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp';
 const HSR_LV999_LC_NAME = 'Silver Wolf LV.999 Light Cone';
@@ -158,12 +197,39 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
 const BANNER_API_URL = buildApiUrl('/api/banners');
+const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
+const bannerClientCache = new Map();
+const bannerClientRequests = new Map();
+
+async function fetchBannersWithClientCache(game, loader) {
+  const cacheKey = game || 'all';
+  const cached = bannerClientCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < BANNER_CLIENT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  if (bannerClientRequests.has(cacheKey)) {
+    return bannerClientRequests.get(cacheKey);
+  }
+
+  const request = loader()
+    .then((data) => {
+      bannerClientCache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      bannerClientRequests.delete(cacheKey);
+    });
+
+  bannerClientRequests.set(cacheKey, request);
+  return request;
+}
 
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners(game = 'all') {
   try {
     if (game === 'genshin') {
-      const genshinBanners = await genshinApi.getBanners();
+      const genshinBanners = await fetchBannersWithClientCache('genshin', () => genshinApi.getBanners());
       return Array.isArray(genshinBanners)
         ? genshinBanners.map((b) => ({
           id: b.id,
@@ -178,7 +244,7 @@ export async function fetchCentralizedBanners(game = 'all') {
     }
 
     if (game === 'wuwa') {
-      const wuwaBanners = await wuwaApi.getBanners();
+      const wuwaBanners = await fetchBannersWithClientCache('wuwa', () => wuwaApi.getBanners());
       return Array.isArray(wuwaBanners)
         ? wuwaBanners.map((b) => ({
           id: b.id,
@@ -194,9 +260,12 @@ export async function fetchCentralizedBanners(game = 'all') {
 
     const params = new URLSearchParams();
     if (game && game !== 'all') params.set('game', game);
-    const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
-    if (!response.ok) return [];
-    const data = await response.json();
+    const data = await fetchBannersWithClientCache(game || 'all', async () => {
+      const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
+      if (!response.ok) return null;
+      return response.json();
+    });
+    if (!data) return [];
     
     // Convert API format to website format (preserve 'game' property!)
     const allBanners = [
@@ -204,8 +273,13 @@ export async function fetchCentralizedBanners(game = 'all') {
         id: b.id,
         name: b.name,
         image: b.image,
+        portrait: b.portrait,
+        lcPreview: b.lcPreview,
         type: b.type,
         characterId: b.characterId,
+        rarity: b.rarity,
+        element: b.element,
+        collaboration: b.collaboration,
         game: 'hsr'  // IMPORTANT: Keep this for filtering!
       })),
       ...(data.genshin || []).map(b => ({
@@ -274,9 +348,12 @@ export const FATE_CHARACTERS = [
   {
     id: "5001",
     name: "Saber",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png", 
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1014",
     type: "character",
     characterId: "1014",
+    rarity: 5,
+    element: "wind",
     separator: true,
     collaboration: "Fate/Stay Night"
   },
@@ -284,8 +361,11 @@ export const FATE_CHARACTERS = [
     id: "5002",
     name: "Archer",
     image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1015",
     type: "character",
     characterId: "1015",
+    rarity: 5,
+    element: "quantum",
     collaboration: "Fate/Stay Night"
   }
 ];
@@ -295,16 +375,22 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6001",
     name: "A Thankless Coronation",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23045.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23045",
+    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
     type: "light_cone",
+    rarity: 5,
     separator: true,
     collaboration: "Fate/Stay Night"
   },
   {
     id: "6002",
     name: "The Hell Where Ideals Burn",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
+    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23046.png",
+    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23046",
+    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
     type: "light_cone",
+    rarity: 5,
     collaboration: "Fate/Stay Night"
   }
 ];
@@ -330,10 +416,10 @@ export function extractBannerId(input = "") {
     return input.trim();
   }
   
-  // Case 2: WuWa ID with suffix (e.g., "100031_character")
-  const wuwaMatch = input.match(/^(\d+)_(character|weapon)$/);
-  if (wuwaMatch) {
-    return wuwaMatch[1]; // Return just the numeric part
+  // Case 2: ID with suffix (e.g., "100031_character", "3116_light_cone")
+  const suffixMatch = input.match(/^(\d+)_(character|weapon|light_cone)$/);
+  if (suffixMatch) {
+    return suffixMatch[1]; // Return just the numeric part
   }
   
   // Case 3: URL with hash (e.g., #2099 or #global)
@@ -469,7 +555,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
   } else if (
     knownCharacterNames.has('Firefly') &&
     knownCharacterNames.has('Castorice') &&
-    knownCharacterNames.has('Dahlia')
+    (knownCharacterNames.has('The Dahlia') || knownCharacterNames.has('Dahlia'))
   ) {
     const unknownIndex = list.findIndex((banner) => banner?.game === 'hsr' && banner?.type === 'unknown');
     if (unknownIndex !== -1) {
@@ -577,7 +663,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         
         // Allow check only every 10 seconds to prevent button spamming
         if (nowTs - lastCheck < 10000) {
-          const cached = JSON.parse(localStorage.getItem('cached_banner_data') || '[]');
+          const cached = JSON.parse(localStorage.getItem('cached_banner_data_v2') || '[]');
           
           // INTEGRITY CHECK: Ensure we actually have data
           if (cached.length > 0) {
@@ -632,7 +718,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     if (isSame) {
         // Update timestamp even if same, to allow spam throttle
         localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
-        const cachedData = JSON.parse(localStorage.getItem('cached_banner_data') || '[]');
+        const cachedData = JSON.parse(localStorage.getItem('cached_banner_data_v2') || '[]');
         if (cachedData.length > 0) {
             return { status: 'uptodate', data: cachedData };
         }
@@ -689,10 +775,18 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         }
         
         if (info) {
+             const fallbackImage = info.icon ? `${IMG_BASE}${info.icon}` : "";
+             const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/${type === 'light_cone' ? 'lightcone_preview' : 'character_portrait'}/${b.charId}`;
              finalBanners.push({
                  id: b.bannerId,
                  name: info.name,
-                 image: info.icon ? `${IMG_BASE}${info.icon}` : "",
+                 image: type === 'character'
+                   ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
+                   : resolveHsrLightConeImage(b.charId, fallbackPortrait),
+                 fallbackImage,
+                 portrait: type === 'character'
+                   ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
+                   : resolveHsrLightConeImage(b.charId, fallbackPortrait),
                  type: type,
                  characterId: b.charId,
                  game: 'hsr'
@@ -706,7 +800,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
 
     // 7. Update Cache
     if (cleanBanners.length > 0) {
-        localStorage.setItem('cached_banner_data', JSON.stringify(cleanBanners));
+        localStorage.setItem('cached_banner_data_v2', JSON.stringify(cleanBanners));
         localStorage.setItem(CACHE_ID_KEY, JSON.stringify(newIds));
         localStorage.setItem(LAST_CHECK_KEY, nowTs.toString());
         return { status: 'updated', data: cleanBanners };
@@ -1040,9 +1134,13 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
+// Current: Lauma / Nefer (character), Nightweaver's Looking Glass / Reliquary of Truth (weapon)
+const _genshinCharFallback = 'https://paimon.moe/images/characters/lauma.png';
+const _genshinWepFallback = 'https://paimon.moe/images/banners/Epitome%20Invocation%2098.png';
+
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300099_character", bannerId: "300099", name: "Character Event Wish", type: "character", image: null, characterId: "character_banner", game: "genshin" },
-  { id: "400098_weapon", bannerId: "400098", name: "Epitome Invocation", type: "weapon", image: "https://paimon.moe/images/banners/Epitome%20Invocation%2098.png", characterId: "weapon_banner", game: "genshin" },
+  { id: "300099_character", bannerId: "300099", name: "Lauma / Nefer", type: "character", image: resolveGenshinCharacterImage('lauma', _genshinCharFallback), characterId: "lauma", game: "genshin" },
+  { id: "400098_weapon", bannerId: "400098", name: "Nightweaver's Looking Glass / Reliquary of Truth", type: "weapon", image: resolveGenshinWeaponImage('Nightweaver', _genshinWepFallback), characterId: "weapon_banner", game: "genshin" },
 ];
 
 
@@ -1300,7 +1398,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   }
 
   const LAST_CHECK_KEY = 'genshin_banner_last_check';
-  const CACHE_KEY = 'genshin_cached_banners';
+  const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
   const CURRENT_CACHE_VERSION = '1.3'; // Increment this when banner overrides or active pairings change
@@ -1390,13 +1488,15 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
           w.charAt(0).toUpperCase() + w.slice(1)
         ).join(' ');
         const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+        const fallbackImage = `${GENSHIN_IMG_BASE}${charIconName}.png`;
         
         banners.push({
           id: `${bannerId}_${char.name}`,
           bannerId: bannerId,
           name: formattedName,
           type: 'character',
-          image: `${GENSHIN_IMG_BASE}${charIconName}.png`,
+          image: resolveGenshinCharacterImage(char.name, fallbackImage),
+          fallbackImage,
           characterId: char.name,
           game: 'genshin'
         });
@@ -1418,12 +1518,14 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
             // Check for manual override first, then extract weapons
             const override = GENSHIN_BANNER_OVERRIDES[bannerId];
             const weaponName = override ? override.name : (extractGenshinWeaponNames(data.list) || `Epitome Invocation`);
+            const fallbackImage = `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`;
             banners.push({
               id: `${bannerId}_weapon`,
               bannerId: bannerId,
               name: weaponName,
               type: 'weapon',
-              image: `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`,
+              image: resolveGenshinWeaponImage(weaponName, fallbackImage),
+              fallbackImage,
               characterId: 'weapon_banner',
               game: 'genshin'
             });
@@ -1494,13 +1596,20 @@ function extractGenshinWeaponNames(list) {
 // ============================================================
 
 // WuWa preset banners (fallback if auto-discovery fails)
+// Images: Cloudinary primary, wuwatracker fallback
+const _wuwaHiyukiFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75";
+const _wuwaFrostburnFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75";
+const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
+const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
+
 export const WUWA_PRESET_BANNERS = [
-  // Current featured banners
+  // Current featured banners only
   { 
     id: "100036", 
     name: "Hiyuki", 
     type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.webp&w=828&q=75", 
+    image: resolveWuWaCharacterImage('Hiyuki', _wuwaHiyukiFallback),
+    fallbackImage: _wuwaHiyukiFallback,
     characterId: "hiyuki", 
     game: "wuwa" 
   },
@@ -1508,38 +1617,24 @@ export const WUWA_PRESET_BANNERS = [
     id: "200036", 
     name: "Frostburn", 
     type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75", 
+    image: resolveWuWaWeaponImage('Frostburn', _wuwaFrostburnFallback),
+    fallbackImage: _wuwaFrostburnFallback,
     characterId: "frostburn", 
-    game: "wuwa" 
-  },
-  // Previous banners
-  { 
-    id: "100035", 
-    name: "Lynae", 
-    type: "character", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75", 
-    characterId: "lynae", 
-    game: "wuwa" 
-  },
-  { 
-    id: "200035", 
-    name: "Spectrum Blaster", 
-    type: "weapon", 
-    image: "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster-portrait.png&w=828&q=75", 
-    characterId: "spectrum_blaster", 
     game: "wuwa" 
   },
 ];
 
-const WUWA_FEATURED_WEAPON_BY_CHARACTER = Object.freeze({
-  hiyuki: 'Frostburn',
-  lynae: 'Spectrum Blaster',
+const WUWA_IMAGE_OVERRIDES = Object.freeze({
+  hiyuki: { base: 'character-portraits', file: 'hiyuki-portrait.png' },
+  lynae: { base: 'character-portraits', file: 'lynae-portrait.webp' },
+  sigrika: { base: 'character-portraits', file: 'sigrika-portrait.webp' },
+  frostburn: { base: 'weapon-portraits', file: 'frostburn-portrait.png' },
+  'spectrum-blaster': { base: 'weapon-portraits', file: 'spectrum-blaster.png' },
+  'solsworn-ciphers': { base: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
 });
 
-const WUWA_CURRENT_FEATURED_IDS = Object.freeze({
-  character: '100036',
-  weapon: '200036',
-});
+// ── Dynamic banner selection (no hardcoded IDs) ──────────────────────
+// Newest banners are automatically selected by highest bannerId
 
 function compareWuWaBannerIdsDesc_Client(a, b) {
   return Number.parseInt(String(b?.bannerId || b?.id || '0'), 10) - Number.parseInt(String(a?.bannerId || a?.id || '0'), 10);
@@ -1604,42 +1699,26 @@ function findWuWaBannerByOccurrence_Client(banners, html) {
 function selectWuWaVisibleBanners_Client(banners, html) {
   const characterBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'character');
   const weaponBanners = (Array.isArray(banners) ? banners : []).filter((banner) => banner.type === 'weapon');
-  const currentTitle = extractWuWaCurrentTitle_Client(html);
 
-  const forcedCurrentCharacter = findWuWaBannerById_Client(characterBanners, WUWA_CURRENT_FEATURED_IDS.character);
-  const forcedCurrentWeapon = findWuWaBannerById_Client(weaponBanners, WUWA_CURRENT_FEATURED_IDS.weapon);
+  if (characterBanners.length === 0 && weaponBanners.length === 0) return [];
 
-  if (forcedCurrentCharacter || forcedCurrentWeapon) {
-    const pairedWeaponName = forcedCurrentCharacter
-      ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(forcedCurrentCharacter.name || '').trim().toLowerCase()]
-      : '';
-    const selectedWeapon =
-      forcedCurrentWeapon ||
-      findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
-      pickHighestWuWaBanner_Client(weaponBanners) ||
-      findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
-      null;
+  // Select newest by bannerId descending
+  const selectedChar = pickHighestWuWaBanner_Client(characterBanners);
+  let selectedWeapon = pickHighestWuWaBanner_Client(weaponBanners);
 
-    return [forcedCurrentCharacter, selectedWeapon].filter(Boolean);
+  // Try to pair by matching last 2 digits of bannerId
+  // (e.g., 100036 char pairs with 200036 weapon)
+  if (selectedChar && weaponBanners.length > 1) {
+    const charSuffix = String(selectedChar.bannerId).slice(-2);
+    const matchedWeapon = weaponBanners.find(w => String(w.bannerId).slice(-2) === charSuffix);
+    if (matchedWeapon) {
+      selectedWeapon = matchedWeapon;
+    }
   }
 
-  const selectedCharacter =
-    findWuWaBannerByTitle_Client(characterBanners, currentTitle) ||
-    pickHighestWuWaBanner_Client(characterBanners) ||
-    findWuWaBannerByOccurrence_Client(characterBanners, html) ||
-    characterBanners[0] ||
-    null;
-  const pairedWeaponName = selectedCharacter
-    ? WUWA_FEATURED_WEAPON_BY_CHARACTER[String(selectedCharacter.name || '').trim().toLowerCase()]
-    : '';
-  const selectedWeapon =
-    findWuWaBannerByExactName_Client(weaponBanners, pairedWeaponName) ||
-    pickHighestWuWaBanner_Client(weaponBanners) ||
-    findWuWaBannerByOccurrence_Client(weaponBanners, html) ||
-    weaponBanners[0] ||
-    null;
+  console.log(`[WuWa Client] Selected: ${selectedChar?.name} (${selectedChar?.bannerId}) + ${selectedWeapon?.name} (${selectedWeapon?.bannerId})`);
 
-  return [selectedCharacter, selectedWeapon].filter(Boolean);
+  return [selectedChar, selectedWeapon].filter(Boolean);
 }
 
 function buildWuWaBannerIdCandidates_Client(id) {
@@ -1843,7 +1922,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v4'; // bumped: Hiyuki/Frostburn override
+  const CACHE_KEY = 'wuwa_live_banners_cache_v5'; // Bumped: Cloudinary-first, only current banners
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -1907,13 +1986,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       const nameMatch = forward.match(/\\"name\\":\s*\\"([^\\"]+)\\"/);
       const rawBannerName = nameMatch ? nameMatch[1] : 'Unknown Banner';
       
-      // Apply known-banner name overrides (same as server-side WUWA_KNOWN_BANNERS)
-      const WUWA_CLIENT_KNOWN_NAMES = {
-        '100036': 'Hiyuki', '200036': 'Frostburn', '101036': 'Frostburn',
-        '100035': 'Lynae', '200035': 'Spectrum Blaster', '101035': 'Spectrum Blaster',
-        '100034': 'Sigrika', '200034': 'Solsworn Ciphers', '101034': 'Solsworn Ciphers',
-      };
-      const bannerName = WUWA_CLIENT_KNOWN_NAMES[bannerId] || rawBannerName;
+      const bannerName = rawBannerName;
       
       // Skip standard banner
       if (bannerName.toLowerCase().includes('standard')) continue;
@@ -1923,17 +1996,19 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
                    (poolType.includes('weapon') ? 'weapon' : 
                    (isCharacter ? 'character' : 'weapon'));
       
-      // Generate image URL (WuWa Tracker pattern)
-      // For composite names like "Sigrika & Qiuyuan", use only the first name for the slug
+      // Generate image URL
+      // Primary: Our Cloudinary assets | Fallback: WuWa Tracker
       const firstName = bannerName.split('&')[0].trim();
       const slug = firstName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const override = WUWA_IMAGE_OVERRIDES[slug];
       const imageBase = type === 'character' ? 'character-portraits' : 'weapon-portraits';
       const imageExt = type === 'character' ? 'webp' : 'png';
-      // Both characters and weapons use the -portrait suffix in the latest WuWa Tracker API
-      const image = `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
-      
-      // OPTIMIZATION: Remove individual stat fetches during discovery to fix slowness.
-      // Images are now predictably derived from the slug.
+      const fallbackImage = override
+        ? `https://wuwatracker.com/_next/image?url=%2Fapi%2F${override.base}%2Ffile%2F${override.file}&w=828&q=75`
+        : `https://wuwatracker.com/_next/image?url=%2Fapi%2F${imageBase}%2Ffile%2F${slug}-portrait.${imageExt}&w=828&q=75`;
+      const image = type === 'character'
+        ? resolveWuWaCharacterImage(firstName, fallbackImage)
+        : resolveWuWaWeaponImage(firstName, fallbackImage);
       
       banners.push({
         id: `${bannerId}_${type}`,
@@ -1941,6 +2016,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
         name: bannerName,
         type,
         image,
+        fallbackImage,
         game: 'wuwa'
       });
     }

@@ -193,6 +193,63 @@
     background: color-mix(in srgb, var(--theme-accent) 22%, transparent) !important;
 }
 
+.modern-kiyo-page .kiyo-session-strip {
+    padding: 0.625rem 0.75rem;
+    background: color-mix(in srgb, var(--theme-surface-2) 82%, transparent);
+    border: 1px solid var(--theme-border-soft);
+    border-radius: 0.75rem;
+}
+
+.modern-kiyo-page .kiyo-session-save-button,
+.modern-kiyo-page .kiyo-session-clear-button {
+    min-height: 1.875rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.modern-kiyo-page .kiyo-session-save-button {
+    color: var(--theme-bg);
+    background: var(--theme-accent);
+    border: 1px solid color-mix(in srgb, var(--theme-accent) 85%, white);
+}
+
+.modern-kiyo-page .kiyo-session-save-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--theme-accent) 88%, white);
+}
+
+.modern-kiyo-page .kiyo-session-save-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+    color: var(--theme-text-muted);
+    background: color-mix(in srgb, var(--theme-surface-3) 82%, transparent);
+    border-color: var(--theme-border-soft);
+}
+
+.modern-kiyo-page .kiyo-session-clear-button {
+    color: color-mix(in srgb, #fca5a5 88%, var(--theme-text));
+    background: color-mix(in srgb, #7f1d1d 16%, transparent);
+    border: 1px solid color-mix(in srgb, #f87171 32%, transparent);
+}
+
+.modern-kiyo-page .kiyo-session-clear-button:hover {
+    color: #fecaca;
+    background: color-mix(in srgb, #7f1d1d 24%, transparent);
+    border-color: color-mix(in srgb, #f87171 44%, transparent);
+}
+
+.modern-kiyo-page .kiyo-region-select {
+    color: var(--theme-text);
+}
+
+.modern-kiyo-page .kiyo-region-select option {
+    color: #111827;
+    background: #ffffff;
+}
+
 .modern-kiyo-page .kiyo-chip-muted {
     background: color-mix(in srgb, var(--theme-surface-3) 74%, transparent) !important;
     border: 1px solid var(--theme-border-soft) !important;

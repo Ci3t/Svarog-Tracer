@@ -4100,11 +4100,11 @@ export default function PlaygroundChallengePage({ sessionTheme = 'modern' }) {
         </div>
       ) : null}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style>{`
         .relic-session-container .astral-session-table .overflow-auto {
            max-height: 355px !important;
         }
-      `}} />
+      `}</style>
     </div>
   );
 }
