@@ -68,8 +68,8 @@ export default function WarpBannerCard({
     );
     if (imgRef.current) {
       gsap.fromTo(imgRef.current,
-        { scale: 1.35, filter: 'blur(8px)' },
-        { scale: 1.25, filter: 'blur(0px)', duration: 0.9, ease: 'power2.out', delay: index * 0.1 + 0.15 }
+        { scale: 1.35, opacity: 0 },
+        { scale: 1.25, opacity: 1, duration: 0.9, ease: 'power2.out', delay: index * 0.1 + 0.15 }
       );
     }
   }, [index]);
