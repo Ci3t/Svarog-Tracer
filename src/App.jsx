@@ -98,6 +98,8 @@ const ClaraChat = lazy(() => import('./components/ClaraChat'));
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
+const PATCH_CACHE_KEY = "hsr-current-patch-cache-v1";
+const PATCH_CACHE_TTL_MS = 60 * 60 * 1000;
 const SESSION_SECONDS = 5 * 60;
 const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -137,6 +139,26 @@ const persistTheme = (theme) => {
   }
 };
 
+const readCachedPatch = () => {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PATCH_CACHE_KEY) || "null");
+    if (!cached?.data?.current_patch || Date.now() - Number(cached.savedAt || 0) > PATCH_CACHE_TTL_MS) {
+      return null;
+    }
+    return cached.data;
+  } catch {
+    return null;
+  }
+};
+
+const persistPatchCache = (data) => {
+  try {
+    localStorage.setItem(PATCH_CACHE_KEY, JSON.stringify({ data, savedAt: Date.now() }));
+  } catch {
+    // ignore storage errors for display-only patch sync
+  }
+};
+
 // ðŸ”¥ DEBUG MODE: ?debug=true in URL
 const urlParams = new URLSearchParams(window.location.search);
 const isDebugMode = urlParams.get("debug") === "true";
@@ -161,8 +183,16 @@ export default function App() {
     let cancelled = false;
     async function syncPatch() {
       try {
+        const cachedPatch = readCachedPatch();
+        if (cachedPatch?.current_patch) {
+          setPatch(cachedPatch.current_patch);
+          setIsCustomPatch(false);
+          return;
+        }
+
         const data = await getPatch();
         if (!cancelled && data?.current_patch) {
+          persistPatchCache(data);
           setPatch(data.current_patch);
           setIsCustomPatch(false);
         }
@@ -171,8 +201,8 @@ export default function App() {
       }
     }
     syncPatch();
-    // Poll every 5 minutes so auto-advance is picked up
-    const interval = setInterval(syncPatch, 5 * 60 * 1000);
+    // Patch metadata changes rarely; hourly sync avoids background edge traffic.
+    const interval = setInterval(syncPatch, PATCH_CACHE_TTL_MS);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
