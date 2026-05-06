@@ -6,11 +6,45 @@ import { API_BASE_URL } from './apiBase';
 
 const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
 const API_FETCH_TIMEOUT_MS = 12000;
+const API_CACHE_PREFIX = 'hsr-api-cache-v1:';
+const API_CACHE_TTL_MS = 10 * 60 * 1000;
+const apiMemoryCache = new Map();
+
+function readApiCache(key) {
+  const cached = apiMemoryCache.get(key);
+  if (cached && Date.now() - cached.savedAt < API_CACHE_TTL_MS) return cached.data;
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`${API_CACHE_PREFIX}${key}`) || 'null');
+    if (!parsed?.data || Date.now() - Number(parsed.savedAt || 0) >= API_CACHE_TTL_MS) return null;
+    apiMemoryCache.set(key, parsed);
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeApiCache(key, data) {
+  const entry = { data, savedAt: Date.now() };
+  apiMemoryCache.set(key, entry);
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(`${API_CACHE_PREFIX}${key}`, JSON.stringify(entry));
+  } catch {
+    // in-memory cache still helps this tab
+  }
+}
 
 /**
  * Generic fetch wrapper with error handling
  */
 async function apiFetch(endpoint, options = {}) {
+  const cacheKey = !options.method || String(options.method).toUpperCase() === 'GET' ? endpoint : '';
+  if (cacheKey && options.cacheClient !== false) {
+    const cached = readApiCache(cacheKey);
+    if (cached) return cached;
+  }
+
   const url = `${BACKEND_API_BASE_URL}${endpoint}`;
   const controller = new AbortController();
   const timeoutMs = Number(options.timeoutMs || API_FETCH_TIMEOUT_MS);
@@ -36,7 +70,11 @@ async function apiFetch(endpoint, options = {}) {
       throw new Error(message);
     }
     
-    return await response.json();
+    const data = await response.json();
+    if (cacheKey && options.cacheClient !== false) {
+      writeApiCache(cacheKey, data);
+    }
+    return data;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error?.name === 'AbortError') {

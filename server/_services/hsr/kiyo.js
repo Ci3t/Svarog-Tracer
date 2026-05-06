@@ -137,7 +137,7 @@ function buildKiyoPatchPayload(base = KIYO_PATCH_FALLBACK) {
 }
 
 function handleGetPatchFallback(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
   return res.status(200).json(buildKiyoPatchPayload());
 }
 
@@ -312,6 +312,7 @@ async function handleSessionSave(req, res, db) {
 */
 async function handleStatsQuery(req, res, db) {
   const { patch, region, user_id } = req.query;
+  const hasUserLayer = Boolean(user_id && validateUserId(user_id));
 
   if (!validatePatch(patch)) {
     return res.status(400).json({ error: 'Missing or invalid patch parameter', format: 'e.g. "4.3"' });
@@ -339,7 +340,7 @@ async function handleStatsQuery(req, res, db) {
   try {
     // 1. User layer (if user_id provided) — current + previous patch merged
     let userLayer = null;
-    if (user_id && validateUserId(user_id)) {
+    if (hasUserLayer) {
       const [userCurrent, userPrev] = await Promise.all([
         db.execute({
           sql: `SELECT prefix, exact_roll, count_live, count_imported, last_updated
@@ -409,6 +410,13 @@ async function handleStatsQuery(req, res, db) {
 
     const fallback_needed = !bestLayer || bestLayer.confidence === 'insufficient';
     const sheet_weight = fallback_needed ? 1.0 : 0.0;
+
+    res.setHeader(
+      'Cache-Control',
+      hasUserLayer
+        ? 'private, max-age=60'
+        : 'public, max-age=60, s-maxage=600, stale-while-revalidate=3600'
+    );
 
     return res.status(200).json({
       user: userLayer,
@@ -684,6 +692,7 @@ async function handleGetPatch(req, res, db) {
       row.timer_mode = 'fresh';
     }
 
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     return res.status(200).json({
       current_patch: row.current_patch,
       patch_start_date: row.patch_start_date,

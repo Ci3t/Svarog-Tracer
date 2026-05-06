@@ -6,10 +6,11 @@ import { buildApiUrl } from '../utils/apiBase';
 const PRESENCE_API = buildApiUrl('/api/presence');
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
-const ACTIVE_INTERVAL_MS = 180000;
-const ACTIVE_GRACE_MS = 120000;
-const DIRECTORY_REFRESH_MS = 120000;
+const ACTIVE_INTERVAL_MS = 15 * 60 * 1000;
+const ACTIVE_GRACE_MS = 5 * 60 * 1000;
+const DIRECTORY_REFRESH_MS = 8 * 60 * 1000;
 const PREDICTION_GRACE_MS = 5000;
+const ANONYMOUS_FETCH_INTERVAL_MS = 15 * 60 * 1000;
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -61,6 +62,7 @@ export function usePresence() {
   const lastActiveRef = useRef(0);
   const lastPredictionRef = useRef(0);
   const lastDirectoryRef = useRef(0);
+  const lastAnonymousFetchRef = useRef(0);
   const previousAuthRef = useRef(false);
   const previousPathRef = useRef(null);
 
@@ -78,6 +80,16 @@ export function usePresence() {
 
   const pingPresence = useCallback(async (type = 'fetch', options = {}) => {
     if ((loading || isAuthRoute) && type !== 'offline') return null;
+    if (type !== 'offline' && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return null;
+    }
+    if (type === 'fetch' && !isAuthenticated && !options.includeUsers) {
+      const now = Date.now();
+      if (!options.force || now - lastAnonymousFetchRef.current < ANONYMOUS_FETCH_INTERVAL_MS) {
+        return null;
+      }
+      lastAnonymousFetchRef.current = now;
+    }
 
     const sessionId = sessionIdRef.current;
     if (!sessionId) return null;
@@ -160,19 +172,23 @@ export function usePresence() {
 
   useEffect(() => {
     if (loading || isAuthRoute) return undefined;
+    if (!isAuthenticated) {
+      setStats((prev) => ({ ...prev, loading: false }));
+      return undefined;
+    }
 
     const fetchTimer = window.setTimeout(() => {
       pingPresence('fetch', { force: true, includeUsers: false });
     }, 800);
 
     return () => window.clearTimeout(fetchTimer);
-  }, [isAuthRoute, loading, pingPresence]);
+  }, [isAuthenticated, isAuthRoute, loading, pingPresence]);
 
   useEffect(() => {
     if (loading || isAuthRoute || !isAuthenticated) return undefined;
     pingPresence('active', { force: true, includeUsers: false });
     const timer = window.setInterval(() => {
-      pingPresence('active', { force: true, includeUsers: false });
+      pingPresence('active', { includeUsers: false });
     }, ACTIVE_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, isAuthRoute, loading, pingPresence]);
@@ -233,6 +249,9 @@ export function usePresence() {
   }, [pingPresence]);
 
   const refreshPresence = useCallback((options = {}) => {
+    if (!isAuthenticated && !options.forceAnonymous) {
+      return Promise.resolve(null);
+    }
     return pingPresence('fetch', {
       force: true,
       includeUsers: Boolean(options.includeUsers ?? isAuthenticated),

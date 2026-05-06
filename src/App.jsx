@@ -98,6 +98,7 @@ const ClaraChat = lazy(() => import('./components/ClaraChat'));
 
 const STORAGE_KEY = "hsr-rng-session-v6";
 const THEME_STORAGE_KEY = "hsr-selected-theme-v1";
+const PATCH_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const SESSION_SECONDS = 5 * 60;
 const INACTIVITY_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -171,8 +172,8 @@ export default function App() {
       }
     }
     syncPatch();
-    // Poll every 5 minutes so auto-advance is picked up
-    const interval = setInterval(syncPatch, 5 * 60 * 1000);
+    // Patch metadata changes rarely; the Kiyo API helper caches this per browser.
+    const interval = setInterval(syncPatch, PATCH_SYNC_INTERVAL_MS);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
