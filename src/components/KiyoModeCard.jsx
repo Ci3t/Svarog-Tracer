@@ -244,7 +244,7 @@ export default function KiyoModeCard({
     async function loadStats() {
       setPatchStatsLoading(true);
       try {
-        const stats = await getStats({ patch: currentPatch || FALLBACK_PATCH, region: datasetRegion, user_id: authUser?.id || null });
+        const stats = await getStats({ patch: currentPatch || FALLBACK_PATCH, region: datasetRegion, user_id: null });
         if (!cancelled) setPatchStats(stats);
       } catch {
         // silent fallback

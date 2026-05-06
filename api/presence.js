@@ -27,7 +27,7 @@ const USER_PRESENCE_PREDICTION_TABLE = process.env.SUPABASE_USER_PRESENCE_PREDIC
 const USER_PRESENCE_COUNTER_TABLE = process.env.SUPABASE_USER_PRESENCE_COUNTER_TABLE || 'user_presence_counters';
 const USER_PRESENCE_COUNTER_ID = 'global';
 
-const TTL_USER = 10 * 60;
+const TTL_USER = 20 * 60;
 const TTL_PREDICTOR = 3 * 60 * 60;
 const FEATURE_ENABLED = process.env.PRESENCE_ENABLED !== 'false';
 const RATE_LIMIT_FETCH = 15000;
@@ -692,6 +692,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Cache-Control,Authorization,x-api-key,Pragma');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

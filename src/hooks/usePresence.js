@@ -6,9 +6,9 @@ import { buildApiUrl } from '../utils/apiBase';
 const PRESENCE_API = buildApiUrl('/api/presence');
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
-const ACTIVE_INTERVAL_MS = 180000;
-const ACTIVE_GRACE_MS = 120000;
-const DIRECTORY_REFRESH_MS = 120000;
+const ACTIVE_INTERVAL_MS = 15 * 60 * 1000;
+const ACTIVE_GRACE_MS = 5 * 60 * 1000;
+const DIRECTORY_REFRESH_MS = 8 * 60 * 1000;
 const PREDICTION_GRACE_MS = 5000;
 const ANONYMOUS_FETCH_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -80,6 +80,9 @@ export function usePresence() {
 
   const pingPresence = useCallback(async (type = 'fetch', options = {}) => {
     if ((loading || isAuthRoute) && type !== 'offline') return null;
+    if (type !== 'offline' && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return null;
+    }
     if (type === 'fetch' && !isAuthenticated && !options.includeUsers) {
       const now = Date.now();
       if (!options.force || now - lastAnonymousFetchRef.current < ANONYMOUS_FETCH_INTERVAL_MS) {
@@ -185,7 +188,7 @@ export function usePresence() {
     if (loading || isAuthRoute || !isAuthenticated) return undefined;
     pingPresence('active', { force: true, includeUsers: false });
     const timer = window.setInterval(() => {
-      pingPresence('active', { force: true, includeUsers: false });
+      pingPresence('active', { includeUsers: false });
     }, ACTIVE_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, isAuthRoute, loading, pingPresence]);

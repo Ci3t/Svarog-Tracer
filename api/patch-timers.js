@@ -88,22 +88,26 @@ async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Discord-Id');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (FORCE_PATCH_FALLBACK) {
     const { game } = req.query || {};
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     return res.status(200).json(buildFallbackResponse(game));
   }
 
   const db = getDb();
   if (!db) {
     const { game } = req.query || {};
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     return res.status(200).json(buildFallbackResponse(game));
   }
 
   // POST: Update patch data (admin only)
   if (req.method === 'POST') {
+    res.setHeader('Cache-Control', 'no-store');
     const { game, patch, startDate, durationDays } = req.body || {};
     if (!game || !patch || !startDate) {
       return res.status(400).json({ error: 'Missing required fields: game, patch, startDate' });
@@ -130,6 +134,7 @@ async function handler(req, res) {
 
   // GET: Fetch patch data with auto-advance
   const { game } = req.query || {};
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
 
   try {
     let rows;
@@ -194,6 +199,7 @@ async function handler(req, res) {
   } catch (err) {
     console.error('[PatchTimerAPI] Fetch error:', err.message);
     if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
       return res.status(200).json(buildFallbackResponse(game));
     }
     return res.status(500).json({ error: 'Database error', detail: err.message });
