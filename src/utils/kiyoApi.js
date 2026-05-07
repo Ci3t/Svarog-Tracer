@@ -1,4 +1,5 @@
 import { buildApiUrl } from './apiBase';
+import { fetchJsonWithDedupe } from './requestDedupe';
 
 const KIYO_API_BASE = '/api/hsr/kiyo';
 const PATCH_CACHE_KEY = 'hsr-current-patch-cache-v1';
@@ -39,20 +40,25 @@ function writeTimedCache(key, data) {
 
 async function kiyoFetch(path, options = {}) {
   const url = buildApiUrl(`${KIYO_API_BASE}${path}`);
-  const res = await fetch(url, {
+  const method = String(options.method || 'GET').toUpperCase();
+  const requestInit = {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
     },
-  });
+  };
+  const { response: res, data } = await fetchJsonWithDedupe(
+    method === 'GET' && options.dedupe !== false ? `kiyo:${path}` : '',
+    url,
+    requestInit
+  );
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(errBody.error || `HTTP ${res.status}`);
+    throw new Error(data?.error || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  return data;
 }
 
 /**

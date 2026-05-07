@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
 import WarpBannerCard from "./WarpBannerCard";
 import PatchInfo from "./warp/PatchInfo";
+import { SITE_VERSION } from "../constants/siteVersion";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -16,24 +17,6 @@ const Icons = {
   ChevronLeft: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6" /></svg>,
   Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="15" x2="15.01" y1="13" y2="13" /><line x1="18" x2="18.01" y1="11" y2="11" /><rect width="20" height="12" x="2" y="6" rx="2" /></svg>
 };
-
-const LV999_BANNER_NAME = 'Silver Wolf LV.999';
-const LV999_FALLBACK_IMAGE = `${import.meta.env.BASE_URL}999SW.png`;
-const LV999_LC_BANNER_NAME = 'Silver Wolf LV.999 Light Cone';
-const LV999_LC_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23006.png';
-
-function applyLv999ImageFallback(event, bannerName) {
-  if (event.currentTarget.dataset.lv999FallbackApplied === '1') return;
-  if (bannerName === LV999_BANNER_NAME) {
-    event.currentTarget.dataset.lv999FallbackApplied = '1';
-    event.currentTarget.src = LV999_FALLBACK_IMAGE;
-    return;
-  }
-  if (bannerName === LV999_LC_BANNER_NAME) {
-    event.currentTarget.dataset.lv999FallbackApplied = '1';
-    event.currentTarget.src = LV999_LC_FALLBACK_IMAGE;
-  }
-}
 
 export default function WarpAnalyzer({ sessionTheme }) {
   const isThemed = sessionTheme && sessionTheme !== 'modern';
@@ -1086,7 +1069,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                       <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       Operational Status
                     </h4>
-                    <p className="text-xs text-slate-500 font-mono">Ver 4.1.3 • Site Patch: Stability Enhanced</p>
+                    <p className="text-xs text-slate-500 font-mono">Ver {SITE_VERSION} • Site Patch: Stability Enhanced</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right hidden md:block">

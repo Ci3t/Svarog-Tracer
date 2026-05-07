@@ -5,6 +5,7 @@ import { findCavernById } from '../constants/caverns';
 import { useAuth } from '../hooks/useAuth';
 import { getSessionThemeConfig } from '../theme/sessionThemeConfig';
 import { buildApiUrl as buildZoneApiUrl } from '../utils/apiBase';
+import { fetchJsonWithDedupe } from '../utils/requestDedupe';
 import { hasMultipleTrailblazers, SINGLE_TRAILBLAZER_TEAM_MESSAGE, wouldCreateTrailblazerConflict } from '../utils/trailblazerTeam';
 
 // --- Constants & Helpers ---
@@ -246,6 +247,32 @@ function applyClientTargetFilter(zones, preset, customStats, matchMode) {
       if ((b.crit_rate ?? -1) !== (a.crit_rate ?? -1)) return (b.crit_rate ?? -1) - (a.crit_rate ?? -1);
       return (b.runs ?? 0) - (a.runs ?? 0);
     });
+}
+
+function buildClientTargetFilterConfig(preset, customStats, matchMode) {
+  const presetKey = String(preset || 'crit_potential');
+  const option = MAP_TARGET_PRESET_OPTIONS.find((entry) => entry.value === presetKey);
+  const stats = presetKey === 'crit_substats'
+    ? ['CRIT Rate', 'CRIT DMG']
+    : presetKey === 'spd'
+      ? ['SPD']
+      : presetKey === 'hp_pct'
+        ? ['HP%']
+        : presetKey === 'break_effect'
+          ? ['Break Effect']
+          : presetKey === 'spd_crit'
+            ? ['SPD', 'CRIT Rate', 'CRIT DMG']
+            : presetKey === 'custom'
+              ? (Array.isArray(customStats) ? customStats : [])
+              : [];
+
+  return {
+    preset: presetKey,
+    label: option?.label || 'Target Match',
+    stats,
+    match_mode: String(matchMode || 'any').toLowerCase() === 'all' ? 'all' : 'any',
+    active: presetKey !== 'crit_potential' && stats.length > 0,
+  };
 }
 
 export function parseClearTimeToSeconds(value) {
@@ -550,28 +577,23 @@ export function useZoneTracker(sessionTheme = 'modern') {
         };
 
         const requestMap = async ({ includeTarget = true } = {}) => {
-          const response = await fetch(buildZoneApiUrl(`/api/zone/map?${buildMapParams({ includeTarget }).toString()}`), {
+          const url = buildZoneApiUrl(`/api/zone/map?${buildMapParams({ includeTarget }).toString()}`);
+          const { response, data: payload } = await fetchJsonWithDedupe(`zone-map:${url}`, url, {
             method: 'GET',
             headers: { ...getAuthHeader() },
           });
-          const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(payload.error || `HTTP ${response.status}`);
           }
           return payload;
         };
 
-        let payload = await requestMap({ includeTarget: true });
+        const hasTargetFilter = mapTargetPreset !== 'crit_potential';
+        const payload = await requestMap({ includeTarget: !hasTargetFilter });
 
-        if (mapTargetPreset !== 'crit_potential') {
-          const rawPayload = await requestMap({ includeTarget: false });
-          payload = {
-            ...payload,
-            total_runs: rawPayload?.total_runs ?? payload?.total_runs ?? 0,
-            epoch_summary: rawPayload?.epoch_summary ?? payload?.epoch_summary,
-            target_filter: payload?.target_filter ?? rawPayload?.target_filter,
-            zones: applyClientTargetFilter(rawPayload?.zones, mapTargetPreset, mapTargetCustomStats, mapTargetMode),
-          };
+        if (hasTargetFilter) {
+          payload.target_filter = buildClientTargetFilterConfig(mapTargetPreset, mapTargetCustomStats, mapTargetMode);
+          payload.zones = applyClientTargetFilter(payload?.zones, mapTargetPreset, mapTargetCustomStats, mapTargetMode);
         }
 
         setMapData(payload);
@@ -924,10 +946,6 @@ export function useZoneTracker(sessionTheme = 'modern') {
     if (!header) return;
     gsap.fromTo(header, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' });
   }, []);
-
-  const slotSummary = useMemo(() => {
-    return slots.map((charId) => (charId ? charactersByNumId.get(Number(charId))?.name || `#${charId}` : 'Empty')).join(' / ');
-  }, [charactersByNumId, slots]);
 
   const currentTeamSignature = useMemo(() => {
     const numeric = slots.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0);
@@ -1509,7 +1527,7 @@ export function useZoneTracker(sessionTheme = 'modern') {
     setZoneLikeLoadingKey(zoneKey);
     setError('');
     try {
-      const requestedLiked = !Boolean(zone?.viewer_liked);
+      const requestedLiked = !zone?.viewer_liked;
       const response = await fetch(buildZoneApiUrl('/api/zone/likes'), {
         method: 'POST',
         headers: {
@@ -1658,8 +1676,8 @@ export function useZoneTracker(sessionTheme = 'modern') {
     epoch: mapData?.epoch,
     currentEpoch: mapData?.current_epoch,
     zones: Array.isArray(mapData?.zones) ? mapData.zones : [],
-    isRelicTargetMode: Boolean(mapData?.target_filter?.active),
-    signalMetricLabel: Boolean(mapData?.target_filter?.active) ? `${mapData?.target_filter?.label || 'Target Match'} Match` : 'Crit Potential',
+    isRelicTargetMode: !!mapData?.target_filter?.active,
+    signalMetricLabel: mapData?.target_filter?.active ? `${mapData?.target_filter?.label || 'Target Match'} Match` : 'Crit Potential',
     
     // Actions
     fetchMap,
