@@ -12,6 +12,7 @@ import CrimsonBloom from "../components/snow/CrimsonBloom";
 import SilverWolf999Backdrop from "../components/snow/SilverWolf999Backdrop";
 import AetherEffect from "../components/snow/AetherEffect";
 import { useAuth } from "../hooks/useAuth";
+import { SITE_VERSION } from "../constants/siteVersion";
 
 const HOME_THEME_ICONS = {
   modern: Sparkles,
@@ -419,7 +420,7 @@ export default function HomePage({
                 homeTheme.chipPrimaryClass || "bg-slate-900/30 border-white/5 text-slate-400"
               }`}
             >
-              Ver.4.1.3 FCS
+              Ver.{SITE_VERSION} FCS
             </div>
             <div
               className={`px-6 py-2 border rounded-full text-[10px] uppercase tracking-widest font-medium backdrop-blur-sm ${

@@ -186,7 +186,6 @@ export function usePresence() {
 
   useEffect(() => {
     if (loading || isAuthRoute || !isAuthenticated) return undefined;
-    pingPresence('active', { force: true, includeUsers: false });
     const timer = window.setInterval(() => {
       pingPresence('active', { includeUsers: false });
     }, ACTIVE_INTERVAL_MS);

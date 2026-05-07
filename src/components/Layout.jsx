@@ -35,6 +35,7 @@ import { withBaseUrl } from '../utils/assetPaths';
 import { buildApiUrl } from '../utils/apiBase';
 import { UserIdentityCard } from './UserIdentityBlock';
 import { getAvatarFrameStyle, resolveEquippedCosmeticsFromMetadata } from '../utils/marketplaceCatalog';
+import { SITE_VERSION } from '../constants/siteVersion';
 
 const PATCH_PRESETS = ["4.0", "4.1", "4.2", "4.3", "4.4", "custom"];
 const USER_MENU_WIDTH = 260;
@@ -105,7 +106,7 @@ export default function Layout({
   const [adminModerationMode, setAdminModerationMode] = useState('');
   const [adminUserModalOpen, setAdminUserModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
-  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [, setAdminUsersLoading] = useState(false);
   const [adminUserSearch, setAdminUserSearch] = useState('');
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
   const [adminBanReason, setAdminBanReason] = useState('');
@@ -956,7 +957,7 @@ export default function Layout({
               <div className="absolute right-0 top-1/2 h-1 w-1 -translate-y-1/2 rounded-full bg-pink-500 opacity-0 group-hover:opacity-100 transition-all duration-500 group-hover:right-2" />
             </a>
 
-            <span className="text-slate-700">© 2026 Ciet // Protocol X-4.1.3</span>
+            <span className="text-slate-700">© 2026 Ciet // Protocol X-{SITE_VERSION}</span>
           </div>
         </div>
       </footer>
