@@ -10,16 +10,37 @@ const HSR_FETCH_TIMEOUT_MS = 10000;
 const env = globalThis.process?.env || {};
 const FORCE_BANNER_FALLBACK = env.BANNER_FORCE_FALLBACK === 'true';
 const HSR_ASSET_CDN_BASE = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
+const HSR_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
+const MAX_HSR_CHARACTER_BANNERS = 4;
+const MAX_HSR_LIGHT_CONE_BANNERS = 4;
+
+function limitHsrBannersForResponse(banners) {
+  const score = (banner) => Number.parseInt(String(banner?.bannerId || banner?.id || '0'), 10) || 0;
+  const byNewest = (a, b) => score(b) - score(a);
+  const characters = banners
+    .filter((banner) => banner.type === 'character')
+    .sort(byNewest)
+    .slice(0, MAX_HSR_CHARACTER_BANNERS);
+  const lightCones = banners
+    .filter((banner) => banner.type === 'light_cone')
+    .sort(byNewest)
+    .slice(0, MAX_HSR_LIGHT_CONE_BANNERS);
+  return [...characters, ...lightCones];
+}
 
 function buildHsrFallbackBanners() {
   const characterIcon = (id) =>
     `${HSR_ASSET_CDN_BASE}/icon/character/${id}.png`;
   const characterPortrait = (id) =>
-    resolveHsrCharacterImage(id, `${HSR_ASSET_CDN_BASE}/image/character_portrait/${id}.png`);
+    resolveHsrCharacterImage(id, `${HSR_ASSET_RAW_BASE}/image/character_portrait/${id}.png`);
+  const characterAltPortrait = (id) =>
+    `${HSR_ASSET_CDN_BASE}/image/character_portrait/${id}.png`;
+  const characterPreview = (id) =>
+    `${HSR_ASSET_CDN_BASE}/image/character_preview/${id}.png`;
   const lightConePortrait = (id) =>
     resolveHsrLightConeImage(id, `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${id}.png`);
 
-  return [
+  return limitHsrBannersForResponse([
     {
       id: '2116_character',
       bannerId: '2116',
@@ -39,6 +60,8 @@ function buildHsrFallbackBanners() {
       name: 'The Dahlia',
       image: characterIcon('1321'),
       portrait: characterPortrait('1321'),
+      altPortrait: characterAltPortrait('1321'),
+      preview: characterPreview('1321'),
       type: 'character',
       characterId: '1321',
       rarity: 5,
@@ -51,6 +74,8 @@ function buildHsrFallbackBanners() {
       name: 'Firefly',
       image: characterIcon('1310'),
       portrait: characterPortrait('1310'),
+      altPortrait: characterAltPortrait('1310'),
+      preview: characterPreview('1310'),
       type: 'character',
       characterId: '1310',
       rarity: 5,
@@ -63,6 +88,8 @@ function buildHsrFallbackBanners() {
       name: 'Castorice',
       image: characterIcon('1407'),
       portrait: characterPortrait('1407'),
+      altPortrait: characterAltPortrait('1407'),
+      preview: characterPreview('1407'),
       type: 'character',
       characterId: '1407',
       rarity: 5,
@@ -120,7 +147,7 @@ function buildHsrFallbackBanners() {
       game: 'hsr',
       source: 'controlled-fallback',
     },
-  ];
+  ]);
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = HSR_FETCH_TIMEOUT_MS) {
@@ -275,6 +302,7 @@ export async function handler(req, res) {
     const HSR_TEMP_CHARACTER_FALLBACK = {
       name: 'Silver Wolf LV.999',
       image: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
+      portrait: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp',
       type: 'character',
     };
     const HSR_TEMP_LIGHT_CONE_FALLBACK = {
@@ -296,7 +324,9 @@ export async function handler(req, res) {
       if (charMap[charId]) {
         const char = charMap[charId];
         const fallbackImage = `${HSR_ASSET_CDN_BASE}/${char.icon}`;
-        const fallbackPortrait = `${HSR_ASSET_CDN_BASE}/image/character_portrait/${charId}.png`;
+        const fallbackPortrait = `${HSR_ASSET_RAW_BASE}/image/character_portrait/${charId}.png`;
+        const fallbackAltPortrait = `${HSR_ASSET_CDN_BASE}/image/character_portrait/${charId}.png`;
+        const fallbackPreview = `${HSR_ASSET_CDN_BASE}/image/character_preview/${charId}.png`;
         return {
           id: `${banner.bannerId}_character`,
           bannerId: banner.bannerId,
@@ -305,6 +335,8 @@ export async function handler(req, res) {
           image: fallbackImage,
           fallbackImage,
           portrait: resolveHsrCharacterImage(charId, fallbackPortrait),
+          altPortrait: fallbackAltPortrait,
+          preview: fallbackPreview,
           characterId: charId,
           rarity: char.rarity || 5,
           element: char.element,
@@ -359,6 +391,7 @@ export async function handler(req, res) {
         ...banners[exactLv999Index],
         name: HSR_TEMP_CHARACTER_FALLBACK.name,
         image: HSR_TEMP_CHARACTER_FALLBACK.image,
+        portrait: HSR_TEMP_CHARACTER_FALLBACK.portrait,
         type: HSR_TEMP_CHARACTER_FALLBACK.type,
       };
     } else if (
@@ -372,6 +405,7 @@ export async function handler(req, res) {
           ...banners[unknownIndex],
           name: HSR_TEMP_CHARACTER_FALLBACK.name,
           image: HSR_TEMP_CHARACTER_FALLBACK.image,
+          portrait: HSR_TEMP_CHARACTER_FALLBACK.portrait,
           type: HSR_TEMP_CHARACTER_FALLBACK.type,
         };
       }
@@ -391,12 +425,14 @@ export async function handler(req, res) {
       });
     }
     
-    console.log('[HSR Banners API] Returning banners:', banners.map(b => b.name).join(', '));
+    const responseBanners = limitHsrBannersForResponse(banners);
+
+    console.log('[HSR Banners API] Returning banners:', responseBanners.map(b => b.name).join(', '));
     
     // Cache for 5 minutes
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
     
-    return res.status(200).json(banners);
+    return res.status(200).json(responseBanners);
   } catch (error) {
     console.error('[HSR Banners API] Error:', error);
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');

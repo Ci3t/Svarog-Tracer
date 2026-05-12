@@ -7,7 +7,7 @@ import { fetchJsonWithDedupe } from './requestDedupe';
 
 const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
 const API_FETCH_TIMEOUT_MS = 12000;
-const API_CACHE_PREFIX = 'hsr-api-cache-v1:';
+const API_CACHE_PREFIX = 'hsr-api-cache-v2:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
 const STATS_API_CACHE_TTL_MS = 60 * 60 * 1000;
 const BANNERS_API_CACHE_TTL_MS = 6 * 60 * 60 * 1000;

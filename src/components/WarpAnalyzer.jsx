@@ -4,6 +4,7 @@ import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics
 import WarpBannerCard from "./WarpBannerCard";
 import PatchInfo from "./warp/PatchInfo";
 import { SITE_VERSION } from "../constants/siteVersion";
+import { applyBannerAssetManifest } from "../utils/bannerAssetManifest.js";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -30,6 +31,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
   const [chartView, setChartView] = useState('count'); // 'count' | 'chance'
   const [winsOnlyMode, setWinsOnlyMode] = useState(false); // Toggle for wins-only distribution
   const [bannersLoading, setBannersLoading] = useState(false); // Loading state for banner fetching
+
+  const getSelectableBannerId = (banner) => String(banner?.bannerId || extractBannerId(banner?.id) || banner?.id || '');
 
 
   const [data, setData] = useState(null);
@@ -74,36 +77,39 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
           if (selectedGame === 'hsr') {
             const hsrBanners = allBanners.filter(b => b.game === 'hsr');
+            // Reverse so newest banner is first (Evanescia → reruns)
+            hsrBanners.reverse();
             if (!isCurrentLoad()) return;
             if (hsrBanners.length > 0) {
-              // Merge with Fate collaboration
               const mergedBanners = [...hsrBanners, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
               setBanners(mergedBanners);
-              setSelectedBannerId(mergedBanners[0].id);
+              setSelectedBannerId(getSelectableBannerId(mergedBanners[0]));
             } else {
               const mergedBanners = [...PRESET_BANNERS, ...FATE_CHARACTERS, ...FATE_LIGHT_CONES];
               setBanners(mergedBanners);
-              setSelectedBannerId(mergedBanners[0]?.id);
+              setSelectedBannerId(getSelectableBannerId(mergedBanners[0]));
             }
           } else if (selectedGame === 'genshin') {
             const genshinBanners = allBanners.filter(b => b.game === 'genshin');
             if (!isCurrentLoad()) return;
             if (genshinBanners.length > 0) {
               setBanners(genshinBanners);
-              setSelectedBannerId(genshinBanners[0].id);
+              setSelectedBannerId(getSelectableBannerId(genshinBanners[0]));
             } else {
-              setBanners(GENSHIN_PRESET_BANNERS);
-              setSelectedBannerId(GENSHIN_PRESET_BANNERS[0]?.id);
+              const presetBanners = await applyBannerAssetManifest(GENSHIN_PRESET_BANNERS);
+              setBanners(presetBanners);
+              setSelectedBannerId(getSelectableBannerId(presetBanners[0]));
             }
           } else if (selectedGame === 'wuwa') {
             const wuwaBanners = allBanners.filter(b => b.game === 'wuwa');
             if (!isCurrentLoad()) return;
             if (wuwaBanners.length > 0) {
               setBanners(wuwaBanners);
-              setSelectedBannerId(wuwaBanners[0].id);
+              setSelectedBannerId(getSelectableBannerId(wuwaBanners[0]));
             } else {
-              setBanners(WUWA_PRESET_BANNERS);
-              setSelectedBannerId(WUWA_PRESET_BANNERS[0]?.id);
+              const presetBanners = await applyBannerAssetManifest(WUWA_PRESET_BANNERS);
+              setBanners(presetBanners);
+              setSelectedBannerId(getSelectableBannerId(presetBanners[0]));
             }
           }
         } else if (selectedGame === 'zzz') {
@@ -218,10 +224,10 @@ export default function WarpAnalyzer({ sessionTheme }) {
   // Auto-select first banner when switching tabs to prevent stale selections
   useEffect(() => {
     if (activeBanners.length > 0) {
-      const currentExists = activeBanners.some(b => b.id === selectedBannerId);
+      const currentExists = activeBanners.some(b => getSelectableBannerId(b) === selectedBannerId);
       if (!currentExists) {
         // Current selection doesn't exist in new tab, switch to first available
-        setSelectedBannerId(activeBanners[0].id);
+        setSelectedBannerId(getSelectableBannerId(activeBanners[0]));
         setData(null); // Clear data for new selection
         setWinsOnlyMode(false);
       }
@@ -246,7 +252,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
   // Current selected banner
   const currentBanner = useMemo(() => {
-    return banners.find(b => b.id === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
+    return banners.find(b => getSelectableBannerId(b) === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
   }, [banners, selectedBannerId, activeBanners]);
 
   // Soft pity varies by game and banner type
@@ -286,17 +292,21 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
     console.log('\n=== WEBSITE WARP ANALYZER DEBUG ===');
     console.log('Selected Banner ID:', selectedBannerId);
-    console.log('Total 5* Wins:', data.stats.count_win_5);
-    console.log('Total 5* Losses:', data.stats.count_lose_5);
+    if (selectedGame === 'wuwa') {
+      console.log('Total 5* Pulls:', data.stats.total_pulls_5 || data.stats.count_win_5 || 0);
+    } else {
+      console.log('Total 5* Wins:', data.stats.count_win_5);
+      console.log('Total 5* Losses:', data.stats.count_lose_5);
+    }
 
-    const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5, softPityStart, softPityEnd });
+    const peaks = detectLuckyPeaks(pulls5, chance5, { topN: 3, minZScore: 0.5, softPityStart, softPityEnd, game: selectedGame });
     console.log('All Detected Peaks:', peaks.map(p => `Roll ${p.roll} (${(p.chance * 100).toFixed(2)}%)`));
 
     const metrics = calculateWarpMetrics(data.stats);
     console.log('===================================\n');
 
     return { peaks, metrics };
-  }, [data, selectedBannerId, softPityStart, softPityEnd]);
+  }, [data, selectedGame, selectedBannerId, softPityStart, softPityEnd]);
 
   // Wins-only analysis (Elite filter for "purer" results)
   const winsOnlyAnalysis = useMemo(() => {
@@ -341,24 +351,28 @@ export default function WarpAnalyzer({ sessionTheme }) {
     const peaks = activeAnalysis?.peaks || [];
     if (!peaks.length) return [];
 
-    const sortedPeaks = [...peaks].sort((a, b) => a.roll - b.roll);
+    const strategyCutoff = selectedGame === 'wuwa' ? hardPity : softPityStart;
+    const sortedPeaks = [...peaks]
+      .filter((peak) => peak.roll < strategyCutoff)
+      .sort((a, b) => a.roll - b.roll);
     const strategy = [];
     let currentRoll = 0;
 
     for (const peak of sortedPeaks) {
       const targetRoll = peak.roll;
 
-      // SWEEP PATH LOGIC: Singles first to align digit, then x10 to land.
-      const targetDigit = targetRoll % 10;
-      const currentDigit = currentRoll % 10;
-      const singlesNeeded = (targetDigit - currentDigit + 10) % 10;
+      const rollsToReach = targetRoll - currentRoll;
+      if (rollsToReach <= 0) continue;
 
-      // 1. Initial Singles to reach alignment
+      const singlesNeeded = rollsToReach % 10;
+      const x10Count = Math.floor(rollsToReach / 10);
+
       if (singlesNeeded > 0) {
+        const fromRoll = currentRoll;
         const nextRoll = currentRoll + singlesNeeded;
         strategy.push({
           type: 'x1',
-          from: currentRoll,
+          from: fromRoll,
           to: nextRoll,
           count: singlesNeeded,
           chance: (peak.chance * 100).toFixed(2)
@@ -366,48 +380,28 @@ export default function WarpAnalyzer({ sessionTheme }) {
         currentRoll = nextRoll;
       }
 
-      // 2. Multis to reach target decade
-      const distanceLeft = targetRoll - currentRoll;
-      if (distanceLeft > 0) {
-        const x10Count = Math.floor(distanceLeft / 10);
-        if (x10Count > 0) {
-          const nextRoll = currentRoll + (x10Count * 10);
-          strategy.push({
-            type: 'x10',
-            from: currentRoll,
-            to: nextRoll,
-            count: x10Count,
-            chance: (peak.chance * 100).toFixed(2)
-          });
-          currentRoll = nextRoll;
-        }
-      }
-
-      // 3. Final Landing check (should be 0 if math is right)
-      if (currentRoll < targetRoll) {
+      if (x10Count > 0) {
+        const nextRoll = currentRoll + (x10Count * 10);
         strategy.push({
-          type: 'x1',
+          type: 'x10',
           from: currentRoll,
-          to: targetRoll,
-          count: targetRoll - currentRoll,
+          to: nextRoll,
+          count: x10Count,
           chance: (peak.chance * 100).toFixed(2)
         });
-        currentRoll = targetRoll;
+        currentRoll = nextRoll;
       }
     }
     return strategy;
-  }, [activeAnalysis, hardPity]);
+  }, [activeAnalysis, selectedGame, hardPity, softPityStart]);
 
 
   const shortcutString = useMemo(() => {
     const peaks = activeAnalysis?.peaks || [];
     if (!peaks.length) return { string: "---", pity: [], path: [] };
 
-    // Include ALL peaks up to hard pity (90) to match Discord bot behavior
-    // This ensures pity rolls are shown in the lucky string
-    // Include ALL peaks up to hard pity (90) to match Discord bot behavior
-    // This ensures pity rolls are shown in the lucky string
-    const allPeaks = peaks.filter(p => p.roll <= hardPity).sort((a, b) => a.roll - b.roll);
+    const strategyCutoff = selectedGame === 'wuwa' ? hardPity : softPityStart;
+    const allPeaks = peaks.filter(p => p.roll < strategyCutoff).sort((a, b) => a.roll - b.roll);
     if (allPeaks.length === 0) return { string: "---", pity: [], path: [] };
 
     // SWEEP-ALIGNED ALGORITHM:
@@ -420,18 +414,13 @@ export default function WarpAnalyzer({ sessionTheme }) {
     let currentPosition = 0; // Track cumulative position
 
     for (const peak of allPeaks) {
-      // The "Shortcut Digit" is the final digit of the pity
       const targetDigit = peak.roll % 10;
       digits.push(targetDigit.toString());
       pityNumbers.push(peak.roll);
 
-      // RELATIVE SWEEP CALCULATION:
-      // How many singles to do NOW to align with the target's digit
+      const totalDistance = peak.roll - currentPosition;
       const currentDigit = currentPosition % 10;
       const singlesNeeded = (targetDigit - currentDigit + 10) % 10;
-      const totalDistance = peak.roll - currentPosition;
-
-      // Multis needed after the singles adjustment
       const x10Count = Math.floor((totalDistance - singlesNeeded) / 10);
 
       path.push({
@@ -453,7 +442,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
       path: path,
       isGlacial
     };
-  }, [activeAnalysis, selectedGame, bannerType]);
+  }, [activeAnalysis, selectedGame, hardPity, softPityStart]);
 
   return (
     <div className="min-h-screen text-slate-100 font-sans selection:bg-amber-500 selection:text-white pb-20 relative overflow-hidden">
@@ -554,6 +543,10 @@ export default function WarpAnalyzer({ sessionTheme }) {
                   <p className="border-t border-slate-800 pt-2 italic text-[10px]">
                     * This is not a magic prediction tool. It is a statistical analyzer of real pull data, highlighting rolls with the highest historical probability to trigger a 5★ drop.
                   </p>
+                  <p className="border-t border-slate-800 pt-2 text-[14px] text-slate-500">
+                    <span className="text-emerald-300 font-bold uppercase tracking-wider mr-1">ZZZ:</span>
+                    <span className="text-amber-400 font-bold uppercase tracking-wider mr-1"> Global stats for ZZZ are unavailable because zzz.rng.moe has been broken for months, so there is no reliable public data source to implement it safely.</span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -621,6 +614,17 @@ export default function WarpAnalyzer({ sessionTheme }) {
               )}
             </div>
 
+            {(selectedGame === 'genshin' || selectedGame === 'wuwa') && (
+              <div className="max-w-4xl mx-auto mb-6 border border-amber-500/25 bg-amber-950/20 rounded-lg px-4 py-3 text-xs text-amber-100/80">
+                <div className="flex items-start gap-3">
+                  <Icons.BarChart3 className="w-4 h-4 mt-0.5 text-amber-300 shrink-0" />
+                  <p>
+                    Genshin and WuWa use a combined global chart because Paimon.moe and WuWa Tracker publish one shared chart for the new character and rerun.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* PATCH INFO BAR */}
             <div className="max-w-4xl mx-auto mb-6">
               <PatchInfo game={selectedGame} />
@@ -649,7 +653,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
                 {activeBanners.map((banner, index, array) => {
-                  const isSelected = selectedBannerId === banner.id;
+                  const selectableId = getSelectableBannerId(banner);
+                  const isSelected = selectedBannerId === selectableId;
                   const prevBanner = index > 0 ? array[index - 1] : null;
                   const showSeparator = banner.separator && (!prevBanner || !prevBanner.collaboration);
 
@@ -673,7 +678,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                       <WarpBannerCard
                         banner={banner}
                         isSelected={isSelected}
-                        onClick={() => { setSelectedBannerId(banner.id); handleFetch(banner.id); }}
+                        onClick={() => { setSelectedBannerId(selectableId); handleFetch(selectableId); }}
                         index={index}
                         game={selectedGame}
                       />
@@ -914,8 +919,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     <button
                       onClick={() => setModalTab('hsr')}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${modalTab === 'hsr'
-                          ? 'bg-purple-600 text-white'
-                          : 'text-slate-400 hover:text-white bg-slate-800/50'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-slate-400 hover:text-white bg-slate-800/50'
                         }`}
                     >
                       <img src={`${import.meta.env.BASE_URL}HSRIcon.png`} alt="HSR" className="w-5 h-5 rounded-full" />
@@ -924,8 +929,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     <button
                       onClick={() => setModalTab('genshin')}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${modalTab === 'genshin'
-                          ? 'bg-amber-500 text-white'
-                          : 'text-slate-400 hover:text-white bg-slate-800/50'
+                        ? 'bg-amber-500 text-white'
+                        : 'text-slate-400 hover:text-white bg-slate-800/50'
                         }`}
                     >
                       <img src={`${import.meta.env.BASE_URL}genshinIcon.png`} alt="Genshin" className="w-5 h-5 rounded-full" />
@@ -934,8 +939,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     <button
                       onClick={() => setModalTab('wuwa')}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${modalTab === 'wuwa'
-                          ? 'bg-cyan-500 text-white'
-                          : 'text-slate-400 hover:text-white bg-slate-800/50'
+                        ? 'bg-cyan-500 text-white'
+                        : 'text-slate-400 hover:text-white bg-slate-800/50'
                         }`}
                     >
                       🌊
@@ -1046,10 +1051,12 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     {pullStrategy.map((step, i) => (
                       <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-mono border ${step.type === 'x10' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-slate-800/50 border-slate-700/50'}`}>
                         <span className={`font-bold ${step.type === 'x10' ? 'text-amber-400' : 'text-white'}`}>
-                          {step.type}
+                          {step.count > 1 ? `${step.type}×${step.count}` : step.type}
                         </span>
                         <span className="text-slate-400 text-[10px]">
-                          {step.from === 0 ? `→${step.to}` : `${step.from}→${step.to}`}
+                          {step.type === 'x1'
+                            ? (step.from === 0 ? `→${step.to}` : `${step.from + 1}→${step.to}`)
+                            : `${step.from}→${step.to}`}
                         </span>
                         <span className="text-amber-400 text-[10px]">{step.chance}%</span>
                       </div>
