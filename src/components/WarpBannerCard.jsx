@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
+import { resolveAssetCdnUrl } from '../utils/assetCdn.js';
+import { shouldUseCloudinaryAssets } from '../utils/cloudinaryPolicy.js';
 
 /**
  * Warp Banner Showcase — "Character Emerges from Void"
@@ -24,10 +26,12 @@ const ELEMENT_META = {
 
 function getHsrElementUrl(element) {
   if (!element) return null;
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  if (!cloudName) return null;
   const meta = ELEMENT_META[element.toLowerCase()];
   const folder = meta ? meta.folder : (element.charAt(0).toUpperCase() + element.slice(1).toLowerCase());
+  const cdnUrl = resolveAssetCdnUrl(`game/hsr/element_icon/${folder}.png`);
+  if (cdnUrl) return cdnUrl;
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  if (!shouldUseCloudinaryAssets() || !cloudName) return null;
   return `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_48/svarog-tracer/game/hsr/element_icon/${folder}`;
 }
 
@@ -168,8 +172,20 @@ export default function WarpBannerCard({
   }, [isSelected]);
 
   const handleImgError = (e) => {
+    if (banner.altPortrait && e.target.src !== banner.altPortrait) {
+      e.target.src = banner.altPortrait;
+      setImgError(false);
+      return;
+    }
+
+    if (banner.preview && e.target.src !== banner.preview) {
+      e.target.src = banner.preview;
+      setImgError(false);
+      return;
+    }
+
     if (isLightCone && banner.portrait && e.target.src === banner.portrait) {
-      const githubPreview = banner.lcPreview || `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${banner.characterId}.png`;
+      const githubPreview = banner.lcPreview || `https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/${banner.characterId}.png`;
       if (githubPreview && e.target.src !== githubPreview) {
         e.target.src = githubPreview;
         return;
@@ -183,12 +199,6 @@ export default function WarpBannerCard({
   };
 
   const handleImgLoad = () => setImgLoaded(true);
-
-  const getGlowColor = () => {
-    if (isSelected) return '245, 158, 11';
-    if (isLightCone || isWeapon) return '59, 130, 246';
-    return '168, 85, 247';
-  };
 
   const getGameAccentColor = () => {
     if (game === 'hsr') return { border: 'rgba(147, 51, 234, 0.6)', glow: 'rgba(147, 51, 234, 0.4)', shadow: '147, 51, 234' };
@@ -240,8 +250,10 @@ export default function WarpBannerCard({
           {!imgError ? (
             <img
               ref={imgRef}
-              src={banner.portrait || banner.image}
+              src={banner.portrait || banner.preview || banner.image}
               alt={banner.name}
+              loading={index < 4 ? 'eager' : 'lazy'}
+              fetchPriority={index < 4 ? 'high' : 'auto'}
               className={`
                 w-full h-full object-cover object-[center_8%]
                 transition-all duration-500 ease-out

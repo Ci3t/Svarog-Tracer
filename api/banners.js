@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_HOURS: 6,
-  CACHE_VERSION: 10,  // Bumped: delegated to individual services with Cloudinary primary
+  CACHE_VERSION: 11,  // Bumped: HSR portrait fields and current-row ordering
   TIMEOUT_MS: 8000,
 };
 
