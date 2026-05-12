@@ -35,7 +35,7 @@ async function callServiceHandler(handler) {
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_HOURS: 0.016, // ~1 minute cache
+  CACHE_HOURS: 6,
   CACHE_VERSION: 10,  // Bumped: delegated to individual services with Cloudinary primary
   TIMEOUT_MS: 8000,
 };
@@ -71,6 +71,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+  res.setHeader('CDN-Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
+  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -146,7 +149,6 @@ export default async function handler(req, res) {
     console.log(`[Banners API] Success! HSR:${response.hsr?.length || 0} Genshin:${response.genshin?.length || 0} WuWa:${response.wuwa?.length || 0}`);
 
     res.setHeader('X-Cache-Status', 'MISS');
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
     return res.status(200).json(response);
 
   } catch (error) {

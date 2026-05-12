@@ -7,13 +7,17 @@
 import { resolveHsrCharacterImage, resolveHsrLightConeImage } from '../../utils/gameAssetResolver.js';
 
 const HSR_FETCH_TIMEOUT_MS = 10000;
-const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
+const env = globalThis.process?.env || {};
+const FORCE_BANNER_FALLBACK = env.BANNER_FORCE_FALLBACK === 'true';
+const HSR_ASSET_CDN_BASE = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
 
 function buildHsrFallbackBanners() {
+  const characterIcon = (id) =>
+    `${HSR_ASSET_CDN_BASE}/icon/character/${id}.png`;
   const characterPortrait = (id) =>
-    resolveHsrCharacterImage(id, `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/${id}.png`);
+    resolveHsrCharacterImage(id, `${HSR_ASSET_CDN_BASE}/image/character_portrait/${id}.png`);
   const lightConePortrait = (id) =>
-    resolveHsrLightConeImage(id, `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${id}.png`);
+    resolveHsrLightConeImage(id, `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${id}.png`);
 
   return [
     {
@@ -33,7 +37,7 @@ function buildHsrFallbackBanners() {
       id: '2117_character',
       bannerId: '2117',
       name: 'The Dahlia',
-      image: characterPortrait('1321'),
+      image: characterIcon('1321'),
       portrait: characterPortrait('1321'),
       type: 'character',
       characterId: '1321',
@@ -45,7 +49,7 @@ function buildHsrFallbackBanners() {
       id: '2118_character',
       bannerId: '2118',
       name: 'Firefly',
-      image: characterPortrait('1310'),
+      image: characterIcon('1310'),
       portrait: characterPortrait('1310'),
       type: 'character',
       characterId: '1310',
@@ -57,7 +61,7 @@ function buildHsrFallbackBanners() {
       id: '2119_character',
       bannerId: '2119',
       name: 'Castorice',
-      image: characterPortrait('1407'),
+      image: characterIcon('1407'),
       portrait: characterPortrait('1407'),
       type: 'character',
       characterId: '1407',
@@ -149,7 +153,7 @@ export async function handler(req, res) {
   }
 
   if (FORCE_BANNER_FALLBACK) {
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
     return res.status(200).json(buildHsrFallbackBanners());
   }
   
@@ -262,7 +266,7 @@ export async function handler(req, res) {
 
     if (dedupedCandidates.length === 0) {
       console.log('[HSR Banners API] No active banners found');
-      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
       return res.status(200).json(buildHsrFallbackBanners());
     }
 
@@ -291,14 +295,14 @@ export async function handler(req, res) {
       // Check if it's a character
       if (charMap[charId]) {
         const char = charMap[charId];
-        const fallbackImage = `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${char.icon}`;
-        const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/${charId}`;
+        const fallbackImage = `${HSR_ASSET_CDN_BASE}/${char.icon}`;
+        const fallbackPortrait = `${HSR_ASSET_CDN_BASE}/image/character_portrait/${charId}.png`;
         return {
           id: `${banner.bannerId}_character`,
           bannerId: banner.bannerId,
           name: char.name,
           type: 'character',
-          image: resolveHsrCharacterImage(charId, fallbackPortrait),
+          image: fallbackImage,
           fallbackImage,
           portrait: resolveHsrCharacterImage(charId, fallbackPortrait),
           characterId: charId,
@@ -313,8 +317,8 @@ export async function handler(req, res) {
       // Check if it's a light cone
       if (lcMap[charId]) {
         const lc = lcMap[charId];
-        const fallbackImage = `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/${lc.icon}`;
-        const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/${charId}`;
+        const fallbackImage = `${HSR_ASSET_CDN_BASE}/${lc.icon}`;
+        const fallbackPortrait = `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${charId}.png`;
         return {
           id: `${banner.bannerId}_light_cone`,
           bannerId: banner.bannerId,
@@ -323,7 +327,7 @@ export async function handler(req, res) {
           image: resolveHsrLightConeImage(charId, fallbackPortrait),
           fallbackImage,
           portrait: resolveHsrLightConeImage(charId, fallbackPortrait),
-          lcPreview: `https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/${charId}.png`,
+          lcPreview: `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${charId}.png`,
           characterId: charId,
           rarity: lc.rarity || 5,
           game: 'hsr',
@@ -390,12 +394,12 @@ export async function handler(req, res) {
     console.log('[HSR Banners API] Returning banners:', banners.map(b => b.name).join(', '));
     
     // Cache for 5 minutes
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
     
     return res.status(200).json(banners);
   } catch (error) {
     console.error('[HSR Banners API] Error:', error);
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
     return res.status(200).json(buildHsrFallbackBanners());
   }
 }

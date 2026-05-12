@@ -6,6 +6,7 @@
 
 import { GENSHIN_BANNER_CONTROL } from './bannerControl.js';
 import { resolveGenshinCharacterImage, resolveGenshinWeaponImage } from '../../utils/gameAssetResolver.js';
+import { applyBannerAssetManifest } from '../../utils/bannerAssetManifest.js';
 
 const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
@@ -371,8 +372,8 @@ export async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   if (FORCE_BANNER_FALLBACK) {
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    return res.status(200).json(buildControlledFallbackBanners());
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    return res.status(200).json(await applyBannerAssetManifest(buildControlledFallbackBanners()));
   }
 
   try {
@@ -386,12 +387,12 @@ export async function handler(req, res) {
       allBanners.map(b => `${b.name} (${b.bannerId})`).join(', ')
     );
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    return res.status(200).json(allBanners);
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    return res.status(200).json(await applyBannerAssetManifest(allBanners));
   } catch (error) {
     console.error('[Genshin Banners API] Error, returning controlled fallback:', error);
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
-    return res.status(200).json(buildControlledFallbackBanners());
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
+    return res.status(200).json(await applyBannerAssetManifest(buildControlledFallbackBanners()));
   }
 
   /*
@@ -414,7 +415,7 @@ export async function handler(req, res) {
       allBanners.map(b => `${b.name} (${b.bannerId})`).join(', ')
     );
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
     return res.status(200).json(allBanners);
   } catch (error) {
     console.error('[Genshin Banners API] Fatal Error:', error);

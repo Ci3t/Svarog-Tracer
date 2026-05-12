@@ -643,11 +643,11 @@ export async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { data } = await getCavernData();
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=15, stale-while-revalidate=60');
+      res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=600');
       return res.status(200).json(data);
     } catch (error) {
       console.error('[Cavern API] GET error:', error);
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=15, stale-while-revalidate=60');
+      res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=600');
       return res.status(200).json(INITIAL_DATA);
     }
   }
