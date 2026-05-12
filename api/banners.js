@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_HOURS: 6,
-  CACHE_VERSION: 11,  // Bumped: HSR portrait fields and current-row ordering
+  CACHE_VERSION: 12,  // Bumped: invalidate stale cache, enforce 4+4 banner limit
   TIMEOUT_MS: 8000,
 };
 
