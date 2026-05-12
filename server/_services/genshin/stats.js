@@ -2,7 +2,9 @@
  * Genshin Stats API Endpoint
  * Fetches Genshin Impact statistics from paimon.moe
  */
-const LOCAL_SAFE_MODE = process.env.STATS_FORCE_FALLBACK === 'true';
+const LOCAL_SAFE_MODE = globalThis.process?.env?.STATS_FORCE_FALLBACK === 'true';
+const STATS_CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400';
+const FALLBACK_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300';
 
 function buildFallbackStats(id) {
   return {
@@ -49,7 +51,7 @@ export async function handler(req, res) {
   }
 
   if (LOCAL_SAFE_MODE) {
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    res.setHeader('Cache-Control', FALLBACK_CACHE_CONTROL);
     return res.status(200).json(buildFallbackStats(fetchId));
   }
   
@@ -114,12 +116,14 @@ export async function handler(req, res) {
     
     console.log('[Genshin API] Data received, total 5★ pulls:', result.stats.total_pulls_5);
     
-    // Cache for 5 minutes
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    res.setHeader('Cache-Control', STATS_CACHE_CONTROL);
+    res.setHeader('CDN-Cache-Control', STATS_CACHE_CONTROL);
+    res.setHeader('Vercel-CDN-Cache-Control', STATS_CACHE_CONTROL);
     
     return res.status(200).json(result);
   } catch (error) {
     console.error('[Genshin API] Error:', error);
+    res.setHeader('Cache-Control', FALLBACK_CACHE_CONTROL);
     return res.status(200).json(buildFallbackStats(fetchId));
   }
 }

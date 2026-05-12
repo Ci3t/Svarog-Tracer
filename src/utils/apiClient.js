@@ -9,15 +9,24 @@ const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
 const API_FETCH_TIMEOUT_MS = 12000;
 const API_CACHE_PREFIX = 'hsr-api-cache-v1:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
+const STATS_API_CACHE_TTL_MS = 60 * 60 * 1000;
+const BANNERS_API_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const apiMemoryCache = new Map();
 
+function getApiCacheTtlMs(key) {
+  if (/\/(?:hsr|genshin|wuwa|zzz)\/stats\?/i.test(key)) return STATS_API_CACHE_TTL_MS;
+  if (/\/(?:genshin|wuwa)\/banners$/i.test(key) || /\/banners(?:\?|$)/i.test(key)) return BANNERS_API_CACHE_TTL_MS;
+  return API_CACHE_TTL_MS;
+}
+
 function readApiCache(key) {
+  const ttlMs = getApiCacheTtlMs(key);
   const cached = apiMemoryCache.get(key);
-  if (cached && Date.now() - cached.savedAt < API_CACHE_TTL_MS) return cached.data;
+  if (cached && Date.now() - cached.savedAt < ttlMs) return cached.data;
   if (typeof localStorage === 'undefined') return null;
   try {
     const parsed = JSON.parse(localStorage.getItem(`${API_CACHE_PREFIX}${key}`) || 'null');
-    if (!parsed?.data || Date.now() - Number(parsed.savedAt || 0) >= API_CACHE_TTL_MS) return null;
+    if (!parsed?.data || Date.now() - Number(parsed.savedAt || 0) >= ttlMs) return null;
     apiMemoryCache.set(key, parsed);
     return parsed.data;
   } catch {

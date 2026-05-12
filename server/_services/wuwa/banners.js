@@ -6,6 +6,7 @@
  */
 
 import { resolveWuWaCharacterImage, resolveWuWaWeaponImage } from '../../utils/gameAssetResolver.js';
+import { applyBannerAssetManifest } from '../../utils/bannerAssetManifest.js';
 
 // Optional name overrides (used if HTML extraction fails or gives bad names)
 const WUWA_NAME_OVERRIDES = Object.freeze({
@@ -132,15 +133,15 @@ export async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   if (FORCE_BANNER_FALLBACK) {
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    return res.status(200).json(buildWuWaFallbackBanners());
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    return res.status(200).json(await applyBannerAssetManifest(buildWuWaFallbackBanners()));
   }
 
   try {
     const cacheValid = bannerCache.data && Date.now() - bannerCache.timestamp < CACHE_TTL_MS;
     if (cacheValid) {
-      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-      return res.status(200).json(bannerCache.data);
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+      return res.status(200).json(await applyBannerAssetManifest(bannerCache.data));
     }
 
     console.log('[WuWa Banners API] Fetching live banners dynamically...');
@@ -227,8 +228,8 @@ export async function handler(req, res) {
       timestamp: Date.now(),
     };
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    return res.status(200).json(safeBanners);
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    return res.status(200).json(await applyBannerAssetManifest(safeBanners));
   } catch (error) {
     console.error('[WuWa Banners API] Error:', error);
     const fallbackBanners = buildWuWaFallbackBanners();
@@ -236,6 +237,6 @@ export async function handler(req, res) {
       data: fallbackBanners,
       timestamp: Date.now(),
     };
-    return res.status(200).json(fallbackBanners);
+    return res.status(200).json(await applyBannerAssetManifest(fallbackBanners));
   }
 }

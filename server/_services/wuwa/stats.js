@@ -6,7 +6,9 @@
 import { parseWuWaHTML_Adaptive } from '../../utils/wuwaAdaptiveParser.js';
 
 const WUWA_FETCH_TIMEOUT_MS = 8000;
-const LOCAL_SAFE_MODE = process.env.STATS_FORCE_FALLBACK === 'true';
+const LOCAL_SAFE_MODE = globalThis.process?.env?.STATS_FORCE_FALLBACK === 'true';
+const STATS_CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400';
+const FALLBACK_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300';
 
 function buildWuWaStatsFallback(id, message = 'Local safe-mode fallback: live WuWa stats fetch skipped.') {
   return {
@@ -70,7 +72,7 @@ export async function handler(req, res) {
   }
 
   if (LOCAL_SAFE_MODE) {
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    res.setHeader('Cache-Control', FALLBACK_CACHE_CONTROL);
     return res.status(200).json(buildWuWaStatsFallback(id));
   }
   
@@ -123,7 +125,7 @@ export async function handler(req, res) {
                       html = await proxyRes.text();
                       if (html.includes('WuWa Tracker')) break;
                   }
-              } catch (e) { /* continue */ }
+              } catch { /* continue */ }
           }
       }
 
@@ -141,15 +143,18 @@ export async function handler(req, res) {
 
     if (!finalStats) {
       console.warn('[WuWa API] Parsing failed, returning fallback');
+      res.setHeader('Cache-Control', FALLBACK_CACHE_CONTROL);
       return res.status(200).json(buildWuWaStatsFallback(id, 'Stats processing failed - Anti-bot protection active'));
     }
     
-    // Cache for 5 minutes
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    res.setHeader('Cache-Control', STATS_CACHE_CONTROL);
+    res.setHeader('CDN-Cache-Control', STATS_CACHE_CONTROL);
+    res.setHeader('Vercel-CDN-Cache-Control', STATS_CACHE_CONTROL);
     
     return res.status(200).json(finalStats);
   } catch (error) {
     console.error('[WuWa API] Error:', error);
+    res.setHeader('Cache-Control', FALLBACK_CACHE_CONTROL);
     return res.status(200).json(buildWuWaStatsFallback(id, error.message));
   }
 }

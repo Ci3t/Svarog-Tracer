@@ -1,4 +1,5 @@
 import { getTursoClient, isTursoConfigured } from './kiyoClient.js';
+import { shouldUseCloudinaryAssets } from '../../utils/cloudinaryPolicy.js';
 
 const CLOUD_NAME = process.env.VITE_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
 
@@ -18,6 +19,10 @@ export async function handler(req, res) {
   const method = req.method;
   const slug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
   const subPath = slug ? slug.replace(/^assets\/?/, '').replace(/^\//, '') : '';
+
+  if (!shouldUseCloudinaryAssets()) {
+    return res.status(503).json({ error: 'Cloudinary assets disabled' });
+  }
 
   // GET /api/hsr/assets — list all assets or query by folder
   if (method === 'GET' && !subPath) {
