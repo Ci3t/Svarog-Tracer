@@ -68,3 +68,53 @@ export function buildApiUrl(path) {
 export function buildFallbackApiUrl(path) {
   return `${FALLBACK_API_BASE_URL}${path}`;
 }
+
+// =========================================================================
+// RUNTIME API ROUTING GUARD
+// Fetches public/api-routing.json to allow emergency bypass of Cloudflare
+// =========================================================================
+let runtimeRouting = null;
+let runtimeRoutingLoadedAt = 0;
+const RUNTIME_ROUTING_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function refreshRuntimeApiRouting() {
+  if (typeof window === 'undefined') return;
+  const now = Date.now();
+  if (runtimeRouting && now - runtimeRoutingLoadedAt < RUNTIME_ROUTING_MAX_AGE_MS) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api-routing.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && typeof data.mode === 'string') {
+      runtimeRouting = data;
+      runtimeRoutingLoadedAt = now;
+    }
+  } catch {
+    // Silent fail; keep previous or null
+  }
+}
+
+export function shouldBypassCloudflareRuntime() {
+  if (!runtimeRouting) return false;
+
+  // If mode is explicitly vercel, bypass Cloudflare
+  if (runtimeRouting.mode === 'vercel') return true;
+
+  // If disabledUntil is set and in the future, bypass Cloudflare
+  if (runtimeRouting.cloudflareDisabledUntilUtc) {
+    const disabledUntil = new Date(runtimeRouting.cloudflareDisabledUntilUtc);
+    if (!isNaN(disabledUntil.getTime()) && disabledUntil > new Date()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function getRuntimeRoutingBase() {
+  if (!runtimeRouting) return FALLBACK_API_BASE_URL;
+  return normalizeConfiguredApiBase(runtimeRouting.fallbackBase) || FALLBACK_API_BASE_URL;
+}

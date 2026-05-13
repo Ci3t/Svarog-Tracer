@@ -1,0 +1,8 @@
+{
+  "mode": "cloudflare",
+  "cloudflareBase": "https://svarog-api.ranigfx.workers.dev",
+  "fallbackBase": "https://svarog-tracer.vercel.app",
+  "cloudflareDisabledUntilUtc": null,
+  "reason": "",
+  "updatedAtUtc": "2026-05-14T00:00:00Z"
+}

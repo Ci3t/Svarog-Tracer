@@ -2,7 +2,13 @@
  * API Client for Backend
  * Tries Cloudflare Worker first, falls back to Vercel on timeout/error
  */
-import { API_BASE_URL, FALLBACK_API_BASE_URL } from './apiBase';
+import {
+  API_BASE_URL,
+  FALLBACK_API_BASE_URL,
+  refreshRuntimeApiRouting,
+  shouldBypassCloudflareRuntime,
+  getRuntimeRoutingBase,
+} from './apiBase';
 import { fetchJsonWithDedupe } from './requestDedupe';
 
 const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
@@ -91,11 +97,26 @@ export async function apiFetch(endpoint, options = {}) {
     if (cached) return cached;
   }
 
-  const primaryUrl = `${BACKEND_API_BASE_URL}${endpoint}`;
-  const fallbackUrl = `${FALLBACK_BACKEND_API_BASE_URL}${endpoint}`;
+  // Refresh runtime routing config before deciding which backend to use
+  await refreshRuntimeApiRouting();
+  const bypassCloudflare = shouldBypassCloudflareRuntime();
+
+  let primaryUrl;
+  let fallbackUrl;
+
+  if (bypassCloudflare) {
+    // Skip Cloudflare entirely; go straight to Vercel
+    const runtimeBase = getRuntimeRoutingBase();
+    primaryUrl = `${runtimeBase}/api${endpoint}`;
+    fallbackUrl = primaryUrl; // same — no double fallback
+  } else {
+    primaryUrl = `${BACKEND_API_BASE_URL}${endpoint}`;
+    fallbackUrl = `${FALLBACK_BACKEND_API_BASE_URL}${endpoint}`;
+  }
+
   const isFallbackSame = primaryUrl === fallbackUrl || !FALLBACK_BACKEND_API_BASE_URL;
 
-  // Try primary (Cloudflare) first
+  // Try primary (Cloudflare or direct Vercel if bypassed)
   try {
     const timeoutMs = Number(options.timeoutMs || CLOUDFLARE_TIMEOUT_MS);
     const data = await fetchSingle(primaryUrl, options, timeoutMs);
@@ -105,7 +126,7 @@ export async function apiFetch(endpoint, options = {}) {
     return data;
   } catch (primaryError) {
     // If no fallback configured or same as primary, throw
-    if (isFallbackSame) {
+    if (isFallbackSame || bypassCloudflare) {
       console.error(`[API Client] Primary failed, no fallback: ${endpoint}`, primaryError);
       throw primaryError;
     }
