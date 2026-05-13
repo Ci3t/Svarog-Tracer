@@ -6,11 +6,11 @@ import { buildApiUrl } from '../utils/apiBase';
 const PRESENCE_API = buildApiUrl('/api/presence');
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
-const ACTIVE_INTERVAL_MS = 15 * 60 * 1000;
-const ACTIVE_GRACE_MS = 5 * 60 * 1000;
-const DIRECTORY_REFRESH_MS = 8 * 60 * 1000;
-const PREDICTION_GRACE_MS = 5000;
-const ANONYMOUS_FETCH_INTERVAL_MS = 15 * 60 * 1000;
+const ACTIVE_INTERVAL_MS = 30 * 60 * 1000;
+const ACTIVE_GRACE_MS = 10 * 60 * 1000;
+const DIRECTORY_REFRESH_MS = 20 * 60 * 1000;
+const PREDICTION_GRACE_MS = 30000;
+const ANONYMOUS_FETCH_INTERVAL_MS = 30 * 60 * 1000;
 
 const generateSessionId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {

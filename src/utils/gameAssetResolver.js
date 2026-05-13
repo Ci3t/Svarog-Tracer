@@ -10,26 +10,36 @@ import { GENSHIN_NORMALIZED_MAP } from '../generated/cloudinary-genshin-map.js';
 import { WUWA_ASSET_MAP } from '../generated/cloudinary-wuwa-map.js';
 import { WUWA_WEAPON_MAP } from '../generated/cloudinary-wuwa-weapons-map.js';
 import { GENSHIN_WEAPON_MAP } from '../generated/cloudinary-genshin-weapons-map.js';
+import { resolveAssetCdnUrl } from './assetCdn.js';
+import { shouldUseCloudinaryAssets } from './cloudinaryPolicy.js';
 
 // ── HSR ──────────────────────────────────────────────────────────────
 
 export function resolveHsrCharacterImage(charId, fallbackUrl) {
   const key = `game/hsr/character_portrait/${charId}.png`;
+  const cdnUrl = resolveAssetCdnUrl(key);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   return CLOUDINARY_MAP[key] || fallbackUrl;
 }
 
 export function resolveHsrIconImage(charId, fallbackUrl) {
   const key = `game/hsr/character_icon/${charId}.png`;
+  const cdnUrl = resolveAssetCdnUrl(key);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   return CLOUDINARY_MAP[key] || fallbackUrl;
 }
 
 export function resolveHsrLightConeImage(lcId, fallbackUrl) {
-  return fallbackUrl;
+  const key = `game/hsr/lightcone_preview/${lcId}.png`;
+  return resolveAssetCdnUrl(key) || fallbackUrl;
 }
 
 // ── Genshin ──────────────────────────────────────────────────────────
 
 export function resolveGenshinCharacterImage(slug, fallbackUrl) {
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   const normalized = slug.toLowerCase().replace(/[^a-z0-9]/g, '');
   const entry = GENSHIN_NORMALIZED_MAP[normalized];
   if (!entry) return fallbackUrl;
@@ -37,6 +47,7 @@ export function resolveGenshinCharacterImage(slug, fallbackUrl) {
 }
 
 export function resolveGenshinWeaponImage(name, fallbackUrl) {
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   
   // 1. Try dedicated weapon map first
@@ -59,6 +70,7 @@ export function resolveGenshinWeaponImage(name, fallbackUrl) {
 // ── WuWa ─────────────────────────────────────────────────────────────
 
 export function resolveWuWaCharacterImage(name, fallbackUrl) {
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   
   for (const [filename, url] of Object.entries(WUWA_ASSET_MAP)) {
@@ -79,6 +91,7 @@ export function resolveWuWaCharacterImage(name, fallbackUrl) {
 }
 
 export function resolveWuWaWeaponImage(name, fallbackUrl) {
+  if (!shouldUseCloudinaryAssets()) return fallbackUrl;
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   
   // 1. Try dedicated weapon map first

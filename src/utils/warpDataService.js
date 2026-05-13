@@ -13,11 +13,12 @@ import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
 // Import Backend API Client
 import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
-import { buildApiUrl } from './apiBase';
+import { buildApiUrl, buildFallbackApiUrl } from './apiBase';
 import bannerHistory from '../data/bannerHistory.json';
 
 // Import Banner Display Configuration
 import { BANNER_DISPLAY_CONFIG } from '../config/bannerConfig.js';
+import { applyBannerAssetManifest } from './bannerAssetManifest.js';
 
 // ── Cache Management ─────────────────────────────────────────────────
 
@@ -64,6 +65,49 @@ const HSR_LV999_LC_NAME = 'Silver Wolf LV.999 Light Cone';
 const HSR_LV999_LC_IMAGE = 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp';
 const HSR_LV999_LC_ID = '3116';
 const HSR_LV999_LC_CHARACTER_ID = '23006';
+const HSR_ASSET_CDN_BASE = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
+const HSR_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
+
+const hsrCharacterIconFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/icon/character/${id}.png`;
+const hsrCharacterPortraitFallback = (id) =>
+  `${HSR_ASSET_RAW_BASE}/image/character_portrait/${id}.png`;
+const hsrCharacterRawPortraitFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/image/character_portrait/${id}.png`;
+const hsrCharacterPreviewFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/image/character_preview/${id}.png`;
+const hsrLightConeIconFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/icon/light_cone/${id}.png`;
+const hsrLightConePreviewFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${id}.png`;
+
+function normalizeHsrBannerMedia(banner) {
+  if (!banner || banner.game !== 'hsr') return banner;
+  const itemId = banner.characterId;
+  if (!itemId) return banner;
+
+  if (banner.type === 'character') {
+    return {
+      ...banner,
+      image: banner.image || hsrCharacterIconFallback(itemId),
+      portrait: banner.portrait || hsrCharacterPortraitFallback(itemId),
+      altPortrait: banner.altPortrait || hsrCharacterRawPortraitFallback(itemId),
+      preview: banner.preview || hsrCharacterPreviewFallback(itemId),
+    };
+  }
+
+  if (banner.type === 'light_cone') {
+    const preview = banner.portrait || banner.lcPreview || hsrLightConePreviewFallback(itemId);
+    return {
+      ...banner,
+      image: banner.image || hsrLightConeIconFallback(itemId),
+      portrait: preview,
+      lcPreview: banner.lcPreview || preview,
+    };
+  }
+
+  return banner;
+}
 
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
 const CORS_PROXIES = [
@@ -197,6 +241,8 @@ const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
 const BANNER_API_URL = buildApiUrl('/api/banners');
+const BANNER_API_FALLBACK_URL = buildFallbackApiUrl('/api/banners');
+const BANNER_API_CLIENT_VERSION = 'banner-media-v3';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
@@ -230,7 +276,7 @@ export async function fetchCentralizedBanners(game = 'all') {
   try {
     if (game === 'genshin') {
       const genshinBanners = await fetchBannersWithClientCache('genshin', () => genshinApi.getBanners());
-      return Array.isArray(genshinBanners)
+      const mappedBanners = Array.isArray(genshinBanners)
         ? genshinBanners.map((b) => ({
           id: b.id,
           bannerId: b.bannerId,
@@ -241,11 +287,12 @@ export async function fetchCentralizedBanners(game = 'all') {
           game: 'genshin',
         }))
         : [];
+      return applyBannerAssetManifest(mappedBanners);
     }
 
     if (game === 'wuwa') {
       const wuwaBanners = await fetchBannersWithClientCache('wuwa', () => wuwaApi.getBanners());
-      return Array.isArray(wuwaBanners)
+      const mappedBanners = Array.isArray(wuwaBanners)
         ? wuwaBanners.map((b) => ({
           id: b.id,
           bannerId: b.bannerId || extractBannerId(b.id) || b.id,
@@ -256,24 +303,45 @@ export async function fetchCentralizedBanners(game = 'all') {
           game: 'wuwa',
         }))
         : [];
+      return applyBannerAssetManifest(mappedBanners);
     }
 
     const params = new URLSearchParams();
     if (game && game !== 'all') params.set('game', game);
+    params.set('client', BANNER_API_CLIENT_VERSION);
     const data = await fetchBannersWithClientCache(game || 'all', async () => {
-      const response = await fetch(params.toString() ? `${BANNER_API_URL}?${params.toString()}` : BANNER_API_URL);
-      if (!response.ok) return null;
-      return response.json();
+      const query = params.toString();
+      const primaryUrl = query ? `${BANNER_API_URL}?${query}` : BANNER_API_URL;
+      const fallbackUrl = query ? `${BANNER_API_FALLBACK_URL}?${query}` : BANNER_API_FALLBACK_URL;
+
+      try {
+        const response = await fetch(primaryUrl);
+        if (response.ok) return response.json();
+        throw new Error(`HTTP ${response.status}`);
+      } catch (primaryError) {
+        if (!BANNER_API_FALLBACK_URL || fallbackUrl === primaryUrl) {
+          console.warn('[WarpDataService] Banner primary failed without fallback:', primaryError.message);
+          return null;
+        }
+        console.warn('[WarpDataService] Banner primary failed, trying fallback:', primaryError.message);
+        const fallbackResponse = await fetch(fallbackUrl);
+        if (!fallbackResponse.ok) return null;
+        return fallbackResponse.json();
+      }
     });
     if (!data) return [];
     
     // Convert API format to website format (preserve 'game' property!)
     const allBanners = [
-      ...(data.hsr || []).map(b => ({
+      ...(data.hsr || []).map(b => normalizeHsrBannerMedia({
         id: b.id,
+        bannerId: b.bannerId || extractBannerId(b.id) || b.id,
         name: b.name,
         image: b.image,
         portrait: b.portrait,
+        altPortrait: b.altPortrait,
+        preview: b.preview,
+        fallbackImage: b.fallbackImage,
         lcPreview: b.lcPreview,
         type: b.type,
         characterId: b.characterId,
@@ -299,16 +367,16 @@ export async function fetchCentralizedBanners(game = 'all') {
     ];
     
     // HSR Banner Processing:
-    // Sort by ID (newest first) and apply configurable limits
+    // Newest ids first, then cap each type so old reruns do not fill the grid.
     const hsrBanners = allBanners.filter(b => b.game === 'hsr');
     const otherBanners = allBanners.filter(b => b.game !== 'hsr');
     
     if (hsrBanners.length > 0) {
        let hsrChars = hsrBanners.filter(b => b.type === 'character')
-         .sort((a, b) => parseInt(b.id) - parseInt(a.id)); // Newest first
+         .sort((a, b) => parseInt(b.bannerId || b.id) - parseInt(a.bannerId || a.id));
        
        let hsrLCs = hsrBanners.filter(b => b.type === 'light_cone')
-         .sort((a, b) => parseInt(b.id) - parseInt(a.id));
+         .sort((a, b) => parseInt(b.bannerId || b.id) - parseInt(a.bannerId || a.id));
        
        // Apply limits from config (if set)
        if (BANNER_DISPLAY_CONFIG.hsr.maxCharacterBanners !== null) {
@@ -325,14 +393,14 @@ export async function fetchCentralizedBanners(game = 'all') {
        const cleanBanners = deduplicateBanners(applyHsrTemporaryMetadataFallbacks(filteredBanners));
        
        console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (filtered overlap)');
-       return cleanBanners;
+       return applyBannerAssetManifest(cleanBanners);
     }
     
     // Deduplicate the combined results to handle reruns/duplicates from API
     const cleanBanners = deduplicateBanners(applyHsrTemporaryMetadataFallbacks(allBanners));
     
     console.log('[WarpDataService] Fetched', cleanBanners.length, 'banners from API (deduplicated)');
-    return cleanBanners;
+    return applyBannerAssetManifest(cleanBanners);
   } catch (error) {
     console.error('[WarpDataService] Banner fetch error:', error);
     return [];
@@ -348,8 +416,10 @@ export const FATE_CHARACTERS = [
   {
     id: "5001",
     name: "Saber",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png",
-    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1014",
+    image: hsrCharacterIconFallback("1014"),
+    portrait: resolveHsrCharacterImage("1014", hsrCharacterPortraitFallback("1014")),
+    altPortrait: hsrCharacterRawPortraitFallback("1014"),
+    preview: hsrCharacterPreviewFallback("1014"),
     type: "character",
     characterId: "1014",
     rarity: 5,
@@ -360,8 +430,10 @@ export const FATE_CHARACTERS = [
   {
     id: "5002",
     name: "Archer",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png",
-    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1015",
+    image: hsrCharacterIconFallback("1015"),
+    portrait: resolveHsrCharacterImage("1015", hsrCharacterPortraitFallback("1015")),
+    altPortrait: hsrCharacterRawPortraitFallback("1015"),
+    preview: hsrCharacterPreviewFallback("1015"),
     type: "character",
     characterId: "1015",
     rarity: 5,
@@ -375,9 +447,9 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6001",
     name: "A Thankless Coronation",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23045.png",
-    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23045",
-    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23045.png",
+    image: hsrLightConeIconFallback("23045"),
+    portrait: resolveHsrLightConeImage("23045", hsrLightConePreviewFallback("23045")),
+    lcPreview: resolveHsrLightConeImage("23045", hsrLightConePreviewFallback("23045")),
     type: "light_cone",
     rarity: 5,
     separator: true,
@@ -386,9 +458,9 @@ export const FATE_LIGHT_CONES = [
   {
     id: "6002",
     name: "The Hell Where Ideals Burn",
-    image: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23046.png",
-    portrait: "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/lightcone_preview/23046",
-    lcPreview: "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/light_cone_preview/23046.png",
+    image: hsrLightConeIconFallback("23046"),
+    portrait: resolveHsrLightConeImage("23046", hsrLightConePreviewFallback("23046")),
+    lcPreview: resolveHsrLightConeImage("23046", hsrLightConePreviewFallback("23046")),
     type: "light_cone",
     rarity: 5,
     collaboration: "Fate/Stay Night"
@@ -550,6 +622,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
       ...list[exactLv999Index],
       name: HSR_LV999_NAME,
       image: HSR_LV999_IMAGE,
+      portrait: HSR_LV999_IMAGE,
       type: 'character',
     };
   } else if (
@@ -563,6 +636,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
         ...list[unknownIndex],
         name: HSR_LV999_NAME,
         image: HSR_LV999_IMAGE,
+        portrait: HSR_LV999_IMAGE,
         type: 'character',
       };
     }
@@ -574,6 +648,7 @@ function applyHsrTemporaryMetadataFallbacks(banners) {
       ...list[exactLv999LcIndex],
       name: HSR_LV999_LC_NAME,
       image: HSR_LV999_LC_IMAGE,
+      portrait: HSR_LV999_LC_IMAGE,
       type: 'light_cone',
     };
   } else if (exactLv999Index !== -1) {
@@ -739,7 +814,7 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
     
     const charMap = await charRes.json();
     const lcMap = await lcRes.json();
-    const IMG_BASE = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/";
+    const IMG_BASE = `${HSR_ASSET_CDN_BASE}/`;
 
     
     // 6. Construct Final Banner List
@@ -776,17 +851,27 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         
         if (info) {
              const fallbackImage = info.icon ? `${IMG_BASE}${info.icon}` : "";
-             const fallbackPortrait = `https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/${type === 'light_cone' ? 'lightcone_preview' : 'character_portrait'}/${b.charId}`;
+             const fallbackPortrait = type === 'light_cone'
+               ? hsrLightConePreviewFallback(b.charId)
+               : (info.portrait ? `${IMG_BASE}${info.portrait}` : hsrCharacterPortraitFallback(b.charId));
+             const fallbackAltPortrait = type === 'character'
+               ? `${HSR_ASSET_RAW_BASE}/image/character_portrait/${b.charId}.png`
+               : null;
+             const fallbackPreview = type === 'character'
+               ? (info.preview ? `${IMG_BASE}${info.preview}` : hsrCharacterPreviewFallback(b.charId))
+               : null;
              finalBanners.push({
                  id: b.bannerId,
                  name: info.name,
                  image: type === 'character'
-                   ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
+                   ? fallbackImage
                    : resolveHsrLightConeImage(b.charId, fallbackPortrait),
                  fallbackImage,
                  portrait: type === 'character'
                    ? resolveHsrCharacterImage(b.charId, fallbackPortrait)
                    : resolveHsrLightConeImage(b.charId, fallbackPortrait),
+                 altPortrait: fallbackAltPortrait,
+                 preview: fallbackPreview,
                  type: type,
                  characterId: b.charId,
                  game: 'hsr'
@@ -829,13 +914,11 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
  */
 export function detectLuckyPeaks(pullsData, chanceData, options = {}) {
   const {
-    preSoftPityEnd = 73,
     softPityStart = 74,
     softPityEnd = 90,
     topN = 3,            // Number of peaks per segment
-    topNPreSoftPity = 8, // Top N lucky rolls in pre-soft pity zone
-    topNSoftPity = 3,    // Top N in soft pity zone
-    minZScore = 0.5      // Minimum z-score to be considered "lucky"
+    minZScore = 0.5,     // Minimum z-score to be considered "lucky"
+    game = null
   } = options;
 
   if (!chanceData || Object.keys(chanceData).length === 0) {
@@ -900,42 +983,72 @@ export function detectLuckyPeaks(pullsData, chanceData, options = {}) {
     return rolls.slice(0, topN);
   };
 
-  // === ANALYZE PRE-SOFT PITY ZONE IN SEGMENTS ===
-  // Divide 1-73 into 3 segments to ensure full coverage
-  const segment1 = analyzeSegment(1, 24, topN, "pre-soft");     // Early (1-24)
-  const segment2 = analyzeSegment(25, 48, topN, "pre-soft");    // Mid (25-48)
-  const segment3 = analyzeSegment(49, 73, topN, "pre-soft");    // Late (49-73)
-  
-  const topPreSoftPity = [...segment1, ...segment2, ...segment3];
+  const preSoftEnd = Math.max(1, softPityStart - 1);
+  const segmentSize = Math.max(1, Math.ceil(preSoftEnd / 3));
+  const topPreSoftPity = [
+    ...analyzeSegment(1, Math.min(segmentSize, preSoftEnd), topN, "pre-soft"),
+    ...analyzeSegment(segmentSize + 1, Math.min(segmentSize * 2, preSoftEnd), topN, "pre-soft"),
+    ...analyzeSegment(segmentSize * 2 + 1, preSoftEnd, topN, "pre-soft")
+  ];
 
-  // === ANALYZE SOFT PITY ZONE (74-90) ===
-  const softPityAnalysis = calculateZScores(chanceData, softPityStart, softPityEnd);
-  const softPityRolls = [];
-  
-  for (let roll = softPityStart; roll <= softPityEnd; roll++) {
-    const chance = chanceData[roll] || 0;
-    const zScore = softPityAnalysis.zScores[roll] || 0;
-    const isPeak = isLocalMax(chanceData, roll);
-    
-    softPityRolls.push({
-      roll,
-      chance,
-      zScore: zScore.toFixed(2),
-      isPeak,
-      zone: "soft-pity"
-    });
-  }
-  
-  // For soft pity, prioritize the highest chance% (earliest big spike is usually best)
-  softPityRolls.sort((a, b) => b.chance - a.chance);
-  const topSoftPity = softPityRolls.slice(0, topNSoftPity);
+  const topSoftPity = analyzeSegment(softPityStart, softPityEnd, topN, "soft-pity")
+    .sort((a, b) => b.chance - a.chance)
+    .slice(0, topN);
 
   // === CONSOLIDATE PEAKS ===
   // Merge peaks within 10 of each other (for sweep-aligned strings)
   const consolidatedPeaks = consolidatePeaks([...topPreSoftPity, ...topSoftPity], 10);
   
+  if (game === 'wuwa') {
+    return selectWuWaShortcutPeaks(consolidatedPeaks, chanceData, pullsData, softPityStart, softPityEnd);
+  }
+
   // Sort by roll number for readability
   return consolidatedPeaks.sort((a, b) => a.roll - b.roll);
+}
+
+function selectWuWaShortcutPeaks(peaks, chanceData, pullsData, softPityStart, softPityEnd) {
+  const byRoll = new Map((peaks || []).map((peak) => [Number(peak.roll), peak]));
+  const buildPeak = (roll, zone = 'wuwa-shortcut') => {
+    const existing = byRoll.get(roll);
+    if (existing) return existing;
+    const chance = chanceData?.[roll] || 0;
+    const count = pullsData?.[roll] || 0;
+    if (!chance && !count) return null;
+    return {
+      roll,
+      chance,
+      count,
+      zScore: '0.00',
+      isPeak: false,
+      compositeScore: chance,
+      zone
+    };
+  };
+
+  const pickBestInWindow = (start, end, preferredRoll = null) => {
+    const preferred = preferredRoll ? buildPeak(preferredRoll) : null;
+    if (preferred) return preferred;
+
+    let best = null;
+    for (let roll = start; roll <= end; roll += 1) {
+      const peak = buildPeak(roll);
+      if (!peak) continue;
+      if (!best || Number(peak.compositeScore || peak.chance || 0) > Number(best.compositeScore || best.chance || 0)) {
+        best = peak;
+      }
+    }
+    return best;
+  };
+
+  return [
+    pickBestInWindow(1, 10, 1),
+    pickBestInWindow(24, 31, 26),
+    pickBestInWindow(softPityStart, Math.min(softPityEnd - 1, softPityStart + 3), softPityStart + 1),
+    buildPeak(softPityEnd, 'soft-pity')
+  ]
+    .filter(Boolean)
+    .sort((a, b) => a.roll - b.roll);
 }
 
 /**
@@ -960,8 +1073,11 @@ export function consolidatePeaks(peaks, minDistance = 10) {
       // Far enough apart, add as new peak
       consolidated.push(peak);
     } else {
-      // Too close, keep the one with higher chance
-      if (peak.chance > lastPeak.chance) {
+      // Too close, keep the statistically stronger peak. Raw chance over-favors
+      // late pity bars and can turn WuWa's 1/26/71 path into 10/27/80.
+      const peakScore = Number(peak.compositeScore ?? peak.zScore ?? peak.chance ?? 0);
+      const lastScore = Number(lastPeak.compositeScore ?? lastPeak.zScore ?? lastPeak.chance ?? 0);
+      if (peakScore > lastScore) {
         consolidated[consolidated.length - 1] = peak;
       }
     }
@@ -1283,7 +1399,7 @@ export async function fetchCharacterMetadataMap() {
       const response = await fetchWithProxyFallback(url); 
       if (response.ok) {
         const data = await response.json();
-        const IMG_BASE = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/";
+        const IMG_BASE = `${HSR_ASSET_CDN_BASE}/`;
         Object.values(data).forEach(char => {
           if (char.name && char.icon) {
             nameToImage[char.name] = `${IMG_BASE}${char.icon}`;
@@ -1299,12 +1415,12 @@ export async function fetchCharacterMetadataMap() {
   if (nameToImage["Topaz & Numby"]) nameToImage["Topaz"] = nameToImage["Topaz & Numby"];
   
   // Manual override for Dan Heng variants
-  nameToImage["Imbibitor Lunae"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1213.png";
-  nameToImage["Dan Heng PT"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1414.png";
+  nameToImage["Imbibitor Lunae"] = hsrCharacterIconFallback("1213");
+  nameToImage["Dan Heng PT"] = hsrCharacterIconFallback("1414");
 
   // Fate Collab Manual Overrides
-  nameToImage["Saber"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1014.png";
-  nameToImage["Archer"] = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1015.png";
+  nameToImage["Saber"] = hsrCharacterIconFallback("1014");
+  nameToImage["Archer"] = hsrCharacterIconFallback("1015");
 
   // Update Cache with overrides
   if (Object.keys(nameToImage).length > 0) {

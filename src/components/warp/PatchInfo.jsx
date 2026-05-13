@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGameTheme } from './GameTheme';
-import { buildApiUrl } from '../../utils/apiBase';
+import { apiFetch } from '../../utils/apiClient.js';
 
 const FALLBACK_PATCH_INFO = {
   hsr: { patch: '3.7', startDate: '2026-04-22', totalDays: 42 },
@@ -45,11 +45,7 @@ export default function PatchInfo({ game }) {
     let cancelled = false;
     setLoading(true);
 
-    fetch(buildApiUrl(`/api/patch-timers?game=${game}`))
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+    apiFetch(`/patch-timers?game=${game}`)
       .then(data => {
         if (!cancelled && data?.patch) setPatchData(data);
       })

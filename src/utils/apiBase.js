@@ -41,8 +41,28 @@ function resolveApiBaseUrl() {
 export const API_BASE_URL = resolveApiBaseUrl();
 export const FALLBACK_API_BASE_URL = configuredFallbackBase || REMOTE_API_BASE_URL;
 
+const CLOUDFLARE_ROUTE_PATTERNS = [
+  /^\/api\/banners(?:\?|$)/,
+  /^\/api\/hsr\/stats(?:\?|$)/,
+  /^\/api\/genshin\/stats(?:\?|$)/,
+  /^\/api\/wuwa\/stats(?:\?|$)/,
+  /^\/api\/patch-timers(?:\?|$)/,
+  /^\/api\/presence(?:\?|$)/,
+  /^\/api\/hsr\/kiyo\/patch(?:\?|$)/,
+];
+
+export function shouldUseCloudflareApi(path) {
+  const normalizedPath = String(path || '');
+  return CLOUDFLARE_ROUTE_PATTERNS.some((pattern) => pattern.test(normalizedPath));
+}
+
+function resolveApiBaseForPath(path) {
+  if (!configuredApiBase) return API_BASE_URL;
+  return shouldUseCloudflareApi(path) ? API_BASE_URL : FALLBACK_API_BASE_URL;
+}
+
 export function buildApiUrl(path) {
-  return `${API_BASE_URL}${path}`;
+  return `${resolveApiBaseForPath(path)}${path}`;
 }
 
 export function buildFallbackApiUrl(path) {

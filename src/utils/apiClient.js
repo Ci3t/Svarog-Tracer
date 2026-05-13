@@ -83,7 +83,7 @@ async function fetchSingle(url, options = {}, timeoutMs = API_FETCH_TIMEOUT_MS) 
 /**
  * Generic fetch wrapper with Cloudflare -> Vercel fallback
  */
-async function apiFetch(endpoint, options = {}) {
+export async function apiFetch(endpoint, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   const cacheKey = method === 'GET' ? endpoint : '';
   if (cacheKey && options.cacheClient !== false) {

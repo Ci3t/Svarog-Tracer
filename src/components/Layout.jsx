@@ -127,7 +127,7 @@ export default function Layout({
     refreshPresence({ includeUsers: true });
     const timer = window.setInterval(() => {
       refreshPresence({ includeUsers: true });
-    }, 10 * 60 * 1000);
+    }, 20 * 60 * 1000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, membersDrawerOpen, refreshPresence]);
 
