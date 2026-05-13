@@ -15,6 +15,7 @@ function normalizeConfiguredApiBase(value) {
 }
 
 const configuredApiBase = normalizeConfiguredApiBase(import.meta.env.VITE_API_BASE_URL);
+const configuredFallbackBase = normalizeConfiguredApiBase(import.meta.env.VITE_API_FALLBACK_BASE_URL);
 const forceRemoteApi = String(import.meta.env.VITE_FORCE_REMOTE_API || '').trim().toLowerCase() === 'true';
 const REMOTE_API_BASE_URL = 'https://svarog-tracer.vercel.app';
 
@@ -38,7 +39,12 @@ function resolveApiBaseUrl() {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+export const FALLBACK_API_BASE_URL = configuredFallbackBase || REMOTE_API_BASE_URL;
 
 export function buildApiUrl(path) {
   return `${API_BASE_URL}${path}`;
+}
+
+export function buildFallbackApiUrl(path) {
+  return `${FALLBACK_API_BASE_URL}${path}`;
 }
