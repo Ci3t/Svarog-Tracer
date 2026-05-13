@@ -48,7 +48,8 @@ import { useProfileMarketplace } from '../hooks/useProfileMarketplace';
 import { useOwnedRoster } from '../hooks/useOwnedRoster';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import { withBaseUrl } from '../utils/assetPaths';
-import { buildApiUrl } from '../utils/apiBase';
+import { buildApiUrl, buildVercelApiUrl } from '../utils/apiBase';
+import { apiFetch } from '../utils/apiClient';
 import UserIdentityBlock, { AnimatedTitleText } from '../components/UserIdentityBlock';
 import OwnedRosterPanel from '../components/zone/OwnedRosterPanel';
 import {
@@ -918,9 +919,8 @@ function PatchTimerAdminView() {
 
   // Fetch from server on load
   useEffect(() => {
-    fetch(buildApiUrl('/api/patch-timers'))
-      .then(r => r.json())
-      .then(data => {
+    apiFetch('/patch-timers')
+      .then((data) => {
         const next = {};
         for (const [game, info] of Object.entries(data)) {
           next[game] = {
@@ -943,7 +943,8 @@ function PatchTimerAdminView() {
 
   const saveToServer = async (game, patch) => {
     try {
-      const res = await fetch(buildApiUrl('/api/patch-timers'), {
+      // POST /admin/write routes must bypass Cloudflare and go directly to Vercel
+      const res = await fetch(buildVercelApiUrl('/api/patch-timers'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1077,7 +1078,8 @@ function AdminView({ getAuthHeader, discordUserId }) {
   const loadUsers = useCallback(async () => {
     setAdminUsersLoading(true);
     try {
-      const res = await fetch(buildApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      // Admin routes bypass Cloudflare and go directly to Vercel
+      const res = await fetch(buildVercelApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to load users.');
       setAdminUsers(Array.isArray(data?.users) ? data.users : []);
@@ -1091,9 +1093,8 @@ function AdminView({ getAuthHeader, discordUserId }) {
   const loadPatch = useCallback(async () => {
     setPatchLoading(true);
     try {
-      const res = await fetch(buildApiUrl('/api/hsr/kiyo/patch'));
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) setPatchConfig(data);
+      const data = await apiFetch('/hsr/kiyo/patch');
+      if (data) setPatchConfig(data);
     } catch {}
     finally { setPatchLoading(false); }
   }, []);
@@ -1109,7 +1110,8 @@ function AdminView({ getAuthHeader, discordUserId }) {
     setActionLoading(true);
     setActionMessage('');
     try {
-      const res = await fetch(buildApiUrl('/api/admin-users'), {
+      // POST /admin/write routes must bypass Cloudflare and go directly to Vercel
+      const res = await fetch(buildVercelApiUrl('/api/admin-users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ action, userId: selectedUserId, reason: banReason }),
@@ -1145,7 +1147,8 @@ function AdminView({ getAuthHeader, discordUserId }) {
         body.phase_1_days = Number(phase1Days) || 21;
         body.phase_2_days = Number(phase2Days) || 21;
       }
-      const res = await fetch(buildApiUrl('/api/hsr/kiyo/admin'), {
+      // POST /admin/write routes must bypass Cloudflare and go directly to Vercel
+      const res = await fetch(buildVercelApiUrl('/api/hsr/kiyo/admin'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

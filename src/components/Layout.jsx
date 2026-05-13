@@ -32,7 +32,7 @@ import { getSessionThemeConfig, THEME_OPTIONS } from '../theme/sessionThemeConfi
 import { useAuth } from '../hooks/useAuth';
 import { usePresenceContext } from '../contexts/PresenceContext';
 import { withBaseUrl } from '../utils/assetPaths';
-import { buildApiUrl } from '../utils/apiBase';
+import { buildApiUrl, buildVercelApiUrl } from '../utils/apiBase';
 import { UserIdentityCard } from './UserIdentityBlock';
 import { getAvatarFrameStyle, resolveEquippedCosmeticsFromMetadata } from '../utils/marketplaceCatalog';
 import { SITE_VERSION } from '../constants/siteVersion';
@@ -135,7 +135,8 @@ export default function Layout({
     if (!isAuthenticated || roleMode !== 'admin') return;
     setAdminUsersLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      // Admin routes bypass Cloudflare and go directly to Vercel
+      const response = await fetch(buildVercelApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Failed to load users.');
       setAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
@@ -161,7 +162,8 @@ export default function Layout({
     if (adminModerationMode === 'ban' && !adminBanReason.trim()) return;
     setAdminUserActionLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/admin-users'), {
+      // Admin routes bypass Cloudflare and go directly to Vercel
+      const response = await fetch(buildVercelApiUrl('/api/admin-users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ action: adminModerationMode, userId: selectedAdminUserId, reason: adminBanReason }),

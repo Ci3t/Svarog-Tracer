@@ -13,7 +13,7 @@ import { parseWuWaHTML_Adaptive } from './wuwaAdaptiveParser.js';
 
 // Import Backend API Client
 import { hsrApi, genshinApi, wuwaApi, zzzApi } from './apiClient.js';
-import { buildApiUrl, buildFallbackApiUrl } from './apiBase';
+import { buildApiUrl, buildFallbackApiUrl, refreshRuntimeApiRouting } from './apiBase';
 import bannerHistory from '../data/bannerHistory.json';
 
 // Import Banner Display Configuration
@@ -240,8 +240,6 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_URL = buildApiUrl('/api/banners');
-const BANNER_API_FALLBACK_URL = buildFallbackApiUrl('/api/banners');
 const BANNER_API_CLIENT_VERSION = 'banner-media-v3';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
@@ -274,6 +272,9 @@ async function fetchBannersWithClientCache(game, loader) {
 // Fetch ALL game banners from centralized API (HSR, Genshin, WuWa)
 export async function fetchCentralizedBanners(game = 'all') {
   try {
+    // Ensure runtime routing guard is fresh before choosing API base
+    await refreshRuntimeApiRouting();
+
     if (game === 'genshin') {
       const genshinBanners = await fetchBannersWithClientCache('genshin', () => genshinApi.getBanners());
       const mappedBanners = Array.isArray(genshinBanners)
@@ -311,15 +312,17 @@ export async function fetchCentralizedBanners(game = 'all') {
     params.set('client', BANNER_API_CLIENT_VERSION);
     const data = await fetchBannersWithClientCache(game || 'all', async () => {
       const query = params.toString();
-      const primaryUrl = query ? `${BANNER_API_URL}?${query}` : BANNER_API_URL;
-      const fallbackUrl = query ? `${BANNER_API_FALLBACK_URL}?${query}` : BANNER_API_FALLBACK_URL;
+      const primaryUrlBase = buildApiUrl('/api/banners');
+      const fallbackUrlBase = buildFallbackApiUrl('/api/banners');
+      const primaryUrl = query ? `${primaryUrlBase}?${query}` : primaryUrlBase;
+      const fallbackUrl = query ? `${fallbackUrlBase}?${query}` : fallbackUrlBase;
 
       try {
         const response = await fetch(primaryUrl);
         if (response.ok) return response.json();
         throw new Error(`HTTP ${response.status}`);
       } catch (primaryError) {
-        if (!BANNER_API_FALLBACK_URL || fallbackUrl === primaryUrl) {
+        if (!fallbackUrlBase || fallbackUrl === primaryUrl) {
           console.warn('[WarpDataService] Banner primary failed without fallback:', primaryError.message);
           return null;
         }

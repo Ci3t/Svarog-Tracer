@@ -37,3 +37,17 @@ jobs:
             git commit -m "chore(api-routing): auto-switch due to worker quota monitor"
             git push
           fi
+
+      - name: Sync api-routing.json to gh-pages (live site)
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages
+          cp public/api-routing.json api-routing.json
+          git add api-routing.json
+          if git diff --cached --quiet; then
+            echo "No changes to sync to gh-pages"
+          else
+            git commit -m "chore(api-routing): sync live routing config from monitor"
+            git push origin gh-pages
+          fi
+          git checkout -

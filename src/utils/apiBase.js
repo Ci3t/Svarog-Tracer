@@ -57,6 +57,10 @@ export function shouldUseCloudflareApi(path) {
 }
 
 function resolveApiBaseForPath(path) {
+  // Runtime routing guard: if Cloudflare is disabled, use fallback base for all paths
+  if (shouldBypassCloudflareRuntime()) {
+    return getRuntimeRoutingBase();
+  }
   if (!configuredApiBase) return API_BASE_URL;
   return shouldUseCloudflareApi(path) ? API_BASE_URL : FALLBACK_API_BASE_URL;
 }
@@ -66,6 +70,14 @@ export function buildApiUrl(path) {
 }
 
 export function buildFallbackApiUrl(path) {
+  return `${FALLBACK_API_BASE_URL}${path}`;
+}
+
+/**
+ * Always builds a URL pointing directly to Vercel.
+ * Use this for POST / admin / write routes that must never go through the Worker.
+ */
+export function buildVercelApiUrl(path) {
   return `${FALLBACK_API_BASE_URL}${path}`;
 }
 

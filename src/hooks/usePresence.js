@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
-import { buildApiUrl } from '../utils/apiBase';
+import { buildVercelApiUrl } from '../utils/apiBase';
 
-const PRESENCE_API = buildApiUrl('/api/presence');
+const getPresenceApiUrl = () => buildVercelApiUrl('/api/presence');
 const STORAGE_KEY = 'hsr_presence_stats';
 const SESSION_KEY = 'hsr_presence_session_id';
 const ACTIVE_INTERVAL_MS = 30 * 60 * 1000;
@@ -37,7 +37,7 @@ function readCachedStats() {
 function sendPresenceBeacon(sessionId, type = 'offline') {
   if (typeof navigator === 'undefined' || !navigator.sendBeacon || !sessionId) return false;
   const payload = JSON.stringify({ sessionId, type, includeUsers: false });
-  return navigator.sendBeacon(PRESENCE_API, new Blob([payload], { type: 'application/json' }));
+  return navigator.sendBeacon(getPresenceApiUrl(), new Blob([payload], { type: 'application/json' }));
 }
 
 export function usePresence() {
@@ -112,7 +112,7 @@ export function usePresence() {
     };
 
     try {
-      const response = await fetch(PRESENCE_API, {
+      const response = await fetch(getPresenceApiUrl(), {
         method: 'POST',
         headers,
         keepalive,
@@ -162,7 +162,7 @@ export function usePresence() {
       return;
     }
 
-    fetch(PRESENCE_API, {
+    fetch(getPresenceApiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
