@@ -20,6 +20,7 @@ const Icons = {
   Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="15" x2="15.01" y1="13" y2="13" /><line x1="18" x2="18.01" y1="11" y2="11" /><rect width="20" height="12" x="2" y="6" rx="2" /></svg>,
   Copy: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>,
   ExternalLink: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>,
+  Check: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12" /></svg>,
   X: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
 };
 
@@ -51,12 +52,20 @@ export default function WarpAnalyzer({ sessionTheme }) {
   const [hoyoCodesError, setHoyoCodesError] = useState(null);
   const [showCodesModal, setShowCodesModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(null);
+  const [usedHoyoCodes, setUsedHoyoCodes] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('svarog_used_hoyo_codes_v1') || '{"hsr":[],"genshin":[]}');
+    } catch {
+      return { hsr: [], genshin: [] };
+    }
+  });
 
   // Refs for sliding animations
   const gameTabsRef = useRef(null);
   const gamePillRef = useRef(null);
   const bannerLoadSeqRef = useRef(0);
   const hoyoCodesRef = useRef(null);
+  const hoyoCodesRailRef = useRef(null);
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
@@ -496,56 +505,180 @@ export default function WarpAnalyzer({ sessionTheme }) {
     return Array.isArray(hoyoCodes[selectedGame]) ? hoyoCodes[selectedGame] : [];
   }, [hoyoCodes, selectedGame]);
 
+  useEffect(() => {
+    const rail = hoyoCodesRailRef.current;
+    if (!rail || activeHoyoCodes.length <= 2) return undefined;
+
+    const scrollMax = rail.scrollWidth - rail.clientWidth;
+    if (scrollMax <= 16) return undefined;
+
+    rail.scrollLeft = 0;
+
+    // Animate codes dropping in initially
+    gsap.fromTo(
+      rail.children,
+      { opacity: 0, x: 20, scale: 0.95 },
+      { opacity: 1, x: 0, scale: 1, duration: 0.5, stagger: 0.1, ease: 'back.out(1.2)' }
+    );
+
+    // Slower, smoother scrolling
+    const tween = gsap.to(rail, {
+      scrollLeft: scrollMax,
+      duration: Math.max(25, scrollMax / 15),
+      ease: 'sine.inOut',
+      yoyo: true,
+      repeat: -1,
+      repeatDelay: 2,
+      delay: 1.5,
+    });
+
+    const handleEnter = () => gsap.to(tween, { timeScale: 0, duration: 0.4, ease: 'power2.out' });
+    const handleLeave = () => gsap.to(tween, { timeScale: 1, duration: 0.4, ease: 'power2.in' });
+
+    rail.addEventListener('mouseenter', handleEnter);
+    rail.addEventListener('mouseleave', handleLeave);
+
+    // Support touch devices
+    rail.addEventListener('touchstart', handleEnter, { passive: true });
+    rail.addEventListener('touchend', handleLeave, { passive: true });
+
+    return () => {
+      rail.removeEventListener('mouseenter', handleEnter);
+      rail.removeEventListener('mouseleave', handleLeave);
+      rail.removeEventListener('touchstart', handleEnter);
+      rail.removeEventListener('touchend', handleLeave);
+      tween.kill();
+    };
+  }, [activeHoyoCodes, selectedGame]);
+
+  useEffect(() => {
+    if (selectedGame !== 'hsr' && selectedGame !== 'genshin') return;
+    if (hoyoCodesLoading || hoyoCodesError) return;
+
+    const liveCodes = new Set(activeHoyoCodes.map((item) => String(item.code || '').toUpperCase()).filter(Boolean));
+    setUsedHoyoCodes((prev) => {
+      const previousGameCodes = Array.isArray(prev[selectedGame]) ? prev[selectedGame] : [];
+      const nextGameCodes = previousGameCodes.filter((code) => liveCodes.has(code));
+      if (nextGameCodes.length === previousGameCodes.length) return prev;
+
+      const next = { ...prev, [selectedGame]: nextGameCodes };
+      localStorage.setItem('svarog_used_hoyo_codes_v1', JSON.stringify(next));
+      return next;
+    });
+  }, [activeHoyoCodes, hoyoCodesError, hoyoCodesLoading, selectedGame]);
+
+  const formatCodeAddedAt = (value) => {
+    const raw = Number(value || 0);
+    if (!Number.isFinite(raw) || raw <= 0) return '';
+    const date = new Date(raw > 1e12 ? raw : raw * 1000);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const copyRedeemCode = async (code) => {
+    const normalizedCode = String(code || '').toUpperCase();
     try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(code);
+      await navigator.clipboard.writeText(normalizedCode);
+      setCopiedCode(normalizedCode);
+      setUsedHoyoCodes((prev) => {
+        const gameCodes = Array.isArray(prev[selectedGame]) ? prev[selectedGame] : [];
+        if (gameCodes.includes(normalizedCode)) return prev;
+        const next = { ...prev, [selectedGame]: [...gameCodes, normalizedCode] };
+        localStorage.setItem('svarog_used_hoyo_codes_v1', JSON.stringify(next));
+        return next;
+      });
       setTimeout(() => setCopiedCode(null), 1600);
     } catch {
       setCopiedCode(null);
     }
   };
 
-  const renderCodeItem = (codeItem, compact = false) => (
-    <div key={`${codeItem.game}_${codeItem.code}`} className="border border-slate-800 bg-slate-950/40 rounded-lg px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <code className="text-sm md:text-base font-mono font-bold tracking-[0.12em] text-amber-200 break-all">
-          {codeItem.code}
-        </code>
-        <button
-          type="button"
-          onClick={() => copyRedeemCode(codeItem.code)}
-          className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-400/60 hover:text-amber-200 transition-colors"
-          title={`Copy ${codeItem.code}`}
-          aria-label={`Copy ${codeItem.code}`}
-        >
-          <Icons.Copy className="w-4 h-4" />
-        </button>
-      </div>
-      {codeItem.rewards && (
-        <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">{codeItem.rewards}</p>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
-        <a
-          href={codeItem.redeemUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-amber-300/85 hover:text-amber-200 transition-colors"
-        >
-          Redeem on HoYoVerse
-          <Icons.ExternalLink className="w-3 h-3" />
-        </a>
-        {copiedCode === codeItem.code && (
-          <span className="text-emerald-300">Copied</span>
+  const renderCodeItem = (codeItem, compact = false) => {
+    const addedAt = formatCodeAddedAt(codeItem.addedAt);
+    const isUsed = (usedHoyoCodes[codeItem.game] || []).includes(String(codeItem.code || '').toUpperCase());
+    return (
+      <div
+        key={`${codeItem.game}_${codeItem.code}`}
+        className={`group relative overflow-hidden rounded-xl transition-all duration-500 ease-out flex flex-col justify-between
+          ${compact ? 'min-w-[300px] w-[300px] snap-center shrink-0' : 'w-full'} 
+          ${isUsed
+            ? 'bg-emerald-950/20 border border-emerald-500/20 grayscale-[0.5]'
+            : 'bg-slate-900/60 border border-slate-700/50 hover:border-amber-500/50 hover:bg-slate-800/80 shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1'}`}
+      >
+        {!isUsed && (
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 via-amber-500/0 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         )}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-amber-300/30 group-hover:via-amber-300/60 to-transparent transition-colors duration-500" />
+
+        <div className="relative p-5 flex flex-col h-full gap-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col">
+              <code className={`text-lg md:text-xl font-mono font-black tracking-[0.15em] transition-colors duration-300 drop-shadow-md
+                ${isUsed ? 'text-slate-500 line-through decoration-emerald-500/60 decoration-2' : 'text-amber-300 group-hover:text-amber-200'}
+              `}>
+                {codeItem.code}
+              </code>
+              {addedAt && (
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium mt-1">
+                  Added {addedAt}
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => copyRedeemCode(codeItem.code)}
+              className={`shrink-0 relative overflow-hidden group/btn inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-300 
+                ${isUsed
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                  : 'border-slate-600 bg-slate-800/80 text-slate-300 hover:border-amber-400 hover:bg-amber-500/10 hover:text-amber-300 hover:scale-105 active:scale-95 shadow-sm'}`}
+              title={`Copy ${codeItem.code}`}
+              aria-label={`Copy ${codeItem.code}`}
+            >
+              <div className="absolute inset-0 bg-amber-400/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-out" />
+              <Icons.Copy className="w-4 h-4 relative z-10" />
+            </button>
+          </div>
+
+          {codeItem.rewards && (
+            <p className={`text-[12px] leading-relaxed font-medium transition-colors duration-300 flex-grow
+              ${isUsed ? 'text-slate-600' : 'text-slate-300 group-hover:text-slate-200'}
+            `}>
+              <span className="inline-block mr-1.5 opacity-60">✦</span>
+              {codeItem.rewards}
+            </p>
+          )}
+
+          <div className="pt-3 border-t border-slate-700/50 flex items-center justify-between gap-3 mt-auto">
+            <a
+              href={codeItem.redeemUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors duration-300
+                ${isUsed ? 'text-slate-500 hover:text-slate-400' : 'text-amber-400/80 hover:text-amber-300'}
+              `}
+            >
+              Redeem Link
+              <Icons.ExternalLink className="w-3.5 h-3.5" />
+            </a>
+
+            <div className="flex items-center">
+              {(copiedCode === String(codeItem.code || '').toUpperCase() || isUsed) ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">
+                  <Icons.Check className="w-3 h-3" />
+                  {copiedCode === String(codeItem.code || '').toUpperCase() ? 'Copied' : 'Used'}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 group-hover:text-amber-500/50 transition-colors">
+                  Valid
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-      {!compact && codeItem.source && (
-        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-slate-600">
-          Source: {codeItem.source}
-        </p>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen text-slate-100 font-sans selection:bg-amber-500 selection:text-white pb-20 relative overflow-hidden">
@@ -670,10 +803,10 @@ export default function WarpAnalyzer({ sessionTheme }) {
                       <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                       Best used at patch start (High contributor volume)
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                      Optimal timing: Late Day 1 or Day 2
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <p className="text-amber-400 font-bold text-[14px] drop-shadow-md">Optimal timing: Late Day 1 or Day 2</p>
+                      </div>
                   </div>
                   <p className="border-t border-slate-800 pt-2 italic text-[10px]">
                     * This is not a magic prediction tool. It is a statistical analyzer of real pull data, highlighting rolls with the highest historical probability to trigger a 5★ drop.
@@ -750,7 +883,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             </div>
 
             {(selectedGame === 'hsr' || selectedGame === 'genshin') && (
-              <div ref={hoyoCodesRef} className="max-w-4xl mx-auto mb-6 border border-slate-700/60 bg-slate-950/50 rounded-xl p-4">
+              <div ref={hoyoCodesRef} className="max-w-4xl mx-auto mb-6 border border-amber-500/20 bg-slate-950/55 rounded-xl p-4 overflow-hidden">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <Icons.Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
@@ -780,8 +913,21 @@ export default function WarpAnalyzer({ sessionTheme }) {
                 ) : hoyoCodesError && activeHoyoCodes.length === 0 ? (
                   <p className="text-xs text-slate-500">Codes are temporarily unavailable. Try again later.</p>
                 ) : activeHoyoCodes.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {activeHoyoCodes.slice(0, 2).map((codeItem) => renderCodeItem(codeItem, true))}
+                  <div className="relative">
+                    <div
+                      ref={hoyoCodesRailRef}
+                      className="flex gap-3 overflow-x-auto pb-2 pr-10 scrollbar-thin scrollbar-thumb-amber-500/30 scrollbar-track-transparent"
+                    >
+                      {activeHoyoCodes.map((codeItem) => renderCodeItem(codeItem, true))}
+                    </div>
+                    {activeHoyoCodes.length > 2 && (
+                      <>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-950 via-slate-950/80 to-transparent" />
+                        <div className="mt-1 flex justify-end">
+                          <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Auto-scrolling · drag to browse</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">No active codes found for this game right now.</p>
