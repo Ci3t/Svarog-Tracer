@@ -48,6 +48,7 @@ const CLOUDFLARE_ROUTE_PATTERNS = [
   /^\/api\/wuwa\/stats(?:\?|$)/,
   /^\/api\/patch-timers(?:\?|$)/,
   /^\/api\/hsr\/kiyo\/patch(?:\?|$)/,
+  /^\/api\/hoyo-codes(?:\?|$)/,
 ];
 
 export function shouldUseCloudflareApi(path) {

@@ -17,13 +17,15 @@ const API_FETCH_TIMEOUT_MS = 12000;
 const CLOUDFLARE_TIMEOUT_MS = 6000; // 6s before fallback, per plan
 const API_CACHE_PREFIX = 'hsr-api-cache-v2:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
-const STATS_API_CACHE_TTL_MS = 60 * 60 * 1000;
-const BANNERS_API_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const STATS_API_CACHE_TTL_MS = 15 * 60 * 1000;
+const BANNERS_API_CACHE_TTL_MS = 15 * 60 * 1000;
+const HOYO_CODES_API_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const apiMemoryCache = new Map();
 
 function getApiCacheTtlMs(key) {
   if (/\/(?:hsr|genshin|wuwa|zzz)\/stats\?/i.test(key)) return STATS_API_CACHE_TTL_MS;
   if (/\/(?:genshin|wuwa)\/banners$/i.test(key) || /\/banners(?:\?|$)/i.test(key)) return BANNERS_API_CACHE_TTL_MS;
+  if (/\/hoyo-codes(?:\?|$)/i.test(key)) return HOYO_CODES_API_CACHE_TTL_MS;
   return API_CACHE_TTL_MS;
 }
 
@@ -192,6 +194,15 @@ export const zzzApi = {
 };
 
 /**
+ * HoYo redeem codes API
+ */
+export const hoyoCodesApi = {
+  async getCodes(game = 'all') {
+    return apiFetch(`/hoyo-codes?game=${encodeURIComponent(game)}`);
+  },
+};
+
+/**
  * Set custom API base URL (for testing or custom deployments)
  */
 export function setApiBaseUrl(url) {
@@ -203,4 +214,5 @@ export default {
   hsr: hsrApi,
   genshin: genshinApi,
   zzz: zzzApi,
+  hoyoCodes: hoyoCodesApi,
 };

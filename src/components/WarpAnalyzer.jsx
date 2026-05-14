@@ -5,6 +5,7 @@ import WarpBannerCard from "./WarpBannerCard";
 import PatchInfo from "./warp/PatchInfo";
 import { SITE_VERSION } from "../constants/siteVersion";
 import { applyBannerAssetManifest } from "../utils/bannerAssetManifest.js";
+import { hoyoCodesApi } from "../utils/apiClient";
 
 // -- ICONS (Lucide Clones) --
 const Icons = {
@@ -16,7 +17,10 @@ const Icons = {
   Star: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
   ChevronRight: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6" /></svg>,
   ChevronLeft: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6" /></svg>,
-  Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="15" x2="15.01" y1="13" y2="13" /><line x1="18" x2="18.01" y1="11" y2="11" /><rect width="20" height="12" x="2" y="6" rx="2" /></svg>
+  Gamepad: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="6" x2="10" y1="12" y2="12" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="15" x2="15.01" y1="13" y2="13" /><line x1="18" x2="18.01" y1="11" y2="11" /><rect width="20" height="12" x="2" y="6" rx="2" /></svg>,
+  Copy: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>,
+  ExternalLink: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>,
+  X: ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
 };
 
 export default function WarpAnalyzer({ sessionTheme }) {
@@ -42,11 +46,17 @@ export default function WarpAnalyzer({ sessionTheme }) {
   const [showInputModal, setShowInputModal] = useState(false);
   const [modalTab, setModalTab] = useState('hsr'); // Tab for the config modal
   const [toast, setToast] = useState(null); // { message, type: 'cache' | 'fetch' }
+  const [hoyoCodes, setHoyoCodes] = useState({ hsr: [], genshin: [] });
+  const [hoyoCodesLoading, setHoyoCodesLoading] = useState(false);
+  const [hoyoCodesError, setHoyoCodesError] = useState(null);
+  const [showCodesModal, setShowCodesModal] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(null);
 
   // Refs for sliding animations
   const gameTabsRef = useRef(null);
   const gamePillRef = useRef(null);
   const bannerLoadSeqRef = useRef(0);
+  const hoyoCodesRef = useRef(null);
 
   // -- THEME COLOR SELECTOR --
   const getGameColor = () => {
@@ -250,6 +260,43 @@ export default function WarpAnalyzer({ sessionTheme }) {
     }
   }, [selectedGame]);
 
+  useEffect(() => {
+    if (selectedGame !== 'hsr' && selectedGame !== 'genshin') return;
+    let cancelled = false;
+
+    const loadCodes = async () => {
+      setHoyoCodesLoading(true);
+      setHoyoCodesError(null);
+      try {
+        const data = await hoyoCodesApi.getCodes(selectedGame);
+        if (cancelled) return;
+        setHoyoCodes(prev => ({
+          ...prev,
+          hsr: Array.isArray(data?.hsr) ? data.hsr : prev.hsr,
+          genshin: Array.isArray(data?.genshin) ? data.genshin : prev.genshin,
+        }));
+      } catch (err) {
+        if (!cancelled) setHoyoCodesError(err.message || 'Codes unavailable');
+      } finally {
+        if (!cancelled) setHoyoCodesLoading(false);
+      }
+    };
+
+    loadCodes();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGame]);
+
+  useEffect(() => {
+    if (!hoyoCodesRef.current || (selectedGame !== 'hsr' && selectedGame !== 'genshin')) return;
+    gsap.fromTo(
+      hoyoCodesRef.current,
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out' }
+    );
+  }, [selectedGame, hoyoCodes]);
+
   // Current selected banner
   const currentBanner = useMemo(() => {
     return banners.find(b => getSelectableBannerId(b) === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
@@ -444,6 +491,62 @@ export default function WarpAnalyzer({ sessionTheme }) {
     };
   }, [activeAnalysis, selectedGame, hardPity, softPityStart]);
 
+  const activeHoyoCodes = useMemo(() => {
+    if (selectedGame !== 'hsr' && selectedGame !== 'genshin') return [];
+    return Array.isArray(hoyoCodes[selectedGame]) ? hoyoCodes[selectedGame] : [];
+  }, [hoyoCodes, selectedGame]);
+
+  const copyRedeemCode = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 1600);
+    } catch {
+      setCopiedCode(null);
+    }
+  };
+
+  const renderCodeItem = (codeItem, compact = false) => (
+    <div key={`${codeItem.game}_${codeItem.code}`} className="border border-slate-800 bg-slate-950/40 rounded-lg px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <code className="text-sm md:text-base font-mono font-bold tracking-[0.12em] text-amber-200 break-all">
+          {codeItem.code}
+        </code>
+        <button
+          type="button"
+          onClick={() => copyRedeemCode(codeItem.code)}
+          className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-400/60 hover:text-amber-200 transition-colors"
+          title={`Copy ${codeItem.code}`}
+          aria-label={`Copy ${codeItem.code}`}
+        >
+          <Icons.Copy className="w-4 h-4" />
+        </button>
+      </div>
+      {codeItem.rewards && (
+        <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">{codeItem.rewards}</p>
+      )}
+      <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
+        <a
+          href={codeItem.redeemUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-amber-300/85 hover:text-amber-200 transition-colors"
+        >
+          Redeem on HoYoVerse
+          <Icons.ExternalLink className="w-3 h-3" />
+        </a>
+        {copiedCode === codeItem.code && (
+          <span className="text-emerald-300">Copied</span>
+        )}
+      </div>
+      {!compact && codeItem.source && (
+        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-slate-600">
+          Source: {codeItem.source}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen text-slate-100 font-sans selection:bg-amber-500 selection:text-white pb-20 relative overflow-hidden">
       {/* TOAST NOTIFICATION */}
@@ -452,6 +555,38 @@ export default function WarpAnalyzer({ sessionTheme }) {
                 ${toast.type === 'cache' ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-purple-500/20 border-purple-500/50 text-purple-400'}
             `}>
           {toast.message}
+        </div>
+      )}
+
+      {showCodesModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4" onClick={() => setShowCodesModal(false)}>
+          <div className="w-full max-w-3xl max-h-[82vh] overflow-hidden rounded-xl border border-slate-700 bg-slate-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-100">
+                  {selectedGame === 'genshin' ? 'Genshin Impact' : 'Honkai: Star Rail'} Codes
+                </h2>
+                <p className="text-xs text-slate-500">Livestream and patch-day redeem codes.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCodesModal(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white transition-colors"
+                aria-label="Close codes modal"
+              >
+                <Icons.X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[64vh] overflow-y-auto p-5">
+              {activeHoyoCodes.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {activeHoyoCodes.map((codeItem) => renderCodeItem(codeItem))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No codes found for this game right now.</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -613,6 +748,46 @@ export default function WarpAnalyzer({ sessionTheme }) {
                 </div>
               )}
             </div>
+
+            {(selectedGame === 'hsr' || selectedGame === 'genshin') && (
+              <div ref={hoyoCodesRef} className="max-w-4xl mx-auto mb-6 border border-slate-700/60 bg-slate-950/50 rounded-xl p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Icons.Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-100">Redeem Codes</h2>
+                      <p className="text-[11px] text-slate-500">
+                        Livestream and patch-day redeem codes.
+                      </p>
+                    </div>
+                  </div>
+                  {activeHoyoCodes.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCodesModal(true)}
+                      className="self-start md:self-auto rounded-md border border-slate-700 px-3 py-2 text-xs font-bold text-slate-200 hover:border-amber-400/50 hover:text-amber-200 transition-colors"
+                    >
+                      View all {activeHoyoCodes.length}
+                    </button>
+                  )}
+                </div>
+
+                {hoyoCodesLoading && activeHoyoCodes.length === 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="h-24 rounded-lg bg-slate-900/70 border border-slate-800 animate-pulse" />
+                    <div className="h-24 rounded-lg bg-slate-900/70 border border-slate-800 animate-pulse" />
+                  </div>
+                ) : hoyoCodesError && activeHoyoCodes.length === 0 ? (
+                  <p className="text-xs text-slate-500">Codes are temporarily unavailable. Try again later.</p>
+                ) : activeHoyoCodes.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeHoyoCodes.slice(0, 2).map((codeItem) => renderCodeItem(codeItem, true))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">No active codes found for this game right now.</p>
+                )}
+              </div>
+            )}
 
             {(selectedGame === 'genshin' || selectedGame === 'wuwa') && (
               <div className="max-w-4xl mx-auto mb-6 border border-amber-500/25 bg-amber-950/20 rounded-lg px-4 py-3 text-xs text-amber-100/80">
