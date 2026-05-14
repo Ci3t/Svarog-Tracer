@@ -1,0 +1,5 @@
+# Secrets - DO NOT COMMIT
+.dev.vars
+cf-secrets.env
+node_modules/
+.wrangler/
