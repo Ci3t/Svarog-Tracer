@@ -86,12 +86,12 @@
 10. `requireAuthenticatedUser()` - 26 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `redisCmd()` --calls--> `fetch()`  [INFERRED]
-  scripts\migrate-presence-to-supabase.js → cloudflare-worker\src\index.js
-- `fetchWithTimeout()` --calls--> `fetch()`  [INFERRED]
-  src\pages\PlaygroundChallengePage.jsx → cloudflare-worker\src\index.js
-- `fetchWithTimeout()` --calls--> `fetch()`  [INFERRED]
-  src\pages\PlaygroundRacesPage.jsx → cloudflare-worker\src\index.js
+- `fetch()` --calls--> `redisCmd()`  [INFERRED]
+  cloudflare-worker\src\index.js → scripts\migrate-presence-to-supabase.js
+- `fetch()` --calls--> `fetchWithTimeout()`  [INFERRED]
+  cloudflare-worker\src\index.js → src\pages\PlaygroundChallengePage.jsx
+- `fetch()` --calls--> `fetchWithTimeout()`  [INFERRED]
+  cloudflare-worker\src\index.js → src\pages\PlaygroundRacesPage.jsx
 - `round()` --calls--> `formatRate()`  [INFERRED]
   scripts\analyze-prng-bias.mjs → src\hooks\useZoneTracker.js
 - `round()` --calls--> `formatMmSsFromSeconds()`  [INFERRED]
