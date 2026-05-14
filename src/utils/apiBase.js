@@ -100,7 +100,7 @@ export async function refreshRuntimeApiRouting() {
   runtimeRoutingLoadedAt = now;
 
   try {
-    const res = await fetch('/api-routing.json', { cache: 'no-store' });
+    const res = await fetch('api-routing.json', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     if (data && typeof data.mode === 'string') {
