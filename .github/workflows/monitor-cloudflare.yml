@@ -8,16 +8,22 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: monitor-cloudflare-worker-usage
+  cancel-in-progress: false
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Monitor and switch routing if needed
         env:
@@ -39,10 +45,12 @@ jobs:
           fi
 
       - name: Sync api-routing.json to gh-pages (live site)
+        if: github.ref_name == 'main'
         run: |
+          cp public/api-routing.json /tmp/api-routing.json
           git fetch origin gh-pages
           git checkout gh-pages
-          cp public/api-routing.json api-routing.json
+          cp /tmp/api-routing.json api-routing.json
           git add api-routing.json
           if git diff --cached --quiet; then
             echo "No changes to sync to gh-pages"

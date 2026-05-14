@@ -1330,38 +1330,6 @@ export default {
     try {
       if (pathname === '/health') return handleHealth(request, budget, env);
 
-      // Proxy stateful /api/presence (POST) to Vercel — needs Redis/Supabase
-      // NEVER cache this; strip any upstream cookies
-      if (pathname === '/api/presence') {
-        try {
-          const upstreamUrl = `${CONFIG.VERCEL_API_BASE}${pathname}${url.search}`;
-          const upstream = await fetchWithTimeout(upstreamUrl, {
-            method: request.method,
-            headers: {
-              'Content-Type': request.headers.get('Content-Type') || 'application/json',
-              'Authorization': request.headers.get('Authorization') || '',
-            },
-            body: request.method === 'POST' ? await request.clone().arrayBuffer() : undefined,
-          }, 10000);
-          const body = await upstream.arrayBuffer();
-          const responseHeaders = new Headers({
-            ...getCorsHeaders(request),
-            'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
-            'X-Data-Source': 'vercel-proxy',
-            'Cache-Control': 'private, no-store, must-revalidate',
-            ...budgetHeaders(budget.mode),
-          });
-          responseHeaders.delete('Set-Cookie');
-          return new Response(body, {
-            status: upstream.status,
-            headers: responseHeaders,
-          });
-        } catch (err) {
-          console.error('[Worker] Vercel proxy error:', err.message);
-          return jsonResponse({ error: 'Upstream unavailable', path: pathname }, 502, request, budgetHeaders(budget.mode));
-        }
-      }
-
       // Native route: GET /api/hsr/kiyo/patch
       if (pathname === '/api/hsr/kiyo/patch') {
         if (request.method !== 'GET') {

@@ -47,7 +47,6 @@ const CLOUDFLARE_ROUTE_PATTERNS = [
   /^\/api\/genshin\/stats(?:\?|$)/,
   /^\/api\/wuwa\/stats(?:\?|$)/,
   /^\/api\/patch-timers(?:\?|$)/,
-  /^\/api\/presence(?:\?|$)/,
   /^\/api\/hsr\/kiyo\/patch(?:\?|$)/,
 ];
 
