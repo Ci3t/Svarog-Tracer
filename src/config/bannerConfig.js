@@ -8,10 +8,10 @@
 export const BANNER_DISPLAY_CONFIG = {
   hsr: {
     // Maximum number of character banners to show (set to null for unlimited)
-    maxCharacterBanners: null,  // Currently showing all (4 banners)
+    maxCharacterBanners: 4,
     
     // Maximum number of light cone banners to show (set to null for unlimited)
-    maxLightConeBanners: null,  // Currently showing all
+    maxLightConeBanners: 4,
     
     // Examples:
     // maxCharacterBanners: 2,  // Show only 2 newest character banners

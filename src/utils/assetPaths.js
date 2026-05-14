@@ -1,3 +1,6 @@
+import { shouldUseCloudinaryAssets } from './cloudinaryPolicy.js';
+import { resolveAssetCdnUrl } from './assetCdn.js';
+
 const rawAssetBase = import.meta.env.BASE_URL || '/';
 const ASSET_BASE_URL = rawAssetBase.endsWith('/') ? rawAssetBase : `${rawAssetBase}/`;
 
@@ -6,6 +9,7 @@ let cloudinaryMap = null;
 let mapPromise = null;
 
 async function loadCloudinaryMap() {
+  if (!shouldUseCloudinaryAssets()) return {};
   if (cloudinaryMap) return cloudinaryMap;
   if (mapPromise) return mapPromise;
 
@@ -40,8 +44,11 @@ export function withBaseUrl(path = '', options = {}) {
 
   const normalized = String(path).replace(/^\/+/, '');
 
+  const cdnUrl = resolveAssetCdnUrl(normalized);
+  if (cdnUrl) return cdnUrl;
+
   // Check Cloudinary map synchronously (if already loaded)
-  if (cloudinaryMap && cloudinaryMap[normalized]) {
+  if (shouldUseCloudinaryAssets() && cloudinaryMap && cloudinaryMap[normalized]) {
     return applyTransforms(cloudinaryMap[normalized], options);
   }
 
@@ -84,7 +91,7 @@ function applyTransforms(url, options = {}) {
  */
 export function getGameImageUrl(originalUrl, options = {}) {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  if (!cloudName || !originalUrl) return originalUrl;
+  if (!shouldUseCloudinaryAssets() || !cloudName || !originalUrl) return originalUrl;
 
   const transforms = [];
   if (options.width) transforms.push(`w_${options.width}`);

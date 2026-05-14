@@ -1,0 +1,4 @@
+name = "svarog-api"
+main = "src/index.js"
+compatibility_date = "2026-05-13"
+workers_dev = true

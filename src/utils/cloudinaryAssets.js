@@ -3,6 +3,9 @@
  * All URLs use the pre-uploaded assets in the svarog-tracer Cloudinary account
  */
 
+import { shouldUseCloudinaryAssets } from './cloudinaryPolicy.js';
+import { resolveAssetCdnUrl } from './assetCdn.js';
+
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const BASE_URL = `https://res.cloudinary.com/${CLOUD_NAME}`;
 
@@ -14,7 +17,9 @@ const BASE_URL = `https://res.cloudinary.com/${CLOUD_NAME}`;
  * @returns {string|null} Cloudinary URL or null if not configured
  */
 export function getHsrPortraitUrl(numId, options = {}) {
-  if (!CLOUD_NAME || !numId) return null;
+  const cdnUrl = resolveAssetCdnUrl(`game/hsr/character_portrait/${numId}.png`, options);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets() || !CLOUD_NAME || !numId) return null;
 
   const transforms = [];
   if (options.width) transforms.push(`w_${options.width}`);
@@ -31,7 +36,9 @@ export function getHsrPortraitUrl(numId, options = {}) {
  * @returns {string|null} Cloudinary URL or null
  */
 export function getHsrIconUrl(numId, options = {}) {
-  if (!CLOUD_NAME || !numId) return null;
+  const cdnUrl = resolveAssetCdnUrl(`game/hsr/character_icon/${numId}.png`, options);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets() || !CLOUD_NAME || !numId) return null;
 
   const transforms = [];
   if (options.width) transforms.push(`w_${options.width}`);
@@ -48,7 +55,9 @@ export function getHsrIconUrl(numId, options = {}) {
  * @returns {string|null} Cloudinary URL or null
  */
 export function getHsrLightConeUrl(lcId, options = {}) {
-  if (!CLOUD_NAME || !lcId) return null;
+  const cdnUrl = resolveAssetCdnUrl(`game/hsr/lightcone_preview/${lcId}.png`, options);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets() || !CLOUD_NAME || !lcId) return null;
 
   const transforms = [];
   if (options.width) transforms.push(`w_${options.width}`);
@@ -65,8 +74,10 @@ export function getHsrLightConeUrl(lcId, options = {}) {
  * @returns {string|null} Cloudinary URL or null
  */
 export function getHsrElementUrl(element, options = {}) {
-  if (!CLOUD_NAME || !element) return null;
-  const normalized = element.charAt(0).toUpperCase() + element.slice(1).toLowerCase();
+  const normalized = element ? element.charAt(0).toUpperCase() + element.slice(1).toLowerCase() : '';
+  const cdnUrl = resolveAssetCdnUrl(`game/hsr/element_icon/${normalized}.png`, options);
+  if (cdnUrl) return cdnUrl;
+  if (!shouldUseCloudinaryAssets() || !CLOUD_NAME || !element) return null;
 
   const transforms = [];
   if (options.width) transforms.push(`w_${options.width}`);
@@ -83,7 +94,7 @@ export function getHsrElementUrl(element, options = {}) {
  * @returns {string|null} Cloudinary URL or null
  */
 export function getSiteAssetUrl(path, options = {}) {
-  if (!CLOUD_NAME || !path) return null;
+  if (!shouldUseCloudinaryAssets() || !CLOUD_NAME || !path) return null;
 
   const normalized = path.replace(/^\//, '').replace(/\\/g, '/');
 

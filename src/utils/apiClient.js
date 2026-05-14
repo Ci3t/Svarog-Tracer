@@ -1,12 +1,20 @@
 /**
  * API Client for Backend
- * Handles all API calls to Vercel backend
+ * Tries Cloudflare Worker first, falls back to Vercel on timeout/error
  */
-import { API_BASE_URL } from './apiBase';
+import {
+  API_BASE_URL,
+  FALLBACK_API_BASE_URL,
+  refreshRuntimeApiRouting,
+  shouldBypassCloudflareRuntime,
+  getRuntimeRoutingBase,
+} from './apiBase';
 import { fetchJsonWithDedupe } from './requestDedupe';
 
 const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
+const FALLBACK_BACKEND_API_BASE_URL = `${FALLBACK_API_BASE_URL || ''}/api`;
 const API_FETCH_TIMEOUT_MS = 12000;
+const CLOUDFLARE_TIMEOUT_MS = 6000; // 6s before fallback, per plan
 const API_CACHE_PREFIX = 'hsr-api-cache-v2:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
 const STATS_API_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -46,21 +54,12 @@ function writeApiCache(key, data) {
 }
 
 /**
- * Generic fetch wrapper with error handling
+ * Fetch from a single URL
  */
-async function apiFetch(endpoint, options = {}) {
-  const method = String(options.method || 'GET').toUpperCase();
-  const cacheKey = method === 'GET' ? endpoint : '';
-  if (cacheKey && options.cacheClient !== false) {
-    const cached = readApiCache(cacheKey);
-    if (cached) return cached;
-  }
-
-  const url = `${BACKEND_API_BASE_URL}${endpoint}`;
+async function fetchSingle(url, options = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timeoutMs = Number(options.timeoutMs || API_FETCH_TIMEOUT_MS);
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const requestInit = {
       ...options,
@@ -70,28 +69,83 @@ async function apiFetch(endpoint, options = {}) {
         ...options.headers,
       },
     };
-    const dedupeKey = cacheKey && options.dedupe !== false ? `api:${cacheKey}` : '';
+    const dedupeKey = options.dedupe !== false ? `api:${url}` : '';
     const { response, data } = await fetchJsonWithDedupe(dedupeKey, url, requestInit);
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
       const error = contentType.includes('application/json') ? data : { message: data?.message || '' };
       const message = error.error || error.message || `HTTP ${response.status}`;
       throw new Error(message);
     }
-    
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+/**
+ * Generic fetch wrapper with Cloudflare -> Vercel fallback
+ */
+export async function apiFetch(endpoint, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const cacheKey = method === 'GET' ? endpoint : '';
+  if (cacheKey && options.cacheClient !== false) {
+    const cached = readApiCache(cacheKey);
+    if (cached) return cached;
+  }
+
+  // Refresh runtime routing config before deciding which backend to use
+  await refreshRuntimeApiRouting();
+  const bypassCloudflare = shouldBypassCloudflareRuntime();
+
+  let primaryUrl;
+  let fallbackUrl;
+
+  if (bypassCloudflare) {
+    // Skip Cloudflare entirely; go straight to Vercel
+    const runtimeBase = getRuntimeRoutingBase();
+    primaryUrl = `${runtimeBase}/api${endpoint}`;
+    fallbackUrl = primaryUrl; // same — no double fallback
+  } else {
+    primaryUrl = `${BACKEND_API_BASE_URL}${endpoint}`;
+    fallbackUrl = `${FALLBACK_BACKEND_API_BASE_URL}${endpoint}`;
+  }
+
+  const isFallbackSame = primaryUrl === fallbackUrl || !FALLBACK_BACKEND_API_BASE_URL;
+
+  // Try primary (Cloudflare or direct Vercel if bypassed)
+  try {
+    const timeoutMs = Number(options.timeoutMs || CLOUDFLARE_TIMEOUT_MS);
+    const data = await fetchSingle(primaryUrl, options, timeoutMs);
     if (cacheKey && options.cacheClient !== false) {
       writeApiCache(cacheKey, data);
     }
     return data;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error?.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
+  } catch (primaryError) {
+    // If no fallback configured or same as primary, throw
+    if (isFallbackSame || bypassCloudflare) {
+      console.error(`[API Client] Primary failed, no fallback: ${endpoint}`, primaryError);
+      throw primaryError;
     }
-    console.error(`[API Client] Error fetching ${endpoint}:`, error);
-    throw error;
+
+    // Log fallback
+    console.warn(`[API Client] Primary failed (${primaryError.message}), trying fallback: ${fallbackUrl}`);
+
+    // Try fallback (Vercel)
+    try {
+      const fallbackTimeoutMs = Number(options.fallbackTimeoutMs || API_FETCH_TIMEOUT_MS);
+      const data = await fetchSingle(fallbackUrl, { ...options, dedupe: false }, fallbackTimeoutMs);
+      if (cacheKey && options.cacheClient !== false) {
+        writeApiCache(cacheKey, data);
+      }
+      return data;
+    } catch (fallbackError) {
+      console.error(`[API Client] Fallback also failed: ${endpoint}`, fallbackError);
+      throw fallbackError;
+    }
   }
 }
 
@@ -99,17 +153,9 @@ async function apiFetch(endpoint, options = {}) {
  * WuWa API
  */
 export const wuwaApi = {
-  /**
-   * Fetch WuWa banner statistics
-   * @param {string} bannerId - Banner ID (e.g., "100031")
-   */
   async getStats(bannerId) {
     return apiFetch(`/wuwa/stats?id=${bannerId}`);
   },
-  
-  /**
-   * Fetch live WuWa banners
-   */
   async getBanners() {
     return apiFetch('/wuwa/banners');
   },
@@ -119,10 +165,6 @@ export const wuwaApi = {
  * HSR API
  */
 export const hsrApi = {
-  /**
-   * Fetch HSR banner statistics
-   * @param {string} bannerId - Banner ID (e.g., "2099")
-   */
   async getStats(bannerId) {
     return apiFetch(`/hsr/stats?id=${bannerId}`);
   },
@@ -132,17 +174,9 @@ export const hsrApi = {
  * Genshin API
  */
 export const genshinApi = {
-  /**
-   * Fetch Genshin banner statistics
-   * @param {string} bannerId - Banner ID (e.g., "300094")
-   */
   async getStats(bannerId) {
     return apiFetch(`/genshin/stats?id=${bannerId}`);
   },
-  
-  /**
-   * Fetch live Genshin banners
-   */
   async getBanners() {
     return apiFetch('/genshin/banners');
   },
@@ -152,10 +186,6 @@ export const genshinApi = {
  * ZZZ API
  */
 export const zzzApi = {
-  /**
-   * Fetch ZZZ banner statistics
-   * @param {string} bannerId - Banner ID (e.g., "2001015")
-   */
   async getStats(bannerId) {
     return apiFetch(`/zzz/stats?id=${bannerId}`);
   },
@@ -165,7 +195,6 @@ export const zzzApi = {
  * Set custom API base URL (for testing or custom deployments)
  */
 export function setApiBaseUrl(url) {
-  // This would require refactoring to use a mutable variable
   console.warn(`[API Client] Custom API URL not yet supported: ${url}`);
 }
 
