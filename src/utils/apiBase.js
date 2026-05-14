@@ -94,6 +94,10 @@ export async function refreshRuntimeApiRouting() {
   if (runtimeRouting && now - runtimeRoutingLoadedAt < RUNTIME_ROUTING_MAX_AGE_MS) {
     return;
   }
+  if (!runtimeRouting && runtimeRoutingLoadedAt && now - runtimeRoutingLoadedAt < RUNTIME_ROUTING_MAX_AGE_MS) {
+    return;
+  }
+  runtimeRoutingLoadedAt = now;
 
   try {
     const res = await fetch('/api-routing.json', { cache: 'no-store' });
@@ -101,7 +105,6 @@ export async function refreshRuntimeApiRouting() {
     const data = await res.json();
     if (data && typeof data.mode === 'string') {
       runtimeRouting = data;
-      runtimeRoutingLoadedAt = now;
     }
   } catch {
     // Silent fail; keep previous or null

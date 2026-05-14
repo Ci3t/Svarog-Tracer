@@ -618,6 +618,13 @@ async function handleBanners(request) {
   return res;
 }
 
+function rewriteBannerRequest(request, game) {
+  const url = new URL(request.url);
+  url.pathname = '/api/banners';
+  url.searchParams.set('game', game);
+  return new Request(url.toString(), request);
+}
+
 // =========================================================================
 // ROUTE: /api/hsr/stats
 // =========================================================================
@@ -1352,6 +1359,9 @@ export default {
       }
 
       if (pathname === '/api/banners') return await handleBanners(request);
+      if (pathname === '/api/hsr/banners') return await handleBanners(rewriteBannerRequest(request, 'hsr'));
+      if (pathname === '/api/genshin/banners') return await handleBanners(rewriteBannerRequest(request, 'genshin'));
+      if (pathname === '/api/wuwa/banners') return await handleBanners(rewriteBannerRequest(request, 'wuwa'));
       if (pathname === '/api/hsr/stats') return await handleHsrStats(request);
       if (pathname === '/api/genshin/stats') return await handleGenshinStats(request);
       if (pathname === '/api/wuwa/stats') return await handleWuWaStats(request);

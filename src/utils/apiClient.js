@@ -17,8 +17,9 @@ const API_FETCH_TIMEOUT_MS = 12000;
 const CLOUDFLARE_TIMEOUT_MS = 6000; // 6s before fallback, per plan
 const API_CACHE_PREFIX = 'hsr-api-cache-v2:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
-const STATS_API_CACHE_TTL_MS = 60 * 60 * 1000;
-const BANNERS_API_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const WARP_ANALYZER_FRESHNESS_MS = 15 * 60 * 1000;
+const STATS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
+const BANNERS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
 const apiMemoryCache = new Map();
 
 function getApiCacheTtlMs(key) {
@@ -157,7 +158,8 @@ export const wuwaApi = {
     return apiFetch(`/wuwa/stats?id=${bannerId}`);
   },
   async getBanners() {
-    return apiFetch('/wuwa/banners');
+    const response = await apiFetch('/banners?game=wuwa');
+    return Array.isArray(response?.wuwa) ? response.wuwa : response;
   },
 };
 
@@ -178,7 +180,8 @@ export const genshinApi = {
     return apiFetch(`/genshin/stats?id=${bannerId}`);
   },
   async getBanners() {
-    return apiFetch('/genshin/banners');
+    const response = await apiFetch('/banners?game=genshin');
+    return Array.isArray(response?.genshin) ? response.genshin : response;
   },
 };
 
