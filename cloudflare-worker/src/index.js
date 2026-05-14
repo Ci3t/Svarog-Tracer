@@ -470,7 +470,8 @@ async function fetchGenshinBanners() {
 
     for (const [prefix, type] of [['300', 'character'], ['400', 'weapon']]) {
       let found = null;
-      for (let i = 130; i >= 90; i--) {
+      // Limit subrequests: check only the 5 most recent banner IDs
+      for (let i = 130; i >= 126; i--) {
         const bannerId = `${prefix}${String(i).padStart(3, '0')}`;
         try {
           const res = await fetchWithTimeout(`${CONFIG.PAIMON_API}?banner=${bannerId}`, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SvarogTrace/1.0)' } }, 1800);
