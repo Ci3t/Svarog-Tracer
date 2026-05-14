@@ -443,18 +443,18 @@ select:disabled {
 }
 
 .theme-scrollbar::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
+  height: 3px;
+  width: 3px;
 }
 
 .theme-scrollbar::-webkit-scrollbar-track {
   background: var(--theme-surface-2);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .theme-scrollbar::-webkit-scrollbar-thumb {
   background: var(--theme-border-strong);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .theme-scrollbar::-webkit-scrollbar-thumb:hover {

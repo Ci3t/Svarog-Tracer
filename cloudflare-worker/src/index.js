@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v7',
+  CACHE_VERSION: 'v8',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -621,6 +621,13 @@ async function handleBanners(request) {
   return res;
 }
 
+function rewriteBannerRequest(request, game) {
+  const url = new URL(request.url);
+  url.pathname = '/api/banners';
+  url.searchParams.set('game', game);
+  return new Request(url.toString(), request);
+}
+
 // =========================================================================
 // ROUTE: /api/hoyo-codes
 // =========================================================================
@@ -712,6 +719,7 @@ function mergeCodes(primaryCodes, fallbackCodes) {
       ...previous,
       ...entry,
       rewards: entry.rewards || previous?.rewards || '',
+      addedAt: entry.addedAt || previous?.addedAt || null,
       source: previous?.source && previous.source !== entry.source ? `${entry.source}+${previous.source}` : entry.source,
     });
   }
@@ -1507,6 +1515,9 @@ export default {
       }
 
       if (pathname === '/api/banners') return await handleBanners(request);
+      if (pathname === '/api/hsr/banners') return await handleBanners(rewriteBannerRequest(request, 'hsr'));
+      if (pathname === '/api/genshin/banners') return await handleBanners(rewriteBannerRequest(request, 'genshin'));
+      if (pathname === '/api/wuwa/banners') return await handleBanners(rewriteBannerRequest(request, 'wuwa'));
       if (pathname === '/api/hoyo-codes') return await handleHoyoCodes(request);
       if (pathname === '/api/hsr/stats') return await handleHsrStats(request);
       if (pathname === '/api/genshin/stats') return await handleGenshinStats(request);

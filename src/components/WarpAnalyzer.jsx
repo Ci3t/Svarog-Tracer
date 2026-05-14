@@ -528,8 +528,8 @@ export default function WarpAnalyzer({ sessionTheme }) {
       ease: 'sine.inOut',
       yoyo: true,
       repeat: -1,
-      repeatDelay: 2,
-      delay: 1.5,
+      delay: 2,
+      overwrite: 'auto'
     });
 
     const handleEnter = () => gsap.to(tween, { timeScale: 0, duration: 0.4, ease: 'power2.out' });
@@ -600,7 +600,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
       <div
         key={`${codeItem.game}_${codeItem.code}`}
         className={`group relative overflow-hidden rounded-[var(--theme-radius-card)] transition-all duration-500 ease-out flex flex-col justify-between
-          ${compact ? 'min-w-[260px] w-[260px] snap-center shrink-0' : 'w-full'} 
+          ${compact ? 'min-w-[220px] w-[220px] shrink-0' : 'w-full'} 
           ${isUsed
             ? 'bg-[var(--theme-surface-2)] border border-[var(--theme-border-soft)] grayscale-[0.5] opacity-60'
             : 'bg-[var(--theme-surface-1)] border border-[var(--theme-border-soft)] hover:border-[var(--theme-border-strong)] shadow-lg hover:shadow-[var(--theme-shadow-accent)] hover:-translate-y-1 backdrop-blur-md'}`}
@@ -610,16 +610,16 @@ export default function WarpAnalyzer({ sessionTheme }) {
         )}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--theme-accent)] to-transparent opacity-30 group-hover:opacity-70 transition-opacity duration-500" />
 
-        <div className="relative p-4 flex flex-col h-full gap-3">
-          <div className="flex items-start justify-between gap-3">
+        <div className="relative p-3 flex flex-col h-full gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col">
-              <code className={`text-base md:text-lg font-mono font-black tracking-[0.1em] transition-colors duration-300 drop-shadow-md
+              <code className={`text-sm md:text-base font-mono font-black tracking-[0.1em] transition-colors duration-300 drop-shadow-md
                 ${isUsed ? 'text-[var(--theme-text-soft)] line-through decoration-[var(--theme-text-muted)] decoration-2' : 'text-[var(--theme-text-primary)] group-hover:text-[var(--theme-accent-contrast)]'}
               `}>
                 {codeItem.code}
               </code>
               {addedAt && (
-                <span className="text-[10px] uppercase tracking-widest text-[var(--theme-text-muted)] font-medium mt-1">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--theme-text-muted)] font-medium mt-0.5">
                   Added {addedAt}
                 </span>
               )}
@@ -628,7 +628,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             <button
               type="button"
               onClick={() => copyRedeemCode(codeItem.code)}
-              className={`shrink-0 relative overflow-hidden group/btn inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-300 
+              className={`shrink-0 relative overflow-hidden group/btn inline-flex h-7 w-7 items-center justify-center rounded-md border transition-all duration-300 
                 ${isUsed
                   ? 'border-[var(--theme-border-soft)] bg-[var(--theme-surface-2)] text-[var(--theme-text-soft)]'
                   : 'border-[var(--theme-border-strong)] bg-[var(--theme-surface-2)] text-[var(--theme-accent)] hover:bg-[var(--theme-accent-strong)] hover:border-[var(--theme-accent-contrast)] hover:text-white hover:scale-105 active:scale-95 shadow-sm'}`}
@@ -640,7 +640,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
           </div>
 
           {codeItem.rewards && (
-            <p className={`text-[11px] leading-relaxed font-medium transition-colors duration-300 flex-grow
+            <p className={`text-[10px] leading-relaxed font-medium transition-colors duration-300 flex-grow
               ${isUsed ? 'text-[var(--theme-text-soft)]' : 'text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text-primary)]'}
             `}>
               <span className="inline-block mr-1.5 opacity-60">✦</span>
@@ -648,7 +648,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
             </p>
           )}
 
-          <div className="pt-3 border-t border-[var(--theme-border-soft)] flex items-center justify-between gap-3 mt-auto">
+          <div className="pt-2 border-t border-[var(--theme-border-soft)] flex items-center justify-between gap-2 mt-auto">
             <a
               href={codeItem.redeemUrl}
               target="_blank"
@@ -885,13 +885,13 @@ export default function WarpAnalyzer({ sessionTheme }) {
             </div>
 
             {(selectedGame === 'hsr' || selectedGame === 'genshin') && (
-              <div ref={hoyoCodesRef} className="max-w-4xl mx-auto mb-6 border border-[var(--theme-border-strong)] bg-[var(--theme-surface-1)] rounded-[var(--theme-radius-panel)] p-4 overflow-hidden backdrop-blur-md shadow-[var(--theme-shadow-lg)]">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-                  <div className="flex items-center gap-3">
+              <div ref={hoyoCodesRef} className="max-w-4xl mx-auto mb-6 border border-[var(--theme-border-strong)] bg-[var(--theme-surface-1)] rounded-[var(--theme-radius-panel)] p-3 overflow-hidden backdrop-blur-md shadow-[var(--theme-shadow-lg)]">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-3">
+                  <div className="flex items-center gap-2">
                     <Icons.Sparkles className="w-4 h-4 text-[var(--theme-accent)] shrink-0" />
                     <div>
-                      <h2 className="text-sm font-bold text-[var(--theme-text-primary)]">Redeem Codes</h2>
-                      <p className="text-[11px] text-[var(--theme-text-muted)]">
+                      <h2 className="text-[13px] font-bold text-[var(--theme-text-primary)] leading-tight">Redeem Codes</h2>
+                      <p className="text-[10px] text-[var(--theme-text-muted)] leading-tight">
                         Livestream and patch-day redeem codes.
                       </p>
                     </div>
@@ -900,7 +900,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                     <button
                       type="button"
                       onClick={() => setShowCodesModal(true)}
-                      className="self-start md:self-auto rounded-lg border border-[var(--theme-border-soft)] px-3 py-1.5 text-xs font-bold text-[var(--theme-text-primary)] hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent-contrast)] hover:bg-[var(--theme-accent-soft)] transition-colors"
+                      className="self-start md:self-auto rounded-md border border-[var(--theme-border-soft)] px-2 py-1 text-[10px] uppercase font-bold tracking-wider text-[var(--theme-text-primary)] hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent-contrast)] hover:bg-[var(--theme-accent-soft)] transition-colors"
                     >
                       View all {activeHoyoCodes.length}
                     </button>
@@ -918,7 +918,7 @@ export default function WarpAnalyzer({ sessionTheme }) {
                   <div className="relative">
                     <div
                       ref={hoyoCodesRailRef}
-                      className="flex gap-3 overflow-x-auto pb-3 pr-10 theme-scrollbar scroll-smooth snap-x snap-mandatory"
+                      className="flex gap-2 overflow-x-auto pb-3 pr-10 theme-scrollbar"
                     >
                       {activeHoyoCodes.map((codeItem) => renderCodeItem(codeItem, true))}
                     </div>
