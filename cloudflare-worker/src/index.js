@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v7',
+  CACHE_VERSION: 'v8',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -720,6 +720,7 @@ function mergeCodes(primaryCodes, fallbackCodes) {
       ...previous,
       ...entry,
       rewards: entry.rewards || previous?.rewards || '',
+      addedAt: entry.addedAt || previous?.addedAt || null,
       source: previous?.source && previous.source !== entry.source ? `${entry.source}+${previous.source}` : entry.source,
     });
   }
