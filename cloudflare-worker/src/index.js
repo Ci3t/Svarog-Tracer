@@ -24,6 +24,8 @@ const CONFIG = {
   PAIMON_IMG_BASE: 'https://paimon.moe/images',
   WUWA_TRACKER: 'https://wuwatracker.com/tracker/stats',
   WUWA_IMG_API: 'https://wuwatracker.com/_next/image',
+  HOYO_CODES_API: 'https://hoyo-codes.seria.moe/codes',
+  HASHBLEN_CODES_API: 'https://db.hashblen.com/codes',
   VERCEL_API_BASE: 'https://svarog-tracer.vercel.app',
   // Budget guard (approximate per-isolate; monitor via dashboard)
   DAILY_SOFT_LIMIT: 90000,
@@ -53,6 +55,7 @@ const CONFIG = {
     wuwaStats: 15 * 60,        // 15 minutes
     patchTimers: 60 * 60,      // 1 hour
     kiyoPatch: 60,             // 1 minute (short — patch data can change)
+    hoyoCodes: 7 * 24 * 60 * 60, // 7 days (codes usually change around livestream/patch windows)
     health: 0,                 // no cache
   }
 };
@@ -624,6 +627,158 @@ function rewriteBannerRequest(request, game) {
   url.pathname = '/api/banners';
   url.searchParams.set('game', game);
   return new Request(url.toString(), request);
+}
+
+// =========================================================================
+// ROUTE: /api/hoyo-codes
+// =========================================================================
+function normalizeHoyoGame(game) {
+  const normalized = String(game || 'all').toLowerCase().trim();
+  if (['hsr', 'hkrpg', 'starrail', 'star-rail'].includes(normalized)) return 'hsr';
+  if (['genshin', 'genshin-impact'].includes(normalized)) return 'genshin';
+  return 'all';
+}
+
+function buildRedeemUrl(game, code) {
+  const encodedCode = encodeURIComponent(code);
+  if (game === 'genshin') return `https://genshin.hoyoverse.com/en/gift?code=${encodedCode}`;
+  return `https://hsr.hoyoverse.com/gift?code=${encodedCode}`;
+}
+
+function normalizeRewardText(value) {
+  return String(value || '')
+    .replace(/;/g, ' · ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeCodeEntry(entry, game, source) {
+  const code = String(entry?.code || '').trim().toUpperCase();
+  if (!code) return null;
+  const rewards = normalizeRewardText(entry?.rewards || entry?.description || '');
+  const status = String(entry?.status || 'OK').toUpperCase();
+
+  return {
+    code,
+    game,
+    status,
+    rewards,
+    addedAt: Number(entry?.added_at || entry?.addedAt || 0) || null,
+    source,
+    redeemUrl: buildRedeemUrl(game, code),
+  };
+}
+
+async function fetchSeriaCodes(game) {
+  const seriaGame = game === 'genshin' ? 'genshin' : 'hkrpg';
+  const url = `${CONFIG.HOYO_CODES_API}?game=${seriaGame}`;
+  const response = await fetchWithTimeout(url, {
+    headers: { 'Accept': 'application/json', 'User-Agent': 'SvarogTrace/1.0' },
+  }, 8000);
+  if (!response.ok) throw new Error(`Seria HTTP ${response.status}`);
+
+  const data = await response.json();
+  const codes = Array.isArray(data?.codes) ? data.codes : [];
+  return codes
+    .map((entry) => normalizeCodeEntry(entry, game, 'seria'))
+    .filter(Boolean)
+    .filter((entry) => entry.status === 'OK');
+}
+
+function getHashblenList(data, game) {
+  if (!data || typeof data !== 'object') return [];
+  if (game === 'genshin') return Array.isArray(data.genshin) ? data.genshin : [];
+  const candidates = [
+    data.hsr,
+    data.hkrpg,
+    data.starrail,
+    data.star_rail,
+    data.honkai,
+    data.honkai_starrail,
+    data.honkai_star_rail,
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
+async function fetchHashblenCodes(game) {
+  const response = await fetchWithTimeout(CONFIG.HASHBLEN_CODES_API, {
+    headers: { 'Accept': 'application/json', 'User-Agent': 'SvarogTrace/1.0' },
+  }, 8000);
+  if (!response.ok) throw new Error(`Hashblen HTTP ${response.status}`);
+
+  const data = await response.json();
+  return getHashblenList(data, game)
+    .map((entry) => normalizeCodeEntry(entry, game, 'hashblen'))
+    .filter(Boolean);
+}
+
+function mergeCodes(primaryCodes, fallbackCodes) {
+  const merged = new Map();
+  for (const entry of [...fallbackCodes, ...primaryCodes]) {
+    const previous = merged.get(entry.code);
+    merged.set(entry.code, {
+      ...previous,
+      ...entry,
+      rewards: entry.rewards || previous?.rewards || '',
+      source: previous?.source && previous.source !== entry.source ? `${entry.source}+${previous.source}` : entry.source,
+    });
+  }
+  return Array.from(merged.values()).sort((a, b) => {
+    const timeDelta = Number(b.addedAt || 0) - Number(a.addedAt || 0);
+    if (timeDelta !== 0) return timeDelta;
+    return a.code.localeCompare(b.code);
+  });
+}
+
+async function buildHoyoCodesForGame(game) {
+  const settled = await Promise.allSettled([
+    fetchSeriaCodes(game),
+    fetchHashblenCodes(game),
+  ]);
+
+  const primaryCodes = settled[0].status === 'fulfilled' ? settled[0].value : [];
+  const fallbackCodes = settled[1].status === 'fulfilled' ? settled[1].value : [];
+  const errors = settled
+    .filter((result) => result.status === 'rejected')
+    .map((result) => result.reason?.message || 'Unknown source error');
+
+  return {
+    codes: mergeCodes(primaryCodes, fallbackCodes),
+    sources: {
+      primary: primaryCodes.length > 0,
+      fallback: fallbackCodes.length > 0,
+      errors,
+    },
+  };
+}
+
+async function handleHoyoCodes(request) {
+  const url = new URL(request.url);
+  const game = normalizeHoyoGame(url.searchParams.get('game'));
+  const cacheKey = `${url.origin}/api/hoyo-codes?game=${game}`;
+  const cached = await getCached(request, cacheKey);
+  if (cached) return cached;
+
+  const games = game === 'all' ? ['hsr', 'genshin'] : [game];
+  const entries = await Promise.all(games.map(async (gameKey) => [gameKey, await buildHoyoCodesForGame(gameKey)]));
+  const payload = entries.reduce((acc, [gameKey, value]) => {
+    acc[gameKey] = value.codes;
+    acc.sources[gameKey] = value.sources;
+    return acc;
+  }, {
+    hsr: [],
+    genshin: [],
+    sources: {},
+    lastUpdate: new Date().toISOString(),
+    cacheExpiry: new Date(Date.now() + CONFIG.TTL.hoyoCodes * 1000).toISOString(),
+  });
+
+  const res = jsonResponse(payload, 200, request, {
+    'Cache-Control': `public, max-age=3600, s-maxage=${CONFIG.TTL.hoyoCodes}, stale-while-revalidate=${14 * 24 * 60 * 60}`,
+    'X-Cache-Status': 'MISS',
+  });
+  await putCache(request, cacheKey, res, CONFIG.TTL.hoyoCodes);
+  return res;
 }
 
 // =========================================================================
@@ -1363,6 +1518,7 @@ export default {
       if (pathname === '/api/hsr/banners') return await handleBanners(rewriteBannerRequest(request, 'hsr'));
       if (pathname === '/api/genshin/banners') return await handleBanners(rewriteBannerRequest(request, 'genshin'));
       if (pathname === '/api/wuwa/banners') return await handleBanners(rewriteBannerRequest(request, 'wuwa'));
+      if (pathname === '/api/hoyo-codes') return await handleHoyoCodes(request);
       if (pathname === '/api/hsr/stats') return await handleHsrStats(request);
       if (pathname === '/api/genshin/stats') return await handleGenshinStats(request);
       if (pathname === '/api/wuwa/stats') return await handleWuWaStats(request);
