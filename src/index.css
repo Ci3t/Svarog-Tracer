@@ -442,6 +442,30 @@ select:disabled {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.theme-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.theme-scrollbar::-webkit-scrollbar-track {
+  background: var(--theme-surface-2);
+  border-radius: 6px;
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--theme-border-strong);
+  border-radius: 6px;
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent);
+}
+
+.theme-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border-strong) var(--theme-surface-2);
+}
+
 /* Rarity & Identity Animations */
 @keyframes rarity-glitch {
   0% {
