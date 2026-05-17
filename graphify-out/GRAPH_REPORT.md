@@ -1,7 +1,7 @@
 # Graph Report - HSR_PatternRecord  (2026-05-14)
 
 ## Corpus Check
-- 376 files · ~4,449,532 words
+- 376 files · ~4,450,138 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

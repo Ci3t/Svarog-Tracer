@@ -57,6 +57,30 @@ function resolveAuthDisplayName(user) {
   return metadata.global_name || metadata.full_name || metadata.display_name || discord.global_name || discord.full_name || discord.name || discord.display_name || discord.preferred_username || metadata.user_name || discord.username || metadata.preferred_username || metadata.name || user.email || user.id || '';
 }
 
+function getDiscordUserId(user) {
+  if (!user || typeof user !== 'object') return null;
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const discordIdentity = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord');
+  const identityData = discordIdentity?.identity_data && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+  const candidates = [
+    metadata.provider_id,
+    metadata.discord_id,
+    discordIdentity?.provider_id,
+    discordIdentity?.id,
+    identityData.user_id,
+    identityData.id,
+    identityData.sub,
+  ];
+  for (const value of candidates) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
 function resolvePresenceArea(pathname) {
   const value = String(pathname || '').trim().toLowerCase();
   if (!value) return 'On site';
@@ -121,6 +145,7 @@ export default function Layout({
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
   const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
+  const discordUserId = getDiscordUserId(user);
 
   useEffect(() => {
     if (!isAuthenticated || !membersDrawerOpen) return undefined;
@@ -136,13 +161,18 @@ export default function Layout({
     setAdminUsersLoading(true);
     try {
       // Admin routes bypass Cloudflare and go directly to Vercel
-      const response = await fetch(buildVercelApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      const response = await fetch(buildVercelApiUrl('/api/admin?action=users&per_page=200'), {
+        headers: {
+          ...getAuthHeader(),
+          ...(discordUserId ? { 'X-Discord-Id': discordUserId } : {}),
+        },
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Failed to load users.');
       setAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
     } catch (error) { window.alert(error?.message || 'Failed to load users.'); }
     finally { setAdminUsersLoading(false); }
-  }, [getAuthHeader, isAuthenticated, roleMode]);
+  }, [discordUserId, getAuthHeader, isAuthenticated, roleMode]);
 
   const openAdminModerationModal = useCallback((action) => {
     setAdminModerationMode(action === 'unban' ? 'unban' : 'ban');
@@ -163,17 +193,22 @@ export default function Layout({
     setAdminUserActionLoading(true);
     try {
       // Admin routes bypass Cloudflare and go directly to Vercel
-      const response = await fetch(buildVercelApiUrl('/api/admin-users'), {
+      const response = await fetch(buildVercelApiUrl('/api/admin?action=users'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+          ...(discordUserId ? { 'X-Discord-Id': discordUserId } : {}),
+        },
         body: JSON.stringify({ action: adminModerationMode, userId: selectedAdminUserId, reason: adminBanReason }),
       });
-      if (!response.ok) throw new Error('Action failed.');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Action failed.');
       await loadAdminUsers();
       closeAdminModerationModal();
     } catch (error) { window.alert(error.message); }
     finally { setAdminUserActionLoading(false); }
-  }, [adminBanReason, adminModerationMode, getAuthHeader, loadAdminUsers, selectedAdminUserId, closeAdminModerationModal]);
+  }, [adminBanReason, adminModerationMode, discordUserId, getAuthHeader, loadAdminUsers, selectedAdminUserId, closeAdminModerationModal]);
 
   const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;

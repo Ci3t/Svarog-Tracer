@@ -10,11 +10,14 @@ const DB_AUTH = process.env.TURSO_AUTH_TOKEN;
 const FORCE_PATCH_FALLBACK = process.env.PATCH_TIMERS_FORCE_FALLBACK === 'true';
 
 const FALLBACK_PATCHES = Object.freeze({
-  hsr: { current_patch: '3.7', patch_start_date: '2026-04-22', patch_duration_days: 42, auto_advance: false },
-  genshin: { current_patch: '6.2', patch_start_date: '2026-04-29', patch_duration_days: 42, auto_advance: false },
-  wuwa: { current_patch: '2.8', patch_start_date: '2026-04-29', patch_duration_days: 42, auto_advance: false },
+  hsr: { current_patch: '4.2', patch_start_date: '2026-04-22', patch_duration_days: 40, auto_advance: false },
+  genshin: { current_patch: '6.5', patch_start_date: '2026-04-16', patch_duration_days: 42, auto_advance: false },
+  wuwa: { current_patch: '3.3', patch_start_date: '2026-04-25', patch_duration_days: 42, auto_advance: false },
   zzz: { current_patch: '2.4', patch_start_date: '2026-04-23', patch_duration_days: 42, auto_advance: false },
 });
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
 function getDb() {
   if (!DB_URL || !DB_AUTH) return null;
@@ -36,27 +39,38 @@ function incrementPatch(version) {
   return `${major}.${newMinor}`;
 }
 
+function getPatchDurationDays(row) {
+  const game = String(row?.game || '').toLowerCase();
+  const patch = String(row?.current_patch || '').trim();
+  if (game === 'hsr' && patch === '4.2') {
+    return 40;
+  }
+  return row.patch_duration_days || 42;
+}
+
 function calculatePatchInfo(row) {
   const startDate = new Date(row.patch_start_date + 'T00:00:00Z');
-  const durationDays = row.patch_duration_days || 42;
-  const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+  const durationDays = getPatchDurationDays(row);
+  const endDate = new Date(startDate.getTime() + durationDays * DAY_MS);
   const now = new Date();
 
   const totalMs = endDate.getTime() - startDate.getTime();
   const remainingMs = endDate.getTime() - now.getTime();
-  const elapsedMs = now.getTime() - startDate.getTime();
+  const elapsedMs = Math.max(0, now.getTime() - startDate.getTime());
 
-  const daysLeft = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
-  const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)) % 24);
+  const safeRemainingMs = Math.max(0, remainingMs);
+  const daysLeft = Math.floor(safeRemainingMs / DAY_MS);
+  const hoursLeft = Math.floor((safeRemainingMs % DAY_MS) / HOUR_MS);
   const progressPercent = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
 
   // Determine phase (split patch into 2 phases of equal duration)
   const halfDuration = durationDays / 2;
-  const daysElapsed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+  const daysElapsed = Math.floor(elapsedMs / DAY_MS);
   const phase = daysElapsed < halfDuration ? 1 : 2;
+  const phaseOneEndDate = new Date(startDate.getTime() + halfDuration * DAY_MS);
   const phaseDaysLeft = phase === 1
-    ? Math.max(0, halfDuration - daysElapsed)
-    : Math.max(0, durationDays - daysElapsed);
+    ? Math.max(0, Math.floor((phaseOneEndDate.getTime() - now.getTime()) / DAY_MS))
+    : Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / DAY_MS));
 
   return {
     patch: row.current_patch,
@@ -67,7 +81,7 @@ function calculatePatchInfo(row) {
     totalDays: durationDays,
     progressPercent: Math.round(progressPercent),
     phase,
-    phaseDaysLeft: Math.round(phaseDaysLeft),
+    phaseDaysLeft,
     autoAdvance: Boolean(row.auto_advance),
   };
 }

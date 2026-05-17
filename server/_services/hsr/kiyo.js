@@ -19,9 +19,9 @@ const MAX_ROLLS_PER_SESSION = 200;
 const STATS_RATE_LIMIT_MAX = 120; // per minute per IP
 const KIYO_PATCH_FALLBACK = Object.freeze({
   current_patch: '4.2',
-  patch_start_date: '2026-04-21T20:00:00.000Z',
+  patch_start_date: '2026-04-21T22:00:00.000Z',
   phase_1_days: 21,
-  phase_2_days: 21,
+  phase_2_days: 19,
   timer_mode: 'fallback',
   auto_advance: false,
   manual_override_at: null,
@@ -102,8 +102,9 @@ function buildKiyoPatchPayload(base = KIYO_PATCH_FALLBACK) {
   const startDate = new Date(base.patch_start_date);
   const now = new Date();
   const msPerDay = 1000 * 60 * 60 * 24;
-  const phase1Days = Number(base.phase_1_days || 21);
-  const phase2Days = Number(base.phase_2_days || 21);
+  const isHsr42 = String(base.current_patch || '').trim() === '4.2';
+  const phase1Days = isHsr42 ? 21 : Number(base.phase_1_days || 21);
+  const phase2Days = isHsr42 ? 19 : Number(base.phase_2_days || 21);
   const totalPatchDays = phase1Days + phase2Days;
   const phase1EndMs = startDate.getTime() + phase1Days * msPerDay;
   const patchEndMs = startDate.getTime() + totalPatchDays * msPerDay;
@@ -564,11 +565,11 @@ async function handleGetPatch(req, res, db) {
 
     // Auto-create default config if missing
     if (result.rows.length === 0) {
-      // 4.2: ~11d 20h left in Phase 1 + 20 days Phase 2 = ~32 days total
+      // 4.2 ends on 2026-06-01 06:00 UTC+8, so this patch is 40 days.
       const PHASE_1_DAYS = 21;
-      const PHASE_2_DAYS = 21;
-      const ADVANCE_DAYS_42 = 32; // remaining from now
-      const fallbackStart = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const PHASE_2_DAYS = 19;
+      const ADVANCE_DAYS_42 = 40;
+      const fallbackStart = new Date('2026-04-21T22:00:00.000Z');
       const insertSql = hasPhaseColumns
         ? `INSERT INTO kiyo_patch_config
              (id, current_patch, patch_start_date, advance_days, timer_mode, auto_advance, phase_1_days, phase_2_days)
@@ -598,11 +599,17 @@ async function handleGetPatch(req, res, db) {
     const msPerDay = 1000 * 60 * 60 * 24;
     let daysElapsed = Math.floor((now - startDate) / msPerDay);
 
-    // Auto-correct stale patch 4.2 start dates (patch 4.2 started ~April 21, 2026)
-    if (row.current_patch === '4.2' && daysElapsed > 21) {
-      const correctedStart = new Date('2026-04-21T20:00:00.000Z');
+    // Auto-correct stale patch 4.2 values. It ends on 2026-06-01 06:00 UTC+8.
+    if (row.current_patch === '4.2') {
+      const correctedStart = new Date('2026-04-21T22:00:00.000Z');
       await db.execute({
-        sql: `UPDATE kiyo_patch_config SET patch_start_date = ? WHERE id = 1`,
+        sql: hasPhaseColumns
+          ? `UPDATE kiyo_patch_config
+             SET patch_start_date = ?, phase_1_days = 21, phase_2_days = 19, advance_days = 40
+             WHERE id = 1`
+          : `UPDATE kiyo_patch_config
+             SET patch_start_date = ?, advance_days = 40
+             WHERE id = 1`,
         args: [correctedStart.toISOString()],
       });
       startDate = correctedStart;

@@ -82,10 +82,26 @@ function resolveAuthDisplayName(user) {
 
 function getDiscordUserId(user) {
   if (!user || typeof user !== 'object') return null;
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
   const identities = Array.isArray(user.identities) ? user.identities : [];
   const discordIdentity = identities.find(i => String(i?.provider || '').toLowerCase() === 'discord');
-  if (!discordIdentity?.identity_data) return null;
-  return String(discordIdentity.identity_data.id || discordIdentity.identity_data.sub || '').trim() || null;
+  const identityData = discordIdentity?.identity_data && typeof discordIdentity.identity_data === 'object'
+    ? discordIdentity.identity_data
+    : {};
+  const candidates = [
+    metadata.provider_id,
+    metadata.discord_id,
+    discordIdentity?.provider_id,
+    discordIdentity?.id,
+    identityData.user_id,
+    identityData.id,
+    identityData.sub,
+  ];
+  for (const value of candidates) {
+    const normalized = String(value || '').trim();
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 const SUPER_ADMINS = new Set([
@@ -905,7 +921,7 @@ export default function UserProfilePage() {
 /* -------------------------------------------------------------------------- */
 
 const DEFAULT_PATCHES = {
-  hsr: { version: '4.2', startDate: '2026-04-09', durationDays: 42 },
+  hsr: { version: '4.2', startDate: '2026-04-22', durationDays: 40 },
   genshin: { version: '6.5', startDate: '2026-04-16', durationDays: 42 },
   wuwa: { version: '3.3', startDate: '2026-04-25', durationDays: 42 },
 };
@@ -977,7 +993,7 @@ function PatchTimerAdminView() {
     const now = new Date();
     const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const elapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-    const remaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+    const remaining = Math.floor(Math.max(0, end - now) / (1000 * 60 * 60 * 24));
     const progress = Math.min(100, Math.max(0, (elapsed / durationDays) * 100));
     return { elapsed, remaining, progress, end };
   };
@@ -1079,7 +1095,11 @@ function AdminView({ getAuthHeader, discordUserId }) {
     setAdminUsersLoading(true);
     try {
       // Admin routes bypass Cloudflare and go directly to Vercel
-      const res = await fetch(buildVercelApiUrl('/api/admin-users?per_page=200'), { headers: { ...getAuthHeader() } });
+      const headers = {
+        ...getAuthHeader(),
+        ...(discordUserId ? { 'X-Discord-Id': discordUserId } : {}),
+      };
+      const res = await fetch(buildVercelApiUrl('/api/admin?action=users&per_page=200'), { headers });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to load users.');
       setAdminUsers(Array.isArray(data?.users) ? data.users : []);
@@ -1088,7 +1108,7 @@ function AdminView({ getAuthHeader, discordUserId }) {
     } finally {
       setAdminUsersLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [discordUserId, getAuthHeader]);
 
   const loadPatch = useCallback(async () => {
     setPatchLoading(true);
@@ -1111,12 +1131,17 @@ function AdminView({ getAuthHeader, discordUserId }) {
     setActionMessage('');
     try {
       // POST /admin/write routes must bypass Cloudflare and go directly to Vercel
-      const res = await fetch(buildVercelApiUrl('/api/admin-users'), {
+      const res = await fetch(buildVercelApiUrl('/api/admin?action=users'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+          ...(discordUserId ? { 'X-Discord-Id': discordUserId } : {}),
+        },
         body: JSON.stringify({ action, userId: selectedUserId, reason: banReason }),
       });
-      if (!res.ok) throw new Error('Action failed.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Action failed.');
       setActionMessage(`${action === 'ban' ? 'Banned' : 'Unbanned'} successfully.`);
       setBanReason('');
       setSelectedUserId('');
@@ -1357,10 +1382,10 @@ function BannerAdminView({ discordUserId }) {
     setLoading(true);
     setMessage('');
     try {
-      const res = await fetch('/api/admin?action=banners&game=all', {
+      const res = await fetch(buildVercelApiUrl('/api/admin?action=banners&game=all'), {
         headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed');
       setBanners(data.data || {});
       setMessage('✓ Banners refreshed');
@@ -1388,7 +1413,7 @@ function BannerAdminView({ discordUserId }) {
           cleared++;
         }
       }
-      const res = await fetch('/api/admin?action=clear-cache', {
+      const res = await fetch(buildVercelApiUrl('/api/admin?action=clear-cache'), {
         method: 'POST',
         headers: discordUserId ? { 'X-Discord-Id': discordUserId } : {}
       });
