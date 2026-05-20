@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v8',
+  CACHE_VERSION: 'v9',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -22,6 +22,12 @@ const CONFIG = {
   STAR_RAIL_RES_CDN: 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master',
   PAIMON_API: 'https://api.paimon.moe/wish',
   PAIMON_IMG_BASE: 'https://paimon.moe/images',
+  GENSHIN_CURRENT_CHARACTER_BANNER_ID: '300100',
+  GENSHIN_CURRENT_WEAPON_BANNER_ID: '400099',
+  GENSHIN_CURRENT_CHARACTER_NAME: 'Nicole / Durin',
+  GENSHIN_CURRENT_WEAPON_NAME: "Angelos' Heptades / Athame Artis",
+  GENSHIN_CURRENT_CHARACTER_IMAGE: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_Splash.webp',
+  GENSHIN_CURRENT_WEAPON_IMAGE: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_weapon_Splash.webp',
   WUWA_TRACKER: 'https://wuwatracker.com/tracker/stats',
   WUWA_IMG_API: 'https://wuwatracker.com/_next/image',
   HOYO_CODES_API: 'https://hoyo-codes.seria.moe/codes',
@@ -461,8 +467,8 @@ function toPaimonSlug(name) {
 
 function buildGenshinFallbackBanners() {
   return [
-    { id: '300095_character', bannerId: '300095', name: 'Current Character Banner', type: 'character', image: `${CONFIG.PAIMON_IMG_BASE}/characters/unknown.png`, fallbackImage: `${CONFIG.PAIMON_IMG_BASE}/characters/unknown.png`, characterId: 'unknown', game: 'genshin', source: 'worker-fallback' },
-    { id: '400095_weapon', bannerId: '400095', name: 'Epitome Invocation', type: 'weapon', image: `${CONFIG.PAIMON_IMG_BASE}/weapons/unknown.png`, fallbackImage: `${CONFIG.PAIMON_IMG_BASE}/weapons/unknown.png`, characterId: 'weapon_banner', game: 'genshin', source: 'worker-fallback' },
+    { id: `${CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID}_character`, bannerId: CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID, name: CONFIG.GENSHIN_CURRENT_CHARACTER_NAME, type: 'character', image: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, fallbackImage: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, characterId: 'nicole', game: 'genshin', source: 'worker-fallback', assetLocked: true },
+    { id: `${CONFIG.GENSHIN_CURRENT_WEAPON_BANNER_ID}_weapon`, bannerId: CONFIG.GENSHIN_CURRENT_WEAPON_BANNER_ID, name: CONFIG.GENSHIN_CURRENT_WEAPON_NAME, type: 'weapon', image: CONFIG.GENSHIN_CURRENT_WEAPON_IMAGE, fallbackImage: CONFIG.GENSHIN_CURRENT_WEAPON_IMAGE, characterId: 'weapon_banner', game: 'genshin', source: 'worker-fallback', assetLocked: true },
   ];
 }
 

@@ -1253,12 +1253,12 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
-// Current: Nicole (character), Angelos' Heptades / Athame Artis (weapon)
+// Current: Nicole / Durin (character), Angelos' Heptades / Athame Artis (weapon)
 const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_Splash.webp';
 const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_weapon_Splash.webp';
 
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300100_character", bannerId: "300100", name: "Nicole", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "nicole", game: "genshin", assetLocked: true },
+  { id: "300100_character", bannerId: "300100", name: "Nicole / Durin", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "nicole", game: "genshin", assetLocked: true },
   { id: "400099_weapon", bannerId: "400099", name: "Angelos' Heptades / Athame Artis", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
 ];
 
@@ -1490,7 +1490,7 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 // Genshin Banner Overrides (for specific banner IDs that need manual naming)
 const GENSHIN_BANNER_OVERRIDES = {
-  "300100": { name: "Nicole", type: "character" },
+  "300100": { name: "Nicole / Durin", type: "character" },
   "400099": { name: "Angelos' Heptades / Athame Artis", type: "weapon" },
   "300094": { name: "Columbina", type: "character" },
   "300093": { name: "Ineffa", type: "character" },
@@ -1527,7 +1527,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
-  const CURRENT_CACHE_VERSION = '1.4'; // Increment this when banner overrides or active pairings change
+  const CURRENT_CACHE_VERSION = '1.5'; // Increment this when banner overrides or active pairings change
   
   // Check cache version and invalidate if outdated
   const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);
