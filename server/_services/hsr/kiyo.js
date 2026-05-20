@@ -28,6 +28,7 @@ const KIYO_PATCH_FALLBACK = Object.freeze({
   manual_override_by: null,
 });
 const FORCE_PATCH_FALLBACK = process.env.KIYO_PATCH_FORCE_FALLBACK === 'true';
+const KIYO_PATCH_CACHE_CONTROL = 'no-store, no-cache, must-revalidate';
 
 export async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -138,7 +139,9 @@ function buildKiyoPatchPayload(base = KIYO_PATCH_FALLBACK) {
 }
 
 function handleGetPatchFallback(req, res) {
-  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', KIYO_PATCH_CACHE_CONTROL);
+  res.setHeader('CDN-Cache-Control', KIYO_PATCH_CACHE_CONTROL);
+  res.setHeader('Vercel-CDN-Cache-Control', KIYO_PATCH_CACHE_CONTROL);
   return res.status(200).json(buildKiyoPatchPayload());
 }
 
@@ -699,7 +702,9 @@ async function handleGetPatch(req, res, db) {
       row.timer_mode = 'fresh';
     }
 
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', KIYO_PATCH_CACHE_CONTROL);
+    res.setHeader('CDN-Cache-Control', KIYO_PATCH_CACHE_CONTROL);
+    res.setHeader('Vercel-CDN-Cache-Control', KIYO_PATCH_CACHE_CONTROL);
     return res.status(200).json({
       current_patch: row.current_patch,
       patch_start_date: row.patch_start_date,

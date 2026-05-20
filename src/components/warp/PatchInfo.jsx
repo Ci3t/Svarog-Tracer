@@ -4,12 +4,23 @@ import { apiFetch } from '../../utils/apiClient.js';
 
 const FALLBACK_PATCH_INFO = {
   hsr: { patch: '4.2', startDate: '2026-04-22', totalDays: 40 },
-  genshin: { patch: '6.5', startDate: '2026-04-16', totalDays: 42 },
+  genshin: { patch: '6.6', startDate: '2026-05-20', totalDays: 42 },
   wuwa: { patch: '3.3', startDate: '2026-04-25', totalDays: 42 },
   zzz: { patch: '2.4', startDate: '2026-04-23', totalDays: 42 },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function comparePatchVersion(a, b) {
+  const left = String(a || '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const right = String(b || '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const max = Math.max(left.length, right.length);
+  for (let i = 0; i < max; i += 1) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
 
 function getFallbackPatchInfo(game) {
   const fallback = FALLBACK_PATCH_INFO[game] || FALLBACK_PATCH_INFO.hsr;
@@ -33,6 +44,15 @@ function getFallbackPatchInfo(game) {
   };
 }
 
+function preferFreshPatchInfo(game, data) {
+  const fallback = FALLBACK_PATCH_INFO[game];
+  if (!fallback || !data?.patch) return data;
+  if (comparePatchVersion(data.patch, fallback.patch) < 0) {
+    return getFallbackPatchInfo(game);
+  }
+  return data;
+}
+
 /**
  * Patch Info Bar
  * Shows current patch, phase, and days remaining for the selected game.
@@ -47,9 +67,9 @@ export default function PatchInfo({ game }) {
     let cancelled = false;
     setLoading(true);
 
-    apiFetch(`/patch-timers?game=${game}`)
+    apiFetch(`/patch-timers?game=${game}`, { cacheClient: false })
       .then(data => {
-        if (!cancelled && data?.patch) setPatchData(data);
+        if (!cancelled && data?.patch) setPatchData(preferFreshPatchInfo(game, data));
       })
       .catch(err => {
         console.warn('[PatchInfo] Failed to fetch patch:', err.message);

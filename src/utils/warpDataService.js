@@ -1253,13 +1253,13 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
-// Current: Lauma / Nefer (character), Nightweaver's Looking Glass / Reliquary of Truth (weapon)
-const _genshinCharFallback = 'https://paimon.moe/images/characters/lauma.png';
-const _genshinWepFallback = 'https://paimon.moe/images/banners/Epitome%20Invocation%2098.png';
+// Current: Nicole (character), Angelos' Heptades / Athame Artis (weapon)
+const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_Splash.webp';
+const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_weapon_Splash.webp';
 
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300099_character", bannerId: "300099", name: "Lauma / Nefer", type: "character", image: resolveGenshinCharacterImage('lauma', _genshinCharFallback), characterId: "lauma", game: "genshin" },
-  { id: "400098_weapon", bannerId: "400098", name: "Nightweaver's Looking Glass / Reliquary of Truth", type: "weapon", image: resolveGenshinWeaponImage('Nightweaver', _genshinWepFallback), characterId: "weapon_banner", game: "genshin" },
+  { id: "300100_character", bannerId: "300100", name: "Nicole", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "nicole", game: "genshin", assetLocked: true },
+  { id: "400099_weapon", bannerId: "400099", name: "Angelos' Heptades / Athame Artis", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
 ];
 
 
@@ -1490,14 +1490,21 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 // Genshin Banner Overrides (for specific banner IDs that need manual naming)
 const GENSHIN_BANNER_OVERRIDES = {
+  "300100": { name: "Nicole", type: "character" },
+  "400099": { name: "Angelos' Heptades / Athame Artis", type: "weapon" },
   "300094": { name: "Columbina", type: "character" },
   "300093": { name: "Ineffa", type: "character" },
   "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
   "400092": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" }
 };
 
-const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300099';
-const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400098';
+const GENSHIN_BANNER_IMAGE_OVERRIDES = {
+  "300100": _genshinCharFallback,
+  "400099": _genshinWepFallback,
+};
+
+const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300100';
+const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400099';
 
 /**
  * Fetches live Genshin banners from Paimon.moe
@@ -1520,7 +1527,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
-  const CURRENT_CACHE_VERSION = '1.3'; // Increment this when banner overrides or active pairings change
+  const CURRENT_CACHE_VERSION = '1.4'; // Increment this when banner overrides or active pairings change
   
   // Check cache version and invalidate if outdated
   const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -1608,16 +1615,18 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
         ).join(' ');
         const charIconName = char.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
         const fallbackImage = `${GENSHIN_IMG_BASE}${charIconName}.png`;
+        const imageOverride = GENSHIN_BANNER_IMAGE_OVERRIDES[bannerId];
         
         banners.push({
           id: `${bannerId}_${char.name}`,
           bannerId: bannerId,
           name: formattedName,
           type: 'character',
-          image: resolveGenshinCharacterImage(char.name, fallbackImage),
-          fallbackImage,
+          image: imageOverride || resolveGenshinCharacterImage(char.name, fallbackImage),
+          fallbackImage: imageOverride || fallbackImage,
           characterId: char.name,
-          game: 'genshin'
+          game: 'genshin',
+          assetLocked: Boolean(imageOverride)
         });
       }
     }
@@ -1638,15 +1647,17 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
             const override = GENSHIN_BANNER_OVERRIDES[bannerId];
             const weaponName = override ? override.name : (extractGenshinWeaponNames(data.list) || `Epitome Invocation`);
             const fallbackImage = `https://paimon.moe/images/banners/Epitome%20Invocation%20${bannerNumber}.png`;
+            const imageOverride = GENSHIN_BANNER_IMAGE_OVERRIDES[bannerId];
             banners.push({
               id: `${bannerId}_weapon`,
               bannerId: bannerId,
               name: weaponName,
               type: 'weapon',
-              image: resolveGenshinWeaponImage(weaponName, fallbackImage),
-              fallbackImage,
+              image: imageOverride || resolveGenshinWeaponImage(weaponName, fallbackImage),
+              fallbackImage: imageOverride || fallbackImage,
               characterId: 'weapon_banner',
-              game: 'genshin'
+              game: 'genshin',
+              assetLocked: Boolean(imageOverride)
             });
             break;
           }

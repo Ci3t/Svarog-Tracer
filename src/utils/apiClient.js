@@ -62,14 +62,16 @@ function writeApiCache(key, data) {
 async function fetchSingle(url, options = {}, timeoutMs = API_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const { cacheClient, ...fetchOptions } = options;
 
   try {
     const requestInit = {
-      ...options,
+      ...fetchOptions,
+      cache: cacheClient === false ? 'no-store' : fetchOptions.cache,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...fetchOptions.headers,
       },
     };
     const dedupeKey = options.dedupe !== false ? `api:${url}` : '';

@@ -922,9 +922,20 @@ export default function UserProfilePage() {
 
 const DEFAULT_PATCHES = {
   hsr: { version: '4.2', startDate: '2026-04-22', durationDays: 40 },
-  genshin: { version: '6.5', startDate: '2026-04-16', durationDays: 42 },
+  genshin: { version: '6.6', startDate: '2026-05-20', durationDays: 42 },
   wuwa: { version: '3.3', startDate: '2026-04-25', durationDays: 42 },
 };
+
+function comparePatchVersion(a, b) {
+  const left = String(a || '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const right = String(b || '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const max = Math.max(left.length, right.length);
+  for (let i = 0; i < max; i += 1) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
 
 function PatchTimerAdminView() {
   const [patches, setPatches] = useState(DEFAULT_PATCHES);
@@ -935,10 +946,15 @@ function PatchTimerAdminView() {
 
   // Fetch from server on load
   useEffect(() => {
-    apiFetch('/patch-timers')
+    apiFetch('/patch-timers', { cacheClient: false })
       .then((data) => {
         const next = {};
         for (const [game, info] of Object.entries(data)) {
+          const fallback = DEFAULT_PATCHES[game];
+          if (fallback && comparePatchVersion(info.patch, fallback.version) < 0) {
+            next[game] = fallback;
+            continue;
+          }
           next[game] = {
             version: info.patch,
             startDate: info.startDate,
@@ -960,8 +976,9 @@ function PatchTimerAdminView() {
   const saveToServer = async (game, patch) => {
     try {
       // POST /admin/write routes must bypass Cloudflare and go directly to Vercel
-      const res = await fetch(buildVercelApiUrl('/api/patch-timers'), {
+      const res = await fetch(buildVercelApiUrl(`/api/patch-timers?t=${Date.now()}`), {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           game,
@@ -1113,7 +1130,7 @@ function AdminView({ getAuthHeader, discordUserId }) {
   const loadPatch = useCallback(async () => {
     setPatchLoading(true);
     try {
-      const data = await apiFetch('/hsr/kiyo/patch');
+      const data = await apiFetch('/hsr/kiyo/patch', { cacheClient: false });
       if (data) setPatchConfig(data);
     } catch {}
     finally { setPatchLoading(false); }

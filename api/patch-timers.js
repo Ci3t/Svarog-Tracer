@@ -8,10 +8,11 @@ import { createClient } from '@libsql/client';
 const DB_URL = process.env.TURSO_DB_URL;
 const DB_AUTH = process.env.TURSO_AUTH_TOKEN;
 const FORCE_PATCH_FALLBACK = process.env.PATCH_TIMERS_FORCE_FALLBACK === 'true';
+const PATCH_TIMER_CACHE_CONTROL = 'no-store, no-cache, must-revalidate';
 
 const FALLBACK_PATCHES = Object.freeze({
   hsr: { current_patch: '4.2', patch_start_date: '2026-04-22', patch_duration_days: 40, auto_advance: false },
-  genshin: { current_patch: '6.5', patch_start_date: '2026-04-16', patch_duration_days: 42, auto_advance: false },
+  genshin: { current_patch: '6.6', patch_start_date: '2026-05-20', patch_duration_days: 42, auto_advance: false },
   wuwa: { current_patch: '3.3', patch_start_date: '2026-04-25', patch_duration_days: 42, auto_advance: false },
   zzz: { current_patch: '2.4', patch_start_date: '2026-04-23', patch_duration_days: 42, auto_advance: false },
 });
@@ -108,14 +109,18 @@ async function handler(req, res) {
 
   if (FORCE_PATCH_FALLBACK) {
     const { game } = req.query || {};
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+    res.setHeader('CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+    res.setHeader('Vercel-CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
     return res.status(200).json(buildFallbackResponse(game));
   }
 
   const db = getDb();
   if (!db) {
     const { game } = req.query || {};
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+    res.setHeader('CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+    res.setHeader('Vercel-CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
     return res.status(200).json(buildFallbackResponse(game));
   }
 
@@ -148,7 +153,9 @@ async function handler(req, res) {
 
   // GET: Fetch patch data with auto-advance
   const { game } = req.query || {};
-  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+  res.setHeader('CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+  res.setHeader('Vercel-CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
 
   try {
     let rows;
@@ -213,7 +220,9 @@ async function handler(req, res) {
   } catch (err) {
     console.error('[PatchTimerAPI] Fetch error:', err.message);
     if (req.method === 'GET') {
-      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+      res.setHeader('Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+      res.setHeader('CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
+      res.setHeader('Vercel-CDN-Cache-Control', PATCH_TIMER_CACHE_CONTROL);
       return res.status(200).json(buildFallbackResponse(game));
     }
     return res.status(500).json({ error: 'Database error', detail: err.message });

@@ -32,7 +32,7 @@ const GENSHIN_FEATURED_CHAR_WHITELIST = new Set([
   'emilie', 'escoffier', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa',
   'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lyney',
   'mavuika', 'mualani', 'nahida', 'navia', 'nefer', 'neuvillette', 'nilou',
-  'raiden_shogun', 'shenhe', 'sigewinne', 'skirk', 'tartaglia', 'traveler',
+  'nicole', 'raiden_shogun', 'shenhe', 'sigewinne', 'skirk', 'tartaglia', 'traveler',
   'venti', 'wanderer', 'wriothesley', 'xianyun', 'xiao', 'yae_miko', 'yelan',
   'yoimiya', 'zhongli', 'zibai'
 ]);
@@ -46,7 +46,7 @@ const GENSHIN_FEATURED_WEAPON_WHITELIST = new Set([
   'golden_frostbound_oath', 'haran_geppaku_futsu', 'hunters_path',
   'kaguras_verity', 'light_of_foliar_incision', 'lightbearing_moonshard',
   'lost_prayer', 'lumidouce_elegy', 'mistsplitter_reforged',
-  'nightweavers_looking_glass', 'nocturnes_curtain_call', 'polar_star',
+  'angelos_heptades', 'athame_artis', 'nightweavers_looking_glass', 'nocturnes_curtain_call', 'polar_star',
   'primordial_jade_cutter', 'primordial_jade_winged_spear', 'redhorn_stonethresher',
   'reliquary_of_truth', 'splendor_of_tranquil_waters', 'staff_of_homa',
   'symphonist_of_scents', 'thundering_pulse', 'tome_of_the_eternal_flow',
@@ -101,22 +101,24 @@ function buildControlledFallbackBanners() {
       bannerId: characterId,
       name: characterName,
       type: 'character',
-      image: resolveGenshinCharacterImage(characterSlug, characterFallback),
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || resolveGenshinCharacterImage(characterSlug, characterFallback),
       fallbackImage: characterFallback,
       characterId: characterSlug,
       game: 'genshin',
       source: 'controlled-fallback',
+      assetLocked: Boolean(GENSHIN_BANNER_CONTROL.overrideCharacterImage),
     },
     {
       id: `${weaponId}_weapon`,
       bannerId: weaponId,
       name: weaponName,
       type: 'weapon',
-      image: resolveGenshinWeaponImage(weaponSlug, weaponFallback),
+      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage || resolveGenshinWeaponImage(weaponSlug, weaponFallback),
       fallbackImage: weaponFallback,
       characterId: 'weapon_banner',
       game: 'genshin',
       source: 'controlled-fallback',
+      assetLocked: Boolean(GENSHIN_BANNER_CONTROL.overrideWeaponImage),
     },
   ];
 }
@@ -238,6 +240,44 @@ function buildWeaponBannerPayload(bannerId, slugs, legendaryCount, source = 'aut
   };
 }
 
+function applyControlledOverride(banner) {
+  if (!banner) return null;
+
+  if (banner.type === 'character' && String(banner.bannerId) === GENSHIN_BANNER_CONTROL.characterBannerId) {
+    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideCharacterImage || banner.fallbackImage || banner.image;
+    const name = GENSHIN_BANNER_CONTROL.overrideCharacterName || banner.name;
+    const characterId = toPaimonSlug(name);
+    return {
+      ...banner,
+      name,
+      characterId,
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || resolveGenshinCharacterImage(characterId, fallbackImage),
+      fallbackImage,
+      assetLocked: Boolean(GENSHIN_BANNER_CONTROL.overrideCharacterImage),
+    };
+  }
+
+  if (banner.type === 'weapon' && String(banner.bannerId) === GENSHIN_BANNER_CONTROL.weaponBannerId) {
+    const fallbackImage = GENSHIN_BANNER_CONTROL.overrideWeaponImage || banner.fallbackImage || banner.image;
+    const name = GENSHIN_BANNER_CONTROL.overrideWeaponName || banner.name;
+    return {
+      ...banner,
+      name,
+      image: GENSHIN_BANNER_CONTROL.overrideWeaponImage || resolveGenshinWeaponImage(toPaimonSlug(name), fallbackImage),
+      fallbackImage,
+      assetLocked: Boolean(GENSHIN_BANNER_CONTROL.overrideWeaponImage),
+    };
+  }
+
+  return banner;
+}
+
+function pickNewestBanner(...banners) {
+  return banners
+    .filter(Boolean)
+    .sort((a, b) => Number.parseInt(String(b.bannerId || '0'), 10) - Number.parseInt(String(a.bannerId || '0'), 10))[0] || null;
+}
+
 /**
  * Auto-discover the current banner by scanning from a high predicted ID downward.
  * No hardcoded IDs needed — automatically adapts to new patches.
@@ -328,23 +368,17 @@ async function loadGenshinBanners() {
 
   inFlightRequest = (async () => {
     const fallbackBanners = buildControlledFallbackBanners();
-    const [exactCharacter, exactWeapon] = await Promise.all([
+    const [exactCharacter, exactWeapon, autoCharacter, autoWeapon] = await Promise.all([
       fetchBannerByExactId(GENSHIN_BANNER_CONTROL.characterBannerId, 'character'),
       fetchBannerByExactId(GENSHIN_BANNER_CONTROL.weaponBannerId, 'weapon'),
+      discoverBannerAuto('300', 'character'),
+      discoverBannerAuto('400', 'weapon'),
     ]);
 
     let allBanners = [
-      exactCharacter || fallbackBanners.find((banner) => banner.type === 'character'),
-      exactWeapon || fallbackBanners.find((banner) => banner.type === 'weapon'),
-    ].filter(Boolean);
-
-    if (allBanners.length === 0) {
-      const [characterBanner, weaponBanner] = await Promise.all([
-        discoverBannerAuto('300', 'character'),
-        discoverBannerAuto('400', 'weapon')
-      ]);
-      allBanners = [characterBanner, weaponBanner].filter(Boolean);
-    }
+      pickNewestBanner(exactCharacter, autoCharacter) || fallbackBanners.find((banner) => banner.type === 'character'),
+      pickNewestBanner(exactWeapon, autoWeapon) || fallbackBanners.find((banner) => banner.type === 'weapon'),
+    ].filter(Boolean).map(applyControlledOverride);
 
     if (allBanners.length === 0) {
       allBanners = fallbackBanners;

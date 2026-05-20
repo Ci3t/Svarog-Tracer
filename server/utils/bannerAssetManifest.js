@@ -152,6 +152,7 @@ export async function applyBannerAssetManifest(banners) {
   return banners.map((banner) => {
     const game = String(banner?.game || '').toLowerCase();
     if (game !== 'genshin' && game !== 'wuwa') return banner;
+    if (banner?.assetLocked || banner?.imageLocked) return banner;
 
     const entry = pickEntryForBanner(manifest[game], banner, MANIFEST_URL);
     if (!entry?.image) return banner;
