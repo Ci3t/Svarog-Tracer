@@ -1327,8 +1327,8 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
 // Current: Nicole / Durin (character), Angelos' Heptades / Athame Artis (weapon)
-const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_Splash.webp';
-const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_weapon_Splash.webp';
+const _genshinCharFallback = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_Splash.webp?v=300100-nicole-20260520';
+const _genshinWepFallback = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_weapon_Splash.webp?v=400099-nicole-weapon-20260520';
 
 export const GENSHIN_PRESET_BANNERS = [
   { id: "300100_character", bannerId: "300100", name: "Nicole / Durin", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "nicole", game: "genshin", assetLocked: true },

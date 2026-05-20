@@ -6,6 +6,6 @@ export const GENSHIN_BANNER_CONTROL = Object.freeze({
   // Optional emergency overrides (normally keep null).
   overrideCharacterName: 'Nicole / Durin',
   overrideWeaponName: "Angelos' Heptades / Athame Artis",
-  overrideCharacterImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_Splash.webp',
-  overrideWeaponImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Nicole_weapon_Splash.webp'
+  overrideCharacterImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_Splash.webp?v=300100-nicole-20260520',
+  overrideWeaponImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_weapon_Splash.webp?v=400099-nicole-weapon-20260520'
 });
