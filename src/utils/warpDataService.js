@@ -283,12 +283,16 @@ export async function fetchCentralizedBanners(game = 'all') {
           bannerId: b.bannerId,
           name: b.name,
           image: b.image,
+          portrait: b.portrait,
+          fallbackImage: b.fallbackImage,
           type: b.type,
           characterId: b.characterId,
+          assetLocked: b.assetLocked,
+          imageLocked: b.imageLocked,
           game: 'genshin',
         }))
         : [];
-      return applyBannerAssetManifest(mappedBanners);
+      return applyBannerAssetManifest(normalizeCurrentGenshinBanners(mappedBanners));
     }
 
     if (game === 'wuwa') {
@@ -353,11 +357,17 @@ export async function fetchCentralizedBanners(game = 'all') {
         collaboration: b.collaboration,
         game: 'hsr'  // IMPORTANT: Keep this for filtering!
       })),
-      ...(data.genshin || []).map(b => ({
+      ...(data.genshin || []).map(b => normalizeCurrentGenshinBanner({
         id: b.id,
+        bannerId: b.bannerId || extractBannerId(b.id) || b.id,
         name: b.name,
         image: b.image,
+        portrait: b.portrait,
+        fallbackImage: b.fallbackImage,
         type: b.type,
+        characterId: b.characterId,
+        assetLocked: b.assetLocked,
+        imageLocked: b.imageLocked,
         game: 'genshin'  // IMPORTANT: Keep this for filtering!
       })),
       ...(data.wuwa || []).map(b => ({
@@ -510,8 +520,71 @@ export function extractBannerId(input = "") {
   if (/^\d/.test(input)) {
     return input;
   }
-  
+
   return null; // Don't default to 2099 for unknown inputs
+}
+
+function normalizeCurrentGenshinBanner(banner) {
+  if (!banner || String(banner.game || '').toLowerCase() !== 'genshin') {
+    return banner;
+  }
+
+  const rawId = String(banner.bannerId || extractBannerId(banner.id) || banner.id || '');
+  const cleanId = rawId.replace(/_(character|weapon|light_cone)$/i, '');
+  const type = banner.type || (cleanId.startsWith('400') ? 'weapon' : 'character');
+  const nameKey = String(banner.name || '').toLowerCase();
+  const isCurrentCharacter =
+    type === 'character' &&
+    (cleanId === '300100' ||
+      cleanId === '300095' ||
+      nameKey.includes('current character banner') ||
+      nameKey.includes('lauma'));
+  const isCurrentWeapon =
+    type === 'weapon' &&
+    (cleanId === '400099' ||
+      cleanId === '400095' ||
+      nameKey.includes('current weapon banner') ||
+      nameKey.includes('epitome invocation'));
+
+  if (isCurrentCharacter) {
+    return {
+      ...banner,
+      id: '300100_character',
+      bannerId: '300100',
+      name: 'Nicole / Durin',
+      image: _genshinCharFallback,
+      portrait: _genshinCharFallback,
+      fallbackImage: _genshinCharFallback,
+      type: 'character',
+      characterId: 'nicole',
+      assetLocked: true,
+      imageLocked: true,
+      game: 'genshin',
+    };
+  }
+
+  if (isCurrentWeapon) {
+    return {
+      ...banner,
+      id: '400099_weapon',
+      bannerId: '400099',
+      name: "Angelos' Heptades / Athame Artis",
+      image: _genshinWepFallback,
+      portrait: _genshinWepFallback,
+      fallbackImage: _genshinWepFallback,
+      type: 'weapon',
+      characterId: 'weapon_banner',
+      assetLocked: true,
+      imageLocked: true,
+      game: 'genshin',
+    };
+  }
+
+  return banner;
+}
+
+function normalizeCurrentGenshinBanners(banners) {
+  return Array.isArray(banners) ? banners.map(normalizeCurrentGenshinBanner) : banners;
 }
 
 /**
