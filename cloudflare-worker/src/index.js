@@ -33,6 +33,8 @@ const CONFIG = {
   HOYO_CODES_API: 'https://hoyo-codes.seria.moe/codes',
   HASHBLEN_CODES_API: 'https://db.hashblen.com/codes',
   VERCEL_API_BASE: 'https://svarog-tracer.vercel.app',
+  WISP_BOT_HEALTH_URL: 'http://194.164.194.118:11508/health',
+  RENDER_BOT_WAKE_URL: 'https://hsr-relicprediction.onrender.com/health',
   // Budget guard (approximate per-isolate; monitor via dashboard)
   DAILY_SOFT_LIMIT: 90000,
   DAILY_HARD_LIMIT: 95000,
@@ -115,7 +117,8 @@ function corsPreflight(request) {
 // =========================================================================
 function isAllowedOrigin(request) {
   const origin = request.headers.get('Origin') || '';
-  if (!origin && new URL(request.url).pathname === '/health') return true;
+  const pathname = new URL(request.url).pathname;
+  if (!origin && (pathname === '/health' || pathname === '/api/bot-health')) return true;
   if (CONFIG.ALLOWED_ORIGINS.includes(origin)) return true;
   if (origin.includes('workers.dev')) return true;
   return false;
@@ -311,6 +314,70 @@ function handleHealth(request, budget, env) {
     budgetMode: budget.mode,
     budgetCount: budget.count,
   }, 200, request, budgetHeaders(budget.mode));
+}
+
+function getBotHealthConfig(env = {}) {
+  return {
+    primaryUrl: String(env.WISP_BOT_HEALTH_URL || env.PRIMARY_BOT_HEALTH_URL || CONFIG.WISP_BOT_HEALTH_URL).replace(/\/+$/, ''),
+    renderUrl: String(env.RENDER_BOT_WAKE_URL || CONFIG.RENDER_BOT_WAKE_URL).replace(/\/+$/, ''),
+  };
+}
+
+async function fetchBotHealth(url, label) {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BOT_HEALTH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'svarog-worker-bot-health' },
+    });
+    return {
+      label,
+      url,
+      ok: response.ok,
+      status: response.status,
+      ms: Date.now() - startedAt,
+    };
+  } catch (error) {
+    return {
+      label,
+      url,
+      ok: false,
+      status: 0,
+      error: error?.name === 'AbortError' ? 'timeout' : String(error?.message || error),
+      ms: Date.now() - startedAt,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function runBotHealthMonitor(env = {}) {
+  const { primaryUrl, renderUrl } = getBotHealthConfig(env);
+  const primary = await fetchBotHealth(primaryUrl, 'wispbyte');
+  const result = {
+    checkedAt: new Date().toISOString(),
+    primary,
+    render: null,
+    action: primary.ok ? 'primary_ok' : 'render_pinged',
+  };
+
+  if (!primary.ok) {
+    result.render = await fetchBotHealth(renderUrl, 'render');
+  }
+
+  return result;
+}
+
+async function handleBotHealth(request, env) {
+  const result = await runBotHealthMonitor(env);
+  return jsonResponse(result, 200, request, {
+    'Cache-Control': 'no-store',
+    'X-Bot-Health-Action': result.action,
+  });
 }
 
 // =========================================================================
@@ -543,6 +610,8 @@ const WUWA_CURRENT_BANNER_ASSETS = {
     characterId: 'forged-dwarf-star',
   },
 };
+
+const BOT_HEALTH_TIMEOUT_MS = 12000;
 
 function applyCurrentWuWaBannerAsset(banner) {
   const override = WUWA_CURRENT_BANNER_ASSETS[String(banner?.bannerId || banner?.id || '')];
@@ -1539,6 +1608,12 @@ export default {
 
     try {
       if (pathname === '/health') return handleHealth(request, budget, env);
+      if (pathname === '/api/bot-health') {
+        if (request.method !== 'GET') {
+          return jsonResponse({ error: 'Method not allowed' }, 405, request, budgetHeaders(budget.mode));
+        }
+        return await handleBotHealth(request, env);
+      }
 
       // Native route: GET /api/hsr/kiyo/patch
       if (pathname === '/api/hsr/kiyo/patch') {
@@ -1575,5 +1650,21 @@ export default {
       console.error('[Worker] Unhandled error:', err.message);
       return jsonResponse({ error: 'Internal Server Error', message: err.message }, 500, request, budgetHeaders(budget.mode));
     }
+  },
+
+  async scheduled(event, env, executionCtx) {
+    executionCtx.waitUntil(
+      runBotHealthMonitor(env)
+        .then((result) => {
+          console.log('[BotHealth]', JSON.stringify({
+            action: result.action,
+            primaryStatus: result.primary?.status,
+            renderStatus: result.render?.status,
+          }));
+        })
+        .catch((error) => {
+          console.error('[BotHealth] Scheduled monitor failed:', error?.message || error);
+        })
+    );
   }
 };

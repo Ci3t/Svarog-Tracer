@@ -1108,6 +1108,14 @@ function AdminView({ getAuthHeader, discordUserId }) {
   const [adminPassword, setAdminPassword] = useState('');
   const [kiyoMessage, setKiyoMessage] = useState('');
 
+  useEffect(() => {
+    try {
+      localStorage.removeItem('hsr_admin_pass');
+    } catch {
+      // Ignore localStorage access failures.
+    }
+  }, []);
+
   const loadUsers = useCallback(async () => {
     setAdminUsersLoading(true);
     try {
