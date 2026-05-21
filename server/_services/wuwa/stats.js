@@ -51,6 +51,12 @@ function buildBannerIdCandidates(id) {
   return Array.from(new Set(candidates));
 }
 
+function hasUsableStats(parsed) {
+  const histogramSize = Object.keys(parsed?.stats?.by_rollnum_pulls_5 || {}).length;
+  const totalPulls = Number(parsed?.stats?.total_pulls_5 || parsed?.stats?.count_win_5 || 0);
+  return Boolean(parsed?.stats) && histogramSize > 0 && totalPulls > 0;
+}
+
 export async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -135,10 +141,11 @@ export async function handler(req, res) {
 
       console.log('[WuWa API] HTML length:', html.length);
       const parsed = parseWuWaHTML_Adaptive(html);
-      if (parsed?.stats) {
+      if (hasUsableStats(parsed)) {
         finalStats = parsed;
         break;
       }
+      console.warn(`[WuWa API] Candidate ${candidateId} returned empty stats, trying next candidate`);
     }
 
     if (!finalStats) {

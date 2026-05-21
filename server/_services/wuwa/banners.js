@@ -23,6 +23,25 @@ const WUWA_IMAGE_OVERRIDES = Object.freeze({
   'solsworn-ciphers': { folder: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
 });
 
+const WUWA_CURRENT_BANNER_ASSETS = Object.freeze({
+  '100037': {
+    id: '100037_character',
+    bannerId: '100037',
+    name: 'Denia / Chisa / Phrolova',
+    type: 'character',
+    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521',
+    characterId: 'denia',
+  },
+  '200037': {
+    id: '200037_weapon',
+    bannerId: '200037',
+    name: 'Forged Dwarf Star / Kumokiri / Lethean Elegy',
+    type: 'weapon',
+    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521',
+    characterId: 'forged-dwarf-star',
+  },
+});
+
 const WUWA_FETCH_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
@@ -62,33 +81,24 @@ function buildWuWaImageUrl(folder, fileName) {
   return `https://wuwatracker.com/_next/image?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
 }
 
-function buildWuWaFallbackBanners() {
-  const hiyukiFallback = buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.png');
-  const frostburnFallback = buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png');
+function applyCurrentWuWaBannerAsset(banner) {
+  const override = WUWA_CURRENT_BANNER_ASSETS[String(banner?.bannerId || banner?.id || '')];
+  if (!override) return banner;
 
+  return {
+    ...banner,
+    ...override,
+    fallbackImage: override.image,
+    game: 'wuwa',
+    assetLocked: true,
+    imageLocked: true,
+  };
+}
+
+function buildWuWaFallbackBanners() {
   return [
-    {
-      id: '100036_character',
-      bannerId: '100036',
-      name: 'Hiyuki',
-      type: 'character',
-      image: resolveWuWaCharacterImage('Hiyuki', hiyukiFallback),
-      fallbackImage: hiyukiFallback,
-      characterId: 'hiyuki',
-      game: 'wuwa',
-      source: 'controlled-fallback',
-    },
-    {
-      id: '200036_weapon',
-      bannerId: '200036',
-      name: 'Frostburn',
-      type: 'weapon',
-      image: resolveWuWaWeaponImage('Frostburn', frostburnFallback),
-      fallbackImage: frostburnFallback,
-      characterId: 'frostburn',
-      game: 'wuwa',
-      source: 'controlled-fallback',
-    },
+    applyCurrentWuWaBannerAsset({ bannerId: '100037', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '200037', source: 'controlled-fallback' }),
   ];
 }
 
@@ -197,7 +207,7 @@ export async function handler(req, res) {
         ? resolveWuWaCharacterImage(resolvedName, fallbackImage)
         : resolveWuWaWeaponImage(resolvedName, fallbackImage);
 
-      allBanners.push({
+      allBanners.push(applyCurrentWuWaBannerAsset({
         id: `${bannerId}_${type}`,
         bannerId,
         name: resolvedName,
@@ -205,7 +215,7 @@ export async function handler(req, res) {
         image,
         fallbackImage,
         game: 'wuwa'
-      });
+      }));
     }
 
     if (allBanners.length === 0) {

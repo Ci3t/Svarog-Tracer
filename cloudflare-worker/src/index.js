@@ -525,10 +525,43 @@ function buildWuWaImageUrl(folder, fileName) {
   return `${CONFIG.WUWA_IMG_API}?url=${encodeURIComponent(`/api/${folder}/file/${fileName}`)}&w=828&q=75`;
 }
 
+const WUWA_CURRENT_BANNER_ASSETS = {
+  '100037': {
+    id: '100037_character',
+    bannerId: '100037',
+    name: 'Denia / Chisa / Phrolova',
+    type: 'character',
+    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521',
+    characterId: 'denia',
+  },
+  '200037': {
+    id: '200037_weapon',
+    bannerId: '200037',
+    name: 'Forged Dwarf Star / Kumokiri / Lethean Elegy',
+    type: 'weapon',
+    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521',
+    characterId: 'forged-dwarf-star',
+  },
+};
+
+function applyCurrentWuWaBannerAsset(banner) {
+  const override = WUWA_CURRENT_BANNER_ASSETS[String(banner?.bannerId || banner?.id || '')];
+  if (!override) return banner;
+  return {
+    ...banner,
+    ...override,
+    fallbackImage: override.image,
+    game: 'wuwa',
+    source: banner?.source || 'worker-live',
+    assetLocked: true,
+    imageLocked: true,
+  };
+}
+
 function buildWuWaFallbackBanners() {
   return [
-    { id: '100036_character', bannerId: '100036', name: 'Hiyuki', type: 'character', image: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.png'), fallbackImage: buildWuWaImageUrl('character-portraits', 'hiyuki-portrait.png'), characterId: 'hiyuki', game: 'wuwa', source: 'worker-fallback' },
-    { id: '200036_weapon', bannerId: '200036', name: 'Frostburn', type: 'weapon', image: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'), fallbackImage: buildWuWaImageUrl('weapon-portraits', 'frostburn-portrait.png'), characterId: 'frostburn', game: 'wuwa', source: 'worker-fallback' },
+    applyCurrentWuWaBannerAsset({ bannerId: '100037', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '200037', source: 'worker-fallback' }),
   ];
 }
 
@@ -565,7 +598,7 @@ async function fetchWuWaBanners() {
       const ext = type === 'character' ? 'webp' : 'png';
       const fallbackImage = buildWuWaImageUrl(folder, `${slug}-portrait.${ext}`);
 
-      allBanners.push({ id: `${bannerId}_${type}`, bannerId, name: rawName, type, image: fallbackImage, fallbackImage, game: 'wuwa' });
+      allBanners.push(applyCurrentWuWaBannerAsset({ id: `${bannerId}_${type}`, bannerId, name: rawName, type, image: fallbackImage, fallbackImage, game: 'wuwa' }));
     }
 
     if (allBanners.length === 0) return buildWuWaFallbackBanners();
@@ -961,6 +994,12 @@ function parseWuWaHTML(html) {
   return null;
 }
 
+function hasUsableWuWaStats(parsed) {
+  const histogramSize = Object.keys(parsed?.stats?.by_rollnum_pulls_5 || {}).length;
+  const totalPulls = Number(parsed?.stats?.total_pulls_5 || parsed?.stats?.count_win_5 || 0);
+  return Boolean(parsed?.stats) && histogramSize > 0 && totalPulls > 0;
+}
+
 async function handleWuWaStats(request) {
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
@@ -1014,10 +1053,11 @@ async function handleWuWaStats(request) {
 
       if (!html) continue;
       const parsed = parseWuWaHTML(html);
-      if (parsed?.stats) {
+      if (hasUsableWuWaStats(parsed)) {
         finalStats = parsed;
         break;
       }
+      console.warn(`[Worker] WuWa candidate ${candidateId} returned empty stats, trying next candidate`);
     }
 
     if (!finalStats) {

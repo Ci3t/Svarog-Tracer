@@ -303,12 +303,15 @@ export async function fetchCentralizedBanners(game = 'all') {
           bannerId: b.bannerId || extractBannerId(b.id) || b.id,
           name: b.name,
           image: b.image,
+          fallbackImage: b.fallbackImage,
           type: b.type,
           characterId: b.characterId,
+          assetLocked: b.assetLocked,
+          imageLocked: b.imageLocked,
           game: 'wuwa',
         }))
         : [];
-      return applyBannerAssetManifest(mappedBanners);
+      return applyBannerAssetManifest(normalizeCurrentWuWaBanners(mappedBanners));
     }
 
     const params = new URLSearchParams();
@@ -372,11 +375,16 @@ export async function fetchCentralizedBanners(game = 'all') {
       })),
       ...(data.wuwa || []).map(b => ({
         id: b.id,
+        bannerId: b.bannerId || extractBannerId(b.id) || b.id,
         name: b.name,
         image: b.image,
+        fallbackImage: b.fallbackImage,
         type: b.type,
+        characterId: b.characterId,
+        assetLocked: b.assetLocked,
+        imageLocked: b.imageLocked,
         game: 'wuwa'  // IMPORTANT: Keep this for filtering!
-      }))
+      })).map(normalizeCurrentWuWaBanner)
     ];
     
     // HSR Banner Processing:
@@ -585,6 +593,48 @@ function normalizeCurrentGenshinBanner(banner) {
 
 function normalizeCurrentGenshinBanners(banners) {
   return Array.isArray(banners) ? banners.map(normalizeCurrentGenshinBanner) : banners;
+}
+
+const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
+  "100037": {
+    id: "100037_character",
+    bannerId: "100037",
+    name: "Denia / Chisa / Phrolova",
+    type: "character",
+    image: "https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521",
+    characterId: "denia",
+  },
+  "200037": {
+    id: "200037_weapon",
+    bannerId: "200037",
+    name: "Forged Dwarf Star / Kumokiri / Lethean Elegy",
+    type: "weapon",
+    image: "https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521",
+    characterId: "forged-dwarf-star",
+  },
+});
+
+function normalizeCurrentWuWaBanner(banner) {
+  if (!banner || String(banner.game || '').toLowerCase() !== 'wuwa') {
+    return banner;
+  }
+
+  const bannerId = String(banner.bannerId || extractBannerId(banner.id) || banner.id || '').replace(/_(character|weapon|light_cone)$/i, '');
+  const override = CURRENT_WUWA_BANNER_ASSETS[bannerId];
+  if (!override) return banner;
+
+  return {
+    ...banner,
+    ...override,
+    fallbackImage: override.image,
+    game: "wuwa",
+    assetLocked: true,
+    imageLocked: true,
+  };
+}
+
+function normalizeCurrentWuWaBanners(banners) {
+  return Array.isArray(banners) ? banners.map(normalizeCurrentWuWaBanner) : banners;
 }
 
 /**
@@ -1800,30 +1850,36 @@ function extractGenshinWeaponNames(list) {
 
 // WuWa preset banners (fallback if auto-discovery fails)
 // Images: Cloudinary primary, wuwatracker fallback
-const _wuwaHiyukiFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Fhiyuki-portrait.png&w=640&q=75";
-const _wuwaFrostburnFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Ffrostburn-portrait.png&w=828&q=75";
+const _wuwaDeniaFallback = CURRENT_WUWA_BANNER_ASSETS["100037"].image;
+const _wuwaForgedDwarfStarFallback = CURRENT_WUWA_BANNER_ASSETS["200037"].image;
 const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners only
   { 
-    id: "100036", 
-    name: "Hiyuki", 
+    id: "100037", 
+    bannerId: "100037",
+    name: "Denia / Chisa / Phrolova", 
     type: "character", 
-    image: resolveWuWaCharacterImage('Hiyuki', _wuwaHiyukiFallback),
-    fallbackImage: _wuwaHiyukiFallback,
-    characterId: "hiyuki", 
-    game: "wuwa" 
+    image: _wuwaDeniaFallback,
+    fallbackImage: _wuwaDeniaFallback,
+    characterId: "denia", 
+    game: "wuwa",
+    assetLocked: true,
+    imageLocked: true,
   },
   { 
-    id: "200036", 
-    name: "Frostburn", 
+    id: "200037", 
+    bannerId: "200037",
+    name: "Forged Dwarf Star / Kumokiri / Lethean Elegy", 
     type: "weapon", 
-    image: resolveWuWaWeaponImage('Frostburn', _wuwaFrostburnFallback),
-    fallbackImage: _wuwaFrostburnFallback,
-    characterId: "frostburn", 
-    game: "wuwa" 
+    image: _wuwaForgedDwarfStarFallback,
+    fallbackImage: _wuwaForgedDwarfStarFallback,
+    characterId: "forged-dwarf-star", 
+    game: "wuwa",
+    assetLocked: true,
+    imageLocked: true,
   },
 ];
 
@@ -2213,7 +2269,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
         ? resolveWuWaCharacterImage(firstName, fallbackImage)
         : resolveWuWaWeaponImage(firstName, fallbackImage);
       
-      banners.push({
+      banners.push(normalizeCurrentWuWaBanner({
         id: `${bannerId}_${type}`,
         bannerId,
         name: bannerName,
@@ -2221,7 +2277,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
         image,
         fallbackImage,
         game: 'wuwa'
-      });
+      }));
     }
     
     // If we found no banners via scraping, fall back to presets
@@ -2235,7 +2291,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
-    const recentBanners = selectWuWaVisibleBanners_Client(banners, html);
+    const recentBanners = normalizeCurrentWuWaBanners(selectWuWaVisibleBanners_Client(banners, html));
     
     console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => `${b.name} (${b.bannerId})`));
     
