@@ -1135,6 +1135,7 @@ export function detectLuckyPeaks(pullsData, chanceData, options = {}) {
 
 function selectWuWaShortcutPeaks(peaks, chanceData, pullsData, softPityStart, softPityEnd) {
   const byRoll = new Map((peaks || []).map((peak) => [Number(peak.roll), peak]));
+  const scorePeak = (peak) => Number(peak?.compositeScore ?? peak?.zScore ?? peak?.chance ?? 0);
   const buildPeak = (roll, zone = 'wuwa-shortcut') => {
     const existing = byRoll.get(roll);
     if (existing) return existing;
@@ -1152,15 +1153,17 @@ function selectWuWaShortcutPeaks(peaks, chanceData, pullsData, softPityStart, so
     };
   };
 
-  const pickBestInWindow = (start, end, preferredRoll = null) => {
-    const preferred = preferredRoll ? buildPeak(preferredRoll) : null;
-    if (preferred) return preferred;
+  const pickBestInWindow = (start, end) => {
+    const detected = (peaks || [])
+      .filter((peak) => Number(peak.roll) >= start && Number(peak.roll) <= end)
+      .sort((a, b) => scorePeak(b) - scorePeak(a))[0];
+    if (detected) return detected;
 
     let best = null;
     for (let roll = start; roll <= end; roll += 1) {
       const peak = buildPeak(roll);
       if (!peak) continue;
-      if (!best || Number(peak.compositeScore || peak.chance || 0) > Number(best.compositeScore || best.chance || 0)) {
+      if (!best || scorePeak(peak) > scorePeak(best)) {
         best = peak;
       }
     }
@@ -1168,9 +1171,9 @@ function selectWuWaShortcutPeaks(peaks, chanceData, pullsData, softPityStart, so
   };
 
   return [
-    pickBestInWindow(1, 10, 1),
-    pickBestInWindow(24, 31, 26),
-    pickBestInWindow(softPityStart, Math.min(softPityEnd - 1, softPityStart + 3), softPityStart + 1),
+    pickBestInWindow(1, 10),
+    pickBestInWindow(24, 31),
+    pickBestInWindow(softPityStart, Math.min(softPityEnd - 1, softPityStart + 3)),
     buildPeak(softPityEnd, 'soft-pity')
   ]
     .filter(Boolean)
