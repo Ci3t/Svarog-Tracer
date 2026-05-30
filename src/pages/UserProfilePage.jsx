@@ -104,11 +104,6 @@ function getDiscordUserId(user) {
   return null;
 }
 
-const SUPER_ADMINS = new Set([
-  '110890964364627968', // Ciet
-  '97579134456168448',  // Bigboypinoy
-]);
-
 function resolveAvatarUrl(user) {
   if (!user) return '';
   const metadata = user.user_metadata || {};
@@ -688,7 +683,7 @@ const RosterView = ({
 /* -------------------------------------------------------------------------- */
 
 export default function UserProfilePage() {
-  const { user, replaceUser, getAuthHeader, roleMode } = useAuth();
+  const { user, replaceUser, getAuthHeader } = useAuth();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
   const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
   const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
@@ -697,12 +692,44 @@ export default function UserProfilePage() {
 
   const [activeTab, setActiveTab] = useState('dossier');
   const [equippingKey, setEquippingKey] = useState('');
+  const [adminEligible, setAdminEligible] = useState(false);
 
   const displayName = useMemo(() => resolveAuthDisplayName(user), [user]);
   const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
   const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
   const discordUserId = useMemo(() => getDiscordUserId(user), [user]);
-  const isSuperAdmin = useMemo(() => SUPER_ADMINS.has(String(discordUserId || '')) || roleMode === 'admin', [discordUserId, roleMode]);
+  const isSuperAdmin = useMemo(() => adminEligible, [adminEligible]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAdminEligible(false);
+
+    async function checkAdminAccess() {
+      const headers = getAuthHeader();
+      if (!headers.Authorization) return;
+
+      try {
+        const response = await fetch(buildVercelApiUrl('/api/admin?action=me'), { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!cancelled) {
+          setAdminEligible(Boolean(response.ok && payload?.is_admin));
+        }
+      } catch {
+        if (!cancelled) setAdminEligible(false);
+      }
+    }
+
+    checkAdminAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthHeader, user?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'admin' && !isSuperAdmin) {
+      setActiveTab('dossier');
+    }
+  }, [activeTab, isSuperAdmin]);
 
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedCosmetics = useMemo(() => {
@@ -938,6 +965,7 @@ function comparePatchVersion(a, b) {
 }
 
 function PatchTimerAdminView() {
+  const { getAuthHeader } = useAuth();
   const [patches, setPatches] = useState(DEFAULT_PATCHES);
   const [editGame, setEditGame] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -979,7 +1007,7 @@ function PatchTimerAdminView() {
       const res = await fetch(buildVercelApiUrl(`/api/patch-timers?t=${Date.now()}`), {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
           game,
           patch: patch.version,

@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@libsql/client';
+import { HttpError, handleApiError, isZoneAdminUser, requireAuthenticatedUser } from '../server/_services/zone/shared.js';
 
 const DB_URL = process.env.TURSO_DB_URL;
 const DB_AUTH = process.env.TURSO_AUTH_TOKEN;
@@ -98,6 +99,23 @@ function buildFallbackResponse(game) {
   );
 }
 
+function isAuthorized(req) {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return false;
+
+  const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
+  return authHeader === `Bearer ${adminKey}` || authHeader === adminKey;
+}
+
+async function requireAdminOrKey(req) {
+  if (isAuthorized(req)) return { user: null };
+  const auth = await requireAuthenticatedUser(req);
+  if (!isZoneAdminUser(auth.user)) {
+    throw new HttpError(403, 'Admin access required.');
+  }
+  return auth;
+}
+
 async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -127,12 +145,14 @@ async function handler(req, res) {
   // POST: Update patch data (admin only)
   if (req.method === 'POST') {
     res.setHeader('Cache-Control', 'no-store');
-    const { game, patch, startDate, durationDays } = req.body || {};
-    if (!game || !patch || !startDate) {
-      return res.status(400).json({ error: 'Missing required fields: game, patch, startDate' });
-    }
-
     try {
+      await requireAdminOrKey(req);
+
+      const { game, patch, startDate, durationDays } = req.body || {};
+      if (!game || !patch || !startDate) {
+        return res.status(400).json({ error: 'Missing required fields: game, patch, startDate' });
+      }
+
       await db.execute({
         sql: `INSERT INTO game_patch_timers (game, current_patch, patch_start_date, patch_duration_days, updated_at)
               VALUES (?, ?, ?, ?, datetime('now'))
@@ -146,6 +166,9 @@ async function handler(req, res) {
 
       return res.status(200).json({ success: true, game, patch, startDate });
     } catch (err) {
+      if (err instanceof HttpError) {
+        return handleApiError(res, err);
+      }
       console.error('[PatchTimerAPI] Update error:', err.message);
       return res.status(500).json({ error: 'Database error', detail: err.message });
     }

@@ -1,7 +1,11 @@
 # Graph Report - HSR_PatternRecord  (2026-05-23)
 
 ## Corpus Check
+<<<<<<< Updated upstream
 - 377 files · ~4,453,772 words
+=======
+- 376 files · ~4,450,138 words
+>>>>>>> Stashed changes
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

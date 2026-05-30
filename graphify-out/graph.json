@@ -1735,7 +1735,11 @@
       "label": "buildHoyoCodesForGame()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L842",
+=======
+      "source_location": "L734",
+>>>>>>> Stashed changes
       "id": "src_index_buildhoyocodesforgame",
       "community": 4,
       "norm_label": "buildhoyocodesforgame()"
@@ -1744,7 +1748,11 @@
       "label": "handleHoyoCodes()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L864",
+=======
+      "source_location": "L756",
+>>>>>>> Stashed changes
       "id": "src_index_handlehoyocodes",
       "community": 4,
       "norm_label": "handlehoyocodes()"
@@ -1753,7 +1761,11 @@
       "label": "buildHsrFallbackStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L896",
+=======
+      "source_location": "L788",
+>>>>>>> Stashed changes
       "id": "src_index_buildhsrfallbackstats",
       "community": 4,
       "norm_label": "buildhsrfallbackstats()"
@@ -1762,7 +1774,11 @@
       "label": "handleHsrStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L904",
+=======
+      "source_location": "L796",
+>>>>>>> Stashed changes
       "id": "src_index_handlehsrstats",
       "community": 4,
       "norm_label": "handlehsrstats()"
@@ -1771,7 +1787,11 @@
       "label": "buildGenshinFallbackStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L942",
+=======
+      "source_location": "L834",
+>>>>>>> Stashed changes
       "id": "src_index_buildgenshinfallbackstats",
       "community": 4,
       "norm_label": "buildgenshinfallbackstats()"
@@ -1780,7 +1800,11 @@
       "label": "handleGenshinStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L950",
+=======
+      "source_location": "L842",
+>>>>>>> Stashed changes
       "id": "src_index_handlegenshinstats",
       "community": 4,
       "norm_label": "handlegenshinstats()"
@@ -1789,7 +1813,11 @@
       "label": "buildWuWaFallbackStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1026",
+=======
+      "source_location": "L918",
+>>>>>>> Stashed changes
       "id": "src_index_buildwuwafallbackstats",
       "community": 4,
       "norm_label": "buildwuwafallbackstats()"
@@ -1798,7 +1826,11 @@
       "label": "parseWuWaHTML()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1033",
+=======
+      "source_location": "L925",
+>>>>>>> Stashed changes
       "id": "src_index_parsewuwahtml",
       "community": 4,
       "norm_label": "parsewuwahtml()"
@@ -1816,7 +1848,11 @@
       "label": "handleWuWaStats()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1072",
+=======
+      "source_location": "L958",
+>>>>>>> Stashed changes
       "id": "src_index_handlewuwastats",
       "community": 4,
       "norm_label": "handlewuwastats()"
@@ -1825,7 +1861,11 @@
       "label": "buildKiyoPatchPayload()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1155",
+=======
+      "source_location": "L1040",
+>>>>>>> Stashed changes
       "id": "src_index_buildkiyopatchpayload",
       "community": 4,
       "norm_label": "buildkiyopatchpayload()"
@@ -1834,7 +1874,11 @@
       "label": "handleKiyoPatchNative()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1193",
+=======
+      "source_location": "L1078",
+>>>>>>> Stashed changes
       "id": "src_index_handlekiyopatchnative",
       "community": 4,
       "norm_label": "handlekiyopatchnative()"
@@ -1843,7 +1887,11 @@
       "label": "calculatePatchTimerInfo()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1419",
+=======
+      "source_location": "L1304",
+>>>>>>> Stashed changes
       "id": "src_index_calculatepatchtimerinfo",
       "community": 4,
       "norm_label": "calculatepatchtimerinfo()"
@@ -1852,7 +1900,11 @@
       "label": "buildPatchTimersFallback()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1449",
+=======
+      "source_location": "L1334",
+>>>>>>> Stashed changes
       "id": "src_index_buildpatchtimersfallback",
       "community": 4,
       "norm_label": "buildpatchtimersfallback()"
@@ -1861,7 +1913,11 @@
       "label": "handlePatchTimersNative()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1459",
+=======
+      "source_location": "L1344",
+>>>>>>> Stashed changes
       "id": "src_index_handlepatchtimersnative",
       "community": 4,
       "norm_label": "handlepatchtimersnative()"
@@ -1870,7 +1926,11 @@
       "label": "fetch()",
       "file_type": "code",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1594",
+=======
+      "source_location": "L1479",
+>>>>>>> Stashed changes
       "id": "src_index_fetch",
       "community": 4,
       "norm_label": "fetch()"
@@ -26823,7 +26883,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L842",
+=======
+      "source_location": "L734",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildhoyocodesforgame",
@@ -26835,7 +26899,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L864",
+=======
+      "source_location": "L756",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlehoyocodes",
@@ -26847,7 +26915,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L896",
+=======
+      "source_location": "L788",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildhsrfallbackstats",
@@ -26859,7 +26931,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L904",
+=======
+      "source_location": "L796",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlehsrstats",
@@ -26871,7 +26947,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L942",
+=======
+      "source_location": "L834",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildgenshinfallbackstats",
@@ -26883,7 +26963,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L950",
+=======
+      "source_location": "L842",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlegenshinstats",
@@ -26895,7 +26979,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1026",
+=======
+      "source_location": "L918",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildwuwafallbackstats",
@@ -26907,7 +26995,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1033",
+=======
+      "source_location": "L925",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_parsewuwahtml",
@@ -26919,6 +27011,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1066",
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
@@ -26932,6 +27025,9 @@
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
       "source_location": "L1072",
+=======
+      "source_location": "L958",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlewuwastats",
@@ -26943,7 +27039,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1155",
+=======
+      "source_location": "L1040",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildkiyopatchpayload",
@@ -26955,7 +27055,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1193",
+=======
+      "source_location": "L1078",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlekiyopatchnative",
@@ -26967,7 +27071,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1419",
+=======
+      "source_location": "L1304",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_calculatepatchtimerinfo",
@@ -26979,7 +27087,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1449",
+=======
+      "source_location": "L1334",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_buildpatchtimersfallback",
@@ -26991,7 +27103,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1459",
+=======
+      "source_location": "L1344",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_handlepatchtimersnative",
@@ -27003,7 +27119,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1594",
+=======
+      "source_location": "L1479",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "cloudflare_worker_src_index_js",
       "_tgt": "src_index_fetch",
@@ -27027,7 +27147,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1595",
+=======
+      "source_location": "L1480",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_checkbudget",
@@ -27051,7 +27175,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1209",
+=======
+      "source_location": "L1094",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_budgetheaders",
@@ -27063,7 +27191,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1476",
+=======
+      "source_location": "L1361",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_budgetheaders",
@@ -27075,7 +27207,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1613",
+=======
+      "source_location": "L1500",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_budgetheaders",
@@ -27135,7 +27271,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1603",
+=======
+      "source_location": "L1488",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_getcorsheaders",
@@ -27147,7 +27287,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1598",
+=======
+      "source_location": "L1483",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_corspreflight",
@@ -27159,7 +27303,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1602",
+=======
+      "source_location": "L1487",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_isallowedorigin",
@@ -27183,7 +27331,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L868",
+=======
+      "source_location": "L760",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehoyocodes",
       "_tgt": "src_index_getcached",
@@ -27195,7 +27347,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L910",
+=======
+      "source_location": "L802",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehsrstats",
       "_tgt": "src_index_getcached",
@@ -27207,7 +27363,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L958",
+=======
+      "source_location": "L850",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlegenshinstats",
       "_tgt": "src_index_getcached",
@@ -27219,7 +27379,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1078",
+=======
+      "source_location": "L964",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_getcached",
@@ -27231,7 +27395,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1206",
+=======
+      "source_location": "L1091",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_getcached",
@@ -27243,7 +27411,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1473",
+=======
+      "source_location": "L1358",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_getcached",
@@ -27267,7 +27439,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L889",
+=======
+      "source_location": "L781",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehoyocodes",
       "_tgt": "src_index_putcache",
@@ -27279,7 +27455,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L929",
+=======
+      "source_location": "L821",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehsrstats",
       "_tgt": "src_index_putcache",
@@ -27291,7 +27471,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1013",
+=======
+      "source_location": "L905",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlegenshinstats",
       "_tgt": "src_index_putcache",
@@ -27303,7 +27487,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1142",
+=======
+      "source_location": "L1027",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_putcache",
@@ -27315,7 +27503,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1387",
+=======
+      "source_location": "L1272",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_putcache",
@@ -27327,7 +27519,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1561",
+=======
+      "source_location": "L1446",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_putcache",
@@ -27387,7 +27583,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L885",
+=======
+      "source_location": "L777",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehoyocodes",
       "_tgt": "src_index_jsonresponse",
@@ -27399,7 +27599,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L907",
+=======
+      "source_location": "L799",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehsrstats",
       "_tgt": "src_index_jsonresponse",
@@ -27411,7 +27615,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L953",
+=======
+      "source_location": "L845",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlegenshinstats",
       "_tgt": "src_index_jsonresponse",
@@ -27423,7 +27631,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1075",
+=======
+      "source_location": "L961",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_jsonresponse",
@@ -27435,7 +27647,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1199",
+=======
+      "source_location": "L1084",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_jsonresponse",
@@ -27447,7 +27663,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1466",
+=======
+      "source_location": "L1351",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_jsonresponse",
@@ -27459,7 +27679,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1613",
+=======
+      "source_location": "L1500",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_jsonresponse",
@@ -27555,7 +27779,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L915",
+=======
+      "source_location": "L807",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehsrstats",
       "_tgt": "src_index_fetchwithtimeout",
@@ -27567,7 +27795,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L963",
+=======
+      "source_location": "L855",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlegenshinstats",
       "_tgt": "src_index_fetchwithtimeout",
@@ -27579,7 +27811,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1094",
+=======
+      "source_location": "L980",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_fetchwithtimeout",
@@ -27591,7 +27827,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1221",
+=======
+      "source_location": "L1106",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_gettursoclient",
@@ -27603,7 +27843,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1488",
+=======
+      "source_location": "L1373",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_gettursoclient",
@@ -27615,7 +27859,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1225",
+=======
+      "source_location": "L1110",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_vercelfallback",
@@ -27627,7 +27875,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1491",
+=======
+      "source_location": "L1376",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_vercelfallback",
@@ -27639,7 +27891,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1610",
+=======
+      "source_location": "L1495",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlehealth",
@@ -27855,7 +28111,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1639",
+=======
+      "source_location": "L1518",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlebanners",
@@ -27867,7 +28127,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1640",
+=======
+      "source_location": "L1519",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_rewritebannerrequest",
@@ -27879,7 +28143,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L866",
+=======
+      "source_location": "L758",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehoyocodes",
       "_tgt": "src_index_normalizehoyogame",
@@ -27915,7 +28183,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L844",
+=======
+      "source_location": "L736",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_buildhoyocodesforgame",
       "_tgt": "src_index_fetchseriacodes",
@@ -27939,7 +28211,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L845",
+=======
+      "source_location": "L737",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_buildhoyocodesforgame",
       "_tgt": "src_index_fetchhashblencodes",
@@ -27951,7 +28227,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L855",
+=======
+      "source_location": "L747",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_buildhoyocodesforgame",
       "_tgt": "src_index_mergecodes",
@@ -27963,7 +28243,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1643",
+=======
+      "source_location": "L1522",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlehoyocodes",
@@ -27975,7 +28259,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L933",
+=======
+      "source_location": "L825",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlehsrstats",
       "_tgt": "src_index_buildhsrfallbackstats",
@@ -27987,7 +28275,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1644",
+=======
+      "source_location": "L1523",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlehsrstats",
@@ -27999,7 +28291,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1017",
+=======
+      "source_location": "L909",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlegenshinstats",
       "_tgt": "src_index_buildgenshinfallbackstats",
@@ -28011,7 +28307,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1645",
+=======
+      "source_location": "L1524",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlegenshinstats",
@@ -28023,7 +28323,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1133",
+=======
+      "source_location": "L1018",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_buildwuwafallbackstats",
@@ -28035,7 +28339,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1124",
+=======
+      "source_location": "L1010",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
       "_tgt": "src_index_parsewuwahtml",
@@ -28047,6 +28355,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1125",
       "weight": 1.0,
       "_src": "src_index_handlewuwastats",
@@ -28060,6 +28369,9 @@
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
       "source_location": "L1646",
+=======
+      "source_location": "L1525",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlewuwastats",
@@ -28071,7 +28383,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1199",
+=======
+      "source_location": "L1084",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlekiyopatchnative",
       "_tgt": "src_index_buildkiyopatchpayload",
@@ -28083,7 +28399,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1623",
+=======
+      "source_location": "L1502",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlekiyopatchnative",
@@ -28107,7 +28427,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1452",
+=======
+      "source_location": "L1337",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_buildpatchtimersfallback",
       "_tgt": "src_index_calculatepatchtimerinfo",
@@ -28119,7 +28443,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1540",
+=======
+      "source_location": "L1425",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_calculatepatchtimerinfo",
@@ -28143,7 +28471,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1466",
+=======
+      "source_location": "L1351",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_handlepatchtimersnative",
       "_tgt": "src_index_buildpatchtimersfallback",
@@ -28155,7 +28487,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "cloudflare-worker\\src\\index.js",
+<<<<<<< Updated upstream
       "source_location": "L1631",
+=======
+      "source_location": "L1510",
+>>>>>>> Stashed changes
       "weight": 1.0,
       "_src": "src_index_fetch",
       "_tgt": "src_index_handlepatchtimersnative",

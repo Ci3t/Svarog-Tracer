@@ -11,32 +11,20 @@ import {
   HttpError,
   isZoneAdminUser,
   requireAuthenticatedUser,
-  setCorsHeaders,
   supabaseAuthAdminRequest,
-  handleApiError,
 } from '../server/_services/zone/shared.js';
 
-// Super admin Discord IDs (same as UserProfilePage)
-const SUPER_ADMINS = new Set([
-  '110890964364627968', // Ciet
-  '97579134456168448',  // Bigboypinoy
-]);
-
 function isAuthorized(req) {
-  // Check Discord ID from header or query
-  let discordId = req.headers['x-discord-id'] || req.query.discordId;
-  // Handle null/undefined sent as strings from frontend
-  if (discordId === 'null' || discordId === 'undefined' || discordId === '') discordId = null;
-  
-  if (discordId && SUPER_ADMINS.has(String(discordId))) return true;
-  
-  // Allow local dev if no ID provided and no ADMIN_API_KEY set
   const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey && !discordId) return true;
-  
-  // Fallback to API key
+  if (!adminKey) return false;
+
   const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
   return authHeader === `Bearer ${adminKey}` || authHeader === adminKey;
+}
+
+async function authorizeAdminRequest(req) {
+  if (isAuthorized(req)) return null;
+  return requireAdmin(req);
 }
 
 // -- Admin Users helpers (merged from admin-users.js) --
@@ -112,11 +100,12 @@ export default async function handler(req, res) {
   // Public actions: anyone can fetch banners or status
   const isPublicAction = action === 'banners' || action === 'status';
 
-  if (!isPublicAction && !isAuthorized(req)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
+    let adminUser = null;
+    if (!isPublicAction) {
+      adminUser = await authorizeAdminRequest(req);
+    }
+
     switch (action) {
       case 'banners': {
         const { game } = req.query;
@@ -162,6 +151,20 @@ export default async function handler(req, res) {
             cloudinary: Boolean(process.env.CLOUDINARY_CLOUD_NAME),
             turso: Boolean(process.env.TURSO_DB_URL)
           }
+        });
+      }
+
+      case 'me': {
+        return res.status(200).json({
+          success: true,
+          is_admin: true,
+          user: adminUser
+            ? {
+                id: adminUser.id,
+                display_name: extractDiscordDisplayName(adminUser) || adminUser.email || adminUser.id,
+                email: adminUser.email || '',
+              }
+            : null,
         });
       }
 
@@ -216,11 +219,12 @@ export default async function handler(req, res) {
 
         if (userAction === 'ban') {
           const reason = normalizeReason(body?.reason);
+          const actor = adminUser || await requireAdmin(req);
           const banPayload = {
             reason,
             banned_at: new Date().toISOString(),
-            banned_by: (await requireAdmin(req)).id,
-            banned_by_name: extractDiscordDisplayName(await requireAdmin(req)) || (await requireAdmin(req)).email || (await requireAdmin(req)).id,
+            banned_by: actor.id,
+            banned_by_name: extractDiscordDisplayName(actor) || actor.email || actor.id,
           };
           nextAppMetadata.svarog_ban = banPayload;
           const updated = await updateAdminUserById(userId, {
@@ -259,7 +263,7 @@ export default async function handler(req, res) {
       }
 
       default:
-        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'status', 'users'] });
+        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'me', 'status', 'users'] });
     }
   } catch (error) {
     console.error('[Admin API] Error:', error);
