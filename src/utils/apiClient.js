@@ -172,7 +172,7 @@ export const wuwaApi = {
  */
 export const hsrApi = {
   async getStats(bannerId) {
-    return apiFetch(`/hsr/stats?id=${bannerId}`);
+    return apiFetch(`/hsr/stats?id=${bannerId}&compare_id=0`);
   },
 };
 
