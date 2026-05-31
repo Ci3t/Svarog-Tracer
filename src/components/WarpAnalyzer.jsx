@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import gsap from 'gsap';
 import { extractBannerId, fetchWarpStats, detectLuckyPeaks, calculateWarpMetrics, PRESET_BANNERS, FATE_CHARACTERS, fetchCentralizedBanners, fetchGenshinWishStats, GENSHIN_PRESET_BANNERS, estimateWinsOnlyDistribution, getCustomProxy, setCustomProxy, fetchWuWaStats, WUWA_PRESET_BANNERS, fetchZZZStats, ZZZ_PRESET_BANNERS, FATE_LIGHT_CONES } from "../utils/warpDataService";
+import { getWarpPityWindow } from "../utils/warpPity";
 import WarpBannerCard from "./WarpBannerCard";
 import PatchInfo from "./warp/PatchInfo";
 import { SITE_VERSION } from "../constants/siteVersion";
@@ -311,18 +312,12 @@ export default function WarpAnalyzer({ sessionTheme }) {
     return banners.find(b => getSelectableBannerId(b) === selectedBannerId) || activeBanners[0] || PRESET_BANNERS[0];
   }, [banners, selectedBannerId, activeBanners]);
 
-  // Soft pity varies by game and banner type
-  const softPityStart = selectedGame === 'wuwa'
-    ? (bannerType === 'character' ? 70 : 63)
-    : selectedGame === 'genshin'
-      ? (bannerType === 'character' ? 74 : 63)
-      : (bannerType === 'character' ? 75 : 65);
-  const softPityEnd = selectedGame === 'wuwa'
-    ? 80
-    : selectedGame === 'genshin'
-      ? (bannerType === 'character' ? 90 : 80)
-      : (bannerType === 'character' ? 90 : 80);
-  const hardPity = selectedGame === 'wuwa' ? 80 : 90;
+  // Soft pity varies by game and banner type. Keep in sync with Discord bot.
+  const pityWindow = useMemo(
+    () => getWarpPityWindow({ game: selectedGame, bannerId: selectedBannerId, bannerType }),
+    [selectedGame, selectedBannerId, bannerType]
+  );
+  const { softPityStart, softPityEnd, hardPity } = pityWindow;
 
   // Calculate 50/50 win rate from API data
   const winRate = useMemo(() => {

@@ -7,6 +7,7 @@
 
 // AI Configuration
 import { AI_CONFIG } from '../src/config/ai.config.js'
+import { getPrePityEnd, getWarpPityWindow } from '../src/utils/warpPity.js'
 import Fuse from 'fuse.js'
 
 
@@ -986,9 +987,9 @@ export default async function handler(req, res) {
 }
 
 function buildWarpAnalyzerPrompt({ bannerId, bannerName, bannerType, luckyPeaks, shortcutString, winLossData, distribution, winChances }) {
-  // Determine soft pity threshold based on banner type
-  const softPityThreshold = bannerType === 'character' ? 74 : 64
-  const hardPity = bannerType === 'character' ? 90 : 80
+  const pityWindow = getWarpPityWindow({ bannerId, bannerType })
+  const prePityEnd = getPrePityEnd(pityWindow)
+  const hardPity = pityWindow.hardPity
 
   // Build COMPLETE dataset for AI (all rolls 1-90)
   const allRolls = []
@@ -999,7 +1000,7 @@ function buildWarpAnalyzerPrompt({ bannerId, bannerName, bannerType, luckyPeaks,
       roll,
       count,
       chance: (chance * 100).toFixed(2),
-      zone: roll <= softPityThreshold ? 'pre-pity' : 'soft/hard-pity'
+      zone: roll <= prePityEnd ? 'pre-pity' : 'soft/hard-pity'
     })
   }
 
@@ -1023,11 +1024,11 @@ Our algorithm uses Z-Score analysis:
 4. These are "statistical outliers" - rolls with anomalously high win rates
 
 YOUR TASK - CREATE YOUR OWN MATHEMATICAL APPROACH:
-1. Analyze ALL rolls from 1-${softPityThreshold} (pre-pity zone)
+1. Analyze ALL rolls from 1-${prePityEnd} (pre-pity zone)
 2. Use your own statistical method to find 6-8 rolls with the HIGHEST win probability
 3. You can use: z-score, percentile ranking, win rate clustering, or any valid statistical approach
 4. IMPORTANT: Don't just pick the highest counts - look for rolls with HIGH CHANCE % too
-5. After selecting pre-pity peaks, you MAY add 1-2 soft/hard pity rolls (${softPityThreshold + 1}-${hardPity}) at the END if they're significant
+5. After selecting pre-pity peaks, you MAY add 1-2 soft/hard pity rolls (${prePityEnd + 1}-${hardPity}) at the END if they're significant
 6. Sort your final list in ASCENDING order
 
 EXAMPLE OUTPUT:
@@ -1044,7 +1045,7 @@ STRICT JSON OUTPUT:
 
 CRITICAL RULES:
 - Analyze the FULL range (1-${hardPity}), not just the first 30 rolls
-- Focus on pre-pity (1-${softPityThreshold}) for main peaks
+- Focus on pre-pity (1-${prePityEnd}) for main peaks
 - Sort peaks in ascending numerical order
 - luckyString MUST be: "${shortcutString || '---'}"
 - Output ONLY valid JSON`
