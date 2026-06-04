@@ -390,5 +390,19 @@
     "name": "City of Converging Stars",
     "rarity": 5,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/326.png"
+  },
+  {
+    "id": "as-navigator-isee-sees-it",
+    "numId": 131,
+    "name": "As Navigator Isee Sees It",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/131.png"
+  },
+  {
+    "id": "divine-querying-master-smith",
+    "numId": 132,
+    "name": "Divine-Querying Master Smith",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/132.png"
   }
 ]
