@@ -1,5 +1,14 @@
 const CAVERNS = [
   {
+    id: 'path_of_insight',
+    version: '4.3',
+    name: 'Path of Insight',
+    location: 'Planarcadia',
+    relics: ['As Navigator Isee Sees It', 'Divine-Querying Master Smith'],
+    relicSetIds: ['as-navigator-isee-sees-it', 'divine-querying-master-smith'],
+    focus: ['Skill / Ultimate Rotation DMG', 'Master Smith Utility'],
+  },
+  {
     id: 'path_of_rainbow_city',
     version: '4.1 (Beta)',
     name: 'Path of Rainbow City',
