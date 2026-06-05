@@ -448,6 +448,27 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110293.png"
   },
   {
+    "id": "tear-of-phagousa",
+    "numId": 110311,
+    "name": "Tear of Phagousa",
+    "rarity": 2,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110311.png"
+  },
+  {
+    "id": "wine-of-phagousa",
+    "numId": 110312,
+    "name": "Wine of Phagousa",
+    "rarity": 3,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110312.png"
+  },
+  {
+    "id": "heart-of-phagousa",
+    "numId": 110313,
+    "name": "Heart of Phagousa",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110313.png"
+  },
+  {
     "id": "broken-teeth-of-iron-wolf",
     "numId": 110401,
     "name": "Broken Teeth of Iron Wolf",
@@ -649,6 +670,62 @@
     "name": "Sneering Harlequin",
     "rarity": 4,
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110443.png"
+  },
+  {
+    "id": "destroyer-s-final-road",
+    "numId": 110501,
+    "name": "Destroyer's Final Road",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110501.png"
+  },
+  {
+    "id": "guardian-s-lament",
+    "numId": 110502,
+    "name": "Guardian's Lament",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110502.png"
+  },
+  {
+    "id": "regret-of-infinite-ochema",
+    "numId": 110503,
+    "name": "Regret of Infinite Ochema",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110503.png"
+  },
+  {
+    "id": "past-evils-of-the-borehole-planet-disaster",
+    "numId": 110504,
+    "name": "Past Evils of the Borehole Planet Disaster",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110504.png"
+  },
+  {
+    "id": "lost-echo-of-the-shared-wish",
+    "numId": 110505,
+    "name": "Lost Echo of the Shared Wish",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110505.png"
+  },
+  {
+    "id": "auspice-sliver",
+    "numId": 110506,
+    "name": "Auspice Sliver",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110506.png"
+  },
+  {
+    "id": "daythunder-anamnesis",
+    "numId": 110507,
+    "name": "Daythunder Anamnesis",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110507.png"
+  },
+  {
+    "id": "vanquished-flow-s-reticence",
+    "numId": 110508,
+    "name": "Vanquished Flow's Reticence",
+    "rarity": 4,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/item/110508.png"
   },
   {
     "id": "extinguished-core",
