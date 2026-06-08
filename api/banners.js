@@ -35,12 +35,12 @@ async function callServiceHandler(handler) {
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_HOURS: 6,
-  CACHE_VERSION: 12,  // Bumped: invalidate stale cache, enforce 4+4 banner limit
+  CACHE_MINUTES: 15,
+  CACHE_VERSION: 15,  // Bumped: fix Lucy asset casing and image retry loop
   TIMEOUT_MS: 8000,
 };
 
-const CACHE_DURATION = CONFIG.CACHE_HOURS * 60 * 60 * 1000;
+const CACHE_DURATION = CONFIG.CACHE_MINUTES * 60 * 1000;
 
 // =========================================================================
 // CACHE
@@ -71,9 +71,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
-  res.setHeader('CDN-Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
-  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
+  res.setHeader('CDN-Cache-Control', 'public, s-maxage=900, stale-while-revalidate=900');
+  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=900, stale-while-revalidate=900');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
