@@ -25,6 +25,10 @@ import { applyBannerAssetManifest } from './bannerAssetManifest.js';
 const OLD_CACHE_KEYS = [
   'cached_banner_data',
   'genshin_cached_banners',
+  'wuwa_live_banners_cache_v8',
+  'wuwa_live_banners_cache_v7',
+  'wuwa_live_banners_cache_v6',
+  'wuwa_live_banners_cache_v5',
   'wuwa_live_banners_cache_v4',
   'wuwa_live_banners_cache_v3',
   'wuwa_live_banners_cache_v2',
@@ -240,10 +244,16 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v3';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v5';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
+const WUWA_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa';
+const WUWA_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa';
+const WUWA_LUCY_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
+const WUWA_LUCY_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
+const WUWA_SPECTRAL_TRIGGER_IMAGE = `${WUWA_ASSET_REPO_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
+const WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
 
 async function fetchBannersWithClientCache(game, loader) {
   const cacheKey = game || 'all';
@@ -596,24 +606,105 @@ function normalizeCurrentGenshinBanners(banners) {
 }
 
 const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
-  "100037": {
-    id: "100037_character",
-    bannerId: "100037",
-    name: "Denia / Chisa / Phrolova",
+  "1000001": {
+    id: "1000001_character",
+    bannerId: "1000001",
+    name: "Lucy / Rebecca",
     type: "character",
-    image: "https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521",
-    characterId: "denia",
+    image: WUWA_LUCY_IMAGE,
+    portrait: WUWA_LUCY_IMAGE,
+    fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
+    characterId: "lucy",
+  },
+  "1100001": {
+    id: "1100001_weapon",
+    bannerId: "1100001",
+    name: "Spectral Trigger / Skull Thrasher",
+    type: "weapon",
+    image: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
+    characterId: "spectral-trigger",
+  },
+  "100037": {
+    id: "1000001_character",
+    bannerId: "1000001",
+    name: "Lucy / Rebecca",
+    type: "character",
+    image: WUWA_LUCY_IMAGE,
+    portrait: WUWA_LUCY_IMAGE,
+    fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
+    characterId: "lucy",
   },
   "200037": {
-    id: "200037_weapon",
-    bannerId: "200037",
-    name: "Forged Dwarf Star / Kumokiri / Lethean Elegy",
+    id: "1100001_weapon",
+    bannerId: "1100001",
+    name: "Spectral Trigger / Skull Thrasher",
     type: "weapon",
-    image: "https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521",
-    characterId: "forged-dwarf-star",
+    image: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
+    characterId: "spectral-trigger",
   },
 });
 
+export function normalizeBannerType(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'weapon') return 'weapon';
+  if (normalized === 'light_cone' || normalized === 'light-cone' || normalized === 'lightcone') return 'light_cone';
+  if (normalized === 'character') return 'character';
+  return normalized || 'character';
+}
+
+export function inferWarpBannerType({ game = 'hsr', bannerId = '', bannerType = '', dataType = '' } = {}) {
+  const gameKey = String(game || '').trim().toLowerCase();
+  const id = String(bannerId || '').trim();
+  const explicitType = normalizeBannerType(bannerType || dataType);
+
+  if (explicitType === 'weapon' || explicitType === 'light_cone' || explicitType === 'character') {
+    return explicitType;
+  }
+
+  if (gameKey === 'genshin') return id.startsWith('400') ? 'weapon' : 'character';
+  if (gameKey === 'wuwa') return id.startsWith('2') || id.startsWith('101') || id.startsWith('110') ? 'weapon' : 'character';
+  if (gameKey === 'hsr') return id.startsWith('3') || id.startsWith('6') ? 'light_cone' : 'character';
+
+  return 'character';
+}
+
+export function getWarpPityWindow({ game = 'hsr', bannerId = '', bannerType = '', dataType = '' } = {}) {
+  const gameKey = String(game || '').trim().toLowerCase();
+  const type = inferWarpBannerType({ game: gameKey, bannerId, bannerType, dataType });
+
+  if (gameKey === 'wuwa') {
+    return {
+      bannerType: type,
+      softPityStart: type === 'weapon' ? 63 : 70,
+      softPityEnd: 80,
+      hardPity: 80,
+    };
+  }
+
+  if (gameKey === 'genshin') {
+    return {
+      bannerType: type,
+      softPityStart: type === 'weapon' ? 63 : 75,
+      softPityEnd: type === 'weapon' ? 80 : 90,
+      hardPity: type === 'weapon' ? 80 : 90,
+    };
+  }
+
+  return {
+    bannerType: type,
+    softPityStart: type === 'light_cone' ? 65 : 75,
+    softPityEnd: type === 'light_cone' ? 80 : 90,
+    hardPity: type === 'light_cone' ? 80 : 90,
+  };
+}
+
+export function getPrePityEnd(pityWindow) {
+  return Math.max(1, Number(pityWindow?.softPityStart || 1) - 1);
+}
 function normalizeCurrentWuWaBanner(banner) {
   if (!banner || String(banner.game || '').toLowerCase() !== 'wuwa') {
     return banner;
@@ -626,7 +717,7 @@ function normalizeCurrentWuWaBanner(banner) {
   return {
     ...banner,
     ...override,
-    fallbackImage: override.image,
+    fallbackImage: override.fallbackImage || override.image,
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
@@ -1853,33 +1944,35 @@ function extractGenshinWeaponNames(list) {
 
 // WuWa preset banners (fallback if auto-discovery fails)
 // Images: Cloudinary primary, wuwatracker fallback
-const _wuwaDeniaFallback = CURRENT_WUWA_BANNER_ASSETS["100037"].image;
-const _wuwaForgedDwarfStarFallback = CURRENT_WUWA_BANNER_ASSETS["200037"].image;
+const _wuwaLucyFallback = CURRENT_WUWA_BANNER_ASSETS["1000001"].image;
+const _wuwaSpectralTriggerFallback = CURRENT_WUWA_BANNER_ASSETS["1100001"].image;
 const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners only
   { 
-    id: "100037", 
-    bannerId: "100037",
-    name: "Denia / Chisa / Phrolova", 
+    id: "1000001", 
+    bannerId: "1000001",
+    name: "Lucy / Rebecca", 
     type: "character", 
-    image: _wuwaDeniaFallback,
-    fallbackImage: _wuwaDeniaFallback,
-    characterId: "denia", 
+    image: _wuwaLucyFallback,
+    portrait: _wuwaLucyFallback,
+    fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
+    characterId: "lucy", 
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
   },
   { 
-    id: "200037", 
-    bannerId: "200037",
-    name: "Forged Dwarf Star / Kumokiri / Lethean Elegy", 
+    id: "1100001", 
+    bannerId: "1100001",
+    name: "Spectral Trigger / Skull Thrasher", 
     type: "weapon", 
-    image: _wuwaForgedDwarfStarFallback,
-    fallbackImage: _wuwaForgedDwarfStarFallback,
-    characterId: "forged-dwarf-star", 
+    image: _wuwaSpectralTriggerFallback,
+    portrait: _wuwaSpectralTriggerFallback,
+    fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
+    characterId: "spectral-trigger", 
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
@@ -1985,11 +2078,12 @@ function selectWuWaVisibleBanners_Client(banners, html) {
 
 function buildWuWaBannerIdCandidates_Client(id) {
   const normalized = String(id || '').trim();
-  if (!/^\d{6}$/.test(normalized)) return [normalized];
+  if (!/^\d{6,7}$/.test(normalized)) return [normalized];
   const suffix = normalized.slice(3);
   const candidates = [normalized];
   if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
   if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
+  if (normalized.startsWith('110')) candidates.push(`200${suffix}`, `101${suffix}`);
   return Array.from(new Set(candidates));
 }
 
@@ -2184,7 +2278,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v5'; // Bumped: Cloudinary-first, only current banners
+  const CACHE_KEY = 'wuwa_live_banners_cache_v9'; // Bumped: fix Lucy asset casing and stop image retry loop
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -2218,7 +2312,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     const html = await response.text();
     
     // NEW: Use robust escaped JSON parsing (matching Discord bot)
-    const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
+    const idPattern = /\\"bannerId\\":\s*(\d{6,7})/g;
     const banners = [];
     const seenIds = new Set();
     let idMatch;
@@ -2227,9 +2321,9 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
       const bannerId = idMatch[1];
       
       // Strictly filter for WuWa ID ranges
-      // 100xxx: Resonators, 101xxx/200xxx: Weapons
+      // 100xxx/100xxxx: Resonators, 101xxx/110xxxx/200xxx: Weapons
       const isCharacter = bannerId.startsWith('100');
-      const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('200');
+      const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('110') || bannerId.startsWith('200');
       if (!isCharacter && !isWeapon) continue;
       
       // Skip duplicates

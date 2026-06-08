@@ -52,8 +52,10 @@ export default function WarpBannerCard({
   const glowRef = useRef(null);
   const burstRef = useRef(null);
   const breatheRef = useRef(null);
+  const triedImageSrcRef = useRef(new Set());
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imageSrc, setImageSrc] = useState(banner.portrait || banner.preview || banner.image || '');
   const [elementImgLoaded, setElementImgLoaded] = useState(false);
 
   const isHsr = game === 'hsr';
@@ -61,6 +63,13 @@ export default function WarpBannerCard({
   const isWeapon = banner.type === 'weapon';
 
   const elementUrl = isHsr ? getHsrElementUrl(banner.element) : null;
+
+  useEffect(() => {
+    setImageSrc(banner.portrait || banner.preview || banner.image || '');
+    setImgError(false);
+    setImgLoaded(false);
+    triedImageSrcRef.current = new Set();
+  }, [banner.id, banner.bannerId, banner.image, banner.portrait, banner.preview]);
 
   // Entrance animation — rise from below with scale + blur reveal
   useEffect(() => {
@@ -172,30 +181,24 @@ export default function WarpBannerCard({
   }, [isSelected]);
 
   const handleImgError = (e) => {
-    if (banner.altPortrait && e.target.src !== banner.altPortrait) {
-      e.target.src = banner.altPortrait;
-      setImgError(false);
+    const currentSrc = e.currentTarget.currentSrc || e.currentTarget.src || imageSrc;
+    triedImageSrcRef.current.add(currentSrc);
+    triedImageSrcRef.current.add(imageSrc);
+    const candidates = [
+      banner.altPortrait,
+      banner.preview,
+      banner.fallbackImage,
+      isLightCone ? banner.lcPreview || `https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/${banner.characterId}.png` : null,
+      banner.image,
+    ].filter(Boolean);
+    const nextSrc = candidates.find((candidate) => !triedImageSrcRef.current.has(candidate));
+    if (nextSrc) {
+      setImgLoaded(false);
+      setImageSrc(nextSrc);
       return;
     }
 
-    if (banner.preview && e.target.src !== banner.preview) {
-      e.target.src = banner.preview;
-      setImgError(false);
-      return;
-    }
-
-    if (isLightCone && banner.portrait && e.target.src === banner.portrait) {
-      const githubPreview = banner.lcPreview || `https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/${banner.characterId}.png`;
-      if (githubPreview && e.target.src !== githubPreview) {
-        e.target.src = githubPreview;
-        return;
-      }
-    }
     setImgError(true);
-    if (banner.portrait && e.target.src !== banner.image) {
-      e.target.src = banner.image;
-      setImgError(false);
-    }
   };
 
   const handleImgLoad = () => setImgLoaded(true);
@@ -250,7 +253,7 @@ export default function WarpBannerCard({
           {!imgError ? (
             <img
               ref={imgRef}
-              src={banner.portrait || banner.preview || banner.image}
+              src={imageSrc}
               alt={banner.name}
               loading={index < 4 ? 'eager' : 'lazy'}
               fetchPriority={index < 4 ? 'high' : 'auto'}

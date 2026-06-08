@@ -24,26 +24,51 @@ const WUWA_IMAGE_OVERRIDES = Object.freeze({
 });
 
 const WUWA_CURRENT_BANNER_ASSETS = Object.freeze({
-  '100037': {
-    id: '100037_character',
-    bannerId: '100037',
-    name: 'Denia / Chisa / Phrolova',
+  '1000001': {
+    id: '1000001_character',
+    bannerId: '1000001',
+    name: 'Lucy / Rebecca',
     type: 'character',
-    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521',
-    characterId: 'denia',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    characterId: 'lucy',
+  },
+  '1100001': {
+    id: '1100001_weapon',
+    bannerId: '1100001',
+    name: 'Spectral Trigger / Skull Thrasher',
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    characterId: 'spectral-trigger',
+  },
+  '100037': {
+    id: '1000001_character',
+    bannerId: '1000001',
+    name: 'Lucy / Rebecca',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    characterId: 'lucy',
   },
   '200037': {
-    id: '200037_weapon',
-    bannerId: '200037',
-    name: 'Forged Dwarf Star / Kumokiri / Lethean Elegy',
+    id: '1100001_weapon',
+    bannerId: '1100001',
+    name: 'Spectral Trigger / Skull Thrasher',
     type: 'weapon',
-    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521',
-    characterId: 'forged-dwarf-star',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    characterId: 'spectral-trigger',
   },
 });
 
 const WUWA_FETCH_TIMEOUT_MS = 8000;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const WUWA_BANNER_CACHE_CONTROL = 'public, max-age=300, s-maxage=900, stale-while-revalidate=900';
 const FORCE_BANNER_FALLBACK = process.env.BANNER_FORCE_FALLBACK === 'true';
 
 let bannerCache = {
@@ -88,7 +113,7 @@ function applyCurrentWuWaBannerAsset(banner) {
   return {
     ...banner,
     ...override,
-    fallbackImage: override.image,
+    fallbackImage: override.fallbackImage || override.image,
     game: 'wuwa',
     assetLocked: true,
     imageLocked: true,
@@ -97,8 +122,8 @@ function applyCurrentWuWaBannerAsset(banner) {
 
 function buildWuWaFallbackBanners() {
   return [
-    applyCurrentWuWaBannerAsset({ bannerId: '100037', source: 'controlled-fallback' }),
-    applyCurrentWuWaBannerAsset({ bannerId: '200037', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1000001', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1100001', source: 'controlled-fallback' }),
   ];
 }
 
@@ -143,14 +168,14 @@ export async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   if (FORCE_BANNER_FALLBACK) {
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', WUWA_BANNER_CACHE_CONTROL);
     return res.status(200).json(await applyBannerAssetManifest(buildWuWaFallbackBanners()));
   }
 
   try {
     const cacheValid = bannerCache.data && Date.now() - bannerCache.timestamp < CACHE_TTL_MS;
     if (cacheValid) {
-      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+      res.setHeader('Cache-Control', WUWA_BANNER_CACHE_CONTROL);
       return res.status(200).json(await applyBannerAssetManifest(bannerCache.data));
     }
 
@@ -166,13 +191,13 @@ export async function handler(req, res) {
     const seenIds = new Set();
 
     // Extract all banner IDs from HTML dynamically
-    const idPattern = /\\"bannerId\\":\s*(\d{6})/g;
+    const idPattern = /\\"bannerId\\":\s*(\d{6,7})/g;
     let idMatch;
 
     while ((idMatch = idPattern.exec(html)) !== null) {
       const bannerId = idMatch[1];
       const isCharacter = bannerId.startsWith('100');
-      const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('200');
+      const isWeapon = bannerId.startsWith('101') || bannerId.startsWith('110') || bannerId.startsWith('200');
       if (!isCharacter && !isWeapon) continue;
       if (seenIds.has(bannerId)) continue;
       seenIds.add(bannerId);
@@ -238,7 +263,7 @@ export async function handler(req, res) {
       timestamp: Date.now(),
     };
 
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', WUWA_BANNER_CACHE_CONTROL);
     return res.status(200).json(await applyBannerAssetManifest(safeBanners));
   } catch (error) {
     console.error('[WuWa Banners API] Error:', error);

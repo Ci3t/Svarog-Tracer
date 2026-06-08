@@ -43,11 +43,12 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOU
 
 function buildBannerIdCandidates(id) {
   const normalized = String(id || '').trim();
-  if (!/^\d{6}$/.test(normalized)) return [normalized];
+  if (!/^\d{6,7}$/.test(normalized)) return [normalized];
   const suffix = normalized.slice(3);
   const candidates = [normalized];
   if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
   if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
+  if (normalized.startsWith('110')) candidates.push(`200${suffix}`, `101${suffix}`);
   return Array.from(new Set(candidates));
 }
 
