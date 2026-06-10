@@ -20,6 +20,7 @@ const API_CACHE_TTL_MS = 10 * 60 * 1000;
 const WARP_ANALYZER_FRESHNESS_MS = 15 * 60 * 1000;
 const STATS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
 const BANNERS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
+const BANNERS_CLIENT_VERSION = 'web-banners-v8';
 const HOYO_CODES_API_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const apiMemoryCache = new Map();
 
@@ -162,7 +163,7 @@ export const wuwaApi = {
     return apiFetch(`/wuwa/stats?id=${bannerId}`);
   },
   async getBanners() {
-    const response = await apiFetch('/banners?game=wuwa');
+    const response = await apiFetch(`/banners?game=wuwa&client=${BANNERS_CLIENT_VERSION}`);
     return Array.isArray(response?.wuwa) ? response.wuwa : response;
   },
 };
@@ -184,7 +185,7 @@ export const genshinApi = {
     return apiFetch(`/genshin/stats?id=${bannerId}`);
   },
   async getBanners() {
-    const response = await apiFetch('/banners?game=genshin');
+    const response = await apiFetch(`/banners?game=genshin&client=${BANNERS_CLIENT_VERSION}`);
     return Array.isArray(response?.genshin) ? response.genshin : response;
   },
 };

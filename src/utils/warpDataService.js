@@ -244,12 +244,13 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v5';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v8';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
 const WUWA_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa';
 const WUWA_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa';
+const GENSHIN_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin';
 const WUWA_LUCY_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_LUCY_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_SPECTRAL_TRIGGER_IMAGE = `${WUWA_ASSET_REPO_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
@@ -553,28 +554,33 @@ function normalizeCurrentGenshinBanner(banner) {
   const nameKey = String(banner.name || '').toLowerCase();
   const isCurrentCharacter =
     type === 'character' &&
-    (cleanId === '300100' ||
+    (cleanId === '300101' ||
+      cleanId === '300100' ||
       cleanId === '300095' ||
       nameKey.includes('current character banner') ||
-      nameKey.includes('lauma'));
+      nameKey.includes('lohen') ||
+      nameKey.includes('mavuika'));
   const isCurrentWeapon =
     type === 'weapon' &&
-    (cleanId === '400099' ||
+    (cleanId === '400100' ||
+      cleanId === '400099' ||
       cleanId === '400095' ||
       nameKey.includes('current weapon banner') ||
+      nameKey.includes('disaster and remorse') ||
+      nameKey.includes('a thousand blazing suns') ||
       nameKey.includes('epitome invocation'));
 
   if (isCurrentCharacter) {
     return {
       ...banner,
-      id: '300100_character',
-      bannerId: '300100',
-      name: 'Nicole / Durin',
+      id: '300101_character',
+      bannerId: '300101',
+      name: 'Lohen / Mavuika',
       image: _genshinCharFallback,
       portrait: _genshinCharFallback,
       fallbackImage: _genshinCharFallback,
       type: 'character',
-      characterId: 'nicole',
+      characterId: 'lohen',
       assetLocked: true,
       imageLocked: true,
       game: 'genshin',
@@ -584,9 +590,9 @@ function normalizeCurrentGenshinBanner(banner) {
   if (isCurrentWeapon) {
     return {
       ...banner,
-      id: '400099_weapon',
-      bannerId: '400099',
-      name: "Angelos' Heptades / Athame Artis",
+      id: '400100_weapon',
+      bannerId: '400100',
+      name: 'Disaster and Remorse / A Thousand Blazing Suns',
       image: _genshinWepFallback,
       portrait: _genshinWepFallback,
       fallbackImage: _genshinWepFallback,
@@ -1470,13 +1476,13 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
-// Current: Nicole / Durin (character), Angelos' Heptades / Athame Artis (weapon)
-const _genshinCharFallback = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_Splash.webp?v=300100-nicole-20260520';
-const _genshinWepFallback = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_weapon_Splash.webp?v=400099-nicole-weapon-20260520';
+// Current: Lohen / Mavuika (character), Disaster and Remorse / A Thousand Blazing Suns (weapon)
+const _genshinCharFallback = `${GENSHIN_ASSET_REPO_BASE}/Lohen.webp?v=300101-lohen-20260610`;
+const _genshinWepFallback = `${GENSHIN_ASSET_REPO_BASE}/Lohen_Weapon.png?v=400100-lohen-weapon-20260610`;
 
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300100_character", bannerId: "300100", name: "Nicole / Durin", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "nicole", game: "genshin", assetLocked: true },
-  { id: "400099_weapon", bannerId: "400099", name: "Angelos' Heptades / Athame Artis", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
+  { id: "300101_character", bannerId: "300101", name: "Lohen / Mavuika", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "lohen", game: "genshin", assetLocked: true },
+  { id: "400100_weapon", bannerId: "400100", name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
 ];
 
 
@@ -1707,8 +1713,10 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 // Genshin Banner Overrides (for specific banner IDs that need manual naming)
 const GENSHIN_BANNER_OVERRIDES = {
-  "300100": { name: "Nicole / Durin", type: "character" },
-  "400099": { name: "Angelos' Heptades / Athame Artis", type: "weapon" },
+  "300101": { name: "Lohen / Mavuika", type: "character" },
+  "400100": { name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon" },
+  "300100": { name: "Lohen / Mavuika", type: "character" },
+  "400099": { name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon" },
   "300094": { name: "Columbina", type: "character" },
   "300093": { name: "Ineffa", type: "character" },
   "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
@@ -1716,12 +1724,14 @@ const GENSHIN_BANNER_OVERRIDES = {
 };
 
 const GENSHIN_BANNER_IMAGE_OVERRIDES = {
+  "300101": _genshinCharFallback,
+  "400100": _genshinWepFallback,
   "300100": _genshinCharFallback,
   "400099": _genshinWepFallback,
 };
 
-const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300100';
-const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400099';
+const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300101';
+const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400100';
 
 /**
  * Fetches live Genshin banners from Paimon.moe
@@ -1744,7 +1754,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
-  const CURRENT_CACHE_VERSION = '1.5'; // Increment this when banner overrides or active pairings change
+  const CURRENT_CACHE_VERSION = '1.6'; // Increment this when banner overrides or active pairings change
   
   // Check cache version and invalidate if outdated
   const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);

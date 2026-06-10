@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 15,  // Bumped: fix Lucy asset casing and image retry loop
+  CACHE_VERSION: 18,  // Bumped: fix Lohen asset filenames
   TIMEOUT_MS: 8000,
 };
 
