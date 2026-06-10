@@ -12,7 +12,7 @@ const PAIMON_API = 'https://api.paimon.moe/wish';
 const GENSHIN_CHAR_IMG_BASE = 'https://paimon.moe/images/characters/';
 const GENSHIN_WEAPON_IMG_BASE = 'https://paimon.moe/images/weapons/';
 const GENSHIN_BANNER_IMG_BASE = 'https://paimon.moe/images/banners/';
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 15 * 60 * 1000;
 const EXACT_FETCH_TIMEOUT_MS = 1800;
 const DISCOVERY_FETCH_TIMEOUT_MS = 900;
 const DISCOVERY_WINDOW = 8;
@@ -30,7 +30,7 @@ const GENSHIN_FEATURED_CHAR_WHITELIST = new Set([
   'albedo', 'alhaitham', 'arataki_itto', 'arlecchino', 'ayaka', 'ayato',
   'baizhu', 'chasca', 'chiori', 'citlali', 'clorinde', 'columbina', 'cyno',
   'emilie', 'escoffier', 'furina', 'ganyu', 'hu_tao', 'iansan', 'ineffa',
-  'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lyney',
+  'kazuha', 'klee', 'kokomi', 'lauma', 'linnea', 'lohen', 'lyney',
   'mavuika', 'mualani', 'nahida', 'navia', 'nefer', 'neuvillette', 'nilou',
   'nicole', 'raiden_shogun', 'shenhe', 'sigewinne', 'skirk', 'tartaglia', 'traveler',
   'venti', 'wanderer', 'wriothesley', 'xianyun', 'xiao', 'yae_miko', 'yelan',
@@ -40,7 +40,7 @@ const GENSHIN_FEATURED_WEAPON_WHITELIST = new Set([
   'absolution', 'aqua_simulacra', 'amos_bow', 'astral_vultures_crimson_plumage',
   'azurelight', 'beacon_of_the_reed_sea', 'bloodsoaked_ruins',
   'calamity_queller', 'cashflow_supervision', 'cranes_echoing_call',
-  'crimson_moons_semblance', 'elegy_for_the_end', 'engulfing_lightning',
+  'crimson_moons_semblance', 'disaster_and_remorse', 'elegy_for_the_end', 'engulfing_lightning',
   'everlasting_moonglow', 'fang_of_the_mountain_king', 'flower_wreathed_feathers',
   'fractured_halo', 'freedom_sworn', 'gest_of_the_mighty_wolf',
   'golden_frostbound_oath', 'haran_geppaku_futsu', 'hunters_path',
@@ -51,7 +51,7 @@ const GENSHIN_FEATURED_WEAPON_WHITELIST = new Set([
   'reliquary_of_truth', 'splendor_of_tranquil_waters', 'staff_of_homa',
   'symphonist_of_scents', 'thundering_pulse', 'tome_of_the_eternal_flow',
   'tulaytullahs_remembrance', 'uraku_misugiri', 'vortex_vanquisher',
-  'wolfs_gravestone'
+  'wolfs_gravestone', 'a_thousand_blazing_suns'
 ]);
 
 function toTitleCaseFromSlug(slug) {
@@ -92,8 +92,8 @@ function buildControlledFallbackBanners() {
   const weaponName = GENSHIN_BANNER_CONTROL.overrideWeaponName || 'Current Weapon Banner';
   const characterSlug = toPaimonSlug(characterName);
   const weaponSlug = toPaimonSlug(weaponName);
-  const characterFallback = GENSHIN_BANNER_CONTROL.overrideCharacterImage || `${GENSHIN_CHAR_IMG_BASE}${characterSlug}.png`;
-  const weaponFallback = GENSHIN_BANNER_CONTROL.overrideWeaponImage || `${GENSHIN_WEAPON_IMG_BASE}${weaponSlug}.png`;
+  const characterFallback = GENSHIN_BANNER_CONTROL.overrideCharacterImage || `${GENSHIN_BANNER_IMG_BASE}Character%20Event%20Wish%20${characterId.slice(-2)}.png`;
+  const weaponFallback = GENSHIN_BANNER_CONTROL.overrideWeaponImage || `${GENSHIN_BANNER_IMG_BASE}Epitome%20Invocation%20${weaponId.slice(-2)}.png`;
 
   return [
     {
@@ -101,7 +101,7 @@ function buildControlledFallbackBanners() {
       bannerId: characterId,
       name: characterName,
       type: 'character',
-      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || resolveGenshinCharacterImage(characterSlug, characterFallback),
+      image: GENSHIN_BANNER_CONTROL.overrideCharacterImage || characterFallback,
       fallbackImage: characterFallback,
       characterId: characterSlug,
       game: 'genshin',
@@ -406,7 +406,7 @@ export async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   if (FORCE_BANNER_FALLBACK) {
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
     return res.status(200).json(await applyBannerAssetManifest(buildControlledFallbackBanners()));
   }
 
@@ -421,11 +421,11 @@ export async function handler(req, res) {
       allBanners.map(b => `${b.name} (${b.bannerId})`).join(', ')
     );
 
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
     return res.status(200).json(await applyBannerAssetManifest(allBanners));
   } catch (error) {
     console.error('[Genshin Banners API] Error, returning controlled fallback:', error);
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=900');
     return res.status(200).json(await applyBannerAssetManifest(buildControlledFallbackBanners()));
   }
 
