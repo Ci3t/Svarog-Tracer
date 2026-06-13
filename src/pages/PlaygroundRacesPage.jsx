@@ -436,7 +436,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, getAuthHeader, roleMode } = useAuth();
+  const { user, getAuthHeader, roleMode, adminEligible } = useAuth();
   const [selectedTier, setSelectedTier] = useState('beginner');
   const [selectedSeedMode, setSelectedSeedMode] = useState('shared');
   const [selectedSetName, setSelectedSetName] = useState('');
@@ -453,7 +453,7 @@ export default function PlaygroundRacesPage({ sessionTheme = 'modern' }) {
   const roomCode = room?.code || '';
   const roomStatus = room?.status || 'idle';
   const isHost = room?.viewerRole === 'host';
-  const isAdminMode = roleMode === 'admin';
+  const isAdminMode = adminEligible && roleMode === 'admin';
   const canDevFill = isHost && room?.status === 'lobby' && !room?.guest?.userId && (isLocalHost() || isAdminMode);
 
   const opponent = useMemo(() => {

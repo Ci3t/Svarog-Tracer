@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 18,  // Bumped: fix Lohen asset filenames
+  CACHE_VERSION: 19,  // Bumped: WuWa Lucilla current + Cyberpunk collab section
   TIMEOUT_MS: 8000,
 };
 

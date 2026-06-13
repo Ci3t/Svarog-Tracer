@@ -112,7 +112,19 @@ export default function Layout({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, signOut, roleMode, setRoleMode, getAuthHeader, isBanned, banInfo, user } = useAuth();
+  const {
+    isAuthenticated,
+    signOut,
+    roleMode,
+    setRoleMode,
+    getAuthHeader,
+    isBanned,
+    banInfo,
+    user,
+    adminEligible,
+    adminVisible,
+    adminStatusLoading,
+  } = useAuth();
   const { stats: presenceStats, refreshPresence } = usePresenceContext();
   const normalizedSessionTheme = sessionTheme === "winter" ? "arctic" : sessionTheme === "void" ? "crimson" : sessionTheme;
 
@@ -146,6 +158,7 @@ export default function Layout({
   const activeTabTextClass = themeConfig.layout.activeTabTextClass;
   const inactiveTabTextClass = themeConfig.layout.inactiveTabTextClass;
   const discordUserId = getDiscordUserId(user);
+  const adminModeActive = Boolean(adminVisible && roleMode === 'admin');
 
   useEffect(() => {
     if (!isAuthenticated || !membersDrawerOpen) return undefined;
@@ -157,7 +170,7 @@ export default function Layout({
   }, [isAuthenticated, membersDrawerOpen, refreshPresence]);
 
   const loadAdminUsers = useCallback(async () => {
-    if (!isAuthenticated || roleMode !== 'admin') return;
+    if (!isAuthenticated || !adminModeActive) return;
     setAdminUsersLoading(true);
     try {
       // Admin routes bypass Cloudflare and go directly to Vercel
@@ -172,15 +185,16 @@ export default function Layout({
       setAdminUsers(Array.isArray(payload?.users) ? payload.users : []);
     } catch (error) { window.alert(error?.message || 'Failed to load users.'); }
     finally { setAdminUsersLoading(false); }
-  }, [discordUserId, getAuthHeader, isAuthenticated, roleMode]);
+  }, [adminModeActive, discordUserId, getAuthHeader, isAuthenticated]);
 
   const openAdminModerationModal = useCallback((action) => {
+    if (!adminModeActive) return;
     setAdminModerationMode(action === 'unban' ? 'unban' : 'ban');
     setAdminUserModalOpen(true);
     setAdminUserSearch('');
     setSelectedAdminUserId('');
     setAdminBanReason('');
-  }, []);
+  }, [adminModeActive]);
 
   const closeAdminModerationModal = useCallback(() => {
     setAdminUserModalOpen(false);
@@ -188,6 +202,7 @@ export default function Layout({
   }, []);
 
   const submitAdminModerationAction = useCallback(async () => {
+    if (!adminModeActive) return;
     if (!selectedAdminUserId || !adminModerationMode) return;
     if (adminModerationMode === 'ban' && !adminBanReason.trim()) return;
     setAdminUserActionLoading(true);
@@ -208,7 +223,7 @@ export default function Layout({
       closeAdminModerationModal();
     } catch (error) { window.alert(error.message); }
     finally { setAdminUserActionLoading(false); }
-  }, [adminBanReason, adminModerationMode, discordUserId, getAuthHeader, loadAdminUsers, selectedAdminUserId, closeAdminModerationModal]);
+  }, [adminBanReason, adminModeActive, adminModerationMode, discordUserId, getAuthHeader, loadAdminUsers, selectedAdminUserId, closeAdminModerationModal]);
 
   const updateActiveIndicator = useCallback((duration = 0.4) => {
     if (!navRef.current || !indicatorRef.current) return;
@@ -396,7 +411,7 @@ export default function Layout({
     userId: user.id,
     displayName: authDisplayName,
     avatarUrl: user?.user_metadata?.avatar_url || '',
-    role: roleMode === 'admin' ? 'admin' : 'user',
+    role: adminModeActive ? 'admin' : 'user',
     status: siteOnlineCount > 0 ? 'online' : 'offline',
     pagePath: location.pathname || '',
     lastSeenAt: new Date().toISOString(),
@@ -651,23 +666,25 @@ export default function Layout({
                             </label>
                           </div>
 
-                          <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 border-t border-white/5 pt-3">
-                            <div className="flex flex-col">
-                              <span className="opacity-80">Admin Mode</span>
-                              <span className="mt-0.5 text-[8px] uppercase tracking-wider text-slate-500">
-                                {roleMode === 'admin' ? `Enabled • Members ${onlineMembers.length}` : `Members ${onlineMembers.length} online`}
-                              </span>
+                          {adminVisible && !adminStatusLoading ? (
+                            <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 border-t border-white/5 pt-3">
+                              <div className="flex flex-col">
+                                <span className="opacity-80">Admin Mode</span>
+                                <span className="mt-0.5 text-[8px] uppercase tracking-wider text-slate-500">
+                                  {adminModeActive ? `Enabled • Members ${onlineMembers.length}` : `Members ${onlineMembers.length} online`}
+                                </span>
+                              </div>
+                              <label className="relative">
+                                <input
+                                  type="checkbox"
+                                  className="switch-input hidden"
+                                  checked={adminModeActive}
+                                  onChange={() => setRoleMode(adminModeActive ? 'user' : 'admin')}
+                                />
+                                <div className="tactical-switch" />
+                              </label>
                             </div>
-                            <label className="relative">
-                              <input
-                                type="checkbox"
-                                className="switch-input hidden"
-                                checked={roleMode === 'admin'}
-                                onChange={() => setRoleMode(roleMode === 'admin' ? 'user' : 'admin')}
-                              />
-                              <div className="tactical-switch" />
-                            </label>
-                          </div>
+                          ) : null}
                         </div>
 
                         {/* Section 2: Commands */}
@@ -752,7 +769,7 @@ export default function Layout({
                         </div>
 
                         {/* Admin Tools */}
-                        {roleMode === 'admin' && (
+                        {adminModeActive && (
                           <>
                             <div className="deck-section-header mb-3 mt-5 flex items-center gap-2 font-['Orbitron'] text-[9px] uppercase tracking-[0.15em] text-[var(--theme-accent)]" data-user-menu-item="true">
                               Moderation
@@ -818,7 +835,7 @@ export default function Layout({
         <Outlet />
       </main>
 
-      {adminUserModalOpen && roleMode === 'admin' && (
+      {adminUserModalOpen && adminModeActive && (
         <div className="fixed inset-0 z-[360] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-4xl overflow-hidden rounded-[2rem] border shadow-2xl" style={themedModalShellStyle}>
             <div className="flex items-center justify-between border-b px-6 py-5" style={{ borderColor: 'var(--theme-border-soft)' }}>

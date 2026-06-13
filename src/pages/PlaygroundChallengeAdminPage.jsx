@@ -204,7 +204,7 @@ function toVisibleRolls(starterRolls = []) {
 
 export default function PlaygroundChallengeAdminPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, roleMode } = useAuth();
+  const { isAuthenticated, roleMode, adminEligible, adminStatusLoading } = useAuth();
   const [draft, setDraft] = useState(() => makeDraft('beginner'));
 
   const seeds = useMemo(() => getChallengeSeedPool(draft.tier), [draft.tier]);
@@ -262,14 +262,18 @@ export default function PlaygroundChallengeAdminPage() {
     return <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-white/10 bg-slate-950/70 p-8 text-slate-200">Sign in first, then switch to Admin mode to use the challenge builder.</div>;
   }
 
-  if (roleMode !== 'admin') {
+  if (adminStatusLoading) {
+    return <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-white/10 bg-slate-950/70 p-8 text-slate-200">Checking admin access...</div>;
+  }
+
+  if (!adminEligible || roleMode !== 'admin') {
     return (
       <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-amber-400/20 bg-slate-950/70 p-8 text-slate-200">
         <div className="flex items-center gap-3 text-amber-200">
           <ShieldCheck className="h-5 w-5" />
-          <div className="text-lg font-black uppercase">Admin Mode Required</div>
+          <div className="text-lg font-black uppercase">Admin Access Required</div>
         </div>
-        <p className="mt-3 text-sm text-slate-300">Use the top navigation role toggle and switch from `User` to `Admin` to author custom challenges.</p>
+        <p className="mt-3 text-sm text-slate-300">Your account needs Overseer access to author custom challenges.</p>
       </div>
     );
   }

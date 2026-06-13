@@ -9,34 +9,26 @@ import { handler as wuwaBannersHandler } from '../server/_services/wuwa/banners.
 import {
   extractDiscordDisplayName,
   HttpError,
+  isTrustedZoneAdminDiscordUser,
   isZoneAdminUser,
   requireAuthenticatedUser,
-  setCorsHeaders,
   supabaseAuthAdminRequest,
-  handleApiError,
 } from '../server/_services/zone/shared.js';
+import crypto from 'node:crypto';
 
-// Super admin Discord IDs (same as UserProfilePage)
-const SUPER_ADMINS = new Set([
-  '110890964364627968', // Ciet
-  '97579134456168448',  // Bigboypinoy
-]);
+const ADMIN_UNLOCK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 function isAuthorized(req) {
-  // Check Discord ID from header or query
-  let discordId = req.headers['x-discord-id'] || req.query.discordId;
-  // Handle null/undefined sent as strings from frontend
-  if (discordId === 'null' || discordId === 'undefined' || discordId === '') discordId = null;
-  
-  if (discordId && SUPER_ADMINS.has(String(discordId))) return true;
-  
-  // Allow local dev if no ID provided and no ADMIN_API_KEY set
   const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey && !discordId) return true;
-  
-  // Fallback to API key
+  if (!adminKey) return false;
+
   const authHeader = req.headers['authorization'] || req.headers['x-admin-key'];
   return authHeader === `Bearer ${adminKey}` || authHeader === adminKey;
+}
+
+async function authorizeAdminRequest(req) {
+  if (isAuthorized(req)) return null;
+  return requireAdmin(req);
 }
 
 // -- Admin Users helpers (merged from admin-users.js) --
@@ -59,10 +51,46 @@ function normalizeReason(value) {
 
 async function requireAdmin(req) {
   const auth = await requireAuthenticatedUser(req);
-  if (!isZoneAdminUser(auth.user)) {
+
+  if (isZoneAdminUser(auth.user)) {
+    return auth.user;
+  }
+
+  let fullUser = null;
+  try {
+    fullUser = await fetchAdminUserById(auth.user.id);
+  } catch (error) {
+    console.warn('[Admin API] Full admin user lookup failed:', error?.message || error);
+  }
+
+  if (!isZoneAdminUser(fullUser)) {
     throw new HttpError(403, 'Admin access required.');
   }
-  return auth.user;
+
+  if (fullUser && typeof fullUser === 'object' && auth.user && typeof auth.user === 'object') {
+    return { ...auth.user, ...fullUser };
+  }
+
+  return fullUser || auth.user;
+}
+
+function safeCompareSecret(value, expected) {
+  const received = Buffer.from(String(value || ''), 'utf8');
+  const target = Buffer.from(String(expected || ''), 'utf8');
+  if (!received.length || !target.length || received.length !== target.length) return false;
+  return crypto.timingSafeEqual(received, target);
+}
+
+function readRequestBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body || '{}');
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 async function fetchAdminUserById(userId) {
@@ -112,11 +140,12 @@ export default async function handler(req, res) {
   // Public actions: anyone can fetch banners or status
   const isPublicAction = action === 'banners' || action === 'status';
 
-  if (!isPublicAction && !isAuthorized(req)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
+    let adminUser = null;
+    if (!isPublicAction) {
+      adminUser = await authorizeAdminRequest(req);
+    }
+
     switch (action) {
       case 'banners': {
         const { game } = req.query;
@@ -165,6 +194,51 @@ export default async function handler(req, res) {
         });
       }
 
+      case 'me': {
+        const canSkipAdminPassword = adminUser ? isTrustedZoneAdminDiscordUser(adminUser) : true;
+        return res.status(200).json({
+          success: true,
+          is_admin: true,
+          can_skip_admin_password: canSkipAdminPassword,
+          requires_admin_password: !canSkipAdminPassword,
+          admin_unlock_ttl_ms: ADMIN_UNLOCK_TTL_MS,
+          user: adminUser
+            ? {
+                id: adminUser.id,
+                display_name: extractDiscordDisplayName(adminUser) || adminUser.email || adminUser.id,
+                email: adminUser.email || '',
+              }
+            : null,
+        });
+      }
+
+      case 'unlock-admin-mode': {
+        if (req.method !== 'POST') {
+          throw new HttpError(405, 'Method Not Allowed.');
+        }
+
+        const canSkipAdminPassword = adminUser ? isTrustedZoneAdminDiscordUser(adminUser) : true;
+        if (!canSkipAdminPassword) {
+          const adminPassword = process.env.HSR_ADMIN_PASS;
+          if (!adminPassword) {
+            throw new HttpError(500, 'Admin password is not configured.');
+          }
+
+          const body = readRequestBody(req);
+          if (!safeCompareSecret(body?.password, adminPassword)) {
+            throw new HttpError(403, 'Invalid admin password.');
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          unlocked: true,
+          can_skip_admin_password: canSkipAdminPassword,
+          expires_at: new Date(Date.now() + ADMIN_UNLOCK_TTL_MS).toISOString(),
+          ttl_ms: ADMIN_UNLOCK_TTL_MS,
+        });
+      }
+
       // -- Merged from admin-users.js --
       case 'users': {
         if (req.method === 'GET') {
@@ -191,11 +265,7 @@ export default async function handler(req, res) {
           throw new HttpError(405, 'Method Not Allowed.');
         }
 
-        const body = req.body && typeof req.body === 'object'
-          ? req.body
-          : typeof req.body === 'string'
-            ? JSON.parse(req.body || '{}')
-            : {};
+        const body = readRequestBody(req);
 
         const userAction = String(body?.action || '').trim().toLowerCase();
         const userId = normalizeUserId(body?.userId);
@@ -216,11 +286,12 @@ export default async function handler(req, res) {
 
         if (userAction === 'ban') {
           const reason = normalizeReason(body?.reason);
+          const actor = adminUser || await requireAdmin(req);
           const banPayload = {
             reason,
             banned_at: new Date().toISOString(),
-            banned_by: (await requireAdmin(req)).id,
-            banned_by_name: extractDiscordDisplayName(await requireAdmin(req)) || (await requireAdmin(req)).email || (await requireAdmin(req)).id,
+            banned_by: actor.id,
+            banned_by_name: extractDiscordDisplayName(actor) || actor.email || actor.id,
           };
           nextAppMetadata.svarog_ban = banPayload;
           const updated = await updateAdminUserById(userId, {
@@ -259,13 +330,18 @@ export default async function handler(req, res) {
       }
 
       default:
-        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'status', 'users'] });
+        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'me', 'status', 'unlock-admin-mode', 'users'] });
     }
   } catch (error) {
-    console.error('[Admin API] Error:', error);
     if (error instanceof HttpError) {
+      if (error.status === 401 || error.status === 403) {
+        console.warn(`[Admin API] ${error.status}: ${error.message}`);
+      } else {
+        console.error('[Admin API] Error:', error);
+      }
       return res.status(error.status).json({ error: error.message });
     }
+    console.error('[Admin API] Error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

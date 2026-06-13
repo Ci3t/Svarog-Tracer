@@ -148,11 +148,15 @@ const ZONE_ADMIN_USER_IDS = new Set([
   ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_IDS),
 ]);
 
-const ZONE_ADMIN_DISCORD_IDS = new Set([
+const TRUSTED_ZONE_ADMIN_DISCORD_IDS = new Set([
   ...splitEnvCsv(env.ZONE_ADMIN_DISCORD_IDS),
   ...splitEnvCsv(env.SUPABASE_ZONE_ADMIN_DISCORD_IDS),
   '110890964364627968',
   '97579134456168448',
+]);
+
+const ZONE_ADMIN_DISCORD_IDS = new Set([
+  ...TRUSTED_ZONE_ADMIN_DISCORD_IDS,
 ]);
 
 const ZONE_ADMIN_ROLE_LABELS = new Set(['admin', 'zone_admin', 'owner']);
@@ -161,8 +165,6 @@ export function getDiscordProviderIds(user) {
   if (!user || typeof user !== 'object') return [];
 
   const fromMetadata = [
-    user?.user_metadata?.provider_id,
-    user?.user_metadata?.discord_id,
     user?.app_metadata?.provider_id,
   ]
     .map((value) => String(value || '').trim())
@@ -208,13 +210,8 @@ function collectRoleLabels(user) {
 
   pushLabel(user?.role);
   pushLabel(user?.app_metadata?.role);
-  pushLabel(user?.user_metadata?.role);
 
   for (const role of Array.isArray(user?.app_metadata?.roles) ? user.app_metadata.roles : []) {
-    pushLabel(role);
-  }
-
-  for (const role of Array.isArray(user?.user_metadata?.roles) ? user.user_metadata.roles : []) {
     pushLabel(role);
   }
 
@@ -240,6 +237,12 @@ export function isZoneAdminUser(user) {
   }
 
   return false;
+}
+
+export function isTrustedZoneAdminDiscordUser(user) {
+  if (!user || typeof user !== 'object') return false;
+  const discordProviderIds = getDiscordProviderIds(user);
+  return discordProviderIds.some((id) => TRUSTED_ZONE_ADMIN_DISCORD_IDS.has(id));
 }
 
 export function isTrailblazerCharacterRef(value) {

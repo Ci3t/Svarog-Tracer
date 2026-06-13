@@ -246,7 +246,7 @@ function TrainingCard({ modeId, modeData, onOpen, onPreview, isPreviewPlaying = 
 export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const themeConfig = getSessionThemeConfig(sessionTheme);
   const navigate = useNavigate();
-  const { user, isAuthenticated, roleMode } = useAuth();
+  const { user, isAuthenticated, roleMode, adminEligible } = useAuth();
   const containerRef = useRef(null);
   const claraRef = useRef(null);
   const claraShellRef = useRef(null);
@@ -257,7 +257,7 @@ export function PlaygroundPageInner({ sessionTheme = 'modern' }) {
   const claraIdleHistoryRef = useRef({ en: [], jp: [] });
   const claraMadHistoryRef = useRef({ en: [], jp: [] });
   const lastClickAtRef = useRef(0);
-  const showAdminBuilder = isAuthenticated && roleMode === 'admin';
+  const showAdminBuilder = isAuthenticated && adminEligible && roleMode === 'admin';
   const [claraState, setClaraState] = useState('idle');
   const [claraSpeaking, setClaraSpeaking] = useState(false);
   const [claraBubble, setClaraBubble] = useState('');

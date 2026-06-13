@@ -104,11 +104,6 @@ function getDiscordUserId(user) {
   return null;
 }
 
-const SUPER_ADMINS = new Set([
-  '110890964364627968', // Ciet
-  '97579134456168448',  // Bigboypinoy
-]);
-
 function resolveAvatarUrl(user) {
   if (!user) return '';
   const metadata = user.user_metadata || {};
@@ -688,7 +683,7 @@ const RosterView = ({
 /* -------------------------------------------------------------------------- */
 
 export default function UserProfilePage() {
-  const { user, replaceUser, getAuthHeader, roleMode } = useAuth();
+  const { user, replaceUser, getAuthHeader, roleMode, setRoleMode, adminVisible, adminStatusLoading } = useAuth();
   const { data: seasonData, refresh: refreshStats } = usePvpSeasonStats();
   const { data: challengeData, refresh: refreshChallenge } = useChallengeResults();
   const { data: marketplaceData, refresh: refreshMarketplace } = useProfileMarketplace();
@@ -702,7 +697,14 @@ export default function UserProfilePage() {
   const avatarUrl = useMemo(() => resolveAvatarUrl(user), [user]);
   const initials = useMemo(() => displayName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2), [displayName]);
   const discordUserId = useMemo(() => getDiscordUserId(user), [user]);
-  const isSuperAdmin = useMemo(() => SUPER_ADMINS.has(String(discordUserId || '')) || roleMode === 'admin', [discordUserId, roleMode]);
+  const isSuperAdmin = useMemo(() => adminVisible, [adminVisible]);
+  const adminModeActive = adminVisible && roleMode === 'admin';
+
+  useEffect(() => {
+    if (activeTab === 'admin' && !adminModeActive) {
+      setActiveTab('dossier');
+    }
+  }, [activeTab, adminModeActive]);
 
   const equippedTitleKey = useMemo(() => resolveEquippedTitleKeyFromMetadata(user?.user_metadata || {}), [user?.user_metadata]);
   const equippedCosmetics = useMemo(() => {
@@ -842,11 +844,13 @@ export default function UserProfilePage() {
       { id: 'milestones', label: 'Progress', icon: Award },
       { id: 'recent', label: 'Recent', icon: History },
     ];
-    if (isSuperAdmin) {
+    if (adminModeActive) {
       base.push({ id: 'admin', label: 'Overseer', icon: Terminal });
+    } else if (adminStatusLoading) {
+      base.push({ id: 'admin-checking', label: 'Checking', icon: Clock, disabled: true });
     }
     return base;
-  }, [isSuperAdmin]);
+  }, [adminModeActive, adminStatusLoading]);
 
   return (
     <div className="min-h-screen bg-transparent px-4 py-8 sm:px-8">
@@ -855,11 +859,28 @@ export default function UserProfilePage() {
         <div className="flex flex-col gap-10">
           <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-white/[0.03] border border-white/5 mx-auto">
             {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-[var(--theme-accent)] text-white' : 'text-slate-500 hover:text-white'}`}>
+              <button
+                key={tab.id}
+                onClick={() => { if (!tab.disabled) setActiveTab(tab.id); }}
+                disabled={tab.disabled}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-[var(--theme-accent)] text-white' : tab.disabled ? 'cursor-wait text-slate-600' : 'text-slate-500 hover:text-white'}`}
+              >
                 <tab.icon className="h-4 w-4" />
                 <span className="font-['Orbitron'] text-[11px] font-black uppercase tracking-[0.16em]">{tab.label}</span>
               </button>
             ))}
+            {adminVisible && !adminStatusLoading ? (
+              <button
+                type="button"
+                onClick={() => { void setRoleMode(roleMode === 'admin' ? 'user' : 'admin'); }}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl border transition-all ${roleMode === 'admin' ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200' : 'border-amber-400/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15'}`}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="font-['Orbitron'] text-[11px] font-black uppercase tracking-[0.16em]">
+                  {roleMode === 'admin' ? 'Admin On' : 'Admin Off'}
+                </span>
+              </button>
+            ) : null}
           </div>
           <main className="min-h-[600px]">
             {activeTab === 'dossier' && <DossierView stats={statsOverview} profile={profile} />}
@@ -903,7 +924,7 @@ export default function UserProfilePage() {
             )}
             {activeTab === 'milestones' && <MilestonesView achievements={profile.progression?.achievements || []} />}
             {activeTab === 'recent' && <RecentUnlocksView items={recentItems} />}
-            {activeTab === 'admin' && (
+            {activeTab === 'admin' && adminModeActive && (
               <AdminView
                 getAuthHeader={getAuthHeader}
                 discordUserId={discordUserId}
@@ -938,6 +959,7 @@ function comparePatchVersion(a, b) {
 }
 
 function PatchTimerAdminView() {
+  const { getAuthHeader } = useAuth();
   const [patches, setPatches] = useState(DEFAULT_PATCHES);
   const [editGame, setEditGame] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -979,7 +1001,7 @@ function PatchTimerAdminView() {
       const res = await fetch(buildVercelApiUrl(`/api/patch-timers?t=${Date.now()}`), {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
           game,
           patch: patch.version,
@@ -1427,6 +1449,7 @@ function BannerAdminView({ discordUserId }) {
       const keys = [
         'cached_banner_data_v2',
         'genshin_cached_banners_v2',
+        'wuwa_live_banners_cache_v10',
         'wuwa_live_banners_cache_v9',
         'wuwa_live_banners_cache_v8',
         'wuwa_live_banners_cache_v7',

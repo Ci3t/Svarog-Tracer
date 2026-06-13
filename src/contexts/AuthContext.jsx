@@ -13,9 +13,16 @@ import {
   storeSession,
 } from '../lib/supabaseClient';
 import { AuthContext } from './auth-context';
+import { buildVercelApiUrl } from '../utils/apiBase';
 
 const ROLE_MODE_STORAGE_KEY = 'hsr_role_mode';
+const ADMIN_UNLOCK_STORAGE_KEY = 'hsr_admin_unlock';
+const LEGACY_ADMIN_PASS_STORAGE_KEY = 'hsr_admin_pass';
 const SESSION_REFRESH_BUFFER_MS = 60 * 1000;
+const TRUSTED_ADMIN_DISCORD_IDS = new Set([
+  '110890964364627968',
+  '97579134456168448',
+]);
 
 function extractBanInfo(user) {
   if (!user || typeof user !== 'object') return null;
@@ -48,12 +55,97 @@ function readRoleMode() {
   }
 }
 
+function readAdminUnlock(userId) {
+  try {
+    const raw = window.localStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const expiresAt = Number(parsed?.expiresAt || 0);
+    if (!parsed || parsed.userId !== userId || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      window.localStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+      window.localStorage.removeItem(LEGACY_ADMIN_PASS_STORAGE_KEY);
+      return null;
+    }
+    return { expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function writeAdminUnlock(userId, expiresAt) {
+  try {
+    window.localStorage.setItem(ADMIN_UNLOCK_STORAGE_KEY, JSON.stringify({ userId, expiresAt }));
+    window.localStorage.removeItem(LEGACY_ADMIN_PASS_STORAGE_KEY);
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+function clearAdminUnlock() {
+  try {
+    window.localStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_ADMIN_PASS_STORAGE_KEY);
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+function getDiscordUserIds(user) {
+  if (!user || typeof user !== 'object') return [];
+
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object' ? user.user_metadata : {};
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  const ids = [
+    metadata.provider_id,
+    metadata.discord_id,
+  ];
+
+  for (const identity of identities) {
+    const provider = String(identity?.provider || identity?.identity_provider || '').toLowerCase();
+    if (provider !== 'discord') continue;
+
+    const identityData = identity?.identity_data && typeof identity.identity_data === 'object'
+      ? identity.identity_data
+      : {};
+
+    ids.push(
+      identity?.provider_id,
+      identity?.id,
+      identityData.user_id,
+      identityData.id,
+      identityData.sub,
+    );
+  }
+
+  return Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)));
+}
+
+function isTrustedAdminDiscordClient(user) {
+  return getDiscordUserIds(user).some((id) => TRUSTED_ADMIN_DISCORD_IDS.has(id));
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState('');
   const [roleMode, setRoleModeState] = useState(() => (typeof window === 'undefined' ? 'user' : readRoleMode()));
+  const [adminEligible, setAdminEligible] = useState(false);
+  const [adminStatusLoading, setAdminStatusLoading] = useState(false);
+  const [adminPasswordRequired, setAdminPasswordRequired] = useState(false);
+  const [adminUnlockExpiresAt, setAdminUnlockExpiresAt] = useState(0);
+  const adminClientTrusted = useMemo(() => isTrustedAdminDiscordClient(user), [user]);
+  const adminVisible = adminEligible || adminClientTrusted;
+
+  const applyRoleMode = useCallback((nextMode) => {
+    const normalized = String(nextMode || '').toLowerCase() === 'admin' ? 'admin' : 'user';
+    setRoleModeState(normalized);
+
+    try {
+      window.localStorage.setItem(ROLE_MODE_STORAGE_KEY, normalized);
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }, []);
 
   const applySession = useCallback((nextSession, nextUser) => {
     if (!nextSession?.access_token || !nextSession?.expires_at) {
@@ -73,8 +165,14 @@ export function AuthProvider({ children }) {
   const resetAuth = useCallback(() => {
     setSession(null);
     setUser(null);
+    setAdminEligible(false);
+    setAdminStatusLoading(false);
+    setAdminPasswordRequired(false);
+    setAdminUnlockExpiresAt(0);
+    applyRoleMode('user');
+    clearAdminUnlock();
     clearStoredSession();
-  }, []);
+  }, [applyRoleMode]);
 
   const refreshSession = useCallback(
     async (currentSession, { force = false } = {}) => {
@@ -223,21 +321,124 @@ export function AuthProvider({ children }) {
     return { Authorization: `Bearer ${session.access_token}` };
   }, [session?.access_token]);
 
-  const setRoleMode = useCallback((nextMode) => {
-    const normalized = String(nextMode || '').toLowerCase() === 'admin' ? 'admin' : 'user';
-    setRoleModeState(normalized);
+  const unlockAdminMode = useCallback(async () => {
+    if (!session?.access_token || !user?.id || !adminVisible) return false;
 
-    try {
-      window.localStorage.setItem(ROLE_MODE_STORAGE_KEY, normalized);
-    } catch {
-      // Ignore localStorage write failures.
+    if (adminClientTrusted) {
+      return true;
     }
-  }, []);
+
+    if (!adminPasswordRequired) {
+      return true;
+    }
+
+    const storedUnlock = readAdminUnlock(user.id);
+    if (storedUnlock) {
+      setAdminUnlockExpiresAt(storedUnlock.expiresAt);
+      return true;
+    }
+
+    const password = window.prompt('Enter admin password to enable Admin Mode.');
+    if (!password) return false;
+
+    const response = await fetch(buildVercelApiUrl('/api/admin?action=unlock-admin-mode'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.unlocked) {
+      window.alert(payload?.error || 'Invalid admin password.');
+      return false;
+    }
+
+    const expiresAt = Date.parse(payload?.expires_at || '') || (Date.now() + Number(payload?.ttl_ms || 0));
+    if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+      writeAdminUnlock(user.id, expiresAt);
+      setAdminUnlockExpiresAt(expiresAt);
+    }
+
+    return true;
+  }, [adminClientTrusted, adminPasswordRequired, adminVisible, session?.access_token, user?.id]);
+
+  const setRoleMode = useCallback(async (nextMode) => {
+    const normalized = String(nextMode || '').toLowerCase() === 'admin' ? 'admin' : 'user';
+    if (normalized !== 'admin') {
+      applyRoleMode('user');
+      return true;
+    }
+
+    if (!adminVisible) {
+      applyRoleMode('user');
+      return false;
+    }
+
+    const unlocked = await unlockAdminMode();
+    applyRoleMode(unlocked ? 'admin' : 'user');
+    return unlocked;
+  }, [adminVisible, applyRoleMode, unlockAdminMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAdminEligibility() {
+      if (!session?.access_token || !user?.id) {
+        setAdminEligible(false);
+        setAdminStatusLoading(false);
+        setAdminPasswordRequired(false);
+        setAdminUnlockExpiresAt(0);
+        applyRoleMode('user');
+        clearAdminUnlock();
+        return;
+      }
+
+      setAdminStatusLoading(true);
+      try {
+        const response = await fetch(buildVercelApiUrl('/api/admin?action=me'), {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const payload = await response.json().catch(() => ({}));
+        const allowed = Boolean(response.ok && payload?.is_admin);
+        const requiresPassword = Boolean(payload?.requires_admin_password);
+        const storedUnlock = requiresPassword ? readAdminUnlock(user.id) : null;
+
+        if (!cancelled) {
+          setAdminEligible(allowed);
+          setAdminPasswordRequired(allowed ? requiresPassword : false);
+          setAdminUnlockExpiresAt(storedUnlock?.expiresAt || 0);
+          if ((!allowed && !adminClientTrusted) || (requiresPassword && !storedUnlock && !adminClientTrusted)) {
+            applyRoleMode('user');
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setAdminEligible(false);
+          setAdminPasswordRequired(false);
+          setAdminUnlockExpiresAt(0);
+          applyRoleMode('user');
+          clearAdminUnlock();
+        }
+      } finally {
+        if (!cancelled) {
+          setAdminStatusLoading(false);
+        }
+      }
+    }
+
+    checkAdminEligibility();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminClientTrusted, applyRoleMode, session?.access_token, user?.id]);
 
   useEffect(() => {
     const onStorage = (event) => {
       if (event.key === ROLE_MODE_STORAGE_KEY) {
-        setRoleModeState(readRoleMode());
+        const nextMode = readRoleMode();
+        setRoleModeState(nextMode === 'admin' && !adminVisible ? 'user' : nextMode);
         return;
       }
 
@@ -257,7 +458,27 @@ export function AuthProvider({ children }) {
 
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [adminVisible]);
+
+  useEffect(() => {
+    if (!adminPasswordRequired || roleMode !== 'admin') return undefined;
+
+    const expiresIn = Number(adminUnlockExpiresAt || 0) - Date.now();
+    if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+      clearAdminUnlock();
+      setAdminUnlockExpiresAt(0);
+      applyRoleMode('user');
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      clearAdminUnlock();
+      setAdminUnlockExpiresAt(0);
+      applyRoleMode('user');
+    }, expiresIn);
+
+    return () => window.clearTimeout(timer);
+  }, [adminPasswordRequired, adminUnlockExpiresAt, applyRoleMode, roleMode]);
 
   useEffect(() => {
     if (!session?.access_token || !session?.expires_at || !session?.refresh_token) {
@@ -295,9 +516,15 @@ export function AuthProvider({ children }) {
       getAuthHeader,
       roleMode,
       setRoleMode,
+      adminEligible,
+      adminVisible,
+      adminClientTrusted,
+      adminStatusLoading,
+      adminPasswordRequired,
+      adminUnlockExpiresAt,
     });
     },
-    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, replaceUser, refreshUser, getAuthHeader, roleMode, setRoleMode]
+    [session, user, loading, authError, signInWithDiscord, completeOAuthFromUrl, signOut, replaceUser, refreshUser, getAuthHeader, roleMode, setRoleMode, adminEligible, adminVisible, adminClientTrusted, adminStatusLoading, adminPasswordRequired, adminUnlockExpiresAt]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
