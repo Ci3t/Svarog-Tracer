@@ -9,6 +9,15 @@ const WUWA_FETCH_TIMEOUT_MS = 8000;
 const LOCAL_SAFE_MODE = globalThis.process?.env?.STATS_FORCE_FALLBACK === 'true';
 const STATS_CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400';
 const FALLBACK_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300';
+const WUWA_STATS_SOURCE_ALIASES = Object.freeze({
+  // Svarog display IDs can be controlled/manual while WuWa Tracker exposes one shared current chart.
+  '100038': ['100034', 'stats'],
+  '200038': ['100034', 'stats'],
+  '1000001': ['100034', 'stats'],
+  '1100001': ['100034', 'stats'],
+  '100037': ['100034', 'stats'],
+  '200037': ['100034', 'stats'],
+});
 
 function buildWuWaStatsFallback(id, message = 'Local safe-mode fallback: live WuWa stats fetch skipped.') {
   return {
@@ -43,12 +52,14 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = WUWA_FETCH_TIMEOU
 
 function buildBannerIdCandidates(id) {
   const normalized = String(id || '').trim();
-  if (!/^\d{6,7}$/.test(normalized)) return [normalized];
+  const aliasCandidates = WUWA_STATS_SOURCE_ALIASES[normalized] || [];
+  if (!/^\d{6,7}$/.test(normalized)) return Array.from(new Set([normalized, ...aliasCandidates].filter(Boolean)));
   const suffix = normalized.slice(3);
   const candidates = [normalized];
   if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
   if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
   if (normalized.startsWith('110')) candidates.push(`200${suffix}`, `101${suffix}`);
+  candidates.push(...aliasCandidates);
   return Array.from(new Set(candidates));
 }
 
@@ -88,7 +99,9 @@ export async function handler(req, res) {
     let finalStats = null;
 
     for (const candidateId of bannerIdCandidates) {
-      const statsUrl = `https://wuwatracker.com/tracker/stats/${candidateId}`;
+      const statsUrl = candidateId === 'stats'
+        ? 'https://wuwatracker.com/tracker/stats'
+        : `https://wuwatracker.com/tracker/stats/${candidateId}`;
       console.log('[WuWa API] Fetching:', statsUrl);
       
       let html = null;
@@ -143,7 +156,12 @@ export async function handler(req, res) {
       console.log('[WuWa API] HTML length:', html.length);
       const parsed = parseWuWaHTML_Adaptive(html);
       if (hasUsableStats(parsed)) {
-        finalStats = parsed;
+        finalStats = {
+          ...parsed,
+          bannerId: id,
+          sourceBannerId: candidateId,
+          message: candidateId !== id ? `Svarog WuWa stats parsed from source ${candidateId}` : 'Svarog WuWa stats parsed'
+        };
         break;
       }
       console.warn(`[WuWa API] Candidate ${candidateId} returned empty stats, trying next candidate`);
