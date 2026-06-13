@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 19,  // Bumped: WuWa Lucilla current + Cyberpunk collab section
+  CACHE_VERSION: 20,  // Bumped: force WuWa Cyberpunk collab visibility refresh
   TIMEOUT_MS: 8000,
 };
 
