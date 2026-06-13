@@ -25,6 +25,7 @@ import { applyBannerAssetManifest } from './bannerAssetManifest.js';
 const OLD_CACHE_KEYS = [
   'cached_banner_data',
   'genshin_cached_banners',
+  'wuwa_live_banners_cache_v10',
   'wuwa_live_banners_cache_v9',
   'wuwa_live_banners_cache_v8',
   'wuwa_live_banners_cache_v7',
@@ -245,7 +246,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v9';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v10';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
@@ -331,7 +332,7 @@ export async function fetchCentralizedBanners(game = 'all') {
           game: 'wuwa',
         }))
         : [];
-      return applyBannerAssetManifest(normalizeCurrentWuWaBanners(mappedBanners));
+      return applyBannerAssetManifest(ensureWuWaCollabBanners(mappedBanners));
     }
 
     const params = new URLSearchParams();
@@ -772,6 +773,24 @@ function normalizeCurrentWuWaBanner(banner) {
 
 function normalizeCurrentWuWaBanners(banners) {
   return Array.isArray(banners) ? banners.map(normalizeCurrentWuWaBanner) : banners;
+}
+
+function ensureWuWaCollabBanners(banners) {
+  const list = Array.isArray(banners) ? normalizeCurrentWuWaBanners(banners).filter(Boolean) : [];
+  const existingIds = new Set(list.map((banner) => String(banner?.bannerId || banner?.id || '')));
+
+  for (const bannerId of ['1000001', '1100001']) {
+    if (!existingIds.has(bannerId)) {
+      list.push(normalizeCurrentWuWaBanner({
+        id: `${bannerId}_${bannerId.startsWith('100') ? 'character' : 'weapon'}`,
+        bannerId,
+        source: 'client-collab-fallback',
+        game: 'wuwa',
+      }));
+    }
+  }
+
+  return list;
 }
 
 /**
@@ -2361,7 +2380,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v10'; // Bumped: Lucilla current + Cyberpunk collab split
+  const CACHE_KEY = 'wuwa_live_banners_cache_v11'; // Bumped: force Cyberpunk collab visibility refresh
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)
@@ -2471,7 +2490,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     
     console.log('[WuWa Banners] Found', banners.length, 'banners:', banners.map(b => b.name));
     
-    const recentBanners = normalizeCurrentWuWaBanners(selectWuWaVisibleBanners_Client(banners, html));
+    const recentBanners = ensureWuWaCollabBanners(selectWuWaVisibleBanners_Client(banners, html));
     
     console.log('[WuWa Banners] Filtered to', recentBanners.length, 'recent banners:', recentBanners.map(b => `${b.name} (${b.bannerId})`));
     

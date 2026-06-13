@@ -1449,6 +1449,7 @@ function BannerAdminView({ discordUserId }) {
       const keys = [
         'cached_banner_data_v2',
         'genshin_cached_banners_v2',
+        'wuwa_live_banners_cache_v11',
         'wuwa_live_banners_cache_v10',
         'wuwa_live_banners_cache_v9',
         'wuwa_live_banners_cache_v8',
