@@ -25,6 +25,7 @@ import { applyBannerAssetManifest } from './bannerAssetManifest.js';
 const OLD_CACHE_KEYS = [
   'cached_banner_data',
   'genshin_cached_banners',
+  'wuwa_live_banners_cache_v9',
   'wuwa_live_banners_cache_v8',
   'wuwa_live_banners_cache_v7',
   'wuwa_live_banners_cache_v6',
@@ -244,17 +245,22 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v8';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v9';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
 const WUWA_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa';
 const WUWA_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa';
 const GENSHIN_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin';
+const WUWA_LUCILLA_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucilla.webp?v=100038-lucilla-20260613`;
+const WUWA_LUCILLA_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucilla.webp?v=100038-lucilla-20260613`;
+const WUWA_FREEZE_FRAME_IMAGE = `${WUWA_ASSET_REPO_BASE}/Freeze_Frame.webp?v=200038-freeze-frame-20260613`;
+const WUWA_FREEZE_FRAME_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Freeze_Frame.webp?v=200038-freeze-frame-20260613`;
 const WUWA_LUCY_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_LUCY_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_SPECTRAL_TRIGGER_IMAGE = `${WUWA_ASSET_REPO_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
 const WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
+const WUWA_COLLAB_NAME = "Cyberpunk: Edgerunners";
 
 async function fetchBannersWithClientCache(game, loader) {
   const cacheKey = game || 'all';
@@ -315,10 +321,13 @@ export async function fetchCentralizedBanners(game = 'all') {
           name: b.name,
           image: b.image,
           fallbackImage: b.fallbackImage,
+          portrait: b.portrait,
           type: b.type,
           characterId: b.characterId,
           assetLocked: b.assetLocked,
           imageLocked: b.imageLocked,
+          separator: b.separator,
+          collaboration: b.collaboration,
           game: 'wuwa',
         }))
         : [];
@@ -389,11 +398,14 @@ export async function fetchCentralizedBanners(game = 'all') {
         bannerId: b.bannerId || extractBannerId(b.id) || b.id,
         name: b.name,
         image: b.image,
+        portrait: b.portrait,
         fallbackImage: b.fallbackImage,
         type: b.type,
         characterId: b.characterId,
         assetLocked: b.assetLocked,
         imageLocked: b.imageLocked,
+        separator: b.separator,
+        collaboration: b.collaboration,
         game: 'wuwa'  // IMPORTANT: Keep this for filtering!
       })).map(normalizeCurrentWuWaBanner)
     ];
@@ -612,6 +624,26 @@ function normalizeCurrentGenshinBanners(banners) {
 }
 
 const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
+  "100038": {
+    id: "100038_character",
+    bannerId: "100038",
+    name: "Lucilla / Cartethyia",
+    type: "character",
+    image: WUWA_LUCILLA_IMAGE,
+    portrait: WUWA_LUCILLA_IMAGE,
+    fallbackImage: WUWA_LUCILLA_FALLBACK_IMAGE,
+    characterId: "lucilla",
+  },
+  "200038": {
+    id: "200038_weapon",
+    bannerId: "200038",
+    name: "Freeze Frame / Defier's Thorn",
+    type: "weapon",
+    image: WUWA_FREEZE_FRAME_IMAGE,
+    portrait: WUWA_FREEZE_FRAME_IMAGE,
+    fallbackImage: WUWA_FREEZE_FRAME_FALLBACK_IMAGE,
+    characterId: "freeze-frame",
+  },
   "1000001": {
     id: "1000001_character",
     bannerId: "1000001",
@@ -621,6 +653,8 @@ const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
     portrait: WUWA_LUCY_IMAGE,
     fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
     characterId: "lucy",
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   "1100001": {
     id: "1100001_weapon",
@@ -631,6 +665,8 @@ const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
     portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
     fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
     characterId: "spectral-trigger",
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   "100037": {
     id: "1000001_character",
@@ -641,6 +677,8 @@ const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
     portrait: WUWA_LUCY_IMAGE,
     fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
     characterId: "lucy",
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   "200037": {
     id: "1100001_weapon",
@@ -651,6 +689,8 @@ const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
     portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
     fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
     characterId: "spectral-trigger",
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
 });
 
@@ -1957,11 +1997,40 @@ function extractGenshinWeaponNames(list) {
 // Images: Cloudinary primary, wuwatracker fallback
 const _wuwaLucyFallback = CURRENT_WUWA_BANNER_ASSETS["1000001"].image;
 const _wuwaSpectralTriggerFallback = CURRENT_WUWA_BANNER_ASSETS["1100001"].image;
+const _wuwaLucillaFallback = CURRENT_WUWA_BANNER_ASSETS["100038"].image;
+const _wuwaFreezeFrameFallback = CURRENT_WUWA_BANNER_ASSETS["200038"].image;
 const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
-  // Current featured banners only
+  // Current featured banners first
+  {
+    id: "100038",
+    bannerId: "100038",
+    name: "Lucilla / Cartethyia",
+    type: "character",
+    image: _wuwaLucillaFallback,
+    portrait: _wuwaLucillaFallback,
+    fallbackImage: WUWA_LUCILLA_FALLBACK_IMAGE,
+    characterId: "lucilla",
+    game: "wuwa",
+    assetLocked: true,
+    imageLocked: true,
+  },
+  {
+    id: "200038",
+    bannerId: "200038",
+    name: "Freeze Frame / Defier's Thorn",
+    type: "weapon",
+    image: _wuwaFreezeFrameFallback,
+    portrait: _wuwaFreezeFrameFallback,
+    fallbackImage: WUWA_FREEZE_FRAME_FALLBACK_IMAGE,
+    characterId: "freeze-frame",
+    game: "wuwa",
+    assetLocked: true,
+    imageLocked: true,
+  },
+  // Cyberpunk collaboration banners remain available below current
   { 
     id: "1000001", 
     bannerId: "1000001",
@@ -1974,6 +2043,8 @@ export const WUWA_PRESET_BANNERS = [
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   { 
     id: "1100001", 
@@ -1987,6 +2058,8 @@ export const WUWA_PRESET_BANNERS = [
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
 ];
 
@@ -2289,7 +2362,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v9'; // Bumped: fix Lucy asset casing and stop image retry loop
+  const CACHE_KEY = 'wuwa_live_banners_cache_v10'; // Bumped: Lucilla current + Cyberpunk collab split
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)

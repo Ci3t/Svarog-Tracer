@@ -23,46 +23,84 @@ const WUWA_IMAGE_OVERRIDES = Object.freeze({
   'solsworn-ciphers': { folder: 'weapon-portraits', file: 'solsworn-ciphers-portrait.png' },
 });
 
-const WUWA_CURRENT_BANNER_ASSETS = Object.freeze({
+const WUWA_LUCILLA_IMAGE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucilla.webp?v=100038-lucilla-20260613';
+const WUWA_LUCILLA_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucilla.webp?v=100038-lucilla-20260613';
+const WUWA_FREEZE_FRAME_IMAGE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Freeze_Frame.webp?v=200038-freeze-frame-20260613';
+const WUWA_FREEZE_FRAME_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Freeze_Frame.webp?v=200038-freeze-frame-20260613';
+const WUWA_LUCY_IMAGE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608';
+const WUWA_LUCY_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608';
+const WUWA_SPECTRAL_TRIGGER_IMAGE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608';
+const WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608';
+const WUWA_COLLAB_NAME = 'Cyberpunk: Edgerunners';
+
+const WUWA_BANNER_ASSETS = Object.freeze({
+  '100038': {
+    id: '100038_character',
+    bannerId: '100038',
+    name: 'Lucilla / Cartethyia',
+    type: 'character',
+    image: WUWA_LUCILLA_IMAGE,
+    portrait: WUWA_LUCILLA_IMAGE,
+    fallbackImage: WUWA_LUCILLA_FALLBACK_IMAGE,
+    characterId: 'lucilla',
+  },
+  '200038': {
+    id: '200038_weapon',
+    bannerId: '200038',
+    name: "Freeze Frame / Defier's Thorn",
+    type: 'weapon',
+    image: WUWA_FREEZE_FRAME_IMAGE,
+    portrait: WUWA_FREEZE_FRAME_IMAGE,
+    fallbackImage: WUWA_FREEZE_FRAME_FALLBACK_IMAGE,
+    characterId: 'freeze-frame',
+  },
   '1000001': {
     id: '1000001_character',
     bannerId: '1000001',
     name: 'Lucy / Rebecca',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    image: WUWA_LUCY_IMAGE,
+    portrait: WUWA_LUCY_IMAGE,
+    fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
     characterId: 'lucy',
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   '1100001': {
     id: '1100001_weapon',
     bannerId: '1100001',
     name: 'Spectral Trigger / Skull Thrasher',
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    image: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
     characterId: 'spectral-trigger',
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   '100037': {
     id: '1000001_character',
     bannerId: '1000001',
     name: 'Lucy / Rebecca',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    image: WUWA_LUCY_IMAGE,
+    portrait: WUWA_LUCY_IMAGE,
+    fallbackImage: WUWA_LUCY_FALLBACK_IMAGE,
     characterId: 'lucy',
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
   '200037': {
     id: '1100001_weapon',
     bannerId: '1100001',
     name: 'Spectral Trigger / Skull Thrasher',
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    image: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    portrait: WUWA_SPECTRAL_TRIGGER_IMAGE,
+    fallbackImage: WUWA_SPECTRAL_TRIGGER_FALLBACK_IMAGE,
     characterId: 'spectral-trigger',
+    separator: true,
+    collaboration: WUWA_COLLAB_NAME,
   },
 });
 
@@ -107,7 +145,7 @@ function buildWuWaImageUrl(folder, fileName) {
 }
 
 function applyCurrentWuWaBannerAsset(banner) {
-  const override = WUWA_CURRENT_BANNER_ASSETS[String(banner?.bannerId || banner?.id || '')];
+  const override = WUWA_BANNER_ASSETS[String(banner?.bannerId || banner?.id || '')];
   if (!override) return banner;
 
   return {
@@ -122,8 +160,10 @@ function applyCurrentWuWaBannerAsset(banner) {
 
 function buildWuWaFallbackBanners() {
   return [
-    applyCurrentWuWaBannerAsset({ bannerId: '1000001', source: 'controlled-fallback' }),
-    applyCurrentWuWaBannerAsset({ bannerId: '1100001', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '100038', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '200038', source: 'controlled-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1000001', source: 'controlled-collab' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1100001', source: 'controlled-collab' }),
   ];
 }
 
@@ -135,8 +175,9 @@ function buildWuWaFallbackBanners() {
  * 4. Pair them by matching last 2 digits if possible
  */
 function selectCurrentBanners(banners) {
-  const chars = banners.filter(b => b.type === 'character').sort(compareWuWaBannerIdsDesc);
-  const weapons = banners.filter(b => b.type === 'weapon').sort(compareWuWaBannerIdsDesc);
+  const currentPool = banners.filter(b => !b.collaboration);
+  const chars = currentPool.filter(b => b.type === 'character').sort(compareWuWaBannerIdsDesc);
+  const weapons = currentPool.filter(b => b.type === 'weapon').sort(compareWuWaBannerIdsDesc);
 
   if (chars.length === 0 && weapons.length === 0) return [];
 
@@ -157,6 +198,17 @@ function selectCurrentBanners(banners) {
   console.log(`[WuWa Dynamic] Weapon: ${selectedWeapon?.name} (${selectedWeapon?.bannerId})`);
 
   return [selectedChar, selectedWeapon].filter(Boolean);
+}
+
+function appendWuWaCollabBanners(banners) {
+  const list = Array.isArray(banners) ? [...banners] : [];
+  const existing = new Set(list.map((banner) => String(banner?.bannerId || banner?.id || '')));
+  for (const bannerId of ['1000001', '1100001']) {
+    if (!existing.has(bannerId)) {
+      list.push(applyCurrentWuWaBannerAsset({ bannerId, source: 'controlled-collab' }));
+    }
+  }
+  return list.filter(Boolean);
 }
 
 export async function handler(req, res) {
@@ -257,7 +309,7 @@ export async function handler(req, res) {
 
     // Select current banners dynamically (highest IDs = newest)
     const currentBanners = selectCurrentBanners(banners);
-    const safeBanners = currentBanners.length > 0 ? currentBanners : buildWuWaFallbackBanners();
+    const safeBanners = currentBanners.length > 0 ? appendWuWaCollabBanners(currentBanners) : buildWuWaFallbackBanners();
     bannerCache = {
       data: safeBanners,
       timestamp: Date.now(),

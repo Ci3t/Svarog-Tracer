@@ -7,7 +7,6 @@
 
 // AI Configuration
 import { AI_CONFIG } from '../src/config/ai.config.js'
-import { getPrePityEnd, getWarpPityWindow } from '../src/utils/warpPity.js'
 import Fuse from 'fuse.js'
 
 
@@ -987,9 +986,10 @@ export default async function handler(req, res) {
 }
 
 function buildWarpAnalyzerPrompt({ bannerId, bannerName, bannerType, luckyPeaks, shortcutString, winLossData, distribution, winChances }) {
-  const pityWindow = getWarpPityWindow({ bannerId, bannerType })
-  const prePityEnd = getPrePityEnd(pityWindow)
-  const hardPity = pityWindow.hardPity
+  const normalizedType = String(bannerType || '').trim().toLowerCase()
+  const isCharacter = normalizedType === 'character' || (!normalizedType && !String(bannerId || '').startsWith('3') && !String(bannerId || '').startsWith('6'))
+  const prePityEnd = isCharacter ? 74 : 64
+  const hardPity = isCharacter ? 90 : 80
 
   // Build COMPLETE dataset for AI (all rolls 1-90)
   const allRolls = []

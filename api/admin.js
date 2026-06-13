@@ -9,10 +9,14 @@ import { handler as wuwaBannersHandler } from '../server/_services/wuwa/banners.
 import {
   extractDiscordDisplayName,
   HttpError,
+  isTrustedZoneAdminDiscordUser,
   isZoneAdminUser,
   requireAuthenticatedUser,
   supabaseAuthAdminRequest,
 } from '../server/_services/zone/shared.js';
+import crypto from 'node:crypto';
+
+const ADMIN_UNLOCK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 function isAuthorized(req) {
   const adminKey = process.env.ADMIN_API_KEY;
@@ -47,10 +51,46 @@ function normalizeReason(value) {
 
 async function requireAdmin(req) {
   const auth = await requireAuthenticatedUser(req);
-  if (!isZoneAdminUser(auth.user)) {
+
+  if (isZoneAdminUser(auth.user)) {
+    return auth.user;
+  }
+
+  let fullUser = null;
+  try {
+    fullUser = await fetchAdminUserById(auth.user.id);
+  } catch (error) {
+    console.warn('[Admin API] Full admin user lookup failed:', error?.message || error);
+  }
+
+  if (!isZoneAdminUser(fullUser)) {
     throw new HttpError(403, 'Admin access required.');
   }
-  return auth.user;
+
+  if (fullUser && typeof fullUser === 'object' && auth.user && typeof auth.user === 'object') {
+    return { ...auth.user, ...fullUser };
+  }
+
+  return fullUser || auth.user;
+}
+
+function safeCompareSecret(value, expected) {
+  const received = Buffer.from(String(value || ''), 'utf8');
+  const target = Buffer.from(String(expected || ''), 'utf8');
+  if (!received.length || !target.length || received.length !== target.length) return false;
+  return crypto.timingSafeEqual(received, target);
+}
+
+function readRequestBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body || '{}');
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 async function fetchAdminUserById(userId) {
@@ -155,9 +195,13 @@ export default async function handler(req, res) {
       }
 
       case 'me': {
+        const canSkipAdminPassword = adminUser ? isTrustedZoneAdminDiscordUser(adminUser) : true;
         return res.status(200).json({
           success: true,
           is_admin: true,
+          can_skip_admin_password: canSkipAdminPassword,
+          requires_admin_password: !canSkipAdminPassword,
+          admin_unlock_ttl_ms: ADMIN_UNLOCK_TTL_MS,
           user: adminUser
             ? {
                 id: adminUser.id,
@@ -165,6 +209,33 @@ export default async function handler(req, res) {
                 email: adminUser.email || '',
               }
             : null,
+        });
+      }
+
+      case 'unlock-admin-mode': {
+        if (req.method !== 'POST') {
+          throw new HttpError(405, 'Method Not Allowed.');
+        }
+
+        const canSkipAdminPassword = adminUser ? isTrustedZoneAdminDiscordUser(adminUser) : true;
+        if (!canSkipAdminPassword) {
+          const adminPassword = process.env.HSR_ADMIN_PASS;
+          if (!adminPassword) {
+            throw new HttpError(500, 'Admin password is not configured.');
+          }
+
+          const body = readRequestBody(req);
+          if (!safeCompareSecret(body?.password, adminPassword)) {
+            throw new HttpError(403, 'Invalid admin password.');
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          unlocked: true,
+          can_skip_admin_password: canSkipAdminPassword,
+          expires_at: new Date(Date.now() + ADMIN_UNLOCK_TTL_MS).toISOString(),
+          ttl_ms: ADMIN_UNLOCK_TTL_MS,
         });
       }
 
@@ -194,11 +265,7 @@ export default async function handler(req, res) {
           throw new HttpError(405, 'Method Not Allowed.');
         }
 
-        const body = req.body && typeof req.body === 'object'
-          ? req.body
-          : typeof req.body === 'string'
-            ? JSON.parse(req.body || '{}')
-            : {};
+        const body = readRequestBody(req);
 
         const userAction = String(body?.action || '').trim().toLowerCase();
         const userId = normalizeUserId(body?.userId);
@@ -263,13 +330,18 @@ export default async function handler(req, res) {
       }
 
       default:
-        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'me', 'status', 'users'] });
+        return res.status(400).json({ error: 'Unknown action', availableActions: ['banners', 'clear-cache', 'me', 'status', 'unlock-admin-mode', 'users'] });
     }
   } catch (error) {
-    console.error('[Admin API] Error:', error);
     if (error instanceof HttpError) {
+      if (error.status === 401 || error.status === 403) {
+        console.warn(`[Admin API] ${error.status}: ${error.message}`);
+      } else {
+        console.error('[Admin API] Error:', error);
+      }
       return res.status(error.status).json({ error: error.message });
     }
+    console.error('[Admin API] Error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
