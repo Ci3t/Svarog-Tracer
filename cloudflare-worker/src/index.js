@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v9',
+  CACHE_VERSION: 'v10',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -1030,7 +1030,109 @@ function buildWuWaFallbackStats(id, message = 'Worker fallback: live WuWa stats 
   };
 }
 
+const WUWA_STATS_SOURCE_ALIASES = {
+  // Svarog display IDs can be controlled/manual while WuWa Tracker exposes one shared current chart.
+  '100038': ['100034', 'stats'],
+  '200038': ['100034', 'stats'],
+  '1000001': ['100034', 'stats'],
+  '1100001': ['100034', 'stats'],
+  '100037': ['100034', 'stats'],
+  '200037': ['100034', 'stats'],
+};
+
+function parseWuWaHistogramContent(content) {
+  try {
+    return JSON.parse(`{${String(content || '').replace(/\\"/g, '"')}}`);
+  } catch {
+    try {
+      return JSON.parse(`{${content}}`);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function extractWuWaItemHistogram(htmlRegion) {
+  const match = String(htmlRegion || '').match(/\\"?itemNameHistogram\\"?:\s*\{([^}]+)\}/);
+  return match ? parseWuWaHistogramContent(match[1]) : null;
+}
+
+function buildWuWaStatsFromHistogram(histogramData, itemData = null) {
+  const histogramEntries = Object.entries(histogramData || {})
+    .map(([pity, count]) => ({ roll: parseInt(pity, 10), count: parseInt(count, 10) }))
+    .filter(entry => Number.isFinite(entry.roll) && Number.isFinite(entry.count) && entry.count >= 0)
+    .sort((a, b) => a.roll - b.roll);
+
+  const histogramSum = histogramEntries.reduce((sum, entry) => sum + entry.count, 0);
+  const by_rollnum_pulls_5 = {};
+  const by_rollnum_chance_5 = {};
+  let remainingPulls = histogramSum;
+
+  for (const entry of histogramEntries) {
+    by_rollnum_pulls_5[entry.roll] = entry.count;
+    by_rollnum_chance_5[entry.roll] = remainingPulls > 0 ? entry.count / remainingPulls : 0;
+    remainingPulls -= entry.count;
+  }
+
+  const list = itemData
+    ? Object.entries(itemData)
+      .map(([name, count]) => ({ name, count: parseInt(count, 10) }))
+      .filter(item => Number.isFinite(item.count) && item.count > 0)
+      .sort((a, b) => b.count - a.count)
+    : [];
+
+  return {
+    stats: {
+      total_pulls_5: histogramSum,
+      by_rollnum_pulls_5,
+      by_rollnum_chance_5,
+      count_win_5: 0,
+      count_lose_5: 0,
+    },
+    image: null,
+    list,
+    fallback: false,
+    source: 'svarog-wuwa-parser',
+  };
+}
+
 function parseWuWaHTML(html) {
+  const content = String(html || '');
+  const labelMatch = content.match(/\\"label\\":\\"5[^"\\]{0,8}Pulls per Pity\\"/);
+  if (labelMatch) {
+    const labelPos = labelMatch.index || 0;
+    const searchRegion = content.substring(Math.max(0, labelPos - 7000), labelPos + 200);
+    const histMatches = [...searchRegion.matchAll(/\\"histogram\\":\{((?:\\"?\d+\\"?:\d+,?)+)\}/g)];
+    const closestHist = histMatches[histMatches.length - 1];
+    if (closestHist) {
+      const histogramData = parseWuWaHistogramContent(closestHist[1]);
+      if (histogramData) {
+        return buildWuWaStatsFromHistogram(
+          histogramData,
+          extractWuWaItemHistogram(content.substring(labelPos, labelPos + 2500)),
+        );
+      }
+    }
+  }
+
+  const heuristicPatterns = [
+    /\{"1":\d+,"2":\d+[^}]{400,},"70":\d+[^}]{0,300}\}/,
+    /\{\\"1\\":\d+,\\"2\\":\d+[^}]{400,},\\"70\\":\d+[^}]{0,300}\}/,
+  ];
+
+  for (const pattern of heuristicPatterns) {
+    const match = content.match(pattern);
+    if (!match) continue;
+    try {
+      const histogramData = JSON.parse(match[0].replace(/\\"/g, '"'));
+      if (histogramData?.['1'] !== undefined && histogramData?.['70'] !== undefined) {
+        return buildWuWaStatsFromHistogram(histogramData);
+      }
+    } catch {
+      // Try the next strategy.
+    }
+  }
+
   const scriptMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{.*?\});/s);
   if (scriptMatch) {
     try {
@@ -1063,6 +1165,22 @@ function parseWuWaHTML(html) {
   return null;
 }
 
+function buildWuWaStatsCandidates(id) {
+  const normalized = String(id || '').trim();
+  const aliasCandidates = WUWA_STATS_SOURCE_ALIASES[normalized] || [];
+  const candidates = [normalized];
+
+  if (/^\d{6,7}$/.test(normalized)) {
+    const suffix = normalized.slice(3);
+    if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
+    if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
+    if (normalized.startsWith('110')) candidates.push(`200${suffix}`, `101${suffix}`);
+  }
+
+  candidates.push(...aliasCandidates);
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
 function hasUsableWuWaStats(parsed) {
   const histogramSize = Object.keys(parsed?.stats?.by_rollnum_pulls_5 || {}).length;
   const totalPulls = Number(parsed?.stats?.total_pulls_5 || parsed?.stats?.count_win_5 || 0);
@@ -1079,15 +1197,14 @@ async function handleWuWaStats(request) {
   if (cached) return cached;
 
   try {
-    const normalized = String(id).trim();
-    const candidates = /^\d{6}$/.test(normalized)
-      ? (normalized.startsWith('200') ? [normalized, `101${normalized.slice(3)}`] : normalized.startsWith('101') ? [normalized, `200${normalized.slice(3)}`] : [normalized])
-      : [normalized];
+    const candidates = buildWuWaStatsCandidates(id);
 
     let finalStats = null;
 
     for (const candidateId of candidates) {
-      const statsUrl = `https://wuwatracker.com/tracker/stats/${candidateId}`;
+      const statsUrl = candidateId === 'stats'
+        ? 'https://wuwatracker.com/tracker/stats'
+        : `https://wuwatracker.com/tracker/stats/${candidateId}`;
       let html = null;
 
       try {
@@ -1123,7 +1240,12 @@ async function handleWuWaStats(request) {
       if (!html) continue;
       const parsed = parseWuWaHTML(html);
       if (hasUsableWuWaStats(parsed)) {
-        finalStats = parsed;
+        finalStats = {
+          ...parsed,
+          bannerId: id,
+          sourceBannerId: candidateId,
+          message: candidateId !== id ? `Svarog WuWa stats parsed from source ${candidateId}` : 'Svarog WuWa stats parsed',
+        };
         break;
       }
       console.warn(`[Worker] WuWa candidate ${candidateId} returned empty stats, trying next candidate`);
