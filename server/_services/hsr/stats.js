@@ -38,6 +38,7 @@ export async function handler(req, res) {
   }
   
   const { id } = req.query;
+  const compareId = String(req.query.compare_id || '0');
   
   if (!id) {
     return res.status(400).json({ error: 'Banner ID is required' });
@@ -49,7 +50,7 @@ export async function handler(req, res) {
   }
   
   try {
-    const apiUrl = `https://starrailstation.com/api/v1/warp_fetch/${id}/?_t=${Date.now()}`;
+    const apiUrl = `https://starrailstation.com/api/v1/warp_fetch/${id}/?compare_id=${encodeURIComponent(compareId)}&_t=${Date.now()}`;
     console.log('[HSR API] Fetching:', apiUrl);
     
     const response = await fetch(apiUrl, {

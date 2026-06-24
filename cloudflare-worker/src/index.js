@@ -952,13 +952,14 @@ async function handleHsrStats(request) {
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   if (!id) return jsonResponse({ error: 'Banner ID is required' }, 400, request);
+  const compareId = url.searchParams.get('compare_id') || '0';
 
-  const cacheKey = `${url.origin}/api/hsr/stats?id=${id}`;
+  const cacheKey = `${url.origin}/api/hsr/stats?id=${id}&compare_id=${compareId}`;
   const cached = await getCached(request, cacheKey);
   if (cached) return cached;
 
   try {
-    const apiUrl = `${CONFIG.HSR_STATS_API}/${id}/?_t=${Date.now()}`;
+    const apiUrl = `${CONFIG.HSR_STATS_API}/${id}/?compare_id=${encodeURIComponent(compareId)}&_t=${Date.now()}`;
     const response = await fetchWithTimeout(apiUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

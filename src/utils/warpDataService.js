@@ -803,6 +803,7 @@ export function getWarpPityWindow({ game = 'hsr', bannerId = '', bannerType = ''
 export function getPrePityEnd(pityWindow) {
   return Math.max(1, Number(pityWindow?.softPityStart || 1) - 1);
 }
+
 function normalizeCurrentWuWaBanner(banner) {
   if (!banner || String(banner.game || '').toLowerCase() !== 'wuwa') {
     return banner;
