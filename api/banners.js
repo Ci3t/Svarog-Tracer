@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 20,  // Bumped: force WuWa Cyberpunk collab visibility refresh
+  CACHE_VERSION: 22,  // Bumped: correct Blade media and add HSR 3124/3125
   TIMEOUT_MS: 8000,
 };
 
@@ -60,6 +60,59 @@ function normalizeGameQuery(value) {
   if (['wuwa', 'wuthering', 'wuthering-waves'].includes(v)) return 'wuwa';
   if (['zzz', 'zenless', 'zenless-zone-zero'].includes(v)) return 'zzz';
   return 'all';
+}
+
+function applyCurrentHsrBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const base = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
+  const raw = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
+  const controlled = [
+    { bannerId: '2125', name: 'Yao Guang', characterId: '1502' },
+    { bannerId: '2124', name: 'Mortenax Blade', characterId: '1507' },
+  ];
+  const controlledLightCones = [
+    { bannerId: '3125', name: 'When She Decided to See', characterId: '23054' },
+    { bannerId: '3124', name: 'Reforged in Hellfire', characterId: '23059' },
+  ];
+  const currentCharacters = controlled.map((banner) => {
+    const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    return {
+      ...fetched,
+      id: `${banner.bannerId}_character`,
+      bannerId: banner.bannerId,
+      name: banner.name,
+      type: 'character',
+      characterId: banner.characterId,
+      image: fetched?.image || `${base}/icon/character/${banner.characterId}.png`,
+      fallbackImage: fetched?.fallbackImage || `${base}/icon/character/${banner.characterId}.png`,
+      portrait: fetched?.portrait || `${raw}/image/character_portrait/${banner.characterId}.png`,
+      altPortrait: fetched?.altPortrait || `${base}/image/character_portrait/${banner.characterId}.png`,
+      preview: fetched?.preview || `${base}/image/character_preview/${banner.characterId}.png`,
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'api-controlled-current',
+    };
+  });
+  const currentLightCones = controlledLightCones.map((banner) => {
+    const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    const preview = `${base}/image/light_cone_preview/${banner.characterId}.png`;
+    return {
+      ...fetched,
+      id: `${banner.bannerId}_light_cone`,
+      bannerId: banner.bannerId,
+      name: banner.name,
+      type: 'light_cone',
+      characterId: banner.characterId,
+      image: `${base}/icon/light_cone/${banner.characterId}.png`,
+      fallbackImage: `${base}/icon/light_cone/${banner.characterId}.png`,
+      portrait: preview,
+      lcPreview: preview,
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'api-controlled-current',
+    };
+  });
+  return [...currentCharacters, ...currentLightCones];
 }
 
 // =========================================================================
@@ -129,6 +182,7 @@ export default async function handler(req, res) {
         resultMap[game] = [];
       }
     });
+    resultMap.hsr = applyCurrentHsrBannerFloor(resultMap.hsr);
 
     const response = {
       ...(requestedGame === 'all' || requestedGame === 'hsr') && { hsr: resultMap.hsr },

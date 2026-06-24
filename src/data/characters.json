@@ -608,6 +608,14 @@
     "portrait": "https://res.cloudinary.com/dnyvbrrzy/image/upload/f_auto,q_auto/svarog-tracer/game/hsr/character_portrait/1502"
   },
   {
+    "id": "mortenax-blade",
+    "numId": 1507,
+    "name": "Mortenax Blade",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1507.png",
+    "portrait": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/character_portrait/1507.png"
+  },
+  {
     "id": "ashveil",
     "numId": 1504,
     "name": "Ashveil",

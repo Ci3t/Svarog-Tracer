@@ -24,6 +24,9 @@ import { applyBannerAssetManifest } from './bannerAssetManifest.js';
 
 const OLD_CACHE_KEYS = [
   'cached_banner_data',
+  'cached_banner_data_v2',
+  'cached_banner_ids',
+  'banner_last_check_time',
   'genshin_cached_banners',
   'wuwa_live_banners_cache_v10',
   'wuwa_live_banners_cache_v9',
@@ -113,6 +116,54 @@ function normalizeHsrBannerMedia(banner) {
   }
 
   return banner;
+}
+
+function applyCurrentHsrBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const controlled = [
+    { bannerId: '2125', name: 'Yao Guang', characterId: '1502' },
+    { bannerId: '2124', name: 'Mortenax Blade', characterId: '1507' },
+  ];
+  const controlledLightCones = [
+    { bannerId: '3125', name: 'When She Decided to See', characterId: '23054' },
+    { bannerId: '3124', name: 'Reforged in Hellfire', characterId: '23059' },
+  ];
+  const currentCharacters = controlled.map((banner) => {
+    const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    return normalizeHsrBannerMedia({
+      ...fetched,
+      id: `${banner.bannerId}_character`,
+      bannerId: banner.bannerId,
+      name: banner.name,
+      type: 'character',
+      characterId: banner.characterId,
+      image: fetched?.image || hsrCharacterIconFallback(banner.characterId),
+      portrait: fetched?.portrait || hsrCharacterPortraitFallback(banner.characterId),
+      altPortrait: fetched?.altPortrait || hsrCharacterRawPortraitFallback(banner.characterId),
+      preview: fetched?.preview || hsrCharacterPreviewFallback(banner.characterId),
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'client-controlled-current',
+    });
+  });
+  const currentLightCones = controlledLightCones.map((banner) => {
+    const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    return normalizeHsrBannerMedia({
+      ...fetched,
+      id: `${banner.bannerId}_light_cone`,
+      bannerId: banner.bannerId,
+      name: banner.name,
+      type: 'light_cone',
+      characterId: banner.characterId,
+      image: hsrLightConeIconFallback(banner.characterId),
+      portrait: hsrLightConePreviewFallback(banner.characterId),
+      lcPreview: hsrLightConePreviewFallback(banner.characterId),
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'client-controlled-current',
+    });
+  });
+  return [...currentCharacters, ...currentLightCones.map(normalizeHsrBannerMedia)];
 }
 
 // Multiple CORS proxies for regional fallback (priority order based on reliability)
@@ -246,7 +297,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v10';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v12';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
@@ -364,7 +415,7 @@ export async function fetchCentralizedBanners(game = 'all') {
     
     // Convert API format to website format (preserve 'game' property!)
     const allBanners = [
-      ...(data.hsr || []).map(b => normalizeHsrBannerMedia({
+      ...applyCurrentHsrBannerFloor(data.hsr || []).map(b => normalizeHsrBannerMedia({
         id: b.id,
         bannerId: b.bannerId || extractBannerId(b.id) || b.id,
         name: b.name,
@@ -452,8 +503,8 @@ export async function fetchCentralizedBanners(game = 'all') {
   }
 }
 
-// Fallback banners (used if API fails)
-export const PRESET_BANNERS = [];
+// Fallback banners (used if both Cloudflare and Vercel banner APIs fail)
+export const PRESET_BANNERS = applyCurrentHsrBannerFloor([]);
 
 // === FATE/STAY NIGHT COLLABORATION ===
 // Separate export for Fate characters to merge with live banners
