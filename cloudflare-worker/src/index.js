@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v10',
+  CACHE_VERSION: 'v12',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -391,13 +391,60 @@ function limitHsrBanners(banners) {
   return [...characters, ...lightCones];
 }
 
+const CURRENT_HSR_CHARACTER_BANNERS = [
+  { id: '2125_character', bannerId: '2125', name: 'Yao Guang', type: 'character', characterId: '1502' },
+  { id: '2124_character', bannerId: '2124', name: 'Mortenax Blade', type: 'character', characterId: '1507' },
+];
+
+const CURRENT_HSR_LIGHT_CONE_BANNERS = [
+  { id: '3125_light_cone', bannerId: '3125', name: 'When She Decided to See', type: 'light_cone', characterId: '23054' },
+  { id: '3124_light_cone', bannerId: '3124', name: 'Reforged in Hellfire', type: 'light_cone', characterId: '23059' },
+];
+
+function applyCurrentHsrBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const currentCharacters = CURRENT_HSR_CHARACTER_BANNERS.map(banner => {
+    const fetched = list.find(item => String(item.bannerId || item.id) === banner.bannerId);
+    const characterId = banner.characterId;
+    return {
+      ...fetched,
+      ...banner,
+      image: fetched?.image || `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png`,
+      fallbackImage: fetched?.fallbackImage || `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png`,
+      portrait: fetched?.portrait || `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/${characterId}.png`,
+      altPortrait: fetched?.altPortrait || `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/${characterId}.png`,
+      preview: fetched?.preview || `${CONFIG.STAR_RAIL_RES_CDN}/image/character_preview/${characterId}.png`,
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'worker-controlled-current',
+    };
+  });
+  const currentLightCones = CURRENT_HSR_LIGHT_CONE_BANNERS.map(banner => {
+    const fetched = list.find(item => String(item.bannerId || item.id) === banner.bannerId);
+    const itemId = banner.characterId;
+    const preview = `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${itemId}.png`;
+    return {
+      ...fetched,
+      ...banner,
+      image: `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png`,
+      fallbackImage: `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png`,
+      portrait: preview,
+      lcPreview: preview,
+      rarity: 5,
+      game: 'hsr',
+      source: fetched?.source || 'worker-controlled-current',
+    };
+  });
+  return limitHsrBanners([...currentCharacters, ...currentLightCones]);
+}
+
 function buildHsrFallbackBanners() {
   const icon = (id) => `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${id}.png`;
   const portrait = (id) => `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/${id}.png`;
   const preview = (id) => `${CONFIG.STAR_RAIL_RES_CDN}/image/character_preview/${id}.png`;
   const lcPreview = (id) => `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${id}.png`;
 
-  return limitHsrBanners([
+  return applyCurrentHsrBannerFloor([
     { id: '2116_character', bannerId: '2116', name: 'Silver Wolf LV.999', image: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp', portrait: 'https://cdn.starrailstation.com/assets/0642d24133b729ec1cfdfd9b889a677f5e446bfe417d4299a75b9c8ea0b98b42.webp', type: 'character', characterId: '1006', rarity: 5, element: 'quantum', game: 'hsr', source: 'worker-fallback' },
     { id: '2117_character', bannerId: '2117', name: 'The Dahlia', image: icon('1321'), portrait: portrait('1321'), altPortrait: portrait('1321'), preview: preview('1321'), type: 'character', characterId: '1321', rarity: 5, game: 'hsr', source: 'worker-fallback' },
     { id: '2118_character', bannerId: '2118', name: 'Firefly', image: icon('1310'), portrait: portrait('1310'), altPortrait: portrait('1310'), preview: preview('1310'), type: 'character', characterId: '1310', rarity: 5, game: 'hsr', source: 'worker-fallback' },
@@ -515,7 +562,7 @@ async function fetchHsrBanners() {
       banners[lv999LcIdx] = { ...banners[lv999LcIdx], name: 'Silver Wolf LV.999 Light Cone', image: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp', portrait: 'https://cdn.starrailstation.com/assets/a05edc85435cfdcc5c8d8ee4d30002ce73990d7ed39896bdf62d81ee9165e441.webp', type: 'light_cone' };
     }
 
-    return limitHsrBanners(banners);
+    return applyCurrentHsrBannerFloor(banners);
   } catch (err) {
     console.error('[Worker] HSR banners error:', err.message);
     return buildHsrFallbackBanners();
