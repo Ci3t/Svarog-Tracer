@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 22,  // Bumped: correct Blade media and add HSR 3124/3125
+  CACHE_VERSION: 23,  // Bumped: update HSR current banners to 2126/2127 and 3126/3127
   TIMEOUT_MS: 8000,
 };
 
@@ -67,12 +67,12 @@ function applyCurrentHsrBannerFloor(banners) {
   const base = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
   const raw = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
   const controlled = [
-    { bannerId: '2125', name: 'Yao Guang', characterId: '1502' },
-    { bannerId: '2124', name: 'Mortenax Blade', characterId: '1507' },
+    { bannerId: '2127', name: 'Phainon', characterId: '1408' },
+    { bannerId: '2126', name: 'Cyrene', characterId: '1415' },
   ];
   const controlledLightCones = [
-    { bannerId: '3125', name: 'When She Decided to See', characterId: '23054' },
-    { bannerId: '3124', name: 'Reforged in Hellfire', characterId: '23059' },
+    { bannerId: '3127', name: 'Thus Burns the Dawn', characterId: '23044' },
+    { bannerId: '3126', name: 'This Love, Forever', characterId: '23052' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);

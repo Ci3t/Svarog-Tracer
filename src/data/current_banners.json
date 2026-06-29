@@ -1,30 +1,30 @@
 [
   {
-    "id": "2099",
-    "name": "The Dahlia",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1321.png",
+    "id": "2127",
+    "name": "Phainon",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1408.png",
     "type": "character",
-    "characterId": "1321"
+    "characterId": "1408"
   },
   {
-    "id": "2100",
-    "name": "Firefly",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1310.png",
+    "id": "2126",
+    "name": "Cyrene",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1415.png",
     "type": "character",
-    "characterId": "1310"
+    "characterId": "1415"
   },
   {
-    "id": "3099",
-    "name": "Never Forget Her Flame",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23050.png",
+    "id": "3127",
+    "name": "Thus Burns the Dawn",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23044.png",
     "type": "light_cone",
-    "characterId": "23050"
+    "characterId": "23044"
   },
   {
-    "id": "3100",
-    "name": "Whereabouts Should Dreams Rest",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23025.png",
+    "id": "3126",
+    "name": "This Love, Forever",
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23052.png",
     "type": "light_cone",
-    "characterId": "23025"
+    "characterId": "23052"
   }
 ]

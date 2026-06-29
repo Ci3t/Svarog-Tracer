@@ -121,12 +121,12 @@ function normalizeHsrBannerMedia(banner) {
 function applyCurrentHsrBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
   const controlled = [
-    { bannerId: '2125', name: 'Yao Guang', characterId: '1502' },
-    { bannerId: '2124', name: 'Mortenax Blade', characterId: '1507' },
+    { bannerId: '2127', name: 'Phainon', characterId: '1408' },
+    { bannerId: '2126', name: 'Cyrene', characterId: '1415' },
   ];
   const controlledLightCones = [
-    { bannerId: '3125', name: 'When She Decided to See', characterId: '23054' },
-    { bannerId: '3124', name: 'Reforged in Hellfire', characterId: '23059' },
+    { bannerId: '3127', name: 'Thus Burns the Dawn', characterId: '23044' },
+    { bannerId: '3126', name: 'This Love, Forever', characterId: '23052' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
@@ -1011,7 +1011,7 @@ function extractHSRFeaturedIds(bannerData, charMap = {}, lcMap = {}) {
     }
     if (typeof value === 'object') {
       for (const [key, nested] of Object.entries(value)) {
-        if (FEATURED_KEY_RE.test(key) || typeof nested === 'object') {
+        if (FEATURED_KEY_RE.test(key) || /^(id|item_?id|item)$/i.test(key) || typeof nested === 'object') {
           parseFeaturedIds(nested, collected);
         }
       }

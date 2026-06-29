@@ -31,6 +31,74 @@ def fetch_json(url):
         log(f"Failed to fetch {url}: {e}", RED)
         return None
 
+FEATURED_KEY_HINTS = (
+    "rateup",
+    "rate_up",
+    "featured",
+    "up_5",
+    "rateup_5",
+    "rarity_5",
+    "five_star",
+)
+FEATURED_ID_KEYS = ("id", "item_id", "itemid", "item")
+
+def is_featured_key(key):
+    normalized = str(key or "").lower().replace("-", "_")
+    return any(hint in normalized for hint in FEATURED_KEY_HINTS)
+
+def collect_featured_ids(value, collected=None):
+    if collected is None:
+        collected = []
+
+    if value is None:
+        return collected
+
+    if isinstance(value, list):
+        for item in value:
+            collect_featured_ids(item, collected)
+        return collected
+
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized_key = str(key or "").lower().replace("-", "_")
+            if is_featured_key(key) or normalized_key in FEATURED_ID_KEYS or isinstance(nested, (dict, list)):
+                collect_featured_ids(nested, collected)
+        return collected
+
+    string_value = str(value).strip()
+    if string_value.isdigit():
+        collected.append(string_value)
+    return collected
+
+def extract_featured_ids(banner_data, char_map, lc_map):
+    direct_values = [
+        banner_data.get("rateup"),
+        banner_data.get("rateup_5"),
+        banner_data.get("rate_up"),
+        banner_data.get("up_5"),
+        banner_data.get("featured"),
+        banner_data.get("featured_5"),
+        banner_data.get("rarity_5"),
+        banner_data.get("five_star"),
+    ]
+
+    collected = []
+    for value in direct_values:
+        collect_featured_ids(value, collected)
+
+    if not collected:
+        for key, value in banner_data.items():
+            if is_featured_key(key):
+                collect_featured_ids(value, collected)
+
+    unique_ids = list(dict.fromkeys(collected))
+    mapped_five_stars = [
+        item_id for item_id in unique_ids
+        if int((char_map.get(item_id) or lc_map.get(item_id) or {}).get("rarity", 0)) == 5
+    ]
+
+    return mapped_five_stars or unique_ids
+
 def main():
     log("Starting banner update (Method: SRS Config + StarRailRes Metadata)...", GREEN)
     
@@ -64,41 +132,48 @@ def main():
         
         # Check if active
         if start <= now <= end:
-            # Check if it has rateup characters
-            if 'rateup' in data:
-                 rateup_id = str(data['rateup'])
-                 
-                 banner_type = "unknown"
-                 info = None
-                 
-                 if rateup_id in char_map:
-                     banner_type = "character"
-                     info = char_map[rateup_id]
-                 elif rateup_id in lc_map:
-                     banner_type = "light_cone"
-                     info = lc_map[rateup_id]
-                 
-                 if info:
-                     active_banners.append({
-                         'banner_id': banner_id,
-                         'item_id': rateup_id,
-                         'type': banner_type,
-                         'info': info
-                     })
-                 else:
-                     log(f"Skipping Banner {banner_id} (RateUp {rateup_id} not found in maps)", YELLOW)
+            featured_ids = extract_featured_ids(data, char_map, lc_map)
+            for rateup_id in featured_ids:
+                banner_type = "unknown"
+                info = None
+
+                if rateup_id in char_map:
+                    banner_type = "character"
+                    info = char_map[rateup_id]
+                elif rateup_id in lc_map:
+                    banner_type = "light_cone"
+                    info = lc_map[rateup_id]
+
+                if info:
+                    active_banners.append({
+                        'banner_id': banner_id,
+                        'item_id': rateup_id,
+                        'type': banner_type,
+                        'info': info
+                    })
+                else:
+                    log(f"Skipping Banner {banner_id} (featured item {rateup_id} not found in maps)", YELLOW)
 
     if not active_banners:
         log("No active banners found.", RED)
         # return # Proceed to write empty file? Best not to overwrite with empty.
         return
 
-    log(f"Found {len(active_banners)} active banners.", GREEN)
+    deduped_banners = []
+    seen = set()
+    for banner in active_banners:
+        key = (banner["banner_id"], banner["item_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_banners.append(banner)
+
+    log(f"Found {len(deduped_banners)} active banners.", GREEN)
 
     # 4. Construct Output
     final_output = []
     
-    for banner in active_banners:
+    for banner in deduped_banners:
         cid = banner['item_id']
         info = banner['info']
         btype = banner['type']
