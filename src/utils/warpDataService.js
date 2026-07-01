@@ -618,18 +618,24 @@ function normalizeCurrentGenshinBanner(banner) {
   const nameKey = String(banner.name || '').toLowerCase();
   const isCurrentCharacter =
     type === 'character' &&
-    (cleanId === '300101' ||
+    (cleanId === '300102' ||
+      cleanId === '300101' ||
       cleanId === '300100' ||
       cleanId === '300095' ||
       nameKey.includes('current character banner') ||
+      nameKey.includes('sandrone') ||
+      nameKey.includes('citlali') ||
       nameKey.includes('lohen') ||
       nameKey.includes('mavuika'));
   const isCurrentWeapon =
     type === 'weapon' &&
-    (cleanId === '400100' ||
+    (cleanId === '400101' ||
+      cleanId === '400100' ||
       cleanId === '400099' ||
       cleanId === '400095' ||
       nameKey.includes('current weapon banner') ||
+      nameKey.includes('teaspoon of transcendence') ||
+      nameKey.includes("starcaller's watch") ||
       nameKey.includes('disaster and remorse') ||
       nameKey.includes('a thousand blazing suns') ||
       nameKey.includes('epitome invocation'));
@@ -637,14 +643,14 @@ function normalizeCurrentGenshinBanner(banner) {
   if (isCurrentCharacter) {
     return {
       ...banner,
-      id: '300101_character',
-      bannerId: '300101',
-      name: 'Lohen / Mavuika',
+      id: '300102_character',
+      bannerId: '300102',
+      name: 'Sandrone / Citlali',
       image: _genshinCharFallback,
       portrait: _genshinCharFallback,
       fallbackImage: _genshinCharFallback,
       type: 'character',
-      characterId: 'lohen',
+      characterId: 'sandrone',
       assetLocked: true,
       imageLocked: true,
       game: 'genshin',
@@ -654,9 +660,9 @@ function normalizeCurrentGenshinBanner(banner) {
   if (isCurrentWeapon) {
     return {
       ...banner,
-      id: '400100_weapon',
-      bannerId: '400100',
-      name: 'Disaster and Remorse / A Thousand Blazing Suns',
+      id: '400101_weapon',
+      bannerId: '400101',
+      name: "A Teaspoon of Transcendence / Starcaller's Watch",
       image: _genshinWepFallback,
       portrait: _genshinWepFallback,
       fallbackImage: _genshinWepFallback,
@@ -1587,13 +1593,13 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
-// Current: Lohen / Mavuika (character), Disaster and Remorse / A Thousand Blazing Suns (weapon)
-const _genshinCharFallback = `${GENSHIN_ASSET_REPO_BASE}/Lohen.webp?v=300101-lohen-20260610`;
-const _genshinWepFallback = `${GENSHIN_ASSET_REPO_BASE}/Lohen_Weapon.png?v=400100-lohen-weapon-20260610`;
+// Current: Sandrone / Citlali (character), A Teaspoon of Transcendence / Starcaller's Watch (weapon)
+const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701';
+const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701';
 
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300101_character", bannerId: "300101", name: "Lohen / Mavuika", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "lohen", game: "genshin", assetLocked: true },
-  { id: "400100_weapon", bannerId: "400100", name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
+  { id: "300102_character", bannerId: "300102", name: "Sandrone / Citlali", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "sandrone", game: "genshin", assetLocked: true },
+  { id: "400101_weapon", bannerId: "400101", name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
 ];
 
 
@@ -1824,10 +1830,12 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 // Genshin Banner Overrides (for specific banner IDs that need manual naming)
 const GENSHIN_BANNER_OVERRIDES = {
-  "300101": { name: "Lohen / Mavuika", type: "character" },
-  "400100": { name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon" },
-  "300100": { name: "Lohen / Mavuika", type: "character" },
-  "400099": { name: "Disaster and Remorse / A Thousand Blazing Suns", type: "weapon" },
+  "300102": { name: "Sandrone / Citlali", type: "character" },
+  "400101": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
+  "300101": { name: "Sandrone / Citlali", type: "character" },
+  "400100": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
+  "300100": { name: "Sandrone / Citlali", type: "character" },
+  "400099": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
   "300094": { name: "Columbina", type: "character" },
   "300093": { name: "Ineffa", type: "character" },
   "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
@@ -1835,14 +1843,16 @@ const GENSHIN_BANNER_OVERRIDES = {
 };
 
 const GENSHIN_BANNER_IMAGE_OVERRIDES = {
+  "300102": _genshinCharFallback,
+  "400101": _genshinWepFallback,
   "300101": _genshinCharFallback,
   "400100": _genshinWepFallback,
   "300100": _genshinCharFallback,
   "400099": _genshinWepFallback,
 };
 
-const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300101';
-const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400100';
+const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300102';
+const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400101';
 
 /**
  * Fetches live Genshin banners from Paimon.moe
@@ -1865,7 +1875,7 @@ export async function fetchGenshinLiveBanners(ignoreThrottle = false) {
   const CACHE_KEY = 'genshin_cached_banners_v2'; // Bumped: Cloudinary-first images
   const LAST_KNOWN_ID_KEY = 'genshin_last_known_id';
   const CACHE_VERSION_KEY = 'genshin_cache_version';
-  const CURRENT_CACHE_VERSION = '1.6'; // Increment this when banner overrides or active pairings change
+  const CURRENT_CACHE_VERSION = '1.7'; // Increment this when banner overrides or active pairings change
   
   // Check cache version and invalidate if outdated
   const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);

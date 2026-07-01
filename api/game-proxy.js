@@ -31,6 +31,38 @@ function resolvePathPart(req) {
   return '';
 }
 
+function sendCurrentGenshinBanners(res) {
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
+  return res.status(200).json([
+    {
+      id: '300102_character',
+      bannerId: '300102',
+      name: 'Sandrone / Citlali',
+      type: 'character',
+      image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
+      fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
+      characterId: 'sandrone',
+      game: 'genshin',
+      source: 'proxy-controlled-current',
+      assetLocked: true,
+      imageLocked: true,
+    },
+    {
+      id: '400101_weapon',
+      bannerId: '400101',
+      name: "A Teaspoon of Transcendence / Starcaller's Watch",
+      type: 'weapon',
+      image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
+      fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
+      characterId: 'weapon_banner',
+      game: 'genshin',
+      source: 'proxy-controlled-current',
+      assetLocked: true,
+      imageLocked: true,
+    },
+  ]);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -50,7 +82,7 @@ export default async function handler(req, res) {
   }
 
   if (game === 'genshin') {
-    if (pathPart === 'banners') return await genshinBannersHandler(req, res);
+    if (pathPart === 'banners') return sendCurrentGenshinBanners(res);
     if (pathPart === 'stats') return await genshinStatsHandler(req, res);
   } else if (game === 'wuwa') {
     // URL format: /api/wuwa/banners

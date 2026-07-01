@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 23,  // Bumped: update HSR current banners to 2126/2127 and 3126/3127
+  CACHE_VERSION: 24,  // Bumped: update Genshin current banners to 300102/400101
   TIMEOUT_MS: 8000,
 };
 
@@ -115,6 +115,37 @@ function applyCurrentHsrBannerFloor(banners) {
   return [...currentCharacters, ...currentLightCones];
 }
 
+function applyCurrentGenshinBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const characterBanner = {
+    id: '300102_character',
+    bannerId: '300102',
+    name: 'Sandrone / Citlali',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
+    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
+    characterId: 'sandrone',
+    game: 'genshin',
+    source: 'api-controlled-current',
+  };
+  const weaponBanner = {
+    id: '400101_weapon',
+    bannerId: '400101',
+    name: "A Teaspoon of Transcendence / Starcaller's Watch",
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
+    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
+    characterId: 'weapon_banner',
+    game: 'genshin',
+    source: 'api-controlled-current',
+  };
+  const findById = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
+  return [
+    { ...findById('300102'), ...characterBanner },
+    { ...findById('400101'), ...weaponBanner },
+  ];
+}
+
 // =========================================================================
 // MAIN HANDLER - Delegates to individual game services
 // Each service now handles its own image resolution:
@@ -183,6 +214,7 @@ export default async function handler(req, res) {
       }
     });
     resultMap.hsr = applyCurrentHsrBannerFloor(resultMap.hsr);
+    resultMap.genshin = applyCurrentGenshinBannerFloor(resultMap.genshin);
 
     const response = {
       ...(requestedGame === 'all' || requestedGame === 'hsr') && { hsr: resultMap.hsr },
