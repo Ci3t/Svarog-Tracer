@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v12',
+  CACHE_VERSION: 'v13-wuwa-100039-200039',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -640,21 +640,85 @@ function buildWuWaImageUrl(folder, fileName) {
 }
 
 const WUWA_CURRENT_BANNER_ASSETS = {
-  '100037': {
-    id: '100037_character',
-    bannerId: '100037',
-    name: 'Denia / Chisa / Phrolova',
+  '100039': {
+    id: '100039_character',
+    bannerId: '100039',
+    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
     type: 'character',
-    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Denia_Character_Sheet.webp?v=100037-denia-20260521',
-    characterId: 'denia',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    characterId: 'yangyang-xuanling',
+  },
+  '200039': {
+    id: '200039_weapon',
+    bannerId: '200039',
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    characterId: 'azure-oath',
+  },
+  '100038': {
+    id: '100039_character',
+    bannerId: '100039',
+    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    characterId: 'yangyang-xuanling',
+  },
+  '200038': {
+    id: '200039_weapon',
+    bannerId: '200039',
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    characterId: 'azure-oath',
+  },
+  '100037': {
+    id: '1000001_character',
+    bannerId: '1000001',
+    name: 'Lucy / Rebecca',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    characterId: 'lucy',
+    separator: true,
+    collaboration: 'Cyberpunk: Edgerunners',
   },
   '200037': {
-    id: '200037_weapon',
-    bannerId: '200037',
-    name: 'Forged Dwarf Star / Kumokiri / Lethean Elegy',
+    id: '1100001_weapon',
+    bannerId: '1100001',
+    name: 'Spectral Trigger / Skull Thrasher',
     type: 'weapon',
-    image: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/forged-dwarf-star.webp?v=200037-forged-dwarf-star-20260521',
-    characterId: 'forged-dwarf-star',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    characterId: 'spectral-trigger',
+    separator: true,
+    collaboration: 'Cyberpunk: Edgerunners',
+  },
+  '1000001': {
+    id: '1000001_character',
+    bannerId: '1000001',
+    name: 'Lucy / Rebecca',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Lucy.webp?v=1000001-lucy-20260608',
+    characterId: 'lucy',
+    separator: true,
+    collaboration: 'Cyberpunk: Edgerunners',
+  },
+  '1100001': {
+    id: '1100001_weapon',
+    bannerId: '1100001',
+    name: 'Spectral Trigger / Skull Thrasher',
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608',
+    characterId: 'spectral-trigger',
+    separator: true,
+    collaboration: 'Cyberpunk: Edgerunners',
   },
 };
 
@@ -666,7 +730,7 @@ function applyCurrentWuWaBannerAsset(banner) {
   return {
     ...banner,
     ...override,
-    fallbackImage: override.image,
+    fallbackImage: override.fallbackImage || override.image,
     game: 'wuwa',
     source: banner?.source || 'worker-live',
     assetLocked: true,
@@ -676,9 +740,22 @@ function applyCurrentWuWaBannerAsset(banner) {
 
 function buildWuWaFallbackBanners() {
   return [
-    applyCurrentWuWaBannerAsset({ bannerId: '100037', source: 'worker-fallback' }),
-    applyCurrentWuWaBannerAsset({ bannerId: '200037', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '100039', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '200039', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1000001', source: 'worker-fallback-collab' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '1100001', source: 'worker-fallback-collab' }),
   ];
+}
+
+function applyCurrentWuWaBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const byId = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
+  return [
+    applyCurrentWuWaBannerAsset(byId('100039') || { bannerId: '100039', source: 'worker-controlled-current' }),
+    applyCurrentWuWaBannerAsset(byId('200039') || { bannerId: '200039', source: 'worker-controlled-current' }),
+    applyCurrentWuWaBannerAsset(byId('1000001') || { bannerId: '1000001', source: 'worker-controlled-collab' }),
+    applyCurrentWuWaBannerAsset(byId('1100001') || { bannerId: '1100001', source: 'worker-controlled-collab' }),
+  ].filter(Boolean);
 }
 
 async function fetchWuWaBanners() {
@@ -732,7 +809,7 @@ async function fetchWuWaBanners() {
       if (matched) selectedWeapon = matched;
     }
 
-    return [selectedChar, selectedWeapon].filter(Boolean);
+    return applyCurrentWuWaBannerFloor([selectedChar, selectedWeapon].filter(Boolean));
   } catch (err) {
     console.error('[Worker] WuWa banners error:', err.message);
     return buildWuWaFallbackBanners();
@@ -1080,8 +1157,10 @@ function buildWuWaFallbackStats(id, message = 'Worker fallback: live WuWa stats 
 
 const WUWA_STATS_SOURCE_ALIASES = {
   // Svarog display IDs can be controlled/manual while WuWa Tracker exposes one shared current chart.
-  '100038': ['100034', 'stats'],
-  '200038': ['100034', 'stats'],
+  '100039': ['100039', 'stats'],
+  '200039': ['200039', 'stats'],
+  '100038': ['100039', 'stats'],
+  '200038': ['200039', 'stats'],
   '1000001': ['100034', 'stats'],
   '1100001': ['100034', 'stats'],
   '100037': ['100034', 'stats'],

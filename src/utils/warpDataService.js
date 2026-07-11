@@ -297,17 +297,17 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v12';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v13';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
 const WUWA_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa';
 const WUWA_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa';
 const GENSHIN_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin';
-const WUWA_LUCILLA_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucilla.webp?v=100038-lucilla-20260613`;
-const WUWA_LUCILLA_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucilla.webp?v=100038-lucilla-20260613`;
-const WUWA_FREEZE_FRAME_IMAGE = `${WUWA_ASSET_REPO_BASE}/Freeze_Frame.webp?v=200038-freeze-frame-20260613`;
-const WUWA_FREEZE_FRAME_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Freeze_Frame.webp?v=200038-freeze-frame-20260613`;
+const WUWA_YANGYANG_XUANLING_IMAGE = `${WUWA_ASSET_REPO_BASE}/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711`;
+const WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711`;
+const WUWA_AZURE_OATH_IMAGE = `${WUWA_ASSET_REPO_BASE}/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711`;
+const WUWA_AZURE_OATH_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711`;
 const WUWA_LUCY_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_LUCY_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_SPECTRAL_TRIGGER_IMAGE = `${WUWA_ASSET_REPO_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
@@ -682,25 +682,45 @@ function normalizeCurrentGenshinBanners(banners) {
 }
 
 const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
-  "100038": {
-    id: "100038_character",
-    bannerId: "100038",
-    name: "Lucilla / Cartethyia",
+  "100039": {
+    id: "100039_character",
+    bannerId: "100039",
+    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
     type: "character",
-    image: WUWA_LUCILLA_IMAGE,
-    portrait: WUWA_LUCILLA_IMAGE,
-    fallbackImage: WUWA_LUCILLA_FALLBACK_IMAGE,
-    characterId: "lucilla",
+    image: WUWA_YANGYANG_XUANLING_IMAGE,
+    portrait: WUWA_YANGYANG_XUANLING_IMAGE,
+    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
+    characterId: "yangyang-xuanling",
+  },
+  "200039": {
+    id: "200039_weapon",
+    bannerId: "200039",
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    type: "weapon",
+    image: WUWA_AZURE_OATH_IMAGE,
+    portrait: WUWA_AZURE_OATH_IMAGE,
+    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
+    characterId: "azure-oath",
+  },
+  "100038": {
+    id: "100039_character",
+    bannerId: "100039",
+    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
+    type: "character",
+    image: WUWA_YANGYANG_XUANLING_IMAGE,
+    portrait: WUWA_YANGYANG_XUANLING_IMAGE,
+    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
+    characterId: "yangyang-xuanling",
   },
   "200038": {
-    id: "200038_weapon",
-    bannerId: "200038",
-    name: "Freeze Frame / Defier's Thorn",
+    id: "200039_weapon",
+    bannerId: "200039",
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
     type: "weapon",
-    image: WUWA_FREEZE_FRAME_IMAGE,
-    portrait: WUWA_FREEZE_FRAME_IMAGE,
-    fallbackImage: WUWA_FREEZE_FRAME_FALLBACK_IMAGE,
-    characterId: "freeze-frame",
+    image: WUWA_AZURE_OATH_IMAGE,
+    portrait: WUWA_AZURE_OATH_IMAGE,
+    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
+    characterId: "azure-oath",
   },
   "1000001": {
     id: "1000001_character",
@@ -2077,35 +2097,35 @@ function extractGenshinWeaponNames(list) {
 // Images: Cloudinary primary, wuwatracker fallback
 const _wuwaLucyFallback = CURRENT_WUWA_BANNER_ASSETS["1000001"].image;
 const _wuwaSpectralTriggerFallback = CURRENT_WUWA_BANNER_ASSETS["1100001"].image;
-const _wuwaLucillaFallback = CURRENT_WUWA_BANNER_ASSETS["100038"].image;
-const _wuwaFreezeFrameFallback = CURRENT_WUWA_BANNER_ASSETS["200038"].image;
+const _wuwaYangyangXuanlingFallback = CURRENT_WUWA_BANNER_ASSETS["100039"].image;
+const _wuwaAzureOathFallback = CURRENT_WUWA_BANNER_ASSETS["200039"].image;
 const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners first
   {
-    id: "100038",
-    bannerId: "100038",
-    name: "Lucilla / Cartethyia",
+    id: "100039",
+    bannerId: "100039",
+    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
     type: "character",
-    image: _wuwaLucillaFallback,
-    portrait: _wuwaLucillaFallback,
-    fallbackImage: WUWA_LUCILLA_FALLBACK_IMAGE,
-    characterId: "lucilla",
+    image: _wuwaYangyangXuanlingFallback,
+    portrait: _wuwaYangyangXuanlingFallback,
+    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
+    characterId: "yangyang-xuanling",
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
   },
   {
-    id: "200038",
-    bannerId: "200038",
-    name: "Freeze Frame / Defier's Thorn",
+    id: "200039",
+    bannerId: "200039",
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
     type: "weapon",
-    image: _wuwaFreezeFrameFallback,
-    portrait: _wuwaFreezeFrameFallback,
-    fallbackImage: WUWA_FREEZE_FRAME_FALLBACK_IMAGE,
-    characterId: "freeze-frame",
+    image: _wuwaAzureOathFallback,
+    portrait: _wuwaAzureOathFallback,
+    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
+    characterId: "azure-oath",
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
@@ -2442,7 +2462,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v11'; // Bumped: force Cyberpunk collab visibility refresh
+  const CACHE_KEY = 'wuwa_live_banners_cache_v12'; // Bumped: force Yangyang Xuanling / Azure Oath refresh
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)

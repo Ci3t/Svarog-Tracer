@@ -63,6 +63,40 @@ function sendCurrentGenshinBanners(res) {
   ]);
 }
 
+function sendCurrentWuwaBanners(res) {
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
+  return res.status(200).json([
+    {
+      id: '100039_character',
+      bannerId: '100039',
+      name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+      type: 'character',
+      image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+      portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+      fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+      characterId: 'yangyang-xuanling',
+      game: 'wuwa',
+      source: 'proxy-controlled-current',
+      assetLocked: true,
+      imageLocked: true,
+    },
+    {
+      id: '200039_weapon',
+      bannerId: '200039',
+      name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+      type: 'weapon',
+      image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+      portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+      fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+      characterId: 'azure-oath',
+      game: 'wuwa',
+      source: 'proxy-controlled-current',
+      assetLocked: true,
+      imageLocked: true,
+    },
+  ]);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -86,7 +120,7 @@ export default async function handler(req, res) {
     if (pathPart === 'stats') return await genshinStatsHandler(req, res);
   } else if (game === 'wuwa') {
     // URL format: /api/wuwa/banners
-    if (pathPart === 'banners') return await wuwaBannersHandler(req, res);
+    if (pathPart === 'banners') return sendCurrentWuwaBanners(res);
     if (pathPart === 'stats') return await wuwaStatsHandler(req, res);
     return res.status(404).json({ error: 'WuWa Endpoint Not Found', pathPart, url: req.url });
   }

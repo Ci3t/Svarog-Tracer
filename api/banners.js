@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 24,  // Bumped: update Genshin current banners to 300102/400101
+  CACHE_VERSION: 26,  // Bumped: force WuWa route cache past Lucilla/Freeze Frame
   TIMEOUT_MS: 8000,
 };
 
@@ -146,6 +146,45 @@ function applyCurrentGenshinBannerFloor(banners) {
   ];
 }
 
+function applyCurrentWuwaBannerFloor(banners) {
+  const list = Array.isArray(banners) ? banners : [];
+  const characterBanner = {
+    id: '100039_character',
+    bannerId: '100039',
+    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
+    characterId: 'yangyang-xuanling',
+    game: 'wuwa',
+    source: 'api-controlled-current',
+    assetLocked: true,
+    imageLocked: true,
+  };
+  const weaponBanner = {
+    id: '200039_weapon',
+    bannerId: '200039',
+    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
+    characterId: 'azure-oath',
+    game: 'wuwa',
+    source: 'api-controlled-current',
+    assetLocked: true,
+    imageLocked: true,
+  };
+  const findById = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
+  const collabBanners = list.filter((banner) => ['1000001', '1100001'].includes(String(banner?.bannerId || banner?.id || '')));
+  return [
+    { ...findById('100039'), ...characterBanner },
+    { ...findById('200039'), ...weaponBanner },
+    ...collabBanners,
+  ];
+}
+
 // =========================================================================
 // MAIN HANDLER - Delegates to individual game services
 // Each service now handles its own image resolution:
@@ -215,6 +254,7 @@ export default async function handler(req, res) {
     });
     resultMap.hsr = applyCurrentHsrBannerFloor(resultMap.hsr);
     resultMap.genshin = applyCurrentGenshinBannerFloor(resultMap.genshin);
+    resultMap.wuwa = applyCurrentWuwaBannerFloor(resultMap.wuwa);
 
     const response = {
       ...(requestedGame === 'all' || requestedGame === 'hsr') && { hsr: resultMap.hsr },
