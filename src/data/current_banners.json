@@ -1,30 +1,32 @@
 [
   {
-    "id": "2127",
-    "name": "Phainon",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1408.png",
+    "id": "2128",
+    "name": "Himeko - Nova",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/character/1510.png",
+    "fallbackImage": "http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp",
     "type": "character",
-    "characterId": "1408"
+    "characterId": "1510"
   },
   {
-    "id": "2126",
-    "name": "Cyrene",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1415.png",
+    "id": "2131",
+    "name": "Evernight",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/character/1413.png",
     "type": "character",
-    "characterId": "1415"
+    "characterId": "1413"
   },
   {
-    "id": "3127",
-    "name": "Thus Burns the Dawn",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23044.png",
+    "id": "3128",
+    "name": "A Star That Lights the Night",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/light_cone/23060.png",
+    "fallbackImage": "https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp",
     "type": "light_cone",
-    "characterId": "23044"
+    "characterId": "23060"
   },
   {
-    "id": "3126",
-    "name": "This Love, Forever",
-    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/light_cone/23052.png",
+    "id": "3131",
+    "name": "To Evernight's Stars",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/light_cone/23049.png",
     "type": "light_cone",
-    "characterId": "23052"
+    "characterId": "23049"
   }
 ]

@@ -120,27 +120,48 @@ function normalizeHsrBannerMedia(banner) {
 
 function applyCurrentHsrBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
+  const isStarRailStationUrl = (url) => /^https?:\/\/(?:cdn\.)?starrailstation\.com\//i.test(String(url || ''));
+  const srsFallback = (fetched) =>
+    fetched?.starRailStationImage ||
+    fetched?.starRailStationPortrait ||
+    (isStarRailStationUrl(fetched?.fallbackImage) ? fetched.fallbackImage : null) ||
+    (isStarRailStationUrl(fetched?.portrait) ? fetched.portrait : null) ||
+    (isStarRailStationUrl(fetched?.image) ? fetched.image : null);
   const controlled = [
-    { bannerId: '2127', name: 'Phainon', characterId: '1408' },
-    { bannerId: '2126', name: 'Cyrene', characterId: '1415' },
+    {
+      bannerId: '2128',
+      name: 'Himeko - Nova',
+      characterId: '1510',
+      temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+    },
+    { bannerId: '2131', name: 'Evernight', characterId: '1413' },
   ];
   const controlledLightCones = [
-    { bannerId: '3127', name: 'Thus Burns the Dawn', characterId: '23044' },
-    { bannerId: '3126', name: 'This Love, Forever', characterId: '23052' },
+    {
+      bannerId: '3128',
+      name: 'A Star That Lights the Night',
+      characterId: '23060',
+      temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+    },
+    { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    const characterId = fetched?.characterId || banner.characterId;
     return normalizeHsrBannerMedia({
       ...fetched,
       id: `${banner.bannerId}_character`,
       bannerId: banner.bannerId,
-      name: banner.name,
+      name: fetched?.name || banner.name,
       type: 'character',
-      characterId: banner.characterId,
-      image: fetched?.image || hsrCharacterIconFallback(banner.characterId),
-      portrait: fetched?.portrait || hsrCharacterPortraitFallback(banner.characterId),
-      altPortrait: fetched?.altPortrait || hsrCharacterRawPortraitFallback(banner.characterId),
-      preview: fetched?.preview || hsrCharacterPreviewFallback(banner.characterId),
+      characterId,
+      image: fetched?.image || (characterId ? hsrCharacterIconFallback(characterId) : null),
+      portrait: fetched?.portrait || (characterId ? hsrCharacterPortraitFallback(characterId) : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || fetched?.fallbackImage || (characterId ? hsrCharacterIconFallback(characterId) : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
+      altPortrait: fetched?.altPortrait || (characterId ? hsrCharacterRawPortraitFallback(characterId) : null),
+      preview: fetched?.preview || (characterId ? hsrCharacterPreviewFallback(characterId) : null),
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'client-controlled-current',
@@ -148,16 +169,20 @@ function applyCurrentHsrBannerFloor(banners) {
   });
   const currentLightCones = controlledLightCones.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    const characterId = fetched?.characterId || banner.characterId;
     return normalizeHsrBannerMedia({
       ...fetched,
       id: `${banner.bannerId}_light_cone`,
       bannerId: banner.bannerId,
-      name: banner.name,
+      name: fetched?.name || banner.name,
       type: 'light_cone',
-      characterId: banner.characterId,
-      image: hsrLightConeIconFallback(banner.characterId),
-      portrait: hsrLightConePreviewFallback(banner.characterId),
-      lcPreview: hsrLightConePreviewFallback(banner.characterId),
+      characterId,
+      image: fetched?.image || (characterId ? hsrLightConeIconFallback(characterId) : null),
+      portrait: fetched?.portrait || (characterId ? hsrLightConePreviewFallback(characterId) : null),
+      lcPreview: fetched?.lcPreview || (characterId ? hsrLightConePreviewFallback(characterId) : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || fetched?.fallbackImage || (characterId ? hsrLightConeIconFallback(characterId) : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'client-controlled-current',
@@ -297,7 +322,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v13';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v18';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();

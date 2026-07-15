@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 26,  // Bumped: force WuWa route cache past Lucilla/Freeze Frame
+  CACHE_VERSION: 31,  // Bumped: add temporary SRS fallback images for Himeko Nova
   TIMEOUT_MS: 8000,
 };
 
@@ -66,28 +66,48 @@ function applyCurrentHsrBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
   const base = 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master';
   const raw = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
+  const isStarRailStationUrl = (url) => /^https?:\/\/(?:cdn\.)?starrailstation\.com\//i.test(String(url || ''));
+  const srsFallback = (fetched) =>
+    fetched?.starRailStationImage ||
+    fetched?.starRailStationPortrait ||
+    (isStarRailStationUrl(fetched?.fallbackImage) ? fetched.fallbackImage : null) ||
+    (isStarRailStationUrl(fetched?.portrait) ? fetched.portrait : null) ||
+    (isStarRailStationUrl(fetched?.image) ? fetched.image : null);
   const controlled = [
-    { bannerId: '2127', name: 'Phainon', characterId: '1408' },
-    { bannerId: '2126', name: 'Cyrene', characterId: '1415' },
+    {
+      bannerId: '2128',
+      name: 'Himeko - Nova',
+      characterId: '1510',
+      temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+    },
+    { bannerId: '2131', name: 'Evernight', characterId: '1413' },
   ];
   const controlledLightCones = [
-    { bannerId: '3127', name: 'Thus Burns the Dawn', characterId: '23044' },
-    { bannerId: '3126', name: 'This Love, Forever', characterId: '23052' },
+    {
+      bannerId: '3128',
+      name: 'A Star That Lights the Night',
+      characterId: '23060',
+      temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+    },
+    { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
+    const characterId = fetched?.characterId || banner.characterId;
     return {
       ...fetched,
       id: `${banner.bannerId}_character`,
       bannerId: banner.bannerId,
-      name: banner.name,
+      name: fetched?.name || banner.name,
       type: 'character',
-      characterId: banner.characterId,
-      image: fetched?.image || `${base}/icon/character/${banner.characterId}.png`,
-      fallbackImage: fetched?.fallbackImage || `${base}/icon/character/${banner.characterId}.png`,
-      portrait: fetched?.portrait || `${raw}/image/character_portrait/${banner.characterId}.png`,
-      altPortrait: fetched?.altPortrait || `${base}/image/character_portrait/${banner.characterId}.png`,
-      preview: fetched?.preview || `${base}/image/character_preview/${banner.characterId}.png`,
+      characterId,
+      image: fetched?.image || (characterId ? `${base}/icon/character/${characterId}.png` : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${base}/icon/character/${characterId}.png` : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
+      portrait: fetched?.portrait || (characterId ? `${raw}/image/character_portrait/${characterId}.png` : null),
+      altPortrait: fetched?.altPortrait || (characterId ? `${base}/image/character_portrait/${characterId}.png` : null),
+      preview: fetched?.preview || (characterId ? `${base}/image/character_preview/${characterId}.png` : null),
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'api-controlled-current',
@@ -95,18 +115,21 @@ function applyCurrentHsrBannerFloor(banners) {
   });
   const currentLightCones = controlledLightCones.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
-    const preview = `${base}/image/light_cone_preview/${banner.characterId}.png`;
+    const characterId = fetched?.characterId || banner.characterId;
+    const preview = characterId ? `${base}/image/light_cone_preview/${characterId}.png` : null;
     return {
       ...fetched,
       id: `${banner.bannerId}_light_cone`,
       bannerId: banner.bannerId,
-      name: banner.name,
+      name: fetched?.name || banner.name,
       type: 'light_cone',
-      characterId: banner.characterId,
-      image: `${base}/icon/light_cone/${banner.characterId}.png`,
-      fallbackImage: `${base}/icon/light_cone/${banner.characterId}.png`,
-      portrait: preview,
-      lcPreview: preview,
+      characterId,
+      image: fetched?.image || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
+      portrait: fetched?.portrait || preview,
+      lcPreview: fetched?.lcPreview || preview,
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'api-controlled-current',
@@ -185,6 +208,43 @@ function applyCurrentWuwaBannerFloor(banners) {
   ];
 }
 
+function findStarRailStationImageUrl(value, seen = new Set()) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^https?:\/\/(?:cdn\.)?starrailstation\.com\/.+\.(?:webp|png|jpe?g)(?:\?.*)?$/i.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
+  }
+  if (typeof value !== 'object' || seen.has(value)) return null;
+  seen.add(value);
+  for (const nested of Object.values(value)) {
+    const found = findStarRailStationImageUrl(nested, seen);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function fetchHsrStarRailStationFallbacks() {
+  try {
+    const response = await fetch(`https://starrailstation.com/api/v1/warp_config?_t=${Date.now()}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(CONFIG.TIMEOUT_MS),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const banners = data?.config?.banners || {};
+    return ['2128', '2131', '3128', '3131'].map((bannerId) => {
+      const starRailStationImage = findStarRailStationImageUrl(banners[bannerId]);
+      return starRailStationImage ? { bannerId, starRailStationImage } : null;
+    }).filter(Boolean);
+  } catch (error) {
+    console.warn('[Banners API] SRS image fallback unavailable:', error?.message || error);
+    return [];
+  }
+}
+
 // =========================================================================
 // MAIN HANDLER - Delegates to individual game services
 // Each service now handles its own image resolution:
@@ -252,6 +312,12 @@ export default async function handler(req, res) {
         resultMap[game] = [];
       }
     });
+    if (requestedGame === 'all' || requestedGame === 'hsr') {
+      resultMap.hsr = [
+        ...resultMap.hsr,
+        ...await fetchHsrStarRailStationFallbacks(),
+      ];
+    }
     resultMap.hsr = applyCurrentHsrBannerFloor(resultMap.hsr);
     resultMap.genshin = applyCurrentGenshinBannerFloor(resultMap.genshin);
     resultMap.wuwa = applyCurrentWuwaBannerFloor(resultMap.wuwa);

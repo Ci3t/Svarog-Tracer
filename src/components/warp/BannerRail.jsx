@@ -27,6 +27,14 @@ export default function BannerRail({
     return b.type === 'light_cone' || b.type === 'weapon';
   });
 
+  const handleBannerImageError = (event, fallback) => {
+    if (fallback && event.currentTarget.src !== fallback) {
+      event.currentTarget.src = fallback;
+      return;
+    }
+    event.currentTarget.style.opacity = '0';
+  };
+
   return (
     <div className="flex flex-col h-full w-full lg:w-72 xl:w-80 shrink-0">
       {/* Header */}
@@ -103,6 +111,7 @@ export default function BannerRail({
                   alt=""
                   className="w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity duration-300"
                   loading="lazy"
+                  onError={(event) => handleBannerImageError(event, banner.fallbackImage || banner.starRailStationImage)}
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
               </div>
@@ -126,6 +135,7 @@ export default function BannerRail({
                     alt={banner.name}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    onError={(event) => handleBannerImageError(event, banner.fallbackImage || banner.starRailStationImage)}
                   />
                 </div>
 

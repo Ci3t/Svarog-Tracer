@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v13-wuwa-100039-200039',
+  CACHE_VERSION: 'v18-hsr-temp-srs-fallback',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -392,28 +392,69 @@ function limitHsrBanners(banners) {
 }
 
 const CURRENT_HSR_CHARACTER_BANNERS = [
-  { id: '2125_character', bannerId: '2125', name: 'Yao Guang', type: 'character', characterId: '1502' },
-  { id: '2124_character', bannerId: '2124', name: 'Mortenax Blade', type: 'character', characterId: '1507' },
+  {
+    id: '2128_character',
+    bannerId: '2128',
+    name: 'Himeko - Nova',
+    type: 'character',
+    characterId: '1510',
+    temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+  },
+  { id: '2131_character', bannerId: '2131', name: 'Evernight', type: 'character', characterId: '1413' },
 ];
 
 const CURRENT_HSR_LIGHT_CONE_BANNERS = [
-  { id: '3125_light_cone', bannerId: '3125', name: 'When She Decided to See', type: 'light_cone', characterId: '23054' },
-  { id: '3124_light_cone', bannerId: '3124', name: 'Reforged in Hellfire', type: 'light_cone', characterId: '23059' },
+  {
+    id: '3128_light_cone',
+    bannerId: '3128',
+    name: 'A Star That Lights the Night',
+    type: 'light_cone',
+    characterId: '23060',
+    temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+  },
+  { id: '3131_light_cone', bannerId: '3131', name: "To Evernight's Stars", type: 'light_cone', characterId: '23049' },
 ];
+
+function findStarRailStationImageUrl(value, seen = new Set()) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^https?:\/\/(?:cdn\.)?starrailstation\.com\/.+\.(?:webp|png|jpe?g)(?:\?.*)?$/i.test(trimmed)) return trimmed;
+    return null;
+  }
+  if (typeof value !== 'object' || seen.has(value)) return null;
+  seen.add(value);
+  for (const nested of Object.values(value)) {
+    const found = findStarRailStationImageUrl(nested, seen);
+    if (found) return found;
+  }
+  return null;
+}
 
 function applyCurrentHsrBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
+  const isStarRailStationUrl = (url) => /^https?:\/\/(?:cdn\.)?starrailstation\.com\//i.test(String(url || ''));
+  const srsFallback = (fetched) =>
+    fetched?.starRailStationImage ||
+    fetched?.starRailStationPortrait ||
+    (isStarRailStationUrl(fetched?.fallbackImage) ? fetched.fallbackImage : null) ||
+    (isStarRailStationUrl(fetched?.portrait) ? fetched.portrait : null) ||
+    (isStarRailStationUrl(fetched?.image) ? fetched.image : null);
   const currentCharacters = CURRENT_HSR_CHARACTER_BANNERS.map(banner => {
     const fetched = list.find(item => String(item.bannerId || item.id) === banner.bannerId);
-    const characterId = banner.characterId;
+    const characterId = fetched?.characterId || banner.characterId;
     return {
       ...fetched,
       ...banner,
-      image: fetched?.image || `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png`,
-      fallbackImage: fetched?.fallbackImage || `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png`,
-      portrait: fetched?.portrait || `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/${characterId}.png`,
-      altPortrait: fetched?.altPortrait || `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/${characterId}.png`,
-      preview: fetched?.preview || `${CONFIG.STAR_RAIL_RES_CDN}/image/character_preview/${characterId}.png`,
+      name: fetched?.name || banner.name,
+      characterId,
+      image: fetched?.image || (characterId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png` : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/character/${characterId}.png` : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
+      portrait: fetched?.portrait || (characterId ? `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/${characterId}.png` : null),
+      altPortrait: fetched?.altPortrait || (characterId ? `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/${characterId}.png` : null),
+      preview: fetched?.preview || (characterId ? `${CONFIG.STAR_RAIL_RES_CDN}/image/character_preview/${characterId}.png` : null),
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'worker-controlled-current',
@@ -421,15 +462,19 @@ function applyCurrentHsrBannerFloor(banners) {
   });
   const currentLightCones = CURRENT_HSR_LIGHT_CONE_BANNERS.map(banner => {
     const fetched = list.find(item => String(item.bannerId || item.id) === banner.bannerId);
-    const itemId = banner.characterId;
-    const preview = `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${itemId}.png`;
+    const itemId = fetched?.characterId || banner.characterId;
+    const preview = itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${itemId}.png` : null;
     return {
       ...fetched,
       ...banner,
-      image: `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png`,
-      fallbackImage: `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png`,
-      portrait: preview,
-      lcPreview: preview,
+      name: fetched?.name || banner.name,
+      characterId: itemId,
+      image: fetched?.image || (itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png` : null),
+      fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png` : null),
+      starRailStationImage: srsFallback(fetched) || null,
+      temporaryFallbackImage: banner.temporaryFallbackImage || null,
+      portrait: fetched?.portrait || preview,
+      lcPreview: fetched?.lcPreview || preview,
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'worker-controlled-current',
@@ -512,7 +557,13 @@ async function fetchHsrBanners() {
       if (!(bannerData.start_time <= currentSeconds && currentSeconds <= bannerData.end_time)) continue;
       const featuredIds = extractFeaturedIds(bannerData);
       for (const featuredId of featuredIds) {
-        activeCandidates.push({ bannerId, characterId: String(featuredId), startTime: bannerData.start_time, endTime: bannerData.end_time });
+        activeCandidates.push({
+          bannerId,
+          characterId: String(featuredId),
+          starRailStationImage: findStarRailStationImageUrl(bannerData),
+          startTime: bannerData.start_time,
+          endTime: bannerData.end_time,
+        });
       }
     }
 
@@ -529,7 +580,8 @@ async function fetchHsrBanners() {
         return {
           id: `${banner.bannerId}_character`, bannerId: banner.bannerId, name: char.name, type: 'character',
           image: `${CONFIG.STAR_RAIL_RES_CDN}/${char.icon}`,
-          fallbackImage: `${CONFIG.STAR_RAIL_RES_CDN}/${char.icon}`,
+          fallbackImage: banner.starRailStationImage || `${CONFIG.STAR_RAIL_RES_CDN}/${char.icon}`,
+          starRailStationImage: banner.starRailStationImage || null,
           portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/${charId}.png`,
           altPortrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/${charId}.png`,
           preview: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_preview/${charId}.png`,
@@ -542,7 +594,8 @@ async function fetchHsrBanners() {
         return {
           id: `${banner.bannerId}_light_cone`, bannerId: banner.bannerId, name: lc.name, type: 'light_cone',
           image: `${CONFIG.STAR_RAIL_RES_CDN}/${lc.icon}`,
-          fallbackImage: `${CONFIG.STAR_RAIL_RES_CDN}/${lc.icon}`,
+          fallbackImage: banner.starRailStationImage || `${CONFIG.STAR_RAIL_RES_CDN}/${lc.icon}`,
+          starRailStationImage: banner.starRailStationImage || null,
           portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${charId}.png`,
           lcPreview: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${charId}.png`,
           characterId: charId, rarity: lc.rarity || 5, game: 'hsr',
