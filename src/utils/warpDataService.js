@@ -134,6 +134,20 @@ function applyCurrentHsrBannerFloor(banners) {
       characterId: '1510',
       temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
     },
+    {
+      bannerId: '2129',
+      name: 'Sparxie',
+      characterId: '1501',
+      image: hsrCharacterRawPortraitFallback('1501'),
+      portrait: hsrCharacterPortraitFallback('1501'),
+    },
+    {
+      bannerId: '2130',
+      name: 'Dan Heng • Permansor Terrae',
+      characterId: '1414',
+      image: hsrCharacterRawPortraitFallback('1414'),
+      portrait: hsrCharacterPortraitFallback('1414'),
+    },
     { bannerId: '2131', name: 'Evernight', characterId: '1413' },
   ];
   const controlledLightCones = [
@@ -143,20 +157,34 @@ function applyCurrentHsrBannerFloor(banners) {
       characterId: '23060',
       temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
     },
+    {
+      bannerId: '3129',
+      name: 'Dazzled by a Flowery World',
+      characterId: '23053',
+      image: hsrLightConePreviewFallback('23053'),
+      portrait: hsrLightConePreviewFallback('23053'),
+    },
+    {
+      bannerId: '3130',
+      name: 'Though Worlds Apart',
+      characterId: '23051',
+      image: hsrLightConePreviewFallback('23051'),
+      portrait: hsrLightConePreviewFallback('23051'),
+    },
     { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
-    const characterId = fetched?.characterId || banner.characterId;
+    const characterId = banner.characterId;
     return normalizeHsrBannerMedia({
       ...fetched,
       id: `${banner.bannerId}_character`,
       bannerId: banner.bannerId,
-      name: fetched?.name || banner.name,
+      name: banner.name,
       type: 'character',
       characterId,
-      image: fetched?.image || (characterId ? hsrCharacterIconFallback(characterId) : null),
-      portrait: fetched?.portrait || (characterId ? hsrCharacterPortraitFallback(characterId) : null),
+      image: banner.image || fetched?.image || (characterId ? hsrCharacterIconFallback(characterId) : null),
+      portrait: banner.portrait || fetched?.portrait || (characterId ? hsrCharacterPortraitFallback(characterId) : null),
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || fetched?.fallbackImage || (characterId ? hsrCharacterIconFallback(characterId) : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
@@ -169,16 +197,16 @@ function applyCurrentHsrBannerFloor(banners) {
   });
   const currentLightCones = controlledLightCones.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
-    const characterId = fetched?.characterId || banner.characterId;
+    const characterId = banner.characterId;
     return normalizeHsrBannerMedia({
       ...fetched,
       id: `${banner.bannerId}_light_cone`,
       bannerId: banner.bannerId,
-      name: fetched?.name || banner.name,
+      name: banner.name,
       type: 'light_cone',
       characterId,
-      image: fetched?.image || (characterId ? hsrLightConeIconFallback(characterId) : null),
-      portrait: fetched?.portrait || (characterId ? hsrLightConePreviewFallback(characterId) : null),
+      image: banner.image || fetched?.image || (characterId ? hsrLightConeIconFallback(characterId) : null),
+      portrait: banner.portrait || fetched?.portrait || (characterId ? hsrLightConePreviewFallback(characterId) : null),
       lcPreview: fetched?.lcPreview || (characterId ? hsrLightConePreviewFallback(characterId) : null),
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || fetched?.fallbackImage || (characterId ? hsrLightConeIconFallback(characterId) : null),
       starRailStationImage: srsFallback(fetched) || null,
@@ -322,7 +350,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v18';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v20';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();

@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 31,  // Bumped: add temporary SRS fallback images for Himeko Nova
+  CACHE_VERSION: 33,  // Bumped: add full HSR rerun banner set
   TIMEOUT_MS: 8000,
 };
 
@@ -80,6 +80,20 @@ function applyCurrentHsrBannerFloor(banners) {
       characterId: '1510',
       temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
     },
+    {
+      bannerId: '2129',
+      name: 'Sparxie',
+      characterId: '1501',
+      image: `${base}/image/character_portrait/1501.png`,
+      portrait: `${raw}/image/character_portrait/1501.png`,
+    },
+    {
+      bannerId: '2130',
+      name: 'Dan Heng • Permansor Terrae',
+      characterId: '1414',
+      image: `${base}/image/character_portrait/1414.png`,
+      portrait: `${raw}/image/character_portrait/1414.png`,
+    },
     { bannerId: '2131', name: 'Evernight', characterId: '1413' },
   ];
   const controlledLightCones = [
@@ -89,23 +103,37 @@ function applyCurrentHsrBannerFloor(banners) {
       characterId: '23060',
       temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
     },
+    {
+      bannerId: '3129',
+      name: 'Dazzled by a Flowery World',
+      characterId: '23053',
+      image: `${base}/image/light_cone_preview/23053.png`,
+      portrait: `${base}/image/light_cone_preview/23053.png`,
+    },
+    {
+      bannerId: '3130',
+      name: 'Though Worlds Apart',
+      characterId: '23051',
+      image: `${base}/image/light_cone_preview/23051.png`,
+      portrait: `${base}/image/light_cone_preview/23051.png`,
+    },
     { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
-    const characterId = fetched?.characterId || banner.characterId;
+    const characterId = banner.characterId;
     return {
       ...fetched,
       id: `${banner.bannerId}_character`,
       bannerId: banner.bannerId,
-      name: fetched?.name || banner.name,
+      name: banner.name,
       type: 'character',
       characterId,
-      image: fetched?.image || (characterId ? `${base}/icon/character/${characterId}.png` : null),
+      image: banner.image || fetched?.image || (characterId ? `${base}/icon/character/${characterId}.png` : null),
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${base}/icon/character/${characterId}.png` : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
-      portrait: fetched?.portrait || (characterId ? `${raw}/image/character_portrait/${characterId}.png` : null),
+      portrait: banner.portrait || fetched?.portrait || (characterId ? `${raw}/image/character_portrait/${characterId}.png` : null),
       altPortrait: fetched?.altPortrait || (characterId ? `${base}/image/character_portrait/${characterId}.png` : null),
       preview: fetched?.preview || (characterId ? `${base}/image/character_preview/${characterId}.png` : null),
       rarity: 5,
@@ -115,20 +143,20 @@ function applyCurrentHsrBannerFloor(banners) {
   });
   const currentLightCones = controlledLightCones.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
-    const characterId = fetched?.characterId || banner.characterId;
+    const characterId = banner.characterId;
     const preview = characterId ? `${base}/image/light_cone_preview/${characterId}.png` : null;
     return {
       ...fetched,
       id: `${banner.bannerId}_light_cone`,
       bannerId: banner.bannerId,
-      name: fetched?.name || banner.name,
+      name: banner.name,
       type: 'light_cone',
       characterId,
-      image: fetched?.image || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
+      image: banner.image || fetched?.image || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
-      portrait: fetched?.portrait || preview,
+      portrait: banner.portrait || fetched?.portrait || preview,
       lcPreview: fetched?.lcPreview || preview,
       rarity: 5,
       game: 'hsr',

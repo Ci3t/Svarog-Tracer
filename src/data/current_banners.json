@@ -8,6 +8,20 @@
     "characterId": "1510"
   },
   {
+    "id": "2129",
+    "name": "Sparxie",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1501.png",
+    "type": "character",
+    "characterId": "1501"
+  },
+  {
+    "id": "2130",
+    "name": "Dan Heng • Permansor Terrae",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1414.png",
+    "type": "character",
+    "characterId": "1414"
+  },
+  {
     "id": "2131",
     "name": "Evernight",
     "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/character/1413.png",
@@ -21,6 +35,20 @@
     "fallbackImage": "https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp",
     "type": "light_cone",
     "characterId": "23060"
+  },
+  {
+    "id": "3129",
+    "name": "Dazzled by a Flowery World",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/23053.png",
+    "type": "light_cone",
+    "characterId": "23053"
+  },
+  {
+    "id": "3130",
+    "name": "Though Worlds Apart",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/23051.png",
+    "type": "light_cone",
+    "characterId": "23051"
   },
   {
     "id": "3131",
