@@ -78,7 +78,8 @@ function applyCurrentHsrBannerFloor(banners) {
       bannerId: '2128',
       name: 'Himeko - Nova',
       characterId: '1510',
-      temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+      image: `${base}/image/character_portrait/1510.png`,
+      portrait: `${raw}/image/character_portrait/1510.png`,
     },
     {
       bannerId: '2129',
@@ -101,7 +102,9 @@ function applyCurrentHsrBannerFloor(banners) {
       bannerId: '3128',
       name: 'A Star That Lights the Night',
       characterId: '23060',
-      temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+      image: `${base}/image/light_cone_portrait/23060.png`,
+      portrait: `${base}/image/light_cone_portrait/23060.png`,
+      lcPreview: `${base}/image/light_cone_portrait/23060.png`,
     },
     {
       bannerId: '3129',
@@ -144,7 +147,7 @@ function applyCurrentHsrBannerFloor(banners) {
   const currentLightCones = controlledLightCones.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
     const characterId = banner.characterId;
-    const preview = characterId ? `${base}/image/light_cone_preview/${characterId}.png` : null;
+    const preview = characterId ? `${base}/image/light_cone_portrait/${characterId}.png` : null;
     return {
       ...fetched,
       id: `${banner.bannerId}_light_cone`,
@@ -152,12 +155,12 @@ function applyCurrentHsrBannerFloor(banners) {
       name: banner.name,
       type: 'light_cone',
       characterId,
-      image: banner.image || fetched?.image || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
+      image: banner.image || fetched?.image || preview,
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (characterId ? `${base}/icon/light_cone/${characterId}.png` : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
       portrait: banner.portrait || fetched?.portrait || preview,
-      lcPreview: fetched?.lcPreview || preview,
+      lcPreview: banner.lcPreview || fetched?.lcPreview || preview,
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'api-controlled-current',

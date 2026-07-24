@@ -188,7 +188,7 @@ export default function WarpBannerCard({
       banner.altPortrait,
       banner.preview,
       banner.fallbackImage,
-      isLightCone ? banner.lcPreview || `https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/${banner.characterId}.png` : null,
+      isLightCone ? banner.lcPreview || `https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_portrait/${banner.characterId}.png` : null,
       banner.image,
     ].filter(Boolean);
     const nextSrc = candidates.find((candidate) => !triedImageSrcRef.current.has(candidate));

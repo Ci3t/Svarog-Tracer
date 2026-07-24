@@ -89,6 +89,8 @@ const hsrLightConeIconFallback = (id) =>
   `${HSR_ASSET_CDN_BASE}/icon/light_cone/${id}.png`;
 const hsrLightConePreviewFallback = (id) =>
   `${HSR_ASSET_CDN_BASE}/image/light_cone_preview/${id}.png`;
+const hsrLightConePortraitFallback = (id) =>
+  `${HSR_ASSET_CDN_BASE}/image/light_cone_portrait/${id}.png`;
 
 function normalizeHsrBannerMedia(banner) {
   if (!banner || banner.game !== 'hsr') return banner;
@@ -106,10 +108,10 @@ function normalizeHsrBannerMedia(banner) {
   }
 
   if (banner.type === 'light_cone') {
-    const preview = banner.portrait || banner.lcPreview || hsrLightConePreviewFallback(itemId);
+    const preview = banner.portrait || banner.lcPreview || hsrLightConePortraitFallback(itemId);
     return {
       ...banner,
-      image: banner.image || hsrLightConeIconFallback(itemId),
+      image: banner.image || hsrLightConePortraitFallback(itemId),
       portrait: preview,
       lcPreview: banner.lcPreview || preview,
     };
@@ -132,7 +134,8 @@ function applyCurrentHsrBannerFloor(banners) {
       bannerId: '2128',
       name: 'Himeko - Nova',
       characterId: '1510',
-      temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+      image: hsrCharacterRawPortraitFallback('1510'),
+      portrait: hsrCharacterPortraitFallback('1510'),
     },
     {
       bannerId: '2129',
@@ -155,21 +158,23 @@ function applyCurrentHsrBannerFloor(banners) {
       bannerId: '3128',
       name: 'A Star That Lights the Night',
       characterId: '23060',
-      temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+      image: hsrLightConePortraitFallback('23060'),
+      portrait: hsrLightConePortraitFallback('23060'),
+      lcPreview: hsrLightConePortraitFallback('23060'),
     },
     {
       bannerId: '3129',
       name: 'Dazzled by a Flowery World',
       characterId: '23053',
-      image: hsrLightConePreviewFallback('23053'),
-      portrait: hsrLightConePreviewFallback('23053'),
+      image: hsrLightConePortraitFallback('23053'),
+      portrait: hsrLightConePortraitFallback('23053'),
     },
     {
       bannerId: '3130',
       name: 'Though Worlds Apart',
       characterId: '23051',
-      image: hsrLightConePreviewFallback('23051'),
-      portrait: hsrLightConePreviewFallback('23051'),
+      image: hsrLightConePortraitFallback('23051'),
+      portrait: hsrLightConePortraitFallback('23051'),
     },
     { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
   ];
@@ -205,9 +210,9 @@ function applyCurrentHsrBannerFloor(banners) {
       name: banner.name,
       type: 'light_cone',
       characterId,
-      image: banner.image || fetched?.image || (characterId ? hsrLightConeIconFallback(characterId) : null),
-      portrait: banner.portrait || fetched?.portrait || (characterId ? hsrLightConePreviewFallback(characterId) : null),
-      lcPreview: fetched?.lcPreview || (characterId ? hsrLightConePreviewFallback(characterId) : null),
+      image: banner.image || fetched?.image || (characterId ? hsrLightConePortraitFallback(characterId) : null),
+      portrait: banner.portrait || fetched?.portrait || (characterId ? hsrLightConePortraitFallback(characterId) : null),
+      lcPreview: banner.lcPreview || fetched?.lcPreview || (characterId ? hsrLightConePortraitFallback(characterId) : null),
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || fetched?.fallbackImage || (characterId ? hsrLightConeIconFallback(characterId) : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
@@ -588,6 +593,32 @@ export const FATE_CHARACTERS = [
     rarity: 5,
     element: "quantum",
     collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "5003",
+    name: "Rin Tohsaka",
+    image: hsrCharacterRawPortraitFallback("1508"),
+    portrait: hsrCharacterPortraitFallback("1508"),
+    altPortrait: hsrCharacterRawPortraitFallback("1508"),
+    preview: hsrCharacterPreviewFallback("1508"),
+    type: "character",
+    characterId: "1508",
+    rarity: 5,
+    element: "quantum",
+    collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "5004",
+    name: "Gilgamesh",
+    image: hsrCharacterRawPortraitFallback("1509"),
+    portrait: hsrCharacterPortraitFallback("1509"),
+    altPortrait: hsrCharacterRawPortraitFallback("1509"),
+    preview: hsrCharacterPreviewFallback("1509"),
+    type: "character",
+    characterId: "1509",
+    rarity: 5,
+    element: "lightning",
+    collaboration: "Fate/Stay Night"
   }
 ];
 
@@ -611,6 +642,28 @@ export const FATE_LIGHT_CONES = [
     portrait: resolveHsrLightConeImage("23046", hsrLightConePreviewFallback("23046")),
     lcPreview: resolveHsrLightConeImage("23046", hsrLightConePreviewFallback("23046")),
     type: "light_cone",
+    rarity: 5,
+    collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "6003",
+    name: "Flickering Stars",
+    image: hsrLightConePortraitFallback("23061"),
+    portrait: hsrLightConePortraitFallback("23061"),
+    lcPreview: hsrLightConePortraitFallback("23061"),
+    type: "light_cone",
+    characterId: "23061",
+    rarity: 5,
+    collaboration: "Fate/Stay Night"
+  },
+  {
+    id: "6004",
+    name: "I Am As You Behold",
+    image: hsrLightConePortraitFallback("23062"),
+    portrait: hsrLightConePortraitFallback("23062"),
+    lcPreview: hsrLightConePortraitFallback("23062"),
+    type: "light_cone",
+    characterId: "23062",
     rarity: 5,
     collaboration: "Fate/Stay Night"
   }
@@ -1264,9 +1317,9 @@ export async function fetchLiveBanners(ignoreThrottle = false) {
         
         if (info) {
              const fallbackImage = info.icon ? `${IMG_BASE}${info.icon}` : "";
-             const fallbackPortrait = type === 'light_cone'
-               ? hsrLightConePreviewFallback(b.charId)
-               : (info.portrait ? `${IMG_BASE}${info.portrait}` : hsrCharacterPortraitFallback(b.charId));
+              const fallbackPortrait = type === 'light_cone'
+                ? hsrLightConePortraitFallback(b.charId)
+                : (info.portrait ? `${IMG_BASE}${info.portrait}` : hsrCharacterPortraitFallback(b.charId));
              const fallbackAltPortrait = type === 'character'
                ? `${HSR_ASSET_RAW_BASE}/image/character_portrait/${b.charId}.png`
                : null;

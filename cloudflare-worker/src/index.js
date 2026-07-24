@@ -398,7 +398,8 @@ const CURRENT_HSR_CHARACTER_BANNERS = [
     name: 'Himeko - Nova',
     type: 'character',
     characterId: '1510',
-    temporaryFallbackImage: 'http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp',
+    image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1510.png`,
+    portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1510.png`,
   },
   { id: '2129_character', bannerId: '2129', name: 'Sparxie', type: 'character', characterId: '1501', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1501.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1501.png` },
   { id: '2130_character', bannerId: '2130', name: 'Dan Heng • Permansor Terrae', type: 'character', characterId: '1414', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1414.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1414.png` },
@@ -412,7 +413,9 @@ const CURRENT_HSR_LIGHT_CONE_BANNERS = [
     name: 'A Star That Lights the Night',
     type: 'light_cone',
     characterId: '23060',
-    temporaryFallbackImage: 'https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp',
+    image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23060.png`,
+    portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23060.png`,
+    lcPreview: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23060.png`,
   },
   { id: '3129_light_cone', bannerId: '3129', name: 'Dazzled by a Flowery World', type: 'light_cone', characterId: '23053', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23053.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23053.png` },
   { id: '3130_light_cone', bannerId: '3130', name: 'Though Worlds Apart', type: 'light_cone', characterId: '23051', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23051.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23051.png` },
@@ -467,18 +470,18 @@ function applyCurrentHsrBannerFloor(banners) {
   const currentLightCones = CURRENT_HSR_LIGHT_CONE_BANNERS.map(banner => {
     const fetched = list.find(item => String(item.bannerId || item.id) === banner.bannerId);
     const itemId = banner.characterId;
-    const preview = itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/${itemId}.png` : null;
+    const preview = itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/${itemId}.png` : null;
     return {
       ...fetched,
       ...banner,
       name: banner.name,
       characterId: itemId,
-      image: banner.image || fetched?.image || (itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png` : null),
+      image: banner.image || fetched?.image || preview,
       fallbackImage: srsFallback(fetched) || banner.temporaryFallbackImage || (itemId ? `${CONFIG.STAR_RAIL_RES_CDN}/icon/light_cone/${itemId}.png` : null),
       starRailStationImage: srsFallback(fetched) || null,
       temporaryFallbackImage: banner.temporaryFallbackImage || null,
       portrait: banner.portrait || fetched?.portrait || preview,
-      lcPreview: fetched?.lcPreview || preview,
+      lcPreview: banner.lcPreview || fetched?.lcPreview || preview,
       rarity: 5,
       game: 'hsr',
       source: fetched?.source || 'worker-controlled-current',

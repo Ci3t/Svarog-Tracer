@@ -2,8 +2,7 @@
   {
     "id": "2128",
     "name": "Himeko - Nova",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/character/1510.png",
-    "fallbackImage": "http://cdn.starrailstation.com/assets/5ff941361b9b4c6db4bd75e0e538fe335fc82b37e1ba15a96a76ba8e8b510791.webp",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1510.png",
     "type": "character",
     "characterId": "1510"
   },
@@ -31,8 +30,7 @@
   {
     "id": "3128",
     "name": "A Star That Lights the Night",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/light_cone/23060.png",
-    "fallbackImage": "https://cdn.starrailstation.com/assets/822086d219d3678e6d25398ab76cd8933282c29f605773a63734874bdbb7b6a7.webp",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_portrait/23060.png",
     "type": "light_cone",
     "characterId": "23060"
   },
