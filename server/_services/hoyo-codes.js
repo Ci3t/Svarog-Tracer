@@ -1,4 +1,4 @@
-import { setCorsHeaders } from '../server/_services/zone/shared.js';
+import { setCorsHeaders } from './zone/shared.js';
 
 const SERIA_CODES_API = 'https://hoyo-codes.seria.moe/codes';
 const HASHBLEN_CODES_API = 'https://db.hashblen.com/codes';
@@ -136,7 +136,7 @@ async function buildCodesForGame(game) {
   };
 }
 
-export default async function handler(req, res) {
+export async function handler(req, res) {
   setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {

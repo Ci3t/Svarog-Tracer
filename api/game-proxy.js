@@ -1,7 +1,13 @@
 import { handler as genshinBannersHandler } from '../server/_services/genshin/banners.js';
 import { handler as genshinStatsHandler } from '../server/_services/genshin/stats.js';
+import { handler as hoyoCodesHandler } from '../server/_services/hoyo-codes.js';
 import { handler as wuwaBannersHandler } from '../server/_services/wuwa/banners.js';
 import { handler as wuwaStatsHandler } from '../server/_services/wuwa/stats.js';
+
+function isHoyoCodesRoute(req) {
+  const route = Array.isArray(req.query?.route) ? req.query.route[0] : req.query?.route;
+  return route === 'hoyo-codes' || String(req.url || '').includes('/api/hoyo-codes');
+}
 
 function resolveGameFromUrl(req) {
   const url = req.url || '';
@@ -104,6 +110,10 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  if (isHoyoCodesRoute(req)) {
+    return await hoyoCodesHandler(req, res);
   }
 
   const game = resolveGameFromUrl(req);

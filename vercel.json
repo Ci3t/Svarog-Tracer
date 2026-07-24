@@ -26,6 +26,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/hoyo-codes",
+      "destination": "/api/game-proxy?route=hoyo-codes"
+    },
+    {
       "source": "/api/hsr/:slug*",
       "destination": "/api/hsr"
     },
