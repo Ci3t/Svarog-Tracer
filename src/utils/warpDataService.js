@@ -355,17 +355,17 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v20';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v21';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
 const WUWA_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa';
 const WUWA_ASSET_RAW_BASE = 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa';
 const GENSHIN_ASSET_REPO_BASE = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin';
-const WUWA_YANGYANG_XUANLING_IMAGE = `${WUWA_ASSET_REPO_BASE}/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711`;
-const WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711`;
-const WUWA_AZURE_OATH_IMAGE = `${WUWA_ASSET_REPO_BASE}/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711`;
-const WUWA_AZURE_OATH_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711`;
+const WUWA_SUISUI_IMAGE = `${WUWA_ASSET_REPO_BASE}/Suisui.webp?v=100040-suisui-20260730`;
+const WUWA_SUISUI_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Suisui.webp?v=100040-suisui-20260730`;
+const WUWA_FIRSTLIGHTS_HERALD_IMAGE = `${WUWA_ASSET_REPO_BASE}/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730`;
+const WUWA_FIRSTLIGHTS_HERALD_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730`;
 const WUWA_LUCY_IMAGE = `${WUWA_ASSET_REPO_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_LUCY_FALLBACK_IMAGE = `${WUWA_ASSET_RAW_BASE}/Lucy.webp?v=1000001-lucy-20260608`;
 const WUWA_SPECTRAL_TRIGGER_IMAGE = `${WUWA_ASSET_REPO_BASE}/Spectral_trigger.webp?v=1100001-spectral-trigger-20260608`;
@@ -788,45 +788,65 @@ function normalizeCurrentGenshinBanners(banners) {
 }
 
 const CURRENT_WUWA_BANNER_ASSETS = Object.freeze({
-  "100039": {
-    id: "100039_character",
-    bannerId: "100039",
-    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
+  "100040": {
+    id: "100040_character",
+    bannerId: "100040",
+    name: "Suisui / Aemeath",
     type: "character",
-    image: WUWA_YANGYANG_XUANLING_IMAGE,
-    portrait: WUWA_YANGYANG_XUANLING_IMAGE,
-    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
-    characterId: "yangyang-xuanling",
+    image: WUWA_SUISUI_IMAGE,
+    portrait: WUWA_SUISUI_IMAGE,
+    fallbackImage: WUWA_SUISUI_FALLBACK_IMAGE,
+    characterId: "suisui",
+  },
+  "200040": {
+    id: "200040_weapon",
+    bannerId: "200040",
+    name: "Firstlight's Herald / Everbright Polestar",
+    type: "weapon",
+    image: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    portrait: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    fallbackImage: WUWA_FIRSTLIGHTS_HERALD_FALLBACK_IMAGE,
+    characterId: "firstlights-herald",
+  },
+  "100039": {
+    id: "100040_character",
+    bannerId: "100040",
+    name: "Suisui / Aemeath",
+    type: "character",
+    image: WUWA_SUISUI_IMAGE,
+    portrait: WUWA_SUISUI_IMAGE,
+    fallbackImage: WUWA_SUISUI_FALLBACK_IMAGE,
+    characterId: "suisui",
   },
   "200039": {
-    id: "200039_weapon",
-    bannerId: "200039",
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    id: "200040_weapon",
+    bannerId: "200040",
+    name: "Firstlight's Herald / Everbright Polestar",
     type: "weapon",
-    image: WUWA_AZURE_OATH_IMAGE,
-    portrait: WUWA_AZURE_OATH_IMAGE,
-    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
-    characterId: "azure-oath",
+    image: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    portrait: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    fallbackImage: WUWA_FIRSTLIGHTS_HERALD_FALLBACK_IMAGE,
+    characterId: "firstlights-herald",
   },
   "100038": {
-    id: "100039_character",
-    bannerId: "100039",
-    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
+    id: "100040_character",
+    bannerId: "100040",
+    name: "Suisui / Aemeath",
     type: "character",
-    image: WUWA_YANGYANG_XUANLING_IMAGE,
-    portrait: WUWA_YANGYANG_XUANLING_IMAGE,
-    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
-    characterId: "yangyang-xuanling",
+    image: WUWA_SUISUI_IMAGE,
+    portrait: WUWA_SUISUI_IMAGE,
+    fallbackImage: WUWA_SUISUI_FALLBACK_IMAGE,
+    characterId: "suisui",
   },
   "200038": {
-    id: "200039_weapon",
-    bannerId: "200039",
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    id: "200040_weapon",
+    bannerId: "200040",
+    name: "Firstlight's Herald / Everbright Polestar",
     type: "weapon",
-    image: WUWA_AZURE_OATH_IMAGE,
-    portrait: WUWA_AZURE_OATH_IMAGE,
-    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
-    characterId: "azure-oath",
+    image: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    portrait: WUWA_FIRSTLIGHTS_HERALD_IMAGE,
+    fallbackImage: WUWA_FIRSTLIGHTS_HERALD_FALLBACK_IMAGE,
+    characterId: "firstlights-herald",
   },
   "1000001": {
     id: "1000001_character",
@@ -2203,35 +2223,35 @@ function extractGenshinWeaponNames(list) {
 // Images: Cloudinary primary, wuwatracker fallback
 const _wuwaLucyFallback = CURRENT_WUWA_BANNER_ASSETS["1000001"].image;
 const _wuwaSpectralTriggerFallback = CURRENT_WUWA_BANNER_ASSETS["1100001"].image;
-const _wuwaYangyangXuanlingFallback = CURRENT_WUWA_BANNER_ASSETS["100039"].image;
-const _wuwaAzureOathFallback = CURRENT_WUWA_BANNER_ASSETS["200039"].image;
+const _wuwaSuisuiFallback = CURRENT_WUWA_BANNER_ASSETS["100040"].image;
+const _wuwaFirstlightsHeraldFallback = CURRENT_WUWA_BANNER_ASSETS["200040"].image;
 const _wuwaLynaeFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fcharacter-portraits%2Ffile%2Flynae-portrait.webp&w=828&q=75";
 const _wuwaSpectrumFallback = "https://wuwatracker.com/_next/image?url=%2Fapi%2Fweapon-portraits%2Ffile%2Fspectrum-blaster.png&w=828&q=75";
 
 export const WUWA_PRESET_BANNERS = [
   // Current featured banners first
   {
-    id: "100039",
-    bannerId: "100039",
-    name: "Yangyang: Xuanling / Luuk Herssen / Lynae",
+    id: "100040",
+    bannerId: "100040",
+    name: "Suisui / Aemeath",
     type: "character",
-    image: _wuwaYangyangXuanlingFallback,
-    portrait: _wuwaYangyangXuanlingFallback,
-    fallbackImage: WUWA_YANGYANG_XUANLING_FALLBACK_IMAGE,
-    characterId: "yangyang-xuanling",
+    image: _wuwaSuisuiFallback,
+    portrait: _wuwaSuisuiFallback,
+    fallbackImage: WUWA_SUISUI_FALLBACK_IMAGE,
+    characterId: "suisui",
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
   },
   {
-    id: "200039",
-    bannerId: "200039",
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    id: "200040",
+    bannerId: "200040",
+    name: "Firstlight's Herald / Everbright Polestar",
     type: "weapon",
-    image: _wuwaAzureOathFallback,
-    portrait: _wuwaAzureOathFallback,
-    fallbackImage: WUWA_AZURE_OATH_FALLBACK_IMAGE,
-    characterId: "azure-oath",
+    image: _wuwaFirstlightsHeraldFallback,
+    portrait: _wuwaFirstlightsHeraldFallback,
+    fallbackImage: WUWA_FIRSTLIGHTS_HERALD_FALLBACK_IMAGE,
+    characterId: "firstlights-herald",
     game: "wuwa",
     assetLocked: true,
     imageLocked: true,
@@ -2368,12 +2388,26 @@ function selectWuWaVisibleBanners_Client(banners, html) {
 
 function buildWuWaBannerIdCandidates_Client(id) {
   const normalized = String(id || '').trim();
-  if (!/^\d{6,7}$/.test(normalized)) return [normalized];
+  const sourceAliases = {
+    "100040": ["100040", "stats"],
+    "200040": ["200040", "stats"],
+    "100039": ["100040", "stats"],
+    "200039": ["200040", "stats"],
+    "100038": ["100040", "stats"],
+    "200038": ["200040", "stats"],
+    "1000001": ["100034", "stats"],
+    "1100001": ["100034", "stats"],
+    "100037": ["100034", "stats"],
+    "200037": ["100034", "stats"],
+  };
+  const aliasCandidates = sourceAliases[normalized] || [];
+  if (!/^\d{6,7}$/.test(normalized)) return Array.from(new Set([normalized, ...aliasCandidates].filter(Boolean)));
   const suffix = normalized.slice(3);
   const candidates = [normalized];
   if (normalized.startsWith('200')) candidates.push(`101${suffix}`);
   if (normalized.startsWith('101')) candidates.push(`200${suffix}`);
   if (normalized.startsWith('110')) candidates.push(`200${suffix}`, `101${suffix}`);
+  candidates.push(...aliasCandidates);
   return Array.from(new Set(candidates));
 }
 
@@ -2404,7 +2438,9 @@ export async function fetchWuWaStats(bannerId, debugMode = true) {
     let lastScrapeError = null;
     for (const candidateId of buildWuWaBannerIdCandidates_Client(bannerId)) {
       try {
-        const statsUrl = `https://wuwatracker.com/tracker/stats/${candidateId}`;
+        const statsUrl = candidateId === 'stats'
+          ? 'https://wuwatracker.com/tracker/stats'
+          : `https://wuwatracker.com/tracker/stats/${candidateId}`;
         console.log('[WuWa] Fetching:', statsUrl);
         const response = await fetchWithProxyFallback(statsUrl);
 
@@ -2568,7 +2604,7 @@ export async function fetchWuWaLiveBanners(ignoreThrottle = false) {
     console.warn('[WuWa Banners] Backend API failed, falling back to Scraping:', backendError.message);
   }
 
-  const CACHE_KEY = 'wuwa_live_banners_cache_v12'; // Bumped: force Yangyang Xuanling / Azure Oath refresh
+  const CACHE_KEY = 'wuwa_live_banners_cache_v13'; // Bumped: force Suisui / Firstlight's Herald refresh
   const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
   
   // Check cache first (unless ignoreThrottle is true)

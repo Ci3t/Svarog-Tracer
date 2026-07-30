@@ -203,28 +203,28 @@ function applyCurrentGenshinBannerFloor(banners) {
 function applyCurrentWuwaBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
   const characterBanner = {
-    id: '100039_character',
-    bannerId: '100039',
-    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+    id: '100040_character',
+    bannerId: '100040',
+    name: 'Suisui / Aemeath',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    characterId: 'yangyang-xuanling',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    characterId: 'suisui',
     game: 'wuwa',
     source: 'api-controlled-current',
     assetLocked: true,
     imageLocked: true,
   };
   const weaponBanner = {
-    id: '200039_weapon',
-    bannerId: '200039',
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    id: '200040_weapon',
+    bannerId: '200040',
+    name: "Firstlight's Herald / Everbright Polestar",
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    characterId: 'azure-oath',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    portrait: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    characterId: 'firstlights-herald',
     game: 'wuwa',
     source: 'api-controlled-current',
     assetLocked: true,
@@ -233,8 +233,8 @@ function applyCurrentWuwaBannerFloor(banners) {
   const findById = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
   const collabBanners = list.filter((banner) => ['1000001', '1100001'].includes(String(banner?.bannerId || banner?.id || '')));
   return [
-    { ...findById('100039'), ...characterBanner },
-    { ...findById('200039'), ...weaponBanner },
+    { ...findById('100040'), ...characterBanner },
+    { ...findById('200040'), ...weaponBanner },
     ...collabBanners,
   ];
 }

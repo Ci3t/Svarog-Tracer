@@ -700,41 +700,59 @@ function buildWuWaImageUrl(folder, fileName) {
 }
 
 const WUWA_CURRENT_BANNER_ASSETS = {
-  '100039': {
-    id: '100039_character',
-    bannerId: '100039',
-    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+  '100040': {
+    id: '100040_character',
+    bannerId: '100040',
+    name: 'Suisui / Aemeath',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    characterId: 'yangyang-xuanling',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    characterId: 'suisui',
   },
-  '200039': {
-    id: '200039_weapon',
-    bannerId: '200039',
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+  '200040': {
+    id: '200040_weapon',
+    bannerId: '200040',
+    name: "Firstlight's Herald / Everbright Polestar",
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    characterId: 'azure-oath',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    characterId: 'firstlights-herald',
+  },
+  '100039': {
+    id: '100040_character',
+    bannerId: '100040',
+    name: 'Suisui / Aemeath',
+    type: 'character',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    characterId: 'suisui',
   },
   '100038': {
-    id: '100039_character',
-    bannerId: '100039',
-    name: 'Yangyang: Xuanling / Luuk Herssen / Lynae',
+    id: '100040_character',
+    bannerId: '100040',
+    name: 'Suisui / Aemeath',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Yangyang_Xuanling.webp?v=100039-yangyang-xuanling-20260711',
-    characterId: 'yangyang-xuanling',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Suisui.webp?v=100040-suisui-20260730',
+    characterId: 'suisui',
+  },
+  '200039': {
+    id: '200040_weapon',
+    bannerId: '200040',
+    name: "Firstlight's Herald / Everbright Polestar",
+    type: 'weapon',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    characterId: 'firstlights-herald',
   },
   '200038': {
-    id: '200039_weapon',
-    bannerId: '200039',
-    name: "Azure Oath / Daybreaker's Spine / Spectrum Blaster",
+    id: '200040_weapon',
+    bannerId: '200040',
+    name: "Firstlight's Herald / Everbright Polestar",
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Azure_Oath.webp?v=200039-azure-oath-20260711',
-    characterId: 'azure-oath',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    fallbackImage: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/wuwa/Weapon_Firstlights_Herald.webp?v=200040-firstlights-herald-20260730',
+    characterId: 'firstlights-herald',
   },
   '100037': {
     id: '1000001_character',
@@ -800,8 +818,8 @@ function applyCurrentWuWaBannerAsset(banner) {
 
 function buildWuWaFallbackBanners() {
   return [
-    applyCurrentWuWaBannerAsset({ bannerId: '100039', source: 'worker-fallback' }),
-    applyCurrentWuWaBannerAsset({ bannerId: '200039', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '100040', source: 'worker-fallback' }),
+    applyCurrentWuWaBannerAsset({ bannerId: '200040', source: 'worker-fallback' }),
     applyCurrentWuWaBannerAsset({ bannerId: '1000001', source: 'worker-fallback-collab' }),
     applyCurrentWuWaBannerAsset({ bannerId: '1100001', source: 'worker-fallback-collab' }),
   ];
@@ -811,8 +829,8 @@ function applyCurrentWuWaBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
   const byId = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
   return [
-    applyCurrentWuWaBannerAsset(byId('100039') || { bannerId: '100039', source: 'worker-controlled-current' }),
-    applyCurrentWuWaBannerAsset(byId('200039') || { bannerId: '200039', source: 'worker-controlled-current' }),
+    applyCurrentWuWaBannerAsset(byId('100040') || { bannerId: '100040', source: 'worker-controlled-current' }),
+    applyCurrentWuWaBannerAsset(byId('200040') || { bannerId: '200040', source: 'worker-controlled-current' }),
     applyCurrentWuWaBannerAsset(byId('1000001') || { bannerId: '1000001', source: 'worker-controlled-collab' }),
     applyCurrentWuWaBannerAsset(byId('1100001') || { bannerId: '1100001', source: 'worker-controlled-collab' }),
   ].filter(Boolean);
@@ -1217,10 +1235,12 @@ function buildWuWaFallbackStats(id, message = 'Worker fallback: live WuWa stats 
 
 const WUWA_STATS_SOURCE_ALIASES = {
   // Svarog display IDs can be controlled/manual while WuWa Tracker exposes one shared current chart.
-  '100039': ['100039', 'stats'],
-  '200039': ['200039', 'stats'],
-  '100038': ['100039', 'stats'],
-  '200038': ['200039', 'stats'],
+  '100040': ['100040', 'stats'],
+  '200040': ['200040', 'stats'],
+  '100039': ['100040', 'stats'],
+  '200039': ['200040', 'stats'],
+  '100038': ['100040', 'stats'],
+  '200038': ['200040', 'stats'],
   '1000001': ['100034', 'stats'],
   '1100001': ['100034', 'stats'],
   '100037': ['100034', 'stats'],
