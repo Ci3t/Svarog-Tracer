@@ -616,6 +616,30 @@
     "portrait": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/character_portrait/1507.png"
   },
   {
+    "id": "rin-tohsaka",
+    "numId": 1508,
+    "name": "Rin Tohsaka",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1508.png",
+    "portrait": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/character_portrait/1508.png"
+  },
+  {
+    "id": "gilgamesh",
+    "numId": 1509,
+    "name": "Gilgamesh",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1509.png",
+    "portrait": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/character_portrait/1509.png"
+  },
+  {
+    "id": "himeko-nova",
+    "numId": 1510,
+    "name": "Himeko Nova",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/1510.png",
+    "portrait": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/image/character_portrait/1510.png"
+  },
+  {
     "id": "ashveil",
     "numId": 1504,
     "name": "Ashveil",
