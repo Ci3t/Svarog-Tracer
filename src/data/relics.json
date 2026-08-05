@@ -392,6 +392,20 @@
     "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/326.png"
   },
   {
+    "id": "cosmic-life-sciences-institute",
+    "numId": 327,
+    "name": "Cosmic Life Sciences Institute",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/327.png"
+  },
+  {
+    "id": "fallen-star-anchorage",
+    "numId": 328,
+    "name": "Fallen Star Anchorage",
+    "rarity": 5,
+    "image": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/relic/328.png"
+  },
+  {
     "id": "as-navigator-isee-sees-it",
     "numId": 131,
     "name": "As Navigator Isee Sees It",

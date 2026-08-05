@@ -181,6 +181,7 @@ const PLANAR_WORLDS = [
   { id: 'world_12', name: 'Simulated Universe: World 12', location: 'Herta Space Station', relics: ["Bone Collection's Serene Demesne", 'Giant Tree of Rapt Brooding'], relicSetIds: ['bone-collections-serene-demesne', 'giant-tree-of-rapt-brooding'], focus: ['Ultimate Vulnerability', 'Element-Matching DMG'] },
   { id: 'world_13', name: 'Simulated Universe: World 13', location: 'Herta Space Station', relics: ["Arcadia of Woven Dreams", 'Revelry by the Sea'], relicSetIds: ['arcadia-of-woven-dreams', 'revelry-by-the-sea'], focus: ['MEMO ATK / Team Energy Support'] },
   { id: 'world_14', name: 'Simulated Universe: World 14', location: 'Herta Space Station', relics: ["Amphoreus, The Eternal Land", 'Tengoku@Livestream'], relicSetIds: ['amphoreus-the-eternal-land', 'tengokulivestream'], focus: ['Universal Utility'] },
+  { id: 'world_15', name: 'Simulated Universe: World 15', location: 'Herta Space Station', relics: ['Cosmic Life Sciences Institute', 'Fallen Star Anchorage'], relicSetIds: ['cosmic-life-sciences-institute', 'fallen-star-anchorage'], focus: ['Universal Utility'] },
 ];
 
 const byAnyId = new Map();
