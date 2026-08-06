@@ -7,25 +7,25 @@
     "characterId": "1510"
   },
   {
-    "id": "2129",
-    "name": "Sparxie",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1501.png",
+    "id": "2132",
+    "name": "Anaxa",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1405.png",
     "type": "character",
-    "characterId": "1501"
+    "characterId": "1405"
   },
   {
-    "id": "2130",
-    "name": "Dan Heng • Permansor Terrae",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1414.png",
+    "id": "2133",
+    "name": "Cerydra",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1412.png",
     "type": "character",
-    "characterId": "1414"
+    "characterId": "1412"
   },
   {
-    "id": "2131",
-    "name": "Evernight",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/character/1413.png",
+    "id": "2134",
+    "name": "Aventurine",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/character_portrait/1304.png",
     "type": "character",
-    "characterId": "1413"
+    "characterId": "1304"
   },
   {
     "id": "3128",
@@ -35,24 +35,24 @@
     "characterId": "23060"
   },
   {
-    "id": "3129",
-    "name": "Dazzled by a Flowery World",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/23053.png",
+    "id": "3132",
+    "name": "Life Should Be Cast to Flames",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_portrait/23041.png",
     "type": "light_cone",
-    "characterId": "23053"
+    "characterId": "23041"
   },
   {
-    "id": "3130",
-    "name": "Though Worlds Apart",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_preview/23051.png",
+    "id": "3133",
+    "name": "Epoch Etched in Golden Blood",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_portrait/23048.png",
     "type": "light_cone",
-    "characterId": "23051"
+    "characterId": "23048"
   },
   {
-    "id": "3131",
-    "name": "To Evernight's Stars",
-    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/icon/light_cone/23049.png",
+    "id": "3134",
+    "name": "Inherently Unjust Destiny",
+    "image": "https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master/image/light_cone_portrait/23030.png",
     "type": "light_cone",
-    "characterId": "23049"
+    "characterId": "23030"
   }
 ]

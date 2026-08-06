@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 33,  // Bumped: add full HSR rerun banner set
+  CACHE_VERSION: 34,  // Bumped: HSR Aventurine/Cerydra/Anaxa reruns
   TIMEOUT_MS: 8000,
 };
 
@@ -81,21 +81,9 @@ function applyCurrentHsrBannerFloor(banners) {
       image: `${base}/image/character_portrait/1510.png`,
       portrait: `${raw}/image/character_portrait/1510.png`,
     },
-    {
-      bannerId: '2129',
-      name: 'Sparxie',
-      characterId: '1501',
-      image: `${base}/image/character_portrait/1501.png`,
-      portrait: `${raw}/image/character_portrait/1501.png`,
-    },
-    {
-      bannerId: '2130',
-      name: 'Dan Heng • Permansor Terrae',
-      characterId: '1414',
-      image: `${base}/image/character_portrait/1414.png`,
-      portrait: `${raw}/image/character_portrait/1414.png`,
-    },
-    { bannerId: '2131', name: 'Evernight', characterId: '1413' },
+    { bannerId: '2132', name: 'Anaxa', characterId: '1405', image: `${base}/image/character_portrait/1405.png`, portrait: `${raw}/image/character_portrait/1405.png` },
+    { bannerId: '2133', name: 'Cerydra', characterId: '1412', image: `${base}/image/character_portrait/1412.png`, portrait: `${raw}/image/character_portrait/1412.png` },
+    { bannerId: '2134', name: 'Aventurine', characterId: '1304', image: `${base}/image/character_portrait/1304.png`, portrait: `${raw}/image/character_portrait/1304.png` },
   ];
   const controlledLightCones = [
     {
@@ -106,21 +94,9 @@ function applyCurrentHsrBannerFloor(banners) {
       portrait: `${base}/image/light_cone_portrait/23060.png`,
       lcPreview: `${base}/image/light_cone_portrait/23060.png`,
     },
-    {
-      bannerId: '3129',
-      name: 'Dazzled by a Flowery World',
-      characterId: '23053',
-      image: `${base}/image/light_cone_preview/23053.png`,
-      portrait: `${base}/image/light_cone_preview/23053.png`,
-    },
-    {
-      bannerId: '3130',
-      name: 'Though Worlds Apart',
-      characterId: '23051',
-      image: `${base}/image/light_cone_preview/23051.png`,
-      portrait: `${base}/image/light_cone_preview/23051.png`,
-    },
-    { bannerId: '3131', name: "To Evernight's Stars", characterId: '23049' },
+    { bannerId: '3132', name: 'Life Should Be Cast to Flames', characterId: '23041', image: `${base}/image/light_cone_portrait/23041.png`, portrait: `${base}/image/light_cone_portrait/23041.png` },
+    { bannerId: '3133', name: 'Epoch Etched in Golden Blood', characterId: '23048', image: `${base}/image/light_cone_portrait/23048.png`, portrait: `${base}/image/light_cone_portrait/23048.png` },
+    { bannerId: '3134', name: 'Inherently Unjust Destiny', characterId: '23030', image: `${base}/image/light_cone_portrait/23030.png`, portrait: `${base}/image/light_cone_portrait/23030.png` },
   ];
   const currentCharacters = controlled.map((banner) => {
     const fetched = list.find((item) => String(item.bannerId || item.id) === banner.bannerId);
@@ -266,7 +242,7 @@ async function fetchHsrStarRailStationFallbacks() {
     if (!response.ok) return [];
     const data = await response.json();
     const banners = data?.config?.banners || {};
-    return ['2128', '2131', '3128', '3131'].map((bannerId) => {
+    return ['2128', '2132', '2133', '2134', '3128', '3132', '3133', '3134'].map((bannerId) => {
       const starRailStationImage = findStarRailStationImageUrl(banners[bannerId]);
       return starRailStationImage ? { bannerId, starRailStationImage } : null;
     }).filter(Boolean);

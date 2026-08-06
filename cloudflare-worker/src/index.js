@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v20-hsr-full-current-set',
+  CACHE_VERSION: 'v21-hsr-rerun-refresh',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -401,9 +401,9 @@ const CURRENT_HSR_CHARACTER_BANNERS = [
     image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1510.png`,
     portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1510.png`,
   },
-  { id: '2129_character', bannerId: '2129', name: 'Sparxie', type: 'character', characterId: '1501', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1501.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1501.png` },
-  { id: '2130_character', bannerId: '2130', name: 'Dan Heng • Permansor Terrae', type: 'character', characterId: '1414', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1414.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1414.png` },
-  { id: '2131_character', bannerId: '2131', name: 'Evernight', type: 'character', characterId: '1413' },
+  { id: '2132_character', bannerId: '2132', name: 'Anaxa', type: 'character', characterId: '1405', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1405.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1405.png` },
+  { id: '2133_character', bannerId: '2133', name: 'Cerydra', type: 'character', characterId: '1412', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1412.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1412.png` },
+  { id: '2134_character', bannerId: '2134', name: 'Aventurine', type: 'character', characterId: '1304', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/character_portrait/1304.png`, portrait: `${CONFIG.STAR_RAIL_RES_RAW}/image/character_portrait/1304.png` },
 ];
 
 const CURRENT_HSR_LIGHT_CONE_BANNERS = [
@@ -417,9 +417,9 @@ const CURRENT_HSR_LIGHT_CONE_BANNERS = [
     portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23060.png`,
     lcPreview: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23060.png`,
   },
-  { id: '3129_light_cone', bannerId: '3129', name: 'Dazzled by a Flowery World', type: 'light_cone', characterId: '23053', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23053.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23053.png` },
-  { id: '3130_light_cone', bannerId: '3130', name: 'Though Worlds Apart', type: 'light_cone', characterId: '23051', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23051.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_preview/23051.png` },
-  { id: '3131_light_cone', bannerId: '3131', name: "To Evernight's Stars", type: 'light_cone', characterId: '23049' },
+  { id: '3132_light_cone', bannerId: '3132', name: 'Life Should Be Cast to Flames', type: 'light_cone', characterId: '23041', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23041.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23041.png` },
+  { id: '3133_light_cone', bannerId: '3133', name: 'Epoch Etched in Golden Blood', type: 'light_cone', characterId: '23048', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23048.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23048.png` },
+  { id: '3134_light_cone', bannerId: '3134', name: 'Inherently Unjust Destiny', type: 'light_cone', characterId: '23030', image: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23030.png`, portrait: `${CONFIG.STAR_RAIL_RES_CDN}/image/light_cone_portrait/23030.png` },
 ];
 
 function findStarRailStationImageUrl(value, seen = new Set()) {
