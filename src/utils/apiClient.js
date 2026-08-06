@@ -15,12 +15,12 @@ const BACKEND_API_BASE_URL = `${API_BASE_URL || ''}/api`;
 const FALLBACK_BACKEND_API_BASE_URL = `${FALLBACK_API_BASE_URL || ''}/api`;
 const API_FETCH_TIMEOUT_MS = 12000;
 const CLOUDFLARE_TIMEOUT_MS = 6000; // 6s before fallback, per plan
-const API_CACHE_PREFIX = 'hsr-api-cache-v14:';
+const API_CACHE_PREFIX = 'hsr-api-cache-v15:';
 const API_CACHE_TTL_MS = 10 * 60 * 1000;
 const WARP_ANALYZER_FRESHNESS_MS = 15 * 60 * 1000;
 const STATS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
 const BANNERS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
-const BANNERS_CLIENT_VERSION = 'web-banners-v22';
+const BANNERS_CLIENT_VERSION = 'web-banners-v23';
 const HOYO_CODES_API_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const apiMemoryCache = new Map();
 

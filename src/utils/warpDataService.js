@@ -39,6 +39,10 @@ const OLD_CACHE_KEYS = [
   'wuwa_live_banners_cache_v2',
   'wuwa_live_banners_cache',
 ];
+const OLD_CACHE_PREFIXES = [
+  'hsr-api-cache-v14:',
+  'hsr-api-cache-v13:',
+];
 
 /**
  * Clears old banner caches to force fresh data fetches.
@@ -49,6 +53,13 @@ export function clearOldBannerCaches() {
   let cleared = 0;
   for (const key of OLD_CACHE_KEYS) {
     if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      cleared++;
+    }
+  }
+  for (let index = localStorage.length - 1; index >= 0; index--) {
+    const key = localStorage.key(index);
+    if (key && OLD_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
       localStorage.removeItem(key);
       cleared++;
     }
@@ -367,7 +378,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v21';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v22';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
