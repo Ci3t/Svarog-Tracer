@@ -1,0 +1,1 @@
+const s="svarog_zone_auth_next_path_v1";function n(t){const e="/zone-tracker";try{const a=typeof t=="string"?t:e,r=a.startsWith("/")?a:e;sessionStorage.setItem(s,r)}catch{}}function o(){const t="/zone-tracker";try{const e=sessionStorage.getItem(s)||t;return sessionStorage.removeItem(s),e.startsWith("/")?e:t}catch{return t}}export{o as r,n as s};
