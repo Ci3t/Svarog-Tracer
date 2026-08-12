@@ -36,7 +36,7 @@ async function callServiceHandler(handler) {
 // =========================================================================
 const CONFIG = {
   CACHE_MINUTES: 15,
-  CACHE_VERSION: 34,  // Bumped: HSR Aventurine/Cerydra/Anaxa reruns
+  CACHE_VERSION: 36,  // Bumped: Genshin Odette / Arlecchino current banners
   TIMEOUT_MS: 8000,
 };
 
@@ -148,31 +148,31 @@ function applyCurrentHsrBannerFloor(banners) {
 function applyCurrentGenshinBannerFloor(banners) {
   const list = Array.isArray(banners) ? banners : [];
   const characterBanner = {
-    id: '300102_character',
-    bannerId: '300102',
-    name: 'Sandrone / Citlali',
+    id: '300104_character',
+    bannerId: '300104',
+    name: 'Odette / Arlecchino',
     type: 'character',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
-    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701',
-    characterId: 'sandrone',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_Splash.webp?v=300104-odette-20260812',
+    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_Splash.webp?v=300104-odette-20260812',
+    characterId: 'odette',
     game: 'genshin',
     source: 'api-controlled-current',
   };
   const weaponBanner = {
-    id: '400101_weapon',
-    bannerId: '400101',
-    name: "A Teaspoon of Transcendence / Starcaller's Watch",
+    id: '400103_weapon',
+    bannerId: '400103',
+    name: "Whitelake Frostfeather / Crimson Moon's Semblance",
     type: 'weapon',
-    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
-    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701',
+    image: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_weapon_Splash.webp?v=400103-odette-weapon-20260812',
+    fallbackImage: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_weapon_Splash.webp?v=400103-odette-weapon-20260812',
     characterId: 'weapon_banner',
     game: 'genshin',
     source: 'api-controlled-current',
   };
   const findById = (bannerId) => list.find((banner) => String(banner?.bannerId || banner?.id || '') === bannerId);
   return [
-    { ...findById('300102'), ...characterBanner },
-    { ...findById('400101'), ...weaponBanner },
+    { ...findById('300104'), ...characterBanner },
+    { ...findById('400103'), ...weaponBanner },
   ];
 }
 
@@ -261,9 +261,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=900, stale-while-revalidate=900');
-  res.setHeader('CDN-Cache-Control', 'public, s-maxage=900, stale-while-revalidate=900');
-  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=900, stale-while-revalidate=900');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();

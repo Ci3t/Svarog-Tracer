@@ -5,7 +5,7 @@
 // CONFIG
 // =========================================================================
 const CONFIG = {
-  CACHE_VERSION: 'v21-hsr-rerun-refresh',
+  CACHE_VERSION: 'v24-genshin-weapon-pity-map',
   // Allowed origins for quota protection (your production + local dev)
   ALLOWED_ORIGINS: [
     'https://ci3t.github.io',
@@ -22,12 +22,12 @@ const CONFIG = {
   STAR_RAIL_RES_CDN: 'https://cdn.jsdelivr.net/gh/Mar-7th/StarRailRes@master',
   PAIMON_API: 'https://api.paimon.moe/wish',
   PAIMON_IMG_BASE: 'https://paimon.moe/images',
-  GENSHIN_CURRENT_CHARACTER_BANNER_ID: '300100',
-  GENSHIN_CURRENT_WEAPON_BANNER_ID: '400099',
-  GENSHIN_CURRENT_CHARACTER_NAME: 'Nicole / Durin',
-  GENSHIN_CURRENT_WEAPON_NAME: "Angelos' Heptades / Athame Artis",
-  GENSHIN_CURRENT_CHARACTER_IMAGE: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_Splash.webp?v=300100-nicole-20260520',
-  GENSHIN_CURRENT_WEAPON_IMAGE: 'https://raw.githubusercontent.com/Ci3t/svarog-assets/main/genshin/Nicole_weapon_Splash.webp?v=400099-nicole-weapon-20260520',
+  GENSHIN_CURRENT_CHARACTER_BANNER_ID: '300104',
+  GENSHIN_CURRENT_WEAPON_BANNER_ID: '400103',
+  GENSHIN_CURRENT_CHARACTER_NAME: 'Odette / Arlecchino',
+  GENSHIN_CURRENT_WEAPON_NAME: "Whitelake Frostfeather / Crimson Moon's Semblance",
+  GENSHIN_CURRENT_CHARACTER_IMAGE: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_Splash.webp?v=300104-odette-20260812',
+  GENSHIN_CURRENT_WEAPON_IMAGE: 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_weapon_Splash.webp?v=400103-odette-weapon-20260812',
   WUWA_TRACKER: 'https://wuwatracker.com/tracker/stats',
   WUWA_IMG_API: 'https://wuwatracker.com/_next/image',
   HOYO_CODES_API: 'https://hoyo-codes.seria.moe/codes',
@@ -66,6 +66,10 @@ const CONFIG = {
     hoyoCodes: 7 * 24 * 60 * 60, // 7 days (codes usually change around livestream/patch windows)
     health: 0,                 // no cache
   }
+};
+
+const GENSHIN_STATS_SOURCE_CANDIDATES = {
+  '400103': ['400103'],
 };
 
 // =========================================================================
@@ -641,13 +645,15 @@ function toPaimonSlug(name) {
 
 function buildGenshinFallbackBanners() {
   return [
-    { id: `${CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID}_character`, bannerId: CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID, name: CONFIG.GENSHIN_CURRENT_CHARACTER_NAME, type: 'character', image: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, fallbackImage: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, characterId: 'nicole', game: 'genshin', source: 'worker-fallback', assetLocked: true },
+    { id: `${CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID}_character`, bannerId: CONFIG.GENSHIN_CURRENT_CHARACTER_BANNER_ID, name: CONFIG.GENSHIN_CURRENT_CHARACTER_NAME, type: 'character', image: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, fallbackImage: CONFIG.GENSHIN_CURRENT_CHARACTER_IMAGE, characterId: 'odette', game: 'genshin', source: 'worker-fallback', assetLocked: true },
     { id: `${CONFIG.GENSHIN_CURRENT_WEAPON_BANNER_ID}_weapon`, bannerId: CONFIG.GENSHIN_CURRENT_WEAPON_BANNER_ID, name: CONFIG.GENSHIN_CURRENT_WEAPON_NAME, type: 'weapon', image: CONFIG.GENSHIN_CURRENT_WEAPON_IMAGE, fallbackImage: CONFIG.GENSHIN_CURRENT_WEAPON_IMAGE, characterId: 'weapon_banner', game: 'genshin', source: 'worker-fallback', assetLocked: true },
   ];
 }
 
 async function fetchGenshinBanners() {
   try {
+    return buildGenshinFallbackBanners();
+
     const now = Date.now();
     const banners = [];
 
@@ -924,7 +930,8 @@ async function handleBanners(request) {
   };
 
   const res = jsonResponse(response, 200, request, {
-    'Cache-Control': `public, max-age=300, s-maxage=${CONFIG.TTL.banners}, stale-while-revalidate=86400`,
+    'Cache-Control': 'no-store, max-age=0',
+    'CDN-Cache-Control': 'no-store',
     'X-Cache-Status': 'MISS',
   });
 
@@ -1150,6 +1157,17 @@ function buildGenshinFallbackStats(id) {
   };
 }
 
+function getGenshinStatsCandidates(id) {
+  return Array.from(new Set(GENSHIN_STATS_SOURCE_CANDIDATES[String(id)] || [String(id)]));
+}
+
+function hasUsableGenshinStats(data, sourceId) {
+  const pityArray = data?.pityCount?.legendary || [];
+  const nonZeroRolls = pityArray.filter((count, index) => index > 0 && Number(count) > 0).length;
+  const totalPulls = pityArray.reduce((sum, count, index) => index > 0 ? sum + Number(count || 0) : sum, 0);
+  return nonZeroRolls > 0 && totalPulls > 0;
+}
+
 async function handleGenshinStats(request) {
   const url = new URL(request.url);
   let id = url.searchParams.get('id');
@@ -1157,39 +1175,60 @@ async function handleGenshinStats(request) {
 
   if (id === '300093') id = '300094';
 
-  const cacheKey = `${url.origin}/api/genshin/stats?id=${id}`;
+  const cacheKey = `${url.origin}/api/genshin/stats?id=${id}&cv=${CONFIG.CACHE_VERSION}`;
   const cached = await getCached(request, cacheKey);
   if (cached) return cached;
 
   try {
-    const apiUrl = `${CONFIG.PAIMON_API}?banner=${id}`;
-    const response = await fetchWithTimeout(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      }
-    }, 8000);
+    let data = null;
+    let sourceBannerId = id;
+    let lastError = null;
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
+    for (const candidateId of getGenshinStatsCandidates(id)) {
+      try {
+        const apiUrl = `${CONFIG.PAIMON_API}?banner=${candidateId}`;
+        const response = await fetchWithTimeout(apiUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json'
+          }
+        }, 8000);
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const candidateData = await response.json();
+        if (!hasUsableGenshinStats(candidateData, candidateId)) {
+          throw new Error(`Sparse Genshin stats for ${candidateId}`);
+        }
+
+        data = candidateData;
+        sourceBannerId = candidateId;
+        break;
+      } catch (candidateError) {
+        lastError = candidateError;
+        console.warn(`[Worker] Genshin stats candidate ${candidateId} failed:`, candidateError.message);
+      }
+    }
+
+    if (!data) throw lastError || new Error(`No usable Genshin stats for ${id}`);
 
     const pityArray = data.pityCount?.legendary || [];
     const countEachPity = data.countEachPity || [];
     const by_rollnum_pulls_5 = {};
     const by_rollnum_chance_5 = {};
     let totalPulls = 0;
+    const isWeaponBanner = String(id).startsWith('400');
 
     pityArray.forEach((count, index) => {
-      const roll = index;
-      if (roll === 0) return;
+      const roll = isWeaponBanner ? index + 1 : index;
+      if (!isWeaponBanner && roll === 0) return;
       by_rollnum_pulls_5[roll] = count;
       totalPulls += count;
     });
 
     pityArray.forEach((count, index) => {
-      const roll = index;
-      if (roll === 0) return;
-      const playersAtThisPity = countEachPity[index - 1];
+      const roll = isWeaponBanner ? index + 1 : index;
+      if (!isWeaponBanner && roll === 0) return;
+      const playersAtThisPity = countEachPity[isWeaponBanner ? index : index - 1];
       if (playersAtThisPity && playersAtThisPity > 0) {
         by_rollnum_chance_5[roll] = count / playersAtThisPity;
       } else if (totalPulls > 0) {
@@ -1207,10 +1246,12 @@ async function handleGenshinStats(request) {
         users: data.total?.users || 0,
       },
       raw: data,
+      bannerId: id,
+      sourceBannerId,
     };
 
     const res = jsonResponse(result, 200, request, {
-      'Cache-Control': `public, max-age=300, s-maxage=${CONFIG.TTL.genshinStats}, stale-while-revalidate=86400`,
+      'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
       'X-Cache-Status': 'MISS',
     });
     await putCache(request, cacheKey, res, CONFIG.TTL.genshinStats);

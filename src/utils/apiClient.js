@@ -20,7 +20,7 @@ const API_CACHE_TTL_MS = 10 * 60 * 1000;
 const WARP_ANALYZER_FRESHNESS_MS = 15 * 60 * 1000;
 const STATS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
 const BANNERS_API_CACHE_TTL_MS = WARP_ANALYZER_FRESHNESS_MS;
-const BANNERS_CLIENT_VERSION = 'web-banners-v23';
+const BANNERS_CLIENT_VERSION = 'web-banners-v24';
 const HOYO_CODES_API_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const apiMemoryCache = new Map();
 
@@ -182,7 +182,7 @@ export const hsrApi = {
  */
 export const genshinApi = {
   async getStats(bannerId) {
-    return apiFetch(`/genshin/stats?id=${bannerId}`);
+    return apiFetch(`/genshin/stats?id=${bannerId}&client=web-genshin-stats-v4`);
   },
   async getBanners() {
     const response = await apiFetch(`/banners?game=genshin&client=${BANNERS_CLIENT_VERSION}`);

@@ -378,7 +378,7 @@ async function fetchWithProxyFallback(targetUrl) {
 const GENSHIN_IMG_BASE = "https://gi.yatta.moe/assets/UI/UI_AvatarIcon_";
 
 // Banner API endpoint - always follow the current deployed origin / configured API base
-const BANNER_API_CLIENT_VERSION = 'banner-media-v22';
+const BANNER_API_CLIENT_VERSION = 'banner-media-v23';
 const BANNER_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const bannerClientCache = new Map();
 const bannerClientRequests = new Map();
@@ -747,22 +747,28 @@ function normalizeCurrentGenshinBanner(banner) {
   const nameKey = String(banner.name || '').toLowerCase();
   const isCurrentCharacter =
     type === 'character' &&
-    (cleanId === '300102' ||
+    (cleanId === '300104' ||
+      cleanId === '300102' ||
       cleanId === '300101' ||
       cleanId === '300100' ||
       cleanId === '300095' ||
       nameKey.includes('current character banner') ||
+      nameKey.includes('odette') ||
+      nameKey.includes('arlecchino') ||
       nameKey.includes('sandrone') ||
       nameKey.includes('citlali') ||
       nameKey.includes('lohen') ||
       nameKey.includes('mavuika'));
   const isCurrentWeapon =
     type === 'weapon' &&
-    (cleanId === '400101' ||
+    (cleanId === '400103' ||
+      cleanId === '400101' ||
       cleanId === '400100' ||
       cleanId === '400099' ||
       cleanId === '400095' ||
       nameKey.includes('current weapon banner') ||
+      nameKey.includes('whitelake frostfeather') ||
+      nameKey.includes("crimson moon's semblance") ||
       nameKey.includes('teaspoon of transcendence') ||
       nameKey.includes("starcaller's watch") ||
       nameKey.includes('disaster and remorse') ||
@@ -772,14 +778,14 @@ function normalizeCurrentGenshinBanner(banner) {
   if (isCurrentCharacter) {
     return {
       ...banner,
-      id: '300102_character',
-      bannerId: '300102',
-      name: 'Sandrone / Citlali',
+      id: '300104_character',
+      bannerId: '300104',
+      name: 'Odette / Arlecchino',
       image: _genshinCharFallback,
       portrait: _genshinCharFallback,
       fallbackImage: _genshinCharFallback,
       type: 'character',
-      characterId: 'sandrone',
+      characterId: 'odette',
       assetLocked: true,
       imageLocked: true,
       game: 'genshin',
@@ -789,9 +795,9 @@ function normalizeCurrentGenshinBanner(banner) {
   if (isCurrentWeapon) {
     return {
       ...banner,
-      id: '400101_weapon',
-      bannerId: '400101',
-      name: "A Teaspoon of Transcendence / Starcaller's Watch",
+      id: '400103_weapon',
+      bannerId: '400103',
+      name: "Whitelake Frostfeather / Crimson Moon's Semblance",
       image: _genshinWepFallback,
       portrait: _genshinWepFallback,
       fallbackImage: _genshinWepFallback,
@@ -1762,14 +1768,30 @@ export function estimateWinsOnlyDistribution(stats, featuredCharId) {
 
 // Genshin preset banners - 5★ only, will be updated dynamically
 // IDs are formatted as {bannerId}_{characterId} for uniqueness
-// Current: Sandrone / Citlali (character), A Teaspoon of Transcendence / Starcaller's Watch (weapon)
-const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_Splash.webp?v=300102-sandrone-splash-20260701';
-const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Sandrone_weapon_Splash.webp?v=400101-sandrone-weapon-splash-20260701';
+// Current: Odette / Arlecchino (character), Whitelake Frostfeather / Crimson Moon's Semblance (weapon)
+const _genshinCharFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_Splash.webp?v=300104-odette-20260812';
+const _genshinWepFallback = 'https://cdn.jsdelivr.net/gh/Ci3t/svarog-assets@main/genshin/Odette_weapon_Splash.webp?v=400103-odette-weapon-20260812';
 
 export const GENSHIN_PRESET_BANNERS = [
-  { id: "300102_character", bannerId: "300102", name: "Sandrone / Citlali", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "sandrone", game: "genshin", assetLocked: true },
-  { id: "400101_weapon", bannerId: "400101", name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
+  { id: "300104_character", bannerId: "300104", name: "Odette / Arlecchino", type: "character", image: _genshinCharFallback, fallbackImage: _genshinCharFallback, characterId: "odette", game: "genshin", assetLocked: true },
+  { id: "400103_weapon", bannerId: "400103", name: "Whitelake Frostfeather / Crimson Moon's Semblance", type: "weapon", image: _genshinWepFallback, fallbackImage: _genshinWepFallback, characterId: "weapon_banner", game: "genshin", assetLocked: true },
 ];
+
+const GENSHIN_STATS_SOURCE_CANDIDATES = {
+  "400103": ["400103"],
+};
+
+function getGenshinStatsSourceCandidates(bannerId) {
+  const normalized = String(bannerId || "").trim();
+  return Array.from(new Set(GENSHIN_STATS_SOURCE_CANDIDATES[normalized] || [normalized]));
+}
+
+function hasUsableGenshinStatsPayload(data, sourceId) {
+  const pityArray = data?.pityCount?.legendary || [];
+  const nonZeroRolls = pityArray.filter((count, index) => index > 0 && Number(count) > 0).length;
+  const totalPulls = pityArray.reduce((sum, count, index) => index > 0 ? sum + Number(count || 0) : sum, 0);
+  return nonZeroRolls > 0 && totalPulls > 0;
+}
 
 
 /**
@@ -1792,30 +1814,35 @@ export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
   }
 
   let lastError;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Add cache-buster to force fresh data
-      const cacheBuster = Date.now();
-      const targetUrl = `${PAIMON_API_BASE}?banner=${bannerId}&_t=${cacheBuster}`;
-      const response = await fetchWithProxyFallback(targetUrl);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // Transform Paimon.moe format to our unified format
-      return transformGenshinData(data, bannerId);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[Genshin Attempt ${attempt}/${maxRetries}] Wish fetch error:`, error.message);
-      
-      if (attempt < maxRetries) {
-        // Exponential backoff: 1s, 2s, 4s...
-        const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`Retrying Genshin fetch in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+  for (const sourceId of getGenshinStatsSourceCandidates(bannerId)) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Add cache-buster to force fresh data
+        const cacheBuster = Date.now();
+        const targetUrl = `${PAIMON_API_BASE}?banner=${sourceId}&_t=${cacheBuster}`;
+        const response = await fetchWithProxyFallback(targetUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (!hasUsableGenshinStatsPayload(data, sourceId)) {
+          throw new Error(`Sparse Genshin stats for ${sourceId}`);
+        }
+
+        // Transform Paimon.moe format to our unified format
+        return transformGenshinData(data, bannerId, sourceId);
+      } catch (error) {
+        lastError = error;
+        console.warn(`[Genshin ${sourceId} Attempt ${attempt}/${maxRetries}] Wish fetch error:`, error.message);
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 1s, 2s, 4s...
+          const delay = Math.pow(2, attempt - 1) * 1000;
+          console.log(`Retrying Genshin fetch in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
     }
   }
@@ -1827,19 +1854,20 @@ export async function fetchGenshinWishStats(bannerId, maxRetries = 3) {
 /**
  * Transforms Paimon.moe data to match HSR format
  */
-function transformGenshinData(data, bannerId) {
+function transformGenshinData(data, bannerId, sourceBannerId = bannerId) {
   // Transform pity array to object format
-  // pityCount.legendary is 0-indexed: index 0 = pity 0 (always 0), index 3 = pity 3.
-  // So roll N maps to index N directly — NOT index + 1.
+  // Character banners have historically matched Paimon with roll=index.
+  // Weapon banners match Paimon's chart labels with roll=index+1.
   const pityArray = data.pityCount?.legendary || [];
   const countEachPity = data.countEachPity || []; // players who pulled at each pity depth
   const by_rollnum_pulls_5 = {};
   const by_rollnum_chance_5 = {};
+  const isWeaponBanner = String(bannerId).startsWith("400");
   
   let totalPulls = 0;
   pityArray.forEach((count, index) => {
-    const roll = index; // pity 3 = index 3
-    if (roll === 0) return; // Skip pity-0 (impossible, always 0)
+    const roll = isWeaponBanner ? index + 1 : index;
+    if (!isWeaponBanner && roll === 0) return; // Skip pity-0 (impossible, always 0)
     by_rollnum_pulls_5[roll] = count;
     totalPulls += count;
   });
@@ -1850,9 +1878,9 @@ function transformGenshinData(data, bannerId) {
   // This matches the Chance% shown on paimon.moe exactly.
   // Fallback: divide by totalPulls if countEachPity is missing.
   pityArray.forEach((count, index) => {
-    const roll = index;
-    if (roll === 0) return;
-    const playersAtThisPity = countEachPity[index - 1]; // index-1 because countEachPity[0] = pity 1
+    const roll = isWeaponBanner ? index + 1 : index;
+    if (!isWeaponBanner && roll === 0) return;
+    const playersAtThisPity = countEachPity[isWeaponBanner ? index : index - 1]; // countEachPity[0] = pity 1
     if (playersAtThisPity && playersAtThisPity > 0) {
       by_rollnum_chance_5[roll] = count / playersAtThisPity;
     } else if (totalPulls > 0) {
@@ -1875,7 +1903,9 @@ function transformGenshinData(data, bannerId) {
       // Store original data for reference
       _genshin_raw: data
     },
-    raw: data
+    raw: data,
+    bannerId,
+    sourceBannerId
   };
 }
 
@@ -1999,12 +2029,14 @@ function calculateGenshinWinLoss(list, bannerId) {
 
 // Genshin Banner Overrides (for specific banner IDs that need manual naming)
 const GENSHIN_BANNER_OVERRIDES = {
-  "300102": { name: "Sandrone / Citlali", type: "character" },
-  "400101": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
-  "300101": { name: "Sandrone / Citlali", type: "character" },
-  "400100": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
-  "300100": { name: "Sandrone / Citlali", type: "character" },
-  "400099": { name: "A Teaspoon of Transcendence / Starcaller's Watch", type: "weapon" },
+  "300104": { name: "Odette / Arlecchino", type: "character" },
+  "400103": { name: "Whitelake Frostfeather / Crimson Moon's Semblance", type: "weapon" },
+  "300102": { name: "Odette / Arlecchino", type: "character" },
+  "400101": { name: "Whitelake Frostfeather / Crimson Moon's Semblance", type: "weapon" },
+  "300101": { name: "Odette / Arlecchino", type: "character" },
+  "400100": { name: "Whitelake Frostfeather / Crimson Moon's Semblance", type: "weapon" },
+  "300100": { name: "Odette / Arlecchino", type: "character" },
+  "400099": { name: "Whitelake Frostfeather / Crimson Moon's Semblance", type: "weapon" },
   "300094": { name: "Columbina", type: "character" },
   "300093": { name: "Ineffa", type: "character" },
   "400093": { name: "Nocturne's Curtain Call / Fractured Halo", type: "weapon" },
@@ -2012,6 +2044,8 @@ const GENSHIN_BANNER_OVERRIDES = {
 };
 
 const GENSHIN_BANNER_IMAGE_OVERRIDES = {
+  "300104": _genshinCharFallback,
+  "400103": _genshinWepFallback,
   "300102": _genshinCharFallback,
   "400101": _genshinWepFallback,
   "300101": _genshinCharFallback,
@@ -2020,8 +2054,8 @@ const GENSHIN_BANNER_IMAGE_OVERRIDES = {
   "400099": _genshinWepFallback,
 };
 
-const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300102';
-const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400101';
+const CURRENT_GENSHIN_CHARACTER_BANNER_ID = '300104';
+const CURRENT_GENSHIN_WEAPON_BANNER_ID = '400103';
 
 /**
  * Fetches live Genshin banners from Paimon.moe
