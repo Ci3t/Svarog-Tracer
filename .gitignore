@@ -1,0 +1,7 @@
+
+# Never deploy bot files
+.discord-bot/
+discord-bot/
+*.zip
+.env
+.env.*
