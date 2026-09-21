@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "modelVersion": "4.2",
+  "datalen": 347372,
+  "source": {
+    "filename": "genmat402.npy",
+    "sha256": "be4f466da736b3f05c03ebcd0c09afec030f15b77ba3503d4bf3962e9435dcdc"
+  },
+  "binary": {
+    "filename": "genmat-safe.bin",
+    "sha256": "3cac7fb2c86470551f00e2d4b43412cdb96a6ffa0820d7b0948e31f6d27e54cb"
+  },
+  "arrays": {
+    "S1": {
+      "shape": [
+        48,
+        10
+      ],
+      "dtype": "int32",
+      "byteLength": 1920,
+      "sha256": "cb15877d626020aa019c3788367ee0249c5bc781e6f468536c8235037911a457"
+    },
+    "S2": {
+      "shape": [
+        48,
+        48,
+        10
+      ],
+      "dtype": "int32",
+      "byteLength": 92160,
+      "sha256": "fa922e501a3b69d5d4c4d360c5d2d47f958051d9cd6f5f80f338ea23a9e47e12"
+    },
+    "S3": {
+      "shape": [
+        48,
+        48,
+        48,
+        10
+      ],
+      "dtype": "int32",
+      "byteLength": 4423680,
+      "sha256": "caae28e5917e19354ce79b30bdb223386eefd1973c3e77f18389388381ff581b"
+    },
+    "W1": {
+      "shape": [
+        48,
+        10
+      ],
+      "dtype": "int32",
+      "byteLength": 1920,
+      "sha256": "9c4a1385e0cf2e7743ba7f54c4452f0c8f4dabceae7e88b7df8b9f2666039205"
+    },
+    "W2": {
+      "shape": [
+        48,
+        48,
+        10
+      ],
+      "dtype": "int32",
+      "byteLength": 92160,
+      "sha256": "c276a2f46a1b755b69b379b182d647a58f18d32187fcbba5ea9cb72ce88cdc53"
+    },
+    "W3": {
+      "shape": [
+        48,
+        48,
+        48,
+        10
+      ],
+      "dtype": "int8",
+      "byteLength": 1105920,
+      "sha256": "c928a97cb9df9386af2ebd8c819cd230121b1238393c2541279e869928555be3"
+    },
+    "Pcount": {
+      "shape": [
+        10000,
+        10
+      ],
+      "dtype": "float64",
+      "byteLength": 800000,
+      "sha256": "344660bb4f5fc186d8b10cf66c2cb1b4986702150f398aa63c82d1abc208fe2c"
+    },
+    "Ppbsort": {
+      "shape": [
+        10000,
+        10
+      ],
+      "dtype": "float64",
+      "byteLength": 800000,
+      "sha256": "a7e78e493f9f5c603c30a12603175f9a942f5e4d33959f934114d98302cb0e50"
+    },
+    "Wpbsort": {
+      "shape": [
+        10000,
+        10
+      ],
+      "dtype": "float64",
+      "byteLength": 800000,
+      "sha256": "614889aa1ee45552ca4776a65b6bc6fa9296605d10460b35804356003cabdb20"
+    },
+    "RbBsort": {
+      "shape": [
+        10000
+      ],
+      "dtype": "float64",
+      "byteLength": 80000,
+      "sha256": "abaf65d6e819e20d7b32bf714212d8602d870fc3374f733efecc6715d6121c1b"
+    },
+    "Rbsort": {
+      "shape": [
+        10000
+      ],
+      "dtype": "float64",
+      "byteLength": 80000,
+      "sha256": "f8bbc11fb1e6c3aabff1eaddad1e42ba641c5ff3e480715e06bc4e7aedfb5f43"
+    },
+    "RBsort": {
+      "shape": [
+        10000
+      ],
+      "dtype": "float64",
+      "byteLength": 80000,
+      "sha256": "76379ee1d08dd70ea9e59b22be570abac81ccb64a4eb485bf91df3bd352f17de"
+    },
+    "ABbsort": {
+      "shape": [
+        10000
+      ],
+      "dtype": "float64",
+      "byteLength": 80000,
+      "sha256": "25c114d9b3e33fb7d746dfd4d8e7095c74adf47e76e588635f1324d7d8d3de2a"
+    },
+    "WBbsort": {
+      "shape": [
+        10000
+      ],
+      "dtype": "float64",
+      "byteLength": 80000,
+      "sha256": "6e498b290b4739ec71dd43a71ffe47df77f85f2f39db8c5f90c9f3f13346ea21"
+    }
+  },
+  "baselines": {
+    "table1CritPercent": 14.430810667410295,
+    "table2CritPercent": 59.39441894760759
+  },
+  "contextCounts": {
+    "S3": {
+      "possibleContextSlots": 110592,
+      "zeroCountSlots": 32939,
+      "oneCountSlots": 23275,
+      "maxCount": 55
+    },
+    "W3": {
+      "possibleContextSlots": 110592,
+      "zeroCountSlots": 93196,
+      "oneCountSlots": 13566,
+      "maxCount": 14
+    }
+  },
+  "convertedAt": "2026-09-11T18:02:48.777520+00:00"
+}
